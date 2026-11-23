@@ -141,7 +141,7 @@ namespace engine::audio
     // A voice the Audio facade started: invalid when nothing played.
     REFLECT_VALUE(VoiceHandle, "rtti::engine::audio")
     {
-        builder.Property<&VoiceHandle::slot>("slot");
+        builder.Property<&VoiceHandle::index>("index");
         builder.Property<&VoiceHandle::generation>("generation");
         builder.Method<&VoiceHandle::IsValid>("isValid");
         // Constructible (an invalid voice), so a script can hold one in a variable or a member

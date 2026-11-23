@@ -35,12 +35,12 @@ export namespace engine::terrain
 
     /// The index buffers of one holed chunk, per LOD: built on the CPU by BuildHoledChunkIndices
     /// when the heightfield's version changes, owned by the manager's TerrainHoledMeshCache, copied
-    /// into the frame arena by value (the buffers outlive the frame through the retire queue). A
+    /// into the frame arena by value (the device keeps the buffers for the frames using them). A
     /// chunk without holes draws the renderer's shared grid.
     struct HoledChunkMesh
     {
         u32 chunkIndex = 0;
-        rhi::Buffer* indexBuffers[foundation::terrain::kMaxChunkLod + 1] = {};
+        rhi::BufferHandle indexBuffers[foundation::terrain::kMaxChunkLod + 1] = {};
         u32 indexCounts[foundation::terrain::kMaxChunkLod + 1] = {};
         u32 surfaceIndexCounts[foundation::terrain::kMaxChunkLod + 1] = {};
     };
@@ -57,7 +57,7 @@ export namespace engine::terrain
         u32 nodeCount = 0;
 
         // The R16Uint height texture (from TerrainHeightTextureCache); the VS/PS fetch it via Load.
-        rhi::TextureView* heightView = nullptr;
+        rhi::TextureViewHandle heightView{};
 
         // Holed chunks' own index buffers (arena copy; one record per chunk with holes, in chunk
         // order). The renderer draws these for a chunk whose `hasHoles` is set and skips an
@@ -66,7 +66,7 @@ export namespace engine::terrain
         u32 holedMeshCount = 0;
         // The R8 hole mask (null = no holes): the HOLES pixel shaders sample it bilinearly to
         // shape a holed chunk's rim (TerrainHoleTextureCache).
-        rhi::TextureView* holeView = nullptr;
+        rhi::TextureViewHandle holeView{};
 
         // Terrain placement and height mapping (local heightfield space -> world).
         Float4x4 chunkToWorld = Float4x4::Identity();
@@ -83,24 +83,24 @@ export namespace engine::terrain
         // --- Top-K splat material (set 3) ------------------------------------------------------
         // The SplatWeights texture pair (weights RGBA8Unorm, indices RGBA8Uint, load-only: a
         // filtered index sample interpolates layer ids into garbage).
-        rhi::TextureView* weightView = nullptr;
-        rhi::TextureView* indexView = nullptr;
+        rhi::TextureViewHandle weightView{};
+        rhi::TextureViewHandle indexView{};
         // The base layer: shows wherever painted weights don't sum to 1. Null = dummy (white albedo /
         // flat normal / default ORM).
-        rhi::TextureView* baseAlbedoView = nullptr;
-        rhi::TextureView* baseNormalView = nullptr; // null = flat-normal dummy
-        rhi::TextureView* baseOrmView = nullptr;    // null = default-ORM dummy
-        rhi::TextureView* baseHeightView = nullptr; // null = mid-height dummy (height-blend)
+        rhi::TextureViewHandle baseAlbedoView{};
+        rhi::TextureViewHandle baseNormalView{}; // null = flat-normal dummy
+        rhi::TextureViewHandle baseOrmView{};    // null = default-ORM dummy
+        rhi::TextureViewHandle baseHeightView{}; // null = mid-height dummy (height-blend)
         f32 baseTileScale = 1.0f;
         // The paint palette: a Texture2DArray (one slice per palette layer, cook-resized to a
         // common size) and the per-layer tileScale buffer (slot 0 = base, slot 1+i = palette i).
         // The normal and ORM arrays are null when no palette layer used that map (a 1x1 dummy binds).
-        rhi::TextureView* paletteArrayView = nullptr;
-        rhi::TextureView* normalArrayView = nullptr;
-        rhi::TextureView* ormArrayView = nullptr;
-        rhi::TextureView* heightArrayView = nullptr; // null = no palette layer used a height map
-        rhi::TextureView* maskArrayView = nullptr;   // null = no palette layer used a coverage mask
-        rhi::Buffer* tileScaleBuffer = nullptr;
+        rhi::TextureViewHandle paletteArrayView{};
+        rhi::TextureViewHandle normalArrayView{};
+        rhi::TextureViewHandle ormArrayView{};
+        rhi::TextureViewHandle heightArrayView{}; // null = no palette layer used a height map
+        rhi::TextureViewHandle maskArrayView{};   // null = no palette layer used a coverage mask
+        rhi::BufferHandle tileScaleBuffer{};
         u64 tileScaleGeneration = 0; // part of the set-3 cache key (never raw pointers)
         u32 paletteCount = 0;
         // Height-blend soft-skirt width; the renderer packs it into the view UBO only when a base

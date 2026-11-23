@@ -8,7 +8,6 @@ target_link_libraries(RHI PUBLIC Foundation::Core Foundation::Policy)
 # Implementation units, so the headers they need stay out of the interface gcm (for GCC).
 # Listed as regular sources, not in the CXX_MODULES file set.
 target_sources(RHI PRIVATE
-    ResourcesImpl.cpp
     LogImpl.cpp)                   # the process-wide log-sink slot (one per process)
 
 target_sources(RHI
@@ -28,5 +27,6 @@ target_sources(RHI
             Queue.cppm
             SwapChain.cppm
             Device.cppm
+            Lifetime.cppm
             Counters.cppm
             RhiModule.cppm)

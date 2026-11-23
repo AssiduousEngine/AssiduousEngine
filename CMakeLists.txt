@@ -998,6 +998,7 @@ endif()
 if(EMSCRIPTEN)
     if(OPTION_BUILD_SAMPLES)
         add_subdirectory(Code/Samples/WebTriangle)  # WebShell, the web runner and the WebGPU factory; builds WebTriangle.html
+        add_subdirectory(Code/Samples/WebLifetimeCheck) # destroys what each frame's commands use before they run; builds WebLifetimeCheck.html
         add_subdirectory(Code/Samples/WebScene)     # DefaultApplication and a lit PBR scene; builds WebScene.html
         if(OPTION_PLUGIN_IMGUI)
             add_subdirectory(Code/Samples/TerrainPlayground) # a heightfield built in code, drawn by engine.terrain; builds TerrainPlayground.html

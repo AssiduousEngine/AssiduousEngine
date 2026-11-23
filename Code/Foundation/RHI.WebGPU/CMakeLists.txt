@@ -25,6 +25,7 @@ target_sources(RHI.WebGPU PUBLIC FILE_SET rhi_webgpu_modules TYPE CXX_MODULES FI
     WebGpuTexture.cppm
     WebGpuTextureView.cppm
     WebGpuSampler.cppm
+    WebGpuTables.cppm
     WebGpuShaderModule.cppm
     WebGpuBindGroupLayout.cppm
     WebGpuBindGroup.cppm

@@ -100,9 +100,9 @@ namespace editor
 
         // GPU objects (created lazily on the first Render with a live device).
         rhi::Device* device = nullptr;
-        rhi::Texture* target = nullptr;
-        rhi::TextureView* targetView = nullptr;
-        rhi::Buffer* readback = nullptr;
+        rhi::TextureHandle target{};
+        rhi::TextureViewHandle targetView{};
+        rhi::BufferHandle readback{};
         rhi::ResourceState targetState = rhi::ResourceState::Undefined;
 
         State state = State::Idle;
@@ -117,7 +117,7 @@ namespace editor
 
         [[nodiscard]] bool EnsureGpuObjects()
         {
-            if (target != nullptr)
+            if (target.IsValid())
             {
                 return true;
             }
@@ -135,29 +135,29 @@ namespace editor
             desc.height = kRenderSize;
             desc.format = rhi::TextureFormat::RGBA16Float;
             desc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
-            if (!device->CreateTexture(desc, target).IsOk() || target == nullptr)
+            if (!device->CreateTexture(desc, target).IsOk() || !target.IsValid())
             {
-                target = nullptr;
+                target = {};
                 return false;
             }
             if (!device->CreateTextureView(target, rhi::TextureViewDesc{}, targetView).IsOk() ||
-                targetView == nullptr)
+                !targetView.IsValid())
             {
                 device->DestroyTexture(target);
-                target = nullptr;
+                target = {};
                 return false;
             }
             rhi::BufferDesc bufferDesc;
             bufferDesc.size = static_cast<u64>(kRenderSize) * kRenderSize * 8u;
             bufferDesc.usage = rhi::BufferUsage::CopyDst;
             bufferDesc.memory = rhi::MemoryLocation::GpuToCpu;
-            if (!device->CreateBuffer(bufferDesc, readback).IsOk() || readback == nullptr)
+            if (!device->CreateBuffer(bufferDesc, readback).IsOk() || !readback.IsValid())
             {
                 device->DestroyTextureView(targetView);
                 device->DestroyTexture(target);
-                targetView = nullptr;
-                target = nullptr;
-                readback = nullptr;
+                targetView = {};
+                target = {};
+                readback = {};
                 return false;
             }
             targetState = rhi::ResourceState::Undefined;
@@ -329,10 +329,10 @@ namespace editor
                 return;
             }
             image::Image pixels;
-            if (const u8* mapped = static_cast<const u8*>(impl.readback->Map()))
+            if (const u8* mapped = static_cast<const u8*>(impl.device->Map(impl.readback)))
             {
                 Downscale(mapped, kRenderSize * 8u, pixels);
-                impl.readback->Unmap();
+                impl.device->Unmap(impl.readback);
                 impl.ReleaseJobScene();
                 impl.service->AcceptSceneResult(impl.job.id, Move(pixels), true);
                 impl.job = {};
@@ -440,20 +440,20 @@ namespace editor
         if (impl.device != nullptr)
         {
             impl.device->WaitIdle(); // an in-flight readback copy may still reference these
-            if (impl.readback != nullptr)
+            if (impl.readback.IsValid())
             {
                 impl.device->DestroyBuffer(impl.readback);
-                impl.readback = nullptr;
+                impl.readback = {};
             }
-            if (impl.targetView != nullptr)
+            if (impl.targetView.IsValid())
             {
                 impl.device->DestroyTextureView(impl.targetView);
-                impl.targetView = nullptr;
+                impl.targetView = {};
             }
-            if (impl.target != nullptr)
+            if (impl.target.IsValid())
             {
                 impl.device->DestroyTexture(impl.target);
-                impl.target = nullptr;
+                impl.target = {};
             }
             impl.device = nullptr;
         }

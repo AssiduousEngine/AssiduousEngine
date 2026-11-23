@@ -83,9 +83,9 @@ TEST_CASE("shader resource: built via the resource manager; reload bumps version
     Proxy<ShaderResource> shader = manager.Bind<ShaderResource>(id);
     REQUIRE(shader);
     CHECK(shader->Name() == u8"lit");
-    CHECK(shader->GetVariant(ShaderStage::Vertex, ShaderFlags::None) != nullptr);
-    CHECK(shader->GetVariant(ShaderStage::Fragment, ShaderFlags::NormalMap) != nullptr);
-    CHECK(shader->GetVariant(ShaderStage::Fragment, ShaderFlags::None) == nullptr); // #error guard
+    CHECK(shader->GetVariant(ShaderStage::Vertex, ShaderFlags::None).IsValid());
+    CHECK(shader->GetVariant(ShaderStage::Fragment, ShaderFlags::NormalMap).IsValid());
+    CHECK(!shader->GetVariant(ShaderStage::Fragment, ShaderFlags::None).IsValid()); // #error guard
 
     const u64 v0 = shader->Version();
     CHECK(v0 >= 1u); // creation registered and invalidated, so the version was bumped
@@ -154,8 +154,8 @@ TEST_CASE("shader resource: a shader's depth and pick programs register beside i
     manager.AddFactory(&factory);
     Proxy<ShaderResource> shader = manager.Bind<ShaderResource>(id);
     REQUIRE(shader);
-    CHECK(system.GetVariant(u8"waves.depth", ShaderStage::Vertex, ShaderFlags::None) != nullptr);
-    CHECK(system.GetVariant(u8"waves.pick", ShaderStage::Vertex, ShaderFlags::None) != nullptr);
+    CHECK(system.GetVariant(u8"waves.depth", ShaderStage::Vertex, ShaderFlags::None).IsValid());
+    CHECK(system.GetVariant(u8"waves.pick", ShaderStage::Vertex, ShaderFlags::None).IsValid());
     // Not always: only a masked material uses them.
     CHECK(shader->DepthProgram(false).IsEmpty());
     CHECK(shader->DepthProgram(true) == u8"waves.depth");

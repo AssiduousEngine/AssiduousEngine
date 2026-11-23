@@ -36,7 +36,6 @@ namespace foundation::render
 {
     Status TaaPass::Initialize()
     {
-
         // set 0: current (t0), history (t1), motion (t2), depth (t3), point (s0), linear (s1).
         rhi::BindGroupLayoutEntry e[] = {
             rhi::BindGroupLayoutEntry::SampledTexture(0, rhi::ShaderStage::Fragment),
@@ -57,20 +56,20 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        rhi::BindGroupLayout* layouts[] = {m_layout};
+        rhi::BindGroupLayoutHandle layouts[] = {m_layout};
         rhi::PushConstantRange pc{};
         pc.stages = rhi::ShaderStage::Fragment;
         pc.offset = 0;
         pc.size = sizeof(GpuTaaPush);
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pc, 1};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
             return Status{ErrorCode::Unknown};
         }
 
-        auto sampler = [this](rhi::FilterMode f, rhi::Sampler*& out)
+        auto sampler = [this](rhi::FilterMode f, rhi::SamplerHandle& out)
         {
             rhi::SamplerDesc s{};
             s.minFilter = f;
@@ -90,7 +89,7 @@ namespace foundation::render
         }
 
         m_pipeline = MakePipeline();
-        if (m_pipeline == nullptr)
+        if (!m_pipeline.IsValid())
         {
             return Status{ErrorCode::Unknown};
         }
@@ -114,14 +113,14 @@ namespace foundation::render
         const u64 shaderVersion = m_shaders->Version(u8"taa");
         if (shaderVersion != m_pipelineShaderVersion)
         {
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
             }
             m_pipeline = MakePipeline();
             m_pipelineShaderVersion = shaderVersion;
         }
-        if (m_pipeline == nullptr)
+        if (!m_pipeline.IsValid())
         {
             return current;
         }
@@ -160,7 +159,7 @@ namespace foundation::render
         push.vpMin = Float2{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
         push.vpSize = Float2{static_cast<f32>(vw == 0 ? w : vw) / fw, static_cast<f32>(vh == 0 ? h : vh) / fh};
 
-        rhi::TextureView* histPrevView = hist.view[prev];
+        rhi::TextureViewHandle histPrevView = hist.view[prev];
         graph.AddRenderPass(
             u8"taa",
             [this, &graph, current, motion, depth, histPrev, resolved, histCur, histPrevView,
@@ -184,8 +183,8 @@ namespace foundation::render
                         inputs.Set(0, graph.GetTextureView(current), graph.GetTextureGeneration(current));
                         inputs.Set(1, graph.GetTextureView(motion), graph.GetTextureGeneration(motion));
                         inputs.Set(2, graph.GetTextureView(depth), graph.GetTextureGeneration(depth));
-                        rhi::BindGroup* bg = EnsureBindGroup(histPrevView, inputs);
-                        if (bg == nullptr)
+                        rhi::BindGroupHandle bg = EnsureBindGroup(histPrevView, inputs);
+                        if (!bg.IsValid())
                         {
                             return;
                         }
@@ -203,7 +202,7 @@ namespace foundation::render
 
     bool TaaPass::EnsureHistory(ViewHistory& hist, u32 w, u32 h)
     {
-        if (hist.tex[0] != nullptr && hist.w == w && hist.h == h)
+        if (hist.tex[0].IsValid() && hist.w == w && hist.h == h)
         {
             return true;
         }
@@ -221,7 +220,7 @@ namespace foundation::render
             td.label = u8"taa.history";
             if (!m_device->CreateTexture(td, hist.tex[i]).IsOk())
             {
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -230,7 +229,7 @@ namespace foundation::render
             vd.dimension = rhi::TextureViewDimension::Texture2D;
             if (!m_device->CreateTextureView(hist.tex[i], vd, hist.view[i]).IsOk())
             {
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -250,27 +249,27 @@ namespace foundation::render
             if (hist.view[i])
             {
                 m_device->DestroyTextureView(hist.view[i]);
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
             }
             if (hist.tex[i])
             {
                 m_device->DestroyTexture(hist.tex[i]);
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
             }
         }
         hist.w = hist.h = 0;
         hist.valid = false;
     }
 
-    rhi::RenderPipeline* TaaPass::MakePipeline()
+    rhi::RenderPipelineHandle TaaPass::MakePipeline()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"taa", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"taa", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"taa", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"taa", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::ColorTargetState targets[2] = {};
         targets[0].format = kHistoryFormat; // resolved
@@ -285,26 +284,26 @@ namespace foundation::render
         pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.label = u8"taa";
-        rhi::RenderPipeline* p = nullptr;
+        rhi::RenderPipelineHandle p{};
         if (!m_device->CreateRenderPipeline(pd, p).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return p;
     }
 
-    rhi::BindGroup* TaaPass::EnsureBindGroup(rhi::TextureView* histPrev, const BindInputs& inputs)
+    rhi::BindGroupHandle TaaPass::EnsureBindGroup(rhi::TextureViewHandle histPrev, const BindInputs& inputs)
     {
-        if (histPrev == nullptr || !inputs.Complete())
+        if (!histPrev.IsValid() || !inputs.Complete())
         {
-            return nullptr;
+            return {};
         }
-        rhi::BindGroup* stale = nullptr;
-        if (rhi::BindGroup* cached = m_bindGroups.Find(histPrev, inputs, stale))
+        rhi::BindGroupHandle stale{};
+        if (rhi::BindGroupHandle cached = m_bindGroups.Find(histPrev, inputs, stale))
         {
             return cached;
         }
-        RetireBindGroup(*m_device, m_retire, stale); // a frame in flight may still use it
+        m_device->DestroyBindGroup(stale); // kept by the device while a frame in flight uses it
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
             rhi::BindGroupEntry::TextureEntry(histPrev),
@@ -316,10 +315,10 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_layout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 6};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         m_bindGroups.Store(histPrev, inputs, bg);
         return bg;
@@ -327,36 +326,36 @@ namespace foundation::render
 
     void TaaPass::Shutdown()
     {
-        m_bindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
+        m_bindGroups.Release([this](rhi::BindGroupHandle bg) { m_device->DestroyBindGroup(bg); });
         for (ViewHistory& hist : m_views)
         {
             DestroyHistory(hist);
         }
         m_views.Clear();
-        if (m_pipeline != nullptr)
+        if (m_pipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = nullptr;
+            m_pipeline = {};
         }
-        if (m_pointSampler != nullptr)
+        if (m_pointSampler.IsValid())
         {
             m_device->DestroySampler(m_pointSampler);
-            m_pointSampler = nullptr;
+            m_pointSampler = {};
         }
-        if (m_linearSampler != nullptr)
+        if (m_linearSampler.IsValid())
         {
             m_device->DestroySampler(m_linearSampler);
-            m_linearSampler = nullptr;
+            m_linearSampler = {};
         }
-        if (m_pipelineLayout != nullptr)
+        if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
-        if (m_layout != nullptr)
+        if (m_layout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_layout);
-            m_layout = nullptr;
+            m_layout = {};
         }
     }
 }

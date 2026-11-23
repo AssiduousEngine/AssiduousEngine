@@ -247,7 +247,7 @@ TEST_CASE("rg.dep: a later overwrite waits for an earlier reader (write after re
     graph.BeginFrame(0);
     const RGHandle lit =
         graph.CreateTransient(u8"Lit", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
-    const RGHandle history = graph.ImportTarget(u8"History", nullptr, nullptr);
+    const RGHandle history = graph.ImportTarget(u8"History", rhi::TextureHandle{}, rhi::TextureViewHandle{});
     const RGHandle out =
         graph.CreateTransient(u8"Out", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
 
@@ -288,7 +288,7 @@ TEST_CASE("rg.dep: two overwrites of one resource keep their declared order (wri
     graph.BeginFrame(0);
     const RGHandle input =
         graph.CreateTransient(u8"Input", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
-    const RGHandle target = graph.ImportTarget(u8"Target", nullptr, nullptr);
+    const RGHandle target = graph.ImportTarget(u8"Target", rhi::TextureHandle{}, rhi::TextureViewHandle{});
 
     graph.AddRenderPass(u8"MakeInput",
                         [&](PassBuilder& b)

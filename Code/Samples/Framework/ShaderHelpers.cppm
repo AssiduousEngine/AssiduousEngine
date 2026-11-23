@@ -31,9 +31,9 @@ export namespace samples::framework
     inline Status CompileToModule(shaders::Compiler* compiler, rhi::Device* device,
                                   StringView hlslSource, shaders::ShaderStage stage,
                                   StringView entryPoint, StringView label, StringView shaderModel,
-                                  rhi::ShaderModule*& out)
+                                  rhi::ShaderModuleHandle& out)
     {
-        out = nullptr;
+        out = {};
 
         bool isDX12 = (device->type == rhi::DeviceType::DX12);
         auto target = isDX12 ? shaders::ShaderTarget::DXIL : shaders::ShaderTarget::SPIRV;
@@ -72,7 +72,7 @@ export namespace samples::framework
     /// Compile HLSL source to a ShaderModule. Default shader model 6.0.
     inline Status CompileToModule(shaders::Compiler* compiler, rhi::Device* device,
                                   StringView hlslSource, shaders::ShaderStage stage,
-                                  StringView entryPoint, StringView label, rhi::ShaderModule*& out)
+                                  StringView entryPoint, StringView label, rhi::ShaderModuleHandle& out)
     {
         return CompileToModule(compiler, device, hlslSource, stage, entryPoint, label, u8"6_0",
                                out);
@@ -127,9 +127,9 @@ export namespace samples::framework
 
         /// The module for one entry of `file` (relative to the folder, "Sample001_Triangle/Triangle.hlsl").
         Status Load(rhi::Device* device, StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
-                    StringView shaderModel, rhi::ShaderModule*& out)
+                    StringView shaderModel, rhi::ShaderModuleHandle& out)
         {
-            out = nullptr;
+            out = {};
             if (m_compiler != nullptr)
             {
                 const String path = Format(u8"{}/{}", m_folder, file);

@@ -44,7 +44,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // ---- Pure LOD selection math (unit-testable, no GPU) ----
     // Coverage: the fraction of the viewport half-height the item's bounding-sphere radius
     // spans in this camera. Perspective divides by view depth; ortho is depth-free (both read
@@ -245,11 +244,11 @@ export namespace foundation::render
 
         // The directional shadow map sampled in the forward shader this frame (the ShadowSystem's
         // texture when a caster exists, else null for the 1x1 dummy). Set by RenderFrame before PrepareFrame.
-        void SetShadowMap(rhi::TextureView* view, u64 generation) override;
+        void SetShadowMap(rhi::TextureViewHandle view, u64 generation) override;
 
         // The local-light (spot and point) shadow atlas sampled this frame (the ShadowSystem's atlas when
         // any local caster exists, else null for the 1x1 dummy). Set by RenderFrame before PrepareFrame.
-        void SetShadowAtlas(rhi::TextureView* view, u64 generation, u32 passCount) override;
+        void SetShadowAtlas(rhi::TextureViewHandle view, u64 generation, u32 passCount) override;
 
         // Reflection-probe capture faces re-emit the draws (one forward pass each); count them into the ring.
         void SetCaptureFacePasses(u32 passes) override { m_captureFacePasses = passes; }
@@ -272,7 +271,7 @@ export namespace foundation::render
         // This frame's reflection probes: the captured cube-array view (set-0 t8) and the probe buffer
         // (each probe's box, slice and intensity) for the forward's local-reflection path. A null view
         // binds the dummy cube array with count 0, and the forward keeps the global IBL reflection.
-        void SetProbes(rhi::TextureView* cubeArray, rhi::Buffer* probeBuffer, u32 count) override;
+        void SetProbes(rhi::TextureViewHandle cubeArray, rhi::BufferHandle probeBuffer, u32 count) override;
 
         // Upload this frame's local-shadow entries into the local-shadow ring (bound whole at set 0;
         // the shader reads LocalShadows[LocalShadowBase + shadowIndex]). Called once per frame (after
@@ -306,9 +305,9 @@ export namespace foundation::render
         void UploadMultiMeshes(Span<const ExtractedScene* const> scenes);
 
         // A MultiMesh set not extracted for this many upload frames releases its GPU buffers and
-        // bind groups (through the retire queue when wired) and leaves the pool: per-chunk
-        // vegetation sets come and go with the camera, and a set seen once must not pin its
-        // buffer for the rest of the run.
+        // bind groups (destroyed through the device, which keeps them for frames in flight) and leaves
+        // the pool: per-chunk vegetation sets come and go with the camera, and a set seen once must
+        // not pin its buffer for the rest of the run.
         static constexpr u32 kMultiMeshEvictFrames = kMeshRendererMultiMeshEvictFrames;
 
         // The variant flags a material's active effects turn on: an effect group is active while
@@ -448,30 +447,13 @@ export namespace foundation::render
 
         void FinishFrame() override;
 
-        /// Wire the frames-in-flight retire queue (web-safe grows for the device buffers
-        /// and the staging rings). Null means drain on grow.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept
-        {
-            m_retire = retire;
-            m_viewRing.SetRetireQueue(retire);
-            m_shadowViewRing.SetRetireQueue(retire);
-            m_objectRing.SetRetireQueue(retire);
-            m_instanceRing.SetRetireQueue(retire);
-            m_offsetsRing.SetRetireQueue(retire);
-            m_lightRing.SetRetireQueue(retire);
-            m_localShadowRing.SetRetireQueue(retire);
-            m_boneRing.SetRetireQueue(retire);
-        }
-
     private:
-        void RetireOrDrainBuffer(rhi::Buffer*& buffer);
         struct MultiMeshSet; // defined with the pool below
         // Release one set's GPU objects: retired when the queue is wired, destroyed in place
         // otherwise (Null-device tests, shutdown after the device idled).
         void ReleaseMultiMeshSet(MultiMeshSet& set);
         // Sweep sets whose lastFrame is older than kMultiMeshEvictFrames.
         void EvictStaleMultiMeshSets();
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         static constexpr u64 kViewSlot = 256; // dynamic UBO offset alignment (object, shadow view)
         static constexpr u64 kViewDataSlot =
             1024;                              // view UBO slot (GpuView is 656 bytes)
@@ -516,11 +498,11 @@ export namespace foundation::render
     private:
 
         void ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
-                           rhi::BindGroup* clusterBG, const MeshRenderData& md, const GpuMesh& mesh,
+                           rhi::BindGroupHandle clusterBG, const MeshRenderData& md, const GpuMesh& mesh,
                            Array<ResolvedDraw>& out);
 
         void ResolveInstanced(const RenderRecordContext& ctx, u32 viewOffset,
-                              rhi::BindGroup* clusterBG, Span<const DrawItem> items, usize first,
+                              rhi::BindGroupHandle clusterBG, Span<const DrawItem> items, usize first,
                               u32 count, const MeshRenderData& head, const GpuMesh& mesh,
                               Array<ResolvedDraw>& out);
 
@@ -555,7 +537,7 @@ export namespace foundation::render
         // ramp, one instanced draw per submesh material. There is no fill loop: the buffer already holds the
         // instances (uploaded in UploadMultiMeshes). The shader is the same instanced path (Instances[drawOffsets.x]).
         void ResolveMultiMesh(const RenderRecordContext& ctx, u32 viewOffset,
-                              rhi::BindGroup* clusterBG, const MultiMeshRenderData& mm,
+                              rhi::BindGroupHandle clusterBG, const MultiMeshRenderData& mm,
                               const GpuMesh& mesh, Array<ResolvedDraw>& out);
 
         // Depth-only draw for a MultiMesh caster (camera prepass and every shadow cascade): the same persistent
@@ -580,24 +562,24 @@ export namespace foundation::render
         [[nodiscard]] static materials::PipelineConfig
         ConfigFor(const MeshRenderData& md, const RenderRecordContext& ctx, bool instanced);
 
-        bool MakeLayout(const rhi::BindGroupLayoutEntry& entry, rhi::BindGroupLayout*& out);
+        bool MakeLayout(const rhi::BindGroupLayoutEntry& entry, rhi::BindGroupLayoutHandle& out);
 
-        bool MakePipelineLayout(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                rhi::BindGroupLayout* set2, rhi::BindGroupLayout* set3,
-                                rhi::PipelineLayout*& out);
+        bool MakePipelineLayout(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                rhi::BindGroupLayoutHandle set2, rhi::BindGroupLayoutHandle set3,
+                                rhi::PipelineLayoutHandle& out);
 
         // Two-set pipeline layout (the depth-only shadow pipelines: light view, then object or instance).
-        bool MakePipelineLayout(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                rhi::PipelineLayout*& out);
+        bool MakePipelineLayout(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                rhi::PipelineLayoutHandle& out);
 
         // Three-set pipeline layout (masked shadow: light view, object or instance, material); the material
         // set feeds the alpha-test fragment's albedo sample.
-        bool MakePipelineLayout3(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                 rhi::BindGroupLayout* set2, rhi::PipelineLayout*& out);
+        bool MakePipelineLayout3(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                 rhi::BindGroupLayoutHandle set2, rhi::PipelineLayoutHandle& out);
 
         // Masked-shadow pipeline layout for a material set-2 layout, cached by (set2, instanced): light view
         // (0), object or instance (1), material (2). Retired with the renderer.
-        [[nodiscard]] rhi::PipelineLayout* GetOrCreateShadowMaskedLayout(rhi::BindGroupLayout* set2,
+        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2,
                                                                          bool instanced);
 
         // The default material: a standard PBR material (materials::CreatePBR) used whenever a draw
@@ -615,44 +597,42 @@ export namespace foundation::render
         // shared instance when none of its overrides is for `slot`.
         [[nodiscard]] materials::MaterialInstance* InstanceFor(const MeshRenderData& md, u32 slot,
                                                                materials::Material* material);
-        // Retire an instance's bind group and uniform buffers (in-flight frames may still bind them).
+        // Release an instance's bind group and uniform buffers (the device keeps them while in-flight frames bind them).
         void ReleaseInstance(materials::MaterialInstance& instance);
-        // Retire an instance's effect group buffers (materials::MaterialSystem::DetachEffectBuffers).
-        void RetireEffectBuffers(materials::MaterialInstance& instance);
+        // Release an instance's effect group buffers (materials::MaterialSystem::DetachEffectBuffers).
+        void ReleaseEffectBuffers(materials::MaterialInstance& instance);
         // Drop the override instances no draw has used for a while (overrides cleared, entity gone).
         void PruneOverrideInstances();
 
         // The set-2 (material) bind group for `material`, built data-driven from its property list by the
         // material system (UBO, then textures and samplers in declared order, with white, flat-normal and
         // default-sampler fallbacks for unset slots). `material` is non-null (callers substitute the default).
-        [[nodiscard]] rhi::BindGroup* MaterialBindGroup(materials::Material* material);
+        [[nodiscard]] rhi::BindGroupHandle MaterialBindGroup(materials::Material* material);
 
         // The forward pipeline layout for a given material set-2 layout, cached by (set2 layout, instanced).
         // set0: view; set1: object (single) or instances (instanced); set2: material; set3: clusters.
-        [[nodiscard]] rhi::PipelineLayout* GetOrCreatePipelineLayout(rhi::BindGroupLayout* set2,
+        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2,
                                                                      bool instanced);
 
         // Per-frame bind groups (view, shadow view, object, instance) are rebuilt when their inputs change;
         // the directional shadow view, for example, alternates per in-flight slot, so the view BG rebuilds every
-        // frame. The old bind group may still be referenced by an in-flight command buffer, so it can't be
-        // freed immediately (vkFreeDescriptorSets-00309): retire it and free after the frame ring cycles.
-        void RetireBindGroup(rhi::BindGroup* bg);
+        // frame. The old one may still be referenced by an in-flight command buffer: the device keeps it
+        // until that buffer has run.
+        void ReleaseBindGroup(rhi::BindGroupHandle bg);
         // Drop material instances whose material nobody else references (the resource layer
-        // hot-reloaded it away): retire their bind group (it may still be bound by in-flight
-        // frames) and destroy the instance. Without this, stale descriptor sets keep destroyed
+        // hot-reloaded it away): release their bind group (the device keeps it while in-flight
+        // frames bind it) and destroy the instance. Without this, stale descriptor sets keep destroyed
         // texture views referenced forever.
         void PruneStaleMaterialInstances();
 
-        void TickRetiredBindGroups();
-
-        void RetireBuffer(rhi::Buffer* buffer);
+        void ReleaseBuffer(rhi::BufferHandle buffer);
 
         // (Re)create a bind group over a ring's buffer when the ring (re)allocated. `whole` binds
         // the entire buffer (storage, indexed); otherwise a `bindSize` window (dynamic-offset UBO).
         // `secondUniform`, when given, is bound whole as binding 1 (the instanced set's InstanceSet).
-        bool EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayout* layout, u64 bindSize,
-                             rhi::BindGroup*& bg, u32& bgGen, bool whole,
-                             rhi::Buffer* secondUniform = nullptr);
+        bool EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayoutHandle layout, u64 bindSize,
+                             rhi::BindGroupHandle& bg, u32& bgGen, bool whole,
+                             rhi::BufferHandle secondUniform = {});
 
         // The set-0 bind group spans two rings: the per-view UBO (dynamic-offset window of one
         // GpuView) and the light list (the whole light buffer, read as Lights[lightOffset + i]). Slots
@@ -677,10 +657,10 @@ export namespace foundation::render
         // The set-3 bind group for a (view, frame in flight) slot, over the ClusterSystem's cluster
         // buffers for it. One per slot (the buffers alternate per frame) so a slot's group is stable.
         // Rebuild when the cluster buffers' version changes (the ClusterSystem bumps it on realloc).
-        // Pointer identity is not a safe "unchanged" test: a freed rhi::Buffer* address can be reused by
+        // Pointer identity is not a safe "unchanged" test: a freed rhi::BufferHandle address can be reused by
         // the new allocation, and a stale bind group would point at a destroyed VkBuffer.
-        rhi::BindGroup* EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::Buffer* offsets,
-                                               rhi::Buffer* indices, u32 version);
+        rhi::BindGroupHandle EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::BufferHandle offsets,
+                                               rhi::BufferHandle indices, u32 version);
 
         void Shutdown();
 
@@ -693,18 +673,17 @@ export namespace foundation::render
         u32 m_framesInFlight = 2;
         u32 m_frameIndex = 0; // this frame's index (selects the offsets buffer's frame-in-flight slot)
 
-        rhi::BindGroupLayout* m_viewLayout = nullptr;
-        rhi::BindGroupLayout* m_objectLayout = nullptr;
-        rhi::BindGroupLayout* m_instanceLayout = nullptr;
-        rhi::BindGroupLayout* m_clusterLayout = nullptr;
-        rhi::BindGroupLayout* m_shadowViewLayout =
-            nullptr; // set 0 for the depth-only shadow pipeline
-        rhi::PipelineLayout* m_shadowPipelineLayoutSingle = nullptr;
-        rhi::PipelineLayout* m_shadowPipelineLayoutInstanced = nullptr;
+        rhi::BindGroupLayoutHandle m_viewLayout{};
+        rhi::BindGroupLayoutHandle m_objectLayout{};
+        rhi::BindGroupLayoutHandle m_instanceLayout{};
+        rhi::BindGroupLayoutHandle m_clusterLayout{};
+        rhi::BindGroupLayoutHandle m_shadowViewLayout{}; // set 0 for the depth-only shadow pipeline
+        rhi::PipelineLayoutHandle m_shadowPipelineLayoutSingle{};
+        rhi::PipelineLayoutHandle m_shadowPipelineLayoutInstanced{};
         // Forward pipeline layouts, keyed by (material set-2 layout, instanced); built on demand so each
         // material's own set-2 layout drives the PSO (which supports custom shaders).
-        HashMap<u64, rhi::PipelineLayout*> m_pipelineLayouts{*m_allocator};
-        HashMap<u64, rhi::PipelineLayout*>
+        HashMap<u64, rhi::PipelineLayoutHandle> m_pipelineLayouts{*m_allocator};
+        HashMap<u64, rhi::PipelineLayoutHandle>
             m_shadowMaskedLayouts{*m_allocator}; // masked-shadow 3-set layouts (by set-2, instanced)
 
         // Material set-2 resources. The default material (standard PBR) backs draws with no material;
@@ -736,7 +715,7 @@ export namespace foundation::render
         DynamicUniformRing m_localShadowRing; // per-frame GpuLocalShadow entries (spot and point atlas)
         DynamicUniformRing m_boneRing; // bone-matrix staging ring (CpuToGpu; written once per frame)
         u32 m_boneSlotsWanted = kInitialBoneMatrices; // per-frame slots the pool is sized for
-        rhi::Buffer* m_boneDevice = nullptr; // GpuOnly device mirror the VS reads (set-0 t4 SRV)
+        rhi::BufferHandle m_boneDevice{}; // GpuOnly device mirror the VS reads (set-0 t4 SRV)
         u64 m_boneDeviceBytes = 0;
         u32 m_boneDeviceGen = 0; // bumps on (re)create, invalidating set-0 bind groups
         // Per-frame map: a skinned instance's boneMatrices pointer -> its bases (matrix units) in the pool.
@@ -815,57 +794,41 @@ export namespace foundation::render
         // (at worst, one frame of selection without hysteresis).
         HashMap<u64, u32> m_lodLast{*m_allocator};
 
-        // Bind groups retired this frame or earlier but possibly still referenced by in-flight command
-        // buffers; freed by TickRetiredBindGroups once the frame ring has cycled (framesLeft hits 0).
-        struct RetiredBG
-        {
-            rhi::BindGroup* bg;
-            u32 framesLeft;
-        };
-        Array<RetiredBG> m_retiredBGs{*m_allocator};
-        struct RetiredBuffer
-        {
-            rhi::Buffer* buffer;
-            u32 framesLeft;
-        };
-        Array<RetiredBuffer> m_retiredBuffers{*m_allocator}; // material uniform buffers of pruned instances
-
         // Per-view set-0 slots (views of different scenes bind different IBL products) and the
         // current view's group (set by EnsureViewBindGroup; read by the Resolve* bodies).
         struct ViewBGSlot
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             u32 viewGen = 0, lightGen = 0, localGen = 0, boneGen = 0;
-            rhi::TextureView* shadow = nullptr;
+            rhi::TextureViewHandle shadow{};
             u64 shadowGen = 0;
-            rhi::TextureView* atlas = nullptr;
+            rhi::TextureViewHandle atlas{};
             u64 atlasGen = 0;
             u64 iblGen = 0;
-            rhi::TextureView* prefilter = nullptr;
-            rhi::TextureView* probeCube = nullptr;
-            rhi::Buffer* probeBuf = nullptr;
+            rhi::TextureViewHandle prefilter{};
+            rhi::TextureViewHandle probeCube{};
+            rhi::BufferHandle probeBuf{};
         };
         Array<ViewBGSlot> m_viewBGs{*m_allocator};
-        rhi::BindGroup* m_viewBG = nullptr; // current view's (borrowed from its slot)
-        rhi::BindGroup* m_shadowViewBG = nullptr;
+        rhi::BindGroupHandle m_viewBG{}; // current view's (borrowed from its slot)
+        rhi::BindGroupHandle m_shadowViewBG{};
         u32 m_shadowViewBGGen = 0;
         u32 m_shadowViewBGBoneGen = 0;
-        rhi::BindGroup* m_objectBG = nullptr;
-        rhi::BindGroup* m_instanceBG = nullptr;
+        rhi::BindGroupHandle m_objectBG{};
+        rhi::BindGroupHandle m_instanceBG{};
         // The InstanceSet a per-frame instanced batch binds: no fade, each instance its own id.
-        rhi::Buffer* m_noFadeSetBuf = nullptr;
+        rhi::BufferHandle m_noFadeSetBuf{};
         // The set-0 bind group spans the view UBO, light buffer, shadow map and sampler; rebuild it when any
         // of those change (rings roll over, or the active shadow map view changes).
-        // The set-0 shadow binding is cached by (view pointer, ShadowSystem generation): a freed shadow
-        // texture's view address can be reused by a recreated one (atlas or resolution changes), so the
-        // generation, not the pointer alone, invalidates the bind group. ClusterBinding::version and
-        // ShadowSystem::Generation() follow the same rule.
+        // The set-0 shadow binding is cached by (view handle, ShadowSystem generation): the generation
+        // also changes when the shadow maps are remade (atlas or resolution changes).
+        // ClusterBinding::version and ShadowSystem::Generation() follow the same rule.
         // Shadow set-0 resources: the comparison sampler and a 1x1 dummy map; m_activeShadowView points at
         // the real ShadowSystem map (set each frame) or the dummy.
-        rhi::Sampler* m_shadowSampler = nullptr;
-        rhi::Texture* m_dummyShadowTex = nullptr;
-        rhi::TextureView* m_dummyShadowView = nullptr;
-        rhi::TextureView* m_activeShadowView = nullptr;
+        rhi::SamplerHandle m_shadowSampler{};
+        rhi::TextureHandle m_dummyShadowTex{};
+        rhi::TextureViewHandle m_dummyShadowView{};
+        rhi::TextureViewHandle m_activeShadowView{};
         // The dummy shadow and atlas depth textures are bound (and statically sampled by the mesh shader) on
         // frames with no real caster, but live outside the render graph, so the barrier solver never
         // transitions them out of UNDEFINED. Transition them once to DepthStencilRead the first frame we
@@ -874,9 +837,9 @@ export namespace foundation::render
         u64 m_activeShadowGen = 0;
         // Local-light (spot and point) shadow atlas (t2) and per-light entries (t3). The atlas view, its
         // generation and the local-shadow ring generation extend the set-0 bind-group cache key.
-        rhi::Texture* m_dummyAtlasTex = nullptr;
-        rhi::TextureView* m_dummyAtlasView = nullptr;
-        rhi::TextureView* m_activeAtlasView = nullptr;
+        rhi::TextureHandle m_dummyAtlasTex{};
+        rhi::TextureViewHandle m_dummyAtlasView{};
+        rhi::TextureViewHandle m_activeAtlasView{};
         u64 m_activeAtlasGen = 0;
         u32 m_localShadowBase = 0;      // this frame's base into m_localShadowRing
         u32 m_localShadowPassCount = 0; // # atlas depth passes (caster re-emits) this frame
@@ -899,15 +862,13 @@ export namespace foundation::render
             // The InstanceData is N-buffered (one region per frame-in-flight) so a runtime position change can
             // rewrite this frame's region while the GPU reads the previous frame's, hazard-free even for
             // crowds that move every frame. Each region has its own set-1 bind group; the draw binds this frame's.
-            rhi::Buffer* instanceBuf =
-                nullptr; // Storage, CpuToGpu: framesInFlight x capacity x InstanceData
-            rhi::BindGroup* instanceBG[kMultiMeshMaxFiF] =
+            rhi::BufferHandle instanceBuf{}; // Storage, CpuToGpu: framesInFlight x capacity x InstanceData
+            rhi::BindGroupHandle instanceBG[kMultiMeshMaxFiF] =
                 {}; // one set-1 bind group per FiF region
-            rhi::BindGroup* activeInstanceBG =
-                nullptr;      // this frame's region bind group (set in EnsureMultiMeshSet)
+            rhi::BindGroupHandle activeInstanceBG{};      // this frame's region bind group (set in EnsureMultiMeshSet)
             // Its InstanceSet block (fade window, instance count, pick id), one kViewSlot per
             // frame-in-flight region, rewritten each frame the set draws (Uniform, CpuToGpu).
-            rhi::Buffer* setBuf = nullptr;
+            rhi::BufferHandle setBuf{};
             u32 capacity = 0; // instances per region
             u32 count = 0;    // live instance count this frame
             // Per region: the version its bytes hold and how many instances were written with it.
@@ -920,53 +881,52 @@ export namespace foundation::render
             u32 lastFrame = 0; // last frame this set was extracted (for eviction)
             // Skinned crowds: a per-set draw offsets buffer (dynamic, refilled each frame with per-instance bone
             // bases), used instead of the shared static ramp, whose .y is always 0. Allocated only for skinned sets.
-            rhi::Buffer* offsetsBuf =
-                nullptr;             // Vertex, CpuToGpu: framesInFlight x capacity x GpuDrawOffsets
+            rhi::BufferHandle offsetsBuf{};             // Vertex, CpuToGpu: framesInFlight x capacity x GpuDrawOffsets
             // The same instances in the pick pass's layout ({i, bone base, 0, 0}: the ids 0, so the set
             // picks as its InstanceSet's entity), filled beside offsetsBuf with the same regions.
-            rhi::Buffer* pickOffsetsBuf = nullptr; // Vertex, CpuToGpu: framesInFlight x capacity x GpuPickDrawOffsets
+            rhi::BufferHandle pickOffsetsBuf{}; // Vertex, CpuToGpu: framesInFlight x capacity x GpuPickDrawOffsets
             u32 offsetsCapacity = 0; // instances per frame region
             u32 offsetsByteOffset =
                 0; // this frame's region byte offset (rewritten every frame, so one region per frame in flight)
             bool skinned = false; // drew skinned this frame (posePool present)
         };
         HashMap<u64, MultiMeshSet> m_multiMeshSets{*m_allocator};
-        rhi::Buffer* m_rampBuffer = nullptr; // shared draw offsets ramp (Vertex, CpuToGpu)
+        rhi::BufferHandle m_rampBuffer{}; // shared draw offsets ramp (Vertex, CpuToGpu)
         // The ramp in the pick pass's layout, {i, 0, 0, 0}: a MultiMesh set's pick draws bind it (its ids
         // 0, so the set picks as its InstanceSet's entity), never the forward layout's ramp.
-        rhi::Buffer* m_pickRampBuffer = nullptr;
+        rhi::BufferHandle m_pickRampBuffer{};
         u32 m_rampCapacity = 0;
         u32 m_multiMeshFrame = 0; // bumped each UploadMultiMeshes (eviction clock)
 
         // IBL: SH9 diffuse buffer (t5), prefiltered specular cube (t6), BRDF LUT (t7) and a
         // linear env sampler (s1), all set 0. Neutral 1x1 dummies are bound when no environment is active.
         static constexpr u64 kShBytes = sizeof(f32) * 4 * 9; // 9 RGB SH coefficients as float4
-        rhi::Sampler* m_envSampler = nullptr;
-        rhi::Buffer* m_dummyShBuffer = nullptr;
-        rhi::Texture* m_dummyCube = nullptr;
-        rhi::TextureView* m_dummyCubeView = nullptr;
-        rhi::Texture* m_dummyBrdf = nullptr;
-        rhi::TextureView* m_dummyBrdfView = nullptr;
+        rhi::SamplerHandle m_envSampler{};
+        rhi::BufferHandle m_dummyShBuffer{};
+        rhi::TextureHandle m_dummyCube{};
+        rhi::TextureViewHandle m_dummyCubeView{};
+        rhi::TextureHandle m_dummyBrdf{};
+        rhi::TextureViewHandle m_dummyBrdfView{};
 
         // Reflection probes: prefiltered cube array (t8), probe-metadata SRV (t9) and probe count.
         static constexpr u64 kProbeBufferBytes =
             64u * 16u; // sizeof(GpuProbe)=64 * kMaxReflectionProbes=16
-        rhi::Texture* m_dummyProbeCube = nullptr;
-        rhi::TextureView* m_dummyProbeCubeView = nullptr;
-        rhi::Buffer* m_dummyProbeBuffer = nullptr; // 1 zeroed record for the no-probe path
-        rhi::TextureView* m_activeProbeCube = nullptr;
-        rhi::Buffer* m_activeProbeBuffer = nullptr;
+        rhi::TextureHandle m_dummyProbeCube{};
+        rhi::TextureViewHandle m_dummyProbeCubeView{};
+        rhi::BufferHandle m_dummyProbeBuffer{}; // 1 zeroed record for the no-probe path
+        rhi::TextureViewHandle m_activeProbeCube{};
+        rhi::BufferHandle m_activeProbeBuffer{};
         u32 m_activeProbeCount = 0;
 
         // set 3 (clustered light lists). A dummy bound when clustering is off; otherwise one bind group
         // per (view, frame-in-flight) slot over the ClusterSystem's per-view cluster buffers.
-        rhi::Buffer* m_dummyClusterOffsets = nullptr;
-        rhi::Buffer* m_dummyClusterIndices = nullptr;
-        rhi::BindGroup* m_dummyClusterBG = nullptr;
+        rhi::BufferHandle m_dummyClusterOffsets{};
+        rhi::BufferHandle m_dummyClusterIndices{};
+        rhi::BindGroupHandle m_dummyClusterBG{};
         struct ClusterSlot
         {
-            rhi::BindGroup* group = nullptr;
-            rhi::Buffer* offsets = nullptr;
+            rhi::BindGroupHandle group{};
+            rhi::BufferHandle offsets{};
             u32 version = 0;
         };
         ViewSlots<ClusterSlot> m_clusterSlots; // grown to the most views one frame draws

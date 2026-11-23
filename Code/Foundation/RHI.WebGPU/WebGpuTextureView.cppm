@@ -22,11 +22,13 @@ export namespace foundation::rhi::webgpu
     class WebGpuTextureView final : public TextureView
     {
     public:
-        Status Initialize(const WebGpuApi& api, Texture* owner, const TextureViewDesc& viewDesc)
+        /// A view of `owner`, which `ownerHandle` names.
+        Status Initialize(const WebGpuApi& api, const WebGpuTexture* owner, TextureHandle ownerHandle,
+                          const TextureViewDesc& viewDesc)
         {
             m_api = &api;
             desc = viewDesc;
-            texture = owner;
+            texture = ownerHandle;
 
             const WGPUTextureViewDimension dimension =
                 ToWgpuTextureViewDimension(viewDesc.dimension);
@@ -45,8 +47,7 @@ export namespace foundation::rhi::webgpu
             wgpuDesc.arrayLayerCount = viewDesc.arrayLayerCount;
             wgpuDesc.aspect = ToWgpuTextureAspect(viewDesc.aspect);
 
-            m_view = api.wgpuTextureCreateView(
-                static_cast<WebGpuTexture*>(owner)->Handle(), &wgpuDesc);
+            m_view = api.wgpuTextureCreateView(owner->Handle(), &wgpuDesc);
             return m_view != nullptr ? Status(ErrorCode::Ok) : Status(ErrorCode::Unknown);
         }
 

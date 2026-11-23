@@ -71,7 +71,7 @@ namespace foundation::render
         if (m_pipelineShaderVersion != shaderVersion)
         {
             m_pipelineShaderVersion = shaderVersion;
-            if (m_envOnlyLayout != nullptr) // Initialize ran; layouts are live
+            if (m_envOnlyLayout.IsValid()) // Initialize ran; layouts are live
             {
                 m_ready = RebuildPipelinesForReload();
                 if (m_ready)
@@ -191,7 +191,7 @@ namespace foundation::render
         {
             DestroyExternalBindGroups(*ctx);
             ctx->m_externalUid = sky.textureUid;
-            if (sky.texture != nullptr)
+            if (sky.texture.IsValid())
             {
                 if (sky.textureIsCube)
                 {
@@ -204,7 +204,7 @@ namespace foundation::render
                         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
                         if (!m_device->CreateBindGroup(bgd, ctx->m_externalCubeBG).IsOk())
                         {
-                            ctx->m_externalCubeBG = nullptr;
+                            ctx->m_externalCubeBG = {};
                         }
                     }
                 }
@@ -220,7 +220,7 @@ namespace foundation::render
                         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
                         if (!m_device->CreateBindGroup(bgd, ctx->m_externalEquirectBG).IsOk())
                         {
-                            ctx->m_externalEquirectBG = nullptr;
+                            ctx->m_externalEquirectBG = {};
                         }
                     }
                 }
@@ -248,7 +248,7 @@ namespace foundation::render
         td.label = u8"ibl.equirect";
         if (!m_device->CreateTexture(td, m_equirectTex).IsOk())
         {
-            m_equirectTex = nullptr;
+            m_equirectTex = {};
             return;
         }
         rhi::TextureViewDesc vd{};
@@ -270,10 +270,10 @@ namespace foundation::render
             DestroyEquirect();
             return;
         }
-        if (void* p = m_equirectStaging->Map())
+        if (void* p = m_device->Map(m_equirectStaging))
         {
             MemCopy(p, rgba.Data(), bytes);
-            m_equirectStaging->Unmap();
+            m_device->Unmap(m_equirectStaging);
         }
         if (!EnsureEquirectPipeline())
         {
@@ -287,7 +287,7 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
         if (!m_device->CreateBindGroup(bgd, m_equirectBindGroup).IsOk())
         {
-            m_equirectBindGroup = nullptr;
+            m_equirectBindGroup = {};
             DestroyEquirect();
             return;
         }
@@ -316,7 +316,7 @@ namespace foundation::render
         td.label = u8"ibl.srcCube";
         if (!m_device->CreateTexture(td, m_srcCube).IsOk())
         {
-            m_srcCube = nullptr;
+            m_srcCube = {};
             return;
         }
         rhi::TextureViewDesc vd{};
@@ -338,10 +338,10 @@ namespace foundation::render
             DestroyCubemap();
             return;
         }
-        if (void* p = m_cubemapStaging->Map())
+        if (void* p = m_device->Map(m_cubemapStaging))
         {
             MemCopy(p, sixFaces.Data(), faceBytes * 6u);
-            m_cubemapStaging->Unmap();
+            m_device->Unmap(m_cubemapStaging);
         }
         if (!EnsureCubemapPipeline())
         {
@@ -355,7 +355,7 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
         if (!m_device->CreateBindGroup(bgd, m_cubemapBindGroup).IsOk())
         {
-            m_cubemapBindGroup = nullptr;
+            m_cubemapBindGroup = {};
             DestroyCubemap();
             return;
         }
@@ -366,7 +366,7 @@ namespace foundation::render
 
     void IBLSystem::Upload(rhi::CommandEncoder& enc)
     {
-        if (m_equirectPending && m_equirectTex != nullptr && m_equirectStaging != nullptr)
+        if (m_equirectPending && m_equirectTex.IsValid() && m_equirectStaging.IsValid())
         {
             enc.TransitionTexture(m_equirectTex, rhi::ResourceState::Undefined,
                                   rhi::ResourceState::CopyDst);
@@ -379,7 +379,7 @@ namespace foundation::render
                                   rhi::ResourceState::ShaderRead);
             m_equirectPending = false;
         }
-        if (m_cubemapPending && m_srcCube != nullptr && m_cubemapStaging != nullptr)
+        if (m_cubemapPending && m_srcCube.IsValid() && m_cubemapStaging.IsValid())
         {
             enc.TransitionTexture(m_srcCube, rhi::ResourceState::Undefined,
                                   rhi::ResourceState::CopyDst);
@@ -424,20 +424,20 @@ namespace foundation::render
         // Step 1, source to env cube: 6 faces. The scene-authored asset texture wins over the
         // programmatic pixel path (SetEquirect/SetCubemap) when both are present.
         const rendergraph::RGHandle envH = ctx.m_envH;
-        rhi::BindGroup* equirectBG =
-            (ctx.m_externalEquirectBG != nullptr) ? ctx.m_externalEquirectBG : m_equirectBindGroup;
-        rhi::BindGroup* cubemapBG =
-            (ctx.m_externalCubeBG != nullptr) ? ctx.m_externalCubeBG : m_cubemapBindGroup;
-        const bool useEquirect = (ctx.m_sky.mode == SkyMode::HDREquirect) && equirectBG != nullptr;
-        const bool useCubemap = (ctx.m_sky.mode == SkyMode::Cubemap) && cubemapBG != nullptr;
+        rhi::BindGroupHandle equirectBG =
+            (ctx.m_externalEquirectBG.IsValid()) ? ctx.m_externalEquirectBG : m_equirectBindGroup;
+        rhi::BindGroupHandle cubemapBG =
+            (ctx.m_externalCubeBG.IsValid()) ? ctx.m_externalCubeBG : m_cubemapBindGroup;
+        const bool useEquirect = (ctx.m_sky.mode == SkyMode::HDREquirect) && equirectBG.IsValid();
+        const bool useCubemap = (ctx.m_sky.mode == SkyMode::Cubemap) && cubemapBG.IsValid();
         const bool useAnalytic = (ctx.m_sky.mode == SkyMode::Analytic);
-        rhi::RenderPipeline* envPipe = useEquirect   ? m_equirectPipeline
+        rhi::RenderPipelineHandle envPipe = useEquirect   ? m_equirectPipeline
                                        : useCubemap  ? m_cubemapPipeline
                                        : useAnalytic ? m_analyticPipeline
                                                      : m_envPipeline;
         // Procedural and analytic skies have no env source; bind the dummy so the
         // declared group is always satisfied (a WebGPU requirement, harmless elsewhere).
-        rhi::BindGroup* envBG =
+        rhi::BindGroupHandle envBG =
             useEquirect ? equirectBG : useCubemap ? cubemapBG : m_dummyEnvBindGroup;
         for (u32 face = 0; face < 6; ++face)
         {
@@ -455,7 +455,7 @@ namespace foundation::render
                                         [push, envPipe, envBG](rhi::RenderPassEncoder& rp)
                                         {
                                             rp.SetPipeline(envPipe);
-                                            if (envBG != nullptr)
+                                            if (envBG.IsValid())
                                             {
                                                 rp.SetBindGroup(0, envBG, Span<const u32>{});
                                             }
@@ -498,12 +498,12 @@ namespace foundation::render
         if (ctx.m_externalEquirectBG)
         {
             m_device->DestroyBindGroup(ctx.m_externalEquirectBG);
-            ctx.m_externalEquirectBG = nullptr;
+            ctx.m_externalEquirectBG = {};
         }
         if (ctx.m_externalCubeBG)
         {
             m_device->DestroyBindGroup(ctx.m_externalCubeBG);
-            ctx.m_externalCubeBG = nullptr;
+            ctx.m_externalCubeBG = {};
         }
     }
 
@@ -520,7 +520,7 @@ namespace foundation::render
     void IBLSystem::DeclareShProjection(Context& ctx, rendergraph::RenderGraph& graph,
                                         rendergraph::RGHandle envH, rendergraph::RGHandle shH)
     {
-        rhi::BindGroup* shBG = ctx.m_shBindGroup;
+        rhi::BindGroupHandle shBG = ctx.m_shBindGroup;
         graph.AddComputePass(u8"ibl.sh",
                              [this, envH, shH, shBG](rendergraph::PassBuilder& b)
                              {
@@ -529,7 +529,7 @@ namespace foundation::render
                                  b.SetComputeExecute(
                                      [this, shBG](rhi::ComputePassEncoder& cp)
                                      {
-                                         if (shBG == nullptr)
+                                         if (!shBG.IsValid())
                                          {
                                              return;
                                          }
@@ -546,7 +546,7 @@ namespace foundation::render
         for (u32 mip = 1; mip < kEnvMips; ++mip)
         {
             const u32 res = kEnvResolution >> mip;
-            rhi::BindGroup* srcBG = ctx.m_envMipBG[mip - 1];
+            rhi::BindGroupHandle srcBG = ctx.m_envMipBG[mip - 1];
             for (u32 face = 0; face < 6; ++face)
             {
                 GpuIblPush push{};
@@ -578,7 +578,7 @@ namespace foundation::render
     void IBLSystem::DeclarePrefilter(Context& ctx, rendergraph::RenderGraph& graph,
                                      rendergraph::RGHandle envH, rendergraph::RGHandle preH)
     {
-        rhi::BindGroup* envBG = ctx.m_envBindGroup;
+        rhi::BindGroupHandle envBG = ctx.m_envBindGroup;
         for (u32 mip = 0; mip < kPrefilterMips; ++mip)
         {
             const u32 res = Max(ctx.m_prefilterRes >> mip, 1u);
@@ -698,25 +698,17 @@ namespace foundation::render
 
     void IBLSystem::ReleasePrefilter(Context& ctx)
     {
-        if (m_retire != nullptr)
+        if (ctx.m_prefilterView.IsValid())
         {
-            m_retire->Retire(ctx.m_prefilterView);
-            m_retire->Retire(ctx.m_prefilterCube);
+            m_device->DestroyTextureView(ctx.m_prefilterView);
         }
-        else
+        if (ctx.m_prefilterCube.IsValid())
         {
-            m_device->WaitIdle();
-            if (ctx.m_prefilterView != nullptr)
-            {
-                m_device->DestroyTextureView(ctx.m_prefilterView);
-            }
-            if (ctx.m_prefilterCube != nullptr)
-            {
-                m_device->DestroyTexture(ctx.m_prefilterCube);
-            }
+            m_device->DestroyTexture(ctx.m_prefilterCube);
         }
-        ctx.m_prefilterView = nullptr;
-        ctx.m_prefilterCube = nullptr;
+        
+        ctx.m_prefilterView = {};
+        ctx.m_prefilterCube = {};
     }
 
     bool IBLSystem::CreateContextResources(Context& ctx)
@@ -823,61 +815,61 @@ namespace foundation::render
         if (ctx.m_shBindGroup)
         {
             m_device->DestroyBindGroup(ctx.m_shBindGroup);
-            ctx.m_shBindGroup = nullptr;
+            ctx.m_shBindGroup = {};
         }
         if (ctx.m_envBindGroup)
         {
             m_device->DestroyBindGroup(ctx.m_envBindGroup);
-            ctx.m_envBindGroup = nullptr;
+            ctx.m_envBindGroup = {};
         }
         for (u32 m = 0; m < kEnvMips; ++m)
         {
             if (ctx.m_envMipBG[m])
             {
                 m_device->DestroyBindGroup(ctx.m_envMipBG[m]);
-                ctx.m_envMipBG[m] = nullptr;
+                ctx.m_envMipBG[m] = {};
             }
         }
         if (ctx.m_shBuffer)
         {
             m_device->DestroyBuffer(ctx.m_shBuffer);
-            ctx.m_shBuffer = nullptr;
+            ctx.m_shBuffer = {};
         }
         if (ctx.m_prefilterView)
         {
             m_device->DestroyTextureView(ctx.m_prefilterView);
-            ctx.m_prefilterView = nullptr;
+            ctx.m_prefilterView = {};
         }
         if (ctx.m_prefilterCube)
         {
             m_device->DestroyTexture(ctx.m_prefilterCube);
-            ctx.m_prefilterCube = nullptr;
+            ctx.m_prefilterCube = {};
         }
         for (u32 m = 0; m < kEnvMips; ++m)
         {
             if (ctx.m_envMipView[m])
             {
                 m_device->DestroyTextureView(ctx.m_envMipView[m]);
-                ctx.m_envMipView[m] = nullptr;
+                ctx.m_envMipView[m] = {};
             }
         }
         if (ctx.m_envSampleView)
         {
             m_device->DestroyTextureView(ctx.m_envSampleView);
-            ctx.m_envSampleView = nullptr;
+            ctx.m_envSampleView = {};
         }
         if (ctx.m_envCube)
         {
             m_device->DestroyTexture(ctx.m_envCube);
-            ctx.m_envCube = nullptr;
+            ctx.m_envCube = {};
         }
     }
 
     bool IBLSystem::CreatePipelines()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr)
+        if (!vs.IsValid())
         {
             return false;
         }
@@ -937,18 +929,18 @@ namespace foundation::render
         pcRange.size = sizeof(GpuIblPush);
         // procedural env: push constants and the env bind group (unused, but included so
         // push constants land at space1, matching the prefilter, downsample and equirect layouts).
-        rhi::BindGroupLayout* envLayouts[] = {m_envLayout};
+        rhi::BindGroupLayoutHandle envLayouts[] = {m_envLayout};
         rhi::PipelineLayoutDesc envPld{};
-        envPld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{envLayouts, 1};
+        envPld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{envLayouts, 1};
         envPld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pcRange, 1};
         if (!m_device->CreatePipelineLayout(envPld, m_envOnlyLayout).IsOk())
         {
             return false;
         }
         // prefilter: env bind group and push constants.
-        rhi::BindGroupLayout* preLayouts[] = {m_envLayout};
+        rhi::BindGroupLayoutHandle preLayouts[] = {m_envLayout};
         rhi::PipelineLayoutDesc prePld{};
-        prePld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{preLayouts, 1};
+        prePld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{preLayouts, 1};
         prePld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pcRange, 1};
         if (!m_device->CreatePipelineLayout(prePld, m_prefilterLayout).IsOk())
         {
@@ -970,17 +962,17 @@ namespace foundation::render
             MakeFullscreenPipeline(vs, u8"ibl_prefilter", m_prefilterLayout, kCubeFormat);
         m_brdfPipeline =
             MakeFullscreenPipeline(vs, u8"ibl_brdf", m_brdfPipelineLayout, kBrdfFormat);
-        if (m_envPipeline == nullptr || m_analyticPipeline == nullptr ||
-            m_downsamplePipeline == nullptr || m_prefilterPipeline == nullptr ||
-            m_brdfPipeline == nullptr)
+        if (!m_envPipeline.IsValid() || !m_analyticPipeline.IsValid() ||
+            !m_downsamplePipeline.IsValid() || !m_prefilterPipeline.IsValid() ||
+            !m_brdfPipeline.IsValid())
         {
             return false;
         }
 
         // --- SH compute pipeline (t0 cube, s0 sampler, u0 SH buffer; bind groups are per context) ---
-        rhi::ShaderModule* cs = m_shaders->GetVariant(u8"ibl_sh", shaders::ShaderStage::Compute,
+        rhi::ShaderModuleHandle cs = m_shaders->GetVariant(u8"ibl_sh", shaders::ShaderStage::Compute,
                                                       shaders::ShaderFlags::None);
-        if (cs == nullptr)
+        if (!cs.IsValid())
         {
             return false;
         }
@@ -998,9 +990,9 @@ namespace foundation::render
         {
             return false;
         }
-        rhi::BindGroupLayout* shLayouts[] = {m_shLayout};
+        rhi::BindGroupLayoutHandle shLayouts[] = {m_shLayout};
         rhi::PipelineLayoutDesc shPld{};
-        shPld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{shLayouts, 1};
+        shPld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{shLayouts, 1};
         if (!m_device->CreatePipelineLayout(shPld, m_shPipelineLayout).IsOk())
         {
             return false;
@@ -1020,30 +1012,30 @@ namespace foundation::render
 
     bool IBLSystem::RebuildPipelinesForReload()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* cs = m_shaders->GetVariant(u8"ibl_sh", shaders::ShaderStage::Compute,
+        rhi::ShaderModuleHandle cs = m_shaders->GetVariant(u8"ibl_sh", shaders::ShaderStage::Compute,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || cs == nullptr)
+        if (!vs.IsValid() || !cs.IsValid())
         {
             return false;
         }
-        rhi::RenderPipeline** stale[] = {&m_envPipeline,        &m_analyticPipeline,
+        rhi::RenderPipelineHandle* stale[] = {&m_envPipeline,        &m_analyticPipeline,
                                          &m_downsamplePipeline, &m_prefilterPipeline,
                                          &m_brdfPipeline,       &m_equirectPipeline,
                                          &m_cubemapPipeline};
-        for (rhi::RenderPipeline** p : stale)
+        for (rhi::RenderPipelineHandle* p : stale)
         {
-            if (*p != nullptr)
+            if ((*p).IsValid())
             {
                 m_device->DestroyRenderPipeline(*p);
-                *p = nullptr;
+                *p = {};
             }
         }
-        if (m_shPipeline != nullptr)
+        if (m_shPipeline.IsValid())
         {
             m_device->DestroyComputePipeline(m_shPipeline);
-            m_shPipeline = nullptr;
+            m_shPipeline = {};
         }
 
         m_envPipeline = MakeFullscreenPipeline(vs, u8"ibl_procenv", m_envOnlyLayout, kCubeFormat);
@@ -1062,24 +1054,24 @@ namespace foundation::render
         cpd.label = u8"ibl.sh";
         if (!m_device->CreateComputePipeline(cpd, m_shPipeline).IsOk())
         {
-            m_shPipeline = nullptr;
+            m_shPipeline = {};
         }
 
         // equirect and cubemap are rebuilt lazily by their Ensure*Pipeline on next use.
-        return m_envPipeline != nullptr && m_analyticPipeline != nullptr &&
-               m_downsamplePipeline != nullptr && m_prefilterPipeline != nullptr &&
-               m_brdfPipeline != nullptr && m_shPipeline != nullptr;
+        return m_envPipeline.IsValid() && m_analyticPipeline.IsValid() &&
+               m_downsamplePipeline.IsValid() && m_prefilterPipeline.IsValid() &&
+               m_brdfPipeline.IsValid() && m_shPipeline.IsValid();
     }
 
-    rhi::RenderPipeline* IBLSystem::MakeFullscreenPipeline(rhi::ShaderModule* vs, StringView psName,
-                                                           rhi::PipelineLayout* layout,
+    rhi::RenderPipelineHandle IBLSystem::MakeFullscreenPipeline(rhi::ShaderModuleHandle vs, StringView psName,
+                                                           rhi::PipelineLayoutHandle layout,
                                                            rhi::TextureFormat fmt)
     {
-        rhi::ShaderModule* ps = m_shaders->GetVariant(psName, shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(psName, shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (ps == nullptr)
+        if (!ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::ColorTargetState color{};
         color.format = fmt;
@@ -1093,27 +1085,27 @@ namespace foundation::render
         pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.label = psName;
-        rhi::RenderPipeline* p = nullptr;
+        rhi::RenderPipelineHandle p{};
         if (!m_device->CreateRenderPipeline(pd, p).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return p;
     }
 
     bool IBLSystem::EnsureEquirectPipeline()
     {
-        if (m_equirectPipeline != nullptr)
+        if (m_equirectPipeline.IsValid())
         {
             return true;
         }
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr)
+        if (!vs.IsValid())
         {
             return false;
         }
-        if (m_equirectLayout == nullptr) // layouts survive a shader hot reload
+        if (!m_equirectLayout.IsValid()) // layouts survive a shader hot reload
         {
             rhi::BindGroupLayoutEntry tex = rhi::BindGroupLayoutEntry::SampledTexture(
                 0, rhi::ShaderStage::Fragment, rhi::TextureViewDimension::Texture2D);
@@ -1130,9 +1122,9 @@ namespace foundation::render
             pc.stages = rhi::ShaderStage::Fragment;
             pc.offset = 0;
             pc.size = sizeof(GpuIblPush);
-            rhi::BindGroupLayout* layouts[] = {m_equirectLayout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_equirectLayout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pc, 1};
             if (!m_device->CreatePipelineLayout(pld, m_equirectPipelineLayout).IsOk())
             {
@@ -1141,11 +1133,11 @@ namespace foundation::render
         }
         m_equirectPipeline =
             MakeFullscreenPipeline(vs, u8"ibl_equirect", m_equirectPipelineLayout, kCubeFormat);
-        if (m_equirectPipeline == nullptr)
+        if (!m_equirectPipeline.IsValid())
         {
             return false;
         }
-        if (m_equirectSampler == nullptr)
+        if (!m_equirectSampler.IsValid())
         {
             rhi::SamplerDesc ss{};
             ss.minFilter = rhi::FilterMode::Linear;
@@ -1165,23 +1157,23 @@ namespace foundation::render
 
     bool IBLSystem::EnsureCubemapPipeline()
     {
-        if (m_cubemapPipeline != nullptr)
+        if (m_cubemapPipeline.IsValid())
         {
             return true;
         }
-        if (m_prefilterLayout == nullptr || m_envLayout == nullptr)
+        if (!m_prefilterLayout.IsValid() || !m_envLayout.IsValid())
         {
             return false;
         }
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ibl_fs", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr)
+        if (!vs.IsValid())
         {
             return false;
         }
         m_cubemapPipeline =
             MakeFullscreenPipeline(vs, u8"ibl_cubemap", m_prefilterLayout, kCubeFormat);
-        return m_cubemapPipeline != nullptr;
+        return m_cubemapPipeline.IsValid();
     }
 
     void IBLSystem::DestroyCubemap()
@@ -1189,22 +1181,22 @@ namespace foundation::render
         if (m_cubemapBindGroup)
         {
             m_device->DestroyBindGroup(m_cubemapBindGroup);
-            m_cubemapBindGroup = nullptr;
+            m_cubemapBindGroup = {};
         }
         if (m_cubemapStaging)
         {
             m_device->DestroyBuffer(m_cubemapStaging);
-            m_cubemapStaging = nullptr;
+            m_cubemapStaging = {};
         }
         if (m_srcCubeView)
         {
             m_device->DestroyTextureView(m_srcCubeView);
-            m_srcCubeView = nullptr;
+            m_srcCubeView = {};
         }
         if (m_srcCube)
         {
             m_device->DestroyTexture(m_srcCube);
-            m_srcCube = nullptr;
+            m_srcCube = {};
         }
         m_cubemapPending = false;
     }
@@ -1214,22 +1206,22 @@ namespace foundation::render
         if (m_equirectBindGroup)
         {
             m_device->DestroyBindGroup(m_equirectBindGroup);
-            m_equirectBindGroup = nullptr;
+            m_equirectBindGroup = {};
         }
         if (m_equirectStaging)
         {
             m_device->DestroyBuffer(m_equirectStaging);
-            m_equirectStaging = nullptr;
+            m_equirectStaging = {};
         }
         if (m_equirectView)
         {
             m_device->DestroyTextureView(m_equirectView);
-            m_equirectView = nullptr;
+            m_equirectView = {};
         }
         if (m_equirectTex)
         {
             m_device->DestroyTexture(m_equirectTex);
-            m_equirectTex = nullptr;
+            m_equirectTex = {};
         }
         m_equirectPending = false;
     }
@@ -1245,118 +1237,118 @@ namespace foundation::render
         if (m_cubemapPipeline)
         {
             m_device->DestroyRenderPipeline(m_cubemapPipeline);
-            m_cubemapPipeline = nullptr;
+            m_cubemapPipeline = {};
         }
         DestroyEquirect();
         if (m_equirectPipeline)
         {
             m_device->DestroyRenderPipeline(m_equirectPipeline);
-            m_equirectPipeline = nullptr;
+            m_equirectPipeline = {};
         }
         if (m_equirectPipelineLayout)
         {
             m_device->DestroyPipelineLayout(m_equirectPipelineLayout);
-            m_equirectPipelineLayout = nullptr;
+            m_equirectPipelineLayout = {};
         }
         if (m_equirectLayout)
         {
             m_device->DestroyBindGroupLayout(m_equirectLayout);
-            m_equirectLayout = nullptr;
+            m_equirectLayout = {};
         }
         if (m_equirectSampler)
         {
             m_device->DestroySampler(m_equirectSampler);
-            m_equirectSampler = nullptr;
+            m_equirectSampler = {};
         }
         if (m_shPipeline)
         {
             m_device->DestroyComputePipeline(m_shPipeline);
-            m_shPipeline = nullptr;
+            m_shPipeline = {};
         }
-        if (m_dummyEnvBindGroup != nullptr)
+        if (m_dummyEnvBindGroup.IsValid())
         {
             m_device->DestroyBindGroup(m_dummyEnvBindGroup);
-            m_dummyEnvBindGroup = nullptr;
+            m_dummyEnvBindGroup = {};
         }
-        if (m_dummyEnvView != nullptr)
+        if (m_dummyEnvView.IsValid())
         {
             m_device->DestroyTextureView(m_dummyEnvView);
-            m_dummyEnvView = nullptr;
+            m_dummyEnvView = {};
         }
-        if (m_dummyEnvCube != nullptr)
+        if (m_dummyEnvCube.IsValid())
         {
             m_device->DestroyTexture(m_dummyEnvCube);
-            m_dummyEnvCube = nullptr;
+            m_dummyEnvCube = {};
         }
         if (m_envPipeline)
         {
             m_device->DestroyRenderPipeline(m_envPipeline);
-            m_envPipeline = nullptr;
+            m_envPipeline = {};
         }
         if (m_analyticPipeline)
         {
             m_device->DestroyRenderPipeline(m_analyticPipeline);
-            m_analyticPipeline = nullptr;
+            m_analyticPipeline = {};
         }
         if (m_downsamplePipeline)
         {
             m_device->DestroyRenderPipeline(m_downsamplePipeline);
-            m_downsamplePipeline = nullptr;
+            m_downsamplePipeline = {};
         }
         if (m_prefilterPipeline)
         {
             m_device->DestroyRenderPipeline(m_prefilterPipeline);
-            m_prefilterPipeline = nullptr;
+            m_prefilterPipeline = {};
         }
         if (m_brdfPipeline)
         {
             m_device->DestroyRenderPipeline(m_brdfPipeline);
-            m_brdfPipeline = nullptr;
+            m_brdfPipeline = {};
         }
         if (m_shPipelineLayout)
         {
             m_device->DestroyPipelineLayout(m_shPipelineLayout);
-            m_shPipelineLayout = nullptr;
+            m_shPipelineLayout = {};
         }
         if (m_envOnlyLayout)
         {
             m_device->DestroyPipelineLayout(m_envOnlyLayout);
-            m_envOnlyLayout = nullptr;
+            m_envOnlyLayout = {};
         }
         if (m_prefilterLayout)
         {
             m_device->DestroyPipelineLayout(m_prefilterLayout);
-            m_prefilterLayout = nullptr;
+            m_prefilterLayout = {};
         }
         if (m_brdfPipelineLayout)
         {
             m_device->DestroyPipelineLayout(m_brdfPipelineLayout);
-            m_brdfPipelineLayout = nullptr;
+            m_brdfPipelineLayout = {};
         }
         if (m_shLayout)
         {
             m_device->DestroyBindGroupLayout(m_shLayout);
-            m_shLayout = nullptr;
+            m_shLayout = {};
         }
         if (m_envLayout)
         {
             m_device->DestroyBindGroupLayout(m_envLayout);
-            m_envLayout = nullptr;
+            m_envLayout = {};
         }
         if (m_sampler)
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_brdfView)
         {
             m_device->DestroyTextureView(m_brdfView);
-            m_brdfView = nullptr;
+            m_brdfView = {};
         }
         if (m_brdfLut)
         {
             m_device->DestroyTexture(m_brdfLut);
-            m_brdfLut = nullptr;
+            m_brdfLut = {};
         }
     }
 }

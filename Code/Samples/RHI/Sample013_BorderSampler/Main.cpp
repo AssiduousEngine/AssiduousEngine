@@ -36,19 +36,17 @@ private:
     };
     static constexpr foundation::core::u16 kQuadIdx[] = {0, 1, 2, 0, 2, 3};
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
-    rhi::Texture* m_tex = nullptr;
-    rhi::TextureView* m_texView = nullptr;
-    rhi::Sampler *m_sampTransparent = nullptr, *m_sampOpaqueBlack = nullptr,
-                 *m_sampOpaqueWhite = nullptr;
-    rhi::BindGroupLayout *m_texBgl = nullptr, *m_uboBgl = nullptr;
-    rhi::BindGroup *m_bgTransparent = nullptr, *m_bgOpaqueBlack = nullptr,
-                   *m_bgOpaqueWhite = nullptr;
-    rhi::BindGroup* m_uboBg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::TextureHandle m_tex{};
+    rhi::TextureViewHandle m_texView{};
+    rhi::SamplerHandle m_sampTransparent{}, m_sampOpaqueBlack{}, m_sampOpaqueWhite{};
+    rhi::BindGroupLayoutHandle m_texBgl{}, m_uboBgl{};
+    rhi::BindGroupHandle m_bgTransparent{}, m_bgOpaqueBlack{}, m_bgOpaqueWhite{};
+    rhi::BindGroupHandle m_uboBg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -92,7 +90,7 @@ foundation::core::Status BorderSamplerSample::OnInit()
     ubd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(ubd, m_ub) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_ubMapped = m_ub->Map();
+    m_ubMapped = m_device->Map(m_ub);
     // Write all 3 offsets upfront.
     float off0[4] = {-0.55f, 0.0f, 0.0f, 0.0f};
     float off1[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -145,7 +143,7 @@ foundation::core::Status BorderSamplerSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Three samplers with ClampToBorder and different border colors.
-    auto makeSampler = [&](rhi::SamplerBorderColor bc, rhi::Sampler*& out) -> foundation::core::Status
+    auto makeSampler = [&](rhi::SamplerBorderColor bc, rhi::SamplerHandle& out) -> foundation::core::Status
     {
         rhi::SamplerDesc sd{};
         sd.minFilter = rhi::FilterMode::Nearest;
@@ -176,7 +174,7 @@ foundation::core::Status BorderSamplerSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Three bind groups, one per sampler.
-    auto makeBG = [&](rhi::Sampler* s, rhi::BindGroup*& out) -> foundation::core::Status
+    auto makeBG = [&](rhi::SamplerHandle s, rhi::BindGroupHandle& out) -> foundation::core::Status
     {
         rhi::BindGroupEntry e[2] = {rhi::BindGroupEntry::TextureEntry(m_texView),
                                     rhi::BindGroupEntry::SamplerEntry(s)};
@@ -209,9 +207,9 @@ foundation::core::Status BorderSamplerSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Pipeline layout.
-    rhi::BindGroupLayout* sets[2] = {m_texBgl, m_uboBgl};
+    rhi::BindGroupLayoutHandle sets[2] = {m_texBgl, m_uboBgl};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 2);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 2);
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
@@ -271,7 +269,7 @@ void BorderSamplerSample::OnRender()
     rp->SetIndexBuffer(m_ib, rhi::IndexFormat::UInt16, 0);
 
     // Draw 3 quads side by side with different samplers and dynamic UBO offsets.
-    rhi::BindGroup* texBGs[3] = {m_bgTransparent, m_bgOpaqueBlack, m_bgOpaqueWhite};
+    rhi::BindGroupHandle texBGs[3] = {m_bgTransparent, m_bgOpaqueBlack, m_bgOpaqueWhite};
     u32 dynOffsets[3] = {0, 256, 512};
     for (int i = 0; i < 3; ++i)
     {
@@ -295,7 +293,7 @@ void BorderSamplerSample::OnRender()
 void BorderSamplerSample::OnShutdown()
 {
     if (m_ub && m_ubMapped)
-        m_ub->Unmap();
+        m_device->Unmap(m_ub);
     if (m_fence)
         m_device->DestroyFence(m_fence);
     if (m_pool)

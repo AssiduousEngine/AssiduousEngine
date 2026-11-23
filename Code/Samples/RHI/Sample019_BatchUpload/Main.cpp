@@ -40,22 +40,22 @@ private:
 
     static constexpr foundation::core::u32 kTexSize = 128;
 
-    rhi::ShaderModule* m_vs = nullptr;
-    rhi::ShaderModule* m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{};
+    rhi::ShaderModuleHandle m_ps{};
 
-    rhi::Buffer* m_vb = nullptr;
-    rhi::Buffer* m_ib = nullptr;
-    rhi::Texture* m_tex = nullptr;
-    rhi::TextureView* m_texView = nullptr;
-    rhi::Sampler* m_sampler = nullptr;
+    rhi::BufferHandle m_vb{};
+    rhi::BufferHandle m_ib{};
+    rhi::TextureHandle m_tex{};
+    rhi::TextureViewHandle m_texView{};
+    rhi::SamplerHandle m_sampler{};
 
-    rhi::Buffer* m_transformBuf = nullptr;
+    rhi::BufferHandle m_transformBuf{};
     void* m_transformMapped = nullptr;
 
-    rhi::BindGroupLayout* m_bgl = nullptr;
-    rhi::BindGroup* m_bg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::BindGroupLayoutHandle m_bgl{};
+    rhi::BindGroupHandle m_bg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_frameFence = nullptr;
     foundation::core::u64 m_frameFenceVal = 0;
@@ -131,7 +131,7 @@ foundation::core::Status BatchUploadSample::OnInit()
     tbd.label = u8"BatchTransform";
     if (m_device->CreateBuffer(tbd, m_transformBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_transformMapped = m_transformBuf->Map();
+    m_transformMapped = m_device->Map(m_transformBuf);
 
     // Bind group layout: UBO, texture and sampler
     rhi::BindGroupLayoutEntry bglEntries[3] = {
@@ -158,9 +158,9 @@ foundation::core::Status BatchUploadSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Pipeline layout
-    rhi::BindGroupLayout* bgls[1] = {m_bgl};
+    rhi::BindGroupLayoutHandle bgls[1] = {m_bgl};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(bgls, 1);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(bgls, 1);
     pld.label = u8"BatchPL";
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
@@ -353,7 +353,7 @@ void BatchUploadSample::OnRender()
 void BatchUploadSample::OnShutdown()
 {
     if (m_transformBuf && m_transformMapped)
-        m_transformBuf->Unmap();
+        m_device->Unmap(m_transformBuf);
 
     if (m_uploadFence)
         m_device->DestroyFence(m_uploadFence);

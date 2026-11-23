@@ -53,36 +53,36 @@ namespace
             return out;
         }
         {
-            rhi::ShaderModule* vs = host.GetVariant(u8"vg", shaders::ShaderStage::Vertex,
+            rhi::ShaderModuleHandle vs = host.GetVariant(u8"vg", shaders::ShaderStage::Vertex,
                                                     shaders::ShaderFlags::None);
-            rhi::ShaderModule* fs = host.GetVariant(u8"vg", shaders::ShaderStage::Fragment,
+            rhi::ShaderModuleHandle fs = host.GetVariant(u8"vg", shaders::ShaderStage::Fragment,
                                                     shaders::ShaderFlags::None);
-            rhi::ShaderModule* distanceFieldFragmentShader = host.GetVariant(u8"vg_df", shaders::ShaderStage::Fragment,
+            rhi::ShaderModuleHandle distanceFieldFragmentShader = host.GetVariant(u8"vg_df", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-            rhi::ShaderModule* gradR = host.GetVariant(
+            rhi::ShaderModuleHandle gradR = host.GetVariant(
                 u8"vg_grad_radial", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* gradC = host.GetVariant(
+            rhi::ShaderModuleHandle gradC = host.GetVariant(
                 u8"vg_grad_conic", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* boxVs =
+            rhi::ShaderModuleHandle boxVs =
                 host.GetVariant(u8"vg_box", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* boxFs =
+            rhi::ShaderModuleHandle boxFs =
                 host.GetVariant(u8"vg_box", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* layerFs =
+            rhi::ShaderModuleHandle layerFs =
                 host.GetVariant(u8"vg_layer", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* shadowFs =
+            rhi::ShaderModuleHandle shadowFs =
                 host.GetVariant(u8"vg_shadow", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            REQUIRE(shadowFs != nullptr); // else box shadows would not draw, and the shadow probe prove nothing
-            REQUIRE(vs != nullptr);
-            rhi::ShaderModule* blurVs =
+            REQUIRE(shadowFs.IsValid()); // else box shadows would not draw, and the shadow probe prove nothing
+            REQUIRE(vs.IsValid());
+            rhi::ShaderModuleHandle blurVs =
                 host.GetVariant(u8"vg_blur", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* blurFs =
+            rhi::ShaderModuleHandle blurFs =
                 host.GetVariant(u8"vg_blur", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            REQUIRE(layerFs != nullptr); // else layers would quietly be opacity pushes
-            REQUIRE(blurVs != nullptr);  // else blurred layers would quietly stay sharp
-            REQUIRE(blurFs != nullptr);
-            REQUIRE(fs != nullptr);
-            REQUIRE(boxVs != nullptr); // else boxes would quietly tessellate, and the box probe prove nothing
-            REQUIRE(boxFs != nullptr);
+            REQUIRE(layerFs.IsValid()); // else layers would quietly be opacity pushes
+            REQUIRE(blurVs.IsValid());  // else blurred layers would quietly stay sharp
+            REQUIRE(blurFs.IsValid());
+            REQUIRE(fs.IsValid());
+            REQUIRE(boxVs.IsValid()); // else boxes would quietly tessellate, and the box probe prove nothing
+            REQUIRE(boxFs.IsValid());
 
             vg::renderer::VGTargetConfig config;
             config.sampleCount = sampleCount;
@@ -91,7 +91,7 @@ namespace
 
             vg::renderer::VGRenderer renderer{DefaultAllocator()};
             REQUIRE(renderer
-                        .Initialize(device, *vs, *fs, drawFormat, 2, distanceFieldFragmentShader,
+                        .Initialize(device, vs, fs, drawFormat, 2, distanceFieldFragmentShader,
                                     gradR, gradC, config, shadowFs, boxVs, boxFs, layerFs, blurVs, blurFs)
                         .IsOk());
 
@@ -99,15 +99,15 @@ namespace
                 rhi::TextureFormat::RGBA8UnormSrgb, kSize, kSize);
             cd.usage = cd.usage | rhi::TextureUsage::CopySrc;
             cd.alternateViewFormat = encoded ? rhi::TextureFormat::RGBA8Unorm : rhi::TextureFormat::Undefined;
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(cd, target).IsOk());
             rhi::TextureViewDesc targetViewDesc{};
             targetViewDesc.format = drawFormat;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, targetViewDesc, targetView).IsOk());
 
-            rhi::Texture* msaa = nullptr;
-            rhi::TextureView* msaaView = nullptr;
+            rhi::TextureHandle msaa{};
+            rhi::TextureViewHandle msaaView{};
             if (sampleCount > 1)
             {
                 rhi::TextureDesc md = rhi::TextureDesc::RenderTarget(drawFormat, kSize, kSize, sampleCount);
@@ -124,9 +124,9 @@ namespace
             dd.depth = 1;
             dd.usage = rhi::TextureUsage::DepthStencil;
             dd.sampleCount = sampleCount;
-            rhi::Texture* depthStencil = nullptr;
+            rhi::TextureHandle depthStencil{};
             REQUIRE(device.CreateTexture(dd, depthStencil).IsOk());
-            rhi::TextureView* dsView = nullptr;
+            rhi::TextureViewHandle dsView{};
             REQUIRE(device.CreateTextureView(depthStencil, rhi::TextureViewDesc{}, dsView).IsOk());
 
             rhi::CommandPool* pool = nullptr;
@@ -138,8 +138,8 @@ namespace
 
             vg::VGContext ctx;
             ctx.SetStencilFills(true);
-            ctx.SetPerPixelGradients(gradR != nullptr && gradC != nullptr);
-            ctx.SetAnalyticBoxes(boxVs != nullptr && boxFs != nullptr);
+            ctx.SetPerPixelGradients(gradR.IsValid() && gradC.IsValid());
+            ctx.SetAnalyticBoxes(boxVs.IsValid() && boxFs.IsValid());
             ctx.SetLayers(true);
             record(ctx);
             vg::VGBatch& batch = ctx.GetBatch();
@@ -152,7 +152,7 @@ namespace
             renderer.RenderLayers(*encoder, 0, slice); // their own passes, before the target's
             encoder->TransitionTexture(target, rhi::ResourceState::Undefined,
                                        rhi::ResourceState::RenderTarget);
-            if (msaa != nullptr)
+            if (msaa.IsValid())
             {
                 encoder->TransitionTexture(msaa, rhi::ResourceState::Undefined,
                                            rhi::ResourceState::RenderTarget);
@@ -161,10 +161,10 @@ namespace
                                        rhi::ResourceState::DepthStencilWrite);
             rhi::RenderPassDesc rp{};
             rhi::ColorAttachment color{};
-            color.view = msaaView != nullptr ? msaaView : targetView;
-            color.resolveTarget = msaaView != nullptr ? targetView : nullptr;
+            color.view = msaaView.IsValid() ? msaaView : targetView;
+            color.resolveTarget = msaaView.IsValid() ? targetView : rhi::TextureViewHandle{};
             color.loadOp = rhi::LoadOp::Clear;
-            color.storeOp = msaaView != nullptr ? rhi::StoreOp::DontCare : rhi::StoreOp::Store;
+            color.storeOp = msaaView.IsValid() ? rhi::StoreOp::DontCare : rhi::StoreOp::Store;
             color.clearValue = rhi::ClearColor::Black();
             rp.colorAttachments.Add(color);
             rhi::DepthStencilAttachment ds{};
@@ -197,11 +197,11 @@ namespace
             device.DestroyCommandPool(pool);
             device.DestroyTextureView(dsView);
             device.DestroyTexture(depthStencil);
-            if (msaaView != nullptr)
+            if (msaaView.IsValid())
             {
                 device.DestroyTextureView(msaaView);
             }
-            if (msaa != nullptr)
+            if (msaa.IsValid())
             {
                 device.DestroyTexture(msaa);
             }

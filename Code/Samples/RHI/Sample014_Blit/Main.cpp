@@ -34,12 +34,12 @@ private:
 
     void updateTriangle();
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer* m_vb = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::Texture* m_offscreenTex = nullptr;
-    rhi::TextureView* m_offscreenView = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
+    rhi::TextureHandle m_offscreenTex{};
+    rhi::TextureViewHandle m_offscreenView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -128,11 +128,11 @@ void BlitSample::updateTriangle()
         verts[i * 7 + 5] = colors[i * 4 + 2];
         verts[i * 7 + 6] = colors[i * 4 + 3];
     }
-    void* mapped = m_vb->Map();
+    void* mapped = m_device->Map(m_vb);
     if (mapped)
     {
         std::memcpy(mapped, verts, 84);
-        m_vb->Unmap();
+        m_device->Unmap(m_vb);
     }
 }
 

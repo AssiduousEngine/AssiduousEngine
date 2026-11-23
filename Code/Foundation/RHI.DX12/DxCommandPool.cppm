@@ -15,7 +15,9 @@ import foundation.core;
 import foundation.rhi;
 import :conversions;
 import :command_buffer;
+import :buffer;
 import :descriptor_staging;
+import :tables;
 
 using namespace foundation::core;
 
@@ -68,6 +70,7 @@ export namespace foundation::rhi::dx12
                 LogErrorf("DxCommandPool::Reset: %d encoder(s) still recording (Finish not "
                           "called); ID3D12CommandAllocator::Reset will fail",
                           static_cast<int>(m_unfinishedEncoders));
+            discardRecordings();
             releaseCommandBuffers();
             // Render bundles minted this cycle die at the frame boundary (fence-guarded).
             releaseBundleEncoders();
@@ -79,6 +82,7 @@ export namespace foundation::rhi::dx12
 
         void cleanup()
         {
+            discardRecordings();
             releaseCommandBuffers();
             releaseBundleEncoders();
             m_srvStaging.Destroy();
@@ -91,6 +95,29 @@ export namespace foundation::rhi::dx12
         [[nodiscard]] DxDescriptorStaging* srvStaging() { return &m_srvStaging; }
         [[nodiscard]] IAllocator& allocator() const { return *m_allocPtr; }
 
+        /// The device's tables (its encoders look their handles up in them) and the tracker its
+        /// recordings are counted by.
+        const DxTables* tables = nullptr;
+        SubmissionTracker* tracker = nullptr;
+
+        /// A recording this pool began (an encoder's, its bundles'); ended at its submit, or by the
+        /// pool's next Reset or its end if it is never submitted.
+        [[nodiscard]] SubmissionTracker::Recording beginRecording()
+        {
+            if (tracker == nullptr)
+                return 0;
+            const SubmissionTracker::Recording recording = tracker->Begin();
+            m_recordings.PushBack(recording);
+            return recording;
+        }
+        /// The pool's bundles' one recording, open until Reset (any later command buffer may
+        /// execute a bundle).
+        void beginBundleRecording()
+        {
+            if (m_bundleRecording == 0)
+                m_bundleRecording = beginRecording();
+        }
+
         /// Called by DxCommandEncoderImpl::Finish() to register a command buffer with this pool.
         void trackCommandBuffer(DxCommandBufferImpl* cb) { m_trackedBuffers.PushBack(cb); }
 
@@ -102,6 +129,17 @@ export namespace foundation::rhi::dx12
         }
 
     private:
+        // Ends every recording this pool began and nothing submitted (ending a submitted one again
+        // does nothing).
+        void discardRecordings()
+        {
+            if (tracker != nullptr)
+                for (SubmissionTracker::Recording recording : m_recordings)
+                    tracker->End(recording);
+            m_recordings.Clear();
+            m_bundleRecording = 0;
+        }
+
         void releaseCommandBuffers()
         {
             for (auto* cb : m_trackedBuffers)
@@ -123,6 +161,8 @@ export namespace foundation::rhi::dx12
         Array<DxCommandBufferImpl*> m_trackedBuffers;
         Array<RenderBundleEncoder*> m_trackedBundleEncoders; // bundle wrappers, freed on Reset
         i32 m_unfinishedEncoders = 0; // encoders created whose Finish has not run yet
+        Array<SubmissionTracker::Recording> m_recordings;
+        SubmissionTracker::Recording m_bundleRecording = 0;
         DxDescriptorStaging m_srvStaging;
     };
 

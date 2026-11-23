@@ -43,18 +43,18 @@ TEST_CASE("rhi.null: device creates resources and a mappable buffer")
 
     BufferDesc bufferDesc{};
     bufferDesc.size = 256;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device->CreateBuffer(bufferDesc, buffer).IsOk());
-    REQUIRE(buffer != nullptr);
-    CHECK(buffer->Map() != nullptr); // null backend backs it with host memory
-    buffer->Unmap();
+    REQUIRE(buffer.IsValid());
+    CHECK(device->Map(buffer) != nullptr); // null backend backs it with host memory
+    device->Unmap(buffer);
 
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     CHECK(device->CreateTexture(TextureDesc{}, texture).IsOk());
-    CHECK(texture != nullptr);
+    CHECK(texture.IsValid());
 
     // Unsupported extensions degrade; they do not crash.
-    MeshPipeline* mesh = nullptr;
+    MeshPipelineHandle mesh{};
     CHECK(device->CreateMeshPipeline(MeshPipelineDesc{}, mesh).Code() == ErrorCode::NotSupported);
 
     device->DestroyTexture(texture);
@@ -63,36 +63,34 @@ TEST_CASE("rhi.null: device creates resources and a mappable buffer")
     backend->Destroy();
 }
 
-TEST_CASE("rhi: texture views carry unique monotonic ids (address-reuse guard)")
+TEST_CASE("rhi: a texture view made in a destroyed one's slot has a different handle")
 {
-    // Caches keyed by TextureView* validate uniqueId on every hit: a destroyed view's
-    // address can be reused by the very next allocation, and a stale cached descriptor
-    // then samples a dead image view and loses the device. Ids must be unique across
-    // create, destroy and create cycles; an address is never enough.
+    // Caches key on view handles: a view made where a destroyed one was must never compare
+    // equal to it, or a cached bind group built for the old view would be handed back.
     Backend* backend = nullptr;
     REQUIRE(null::CreateNullBackend(backend).IsOk());
     REQUIRE(backend != nullptr);
     Device* device = nullptr;
     REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
 
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(TextureDesc{}, texture).IsOk());
 
-    TextureView* a = nullptr;
+    TextureViewHandle a{};
     REQUIRE(device->CreateTextureView(texture, TextureViewDesc{}, a).IsOk());
-    const foundation::core::u64 idA = a->uniqueId;
-    CHECK(idA != 0u);
+    const TextureViewHandle oldA = a;
 
-    TextureView* b = nullptr;
+    TextureViewHandle b{};
     REQUIRE(device->CreateTextureView(texture, TextureViewDesc{}, b).IsOk());
-    CHECK(b->uniqueId != idA);
+    CHECK(b != oldA);
 
-    // Destroy and recreate: even if the allocator reuses the address, the id is fresh.
     device->DestroyTextureView(a);
-    TextureView* c = nullptr;
+    TextureViewHandle c{};
     REQUIRE(device->CreateTextureView(texture, TextureViewDesc{}, c).IsOk());
-    CHECK(c->uniqueId != idA);
-    CHECK(c->uniqueId != b->uniqueId);
+    CHECK(c.index == oldA.index); // the freed slot, taken again
+    CHECK(c != oldA);
+    CHECK(device->Describe(oldA) == nullptr);
+    CHECK(device->TextureOf(c) == texture);
 
     device->DestroyTextureView(b);
     device->DestroyTextureView(c);
@@ -149,31 +147,31 @@ TEST_CASE("rhi.counters: a frame of known work counts what it did, a bundle each
     // A bundle of two draws and a bind, recorded once.
     RenderBundleEncoder* bundleEncoder = enc->CreateRenderBundleEncoder(RenderBundleDesc{});
     REQUIRE(bundleEncoder != nullptr);
-    bundleEncoder->SetBindGroup(0, nullptr, {});
+    bundleEncoder->SetBindGroup(0, {}, {});
     bundleEncoder->Draw(3);
     bundleEncoder->DrawIndexed(6);
     RenderBundle* bundle = bundleEncoder->Finish();
     CHECK(device.Counters().draws == 0u); // recording a bundle draws nothing yet
 
     RenderPassEncoder* pass = enc->BeginRenderPass(RenderPassDesc{});
-    pass->SetPipeline(nullptr);
-    pass->SetBindGroup(0, nullptr, {});
-    pass->SetBindGroup(1, nullptr, {});
+    pass->SetPipeline({});
+    pass->SetBindGroup(0, {}, {});
+    pass->SetBindGroup(1, {}, {});
     pass->Draw(3);
     pass->DrawIndexed(36);
-    pass->DrawIndirect(nullptr, 0, 4, 16);
+    pass->DrawIndirect({}, 0, 4, 16);
     RenderBundle* bundles[] = {bundle, bundle};
     pass->ExecuteBundles(Span<RenderBundle* const>(bundles, 2)); // the bundle runs twice
     pass->End();
     ComputePassEncoder* compute = enc->BeginComputePass();
-    compute->SetPipeline(nullptr);
+    compute->SetPipeline({});
     compute->Dispatch(8, 8, 1);
-    compute->DispatchIndirect(nullptr, 0);
+    compute->DispatchIndirect({}, 0);
     compute->End();
     TransferBatch* batch = nullptr;
     REQUIRE(device.GetQueue(QueueType::Graphics, 0)->CreateTransferBatch(batch).IsOk());
     const u8 bytes[100] = {};
-    batch->WriteBuffer(nullptr, 0, Span<const u8>(bytes, 100));
+    batch->WriteBuffer({}, 0, Span<const u8>(bytes, 100));
 
     const DeviceCounters c = device.Counters();
     CHECK(c.draws == 2u + 4u + 2u * 2u); // two direct, four indirect, the bundle's two twice
@@ -191,16 +189,16 @@ TEST_CASE("rhi.counters: memory held rises and falls with buffers and textures, 
     null::NullDevice device{DefaultAllocator()};
     BufferDesc bd{};
     bd.size = 1024;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device.CreateBuffer(bd, buffer).IsOk());
     TextureDesc td{};
     td.format = TextureFormat::RGBA8Unorm;
     td.width = 64;
     td.height = 64;
     td.usage = TextureUsage::Sampled;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device.CreateTexture(td, texture).IsOk());
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device.CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 32, 32), target).IsOk());
 
     DeviceCounters c = device.Counters();
@@ -243,7 +241,7 @@ TEST_CASE("rhi.null: a swapchain honours an asked-for sRGB or UNORM twin view, a
     SwapChain* plain = nullptr;
     REQUIRE(device->CreateSwapChain(nullptr, desc, plain).IsOk());
     CHECK(plain->AlternateViewFormat() == TextureFormat::Undefined); // not asked for
-    CHECK(plain->CurrentAlternateTextureView() == nullptr);
+    CHECK(!plain->CurrentAlternateTextureView().IsValid());
     device->DestroySwapChain(plain);
 
     desc.alternateViewFormat = TextureFormat::BGRA8Unorm;
@@ -251,10 +249,11 @@ TEST_CASE("rhi.null: a swapchain honours an asked-for sRGB or UNORM twin view, a
     REQUIRE(device->CreateSwapChain(nullptr, desc, twin).IsOk());
     REQUIRE(twin->AcquireNextImage().IsOk());
     CHECK(twin->AlternateViewFormat() == TextureFormat::BGRA8Unorm);
-    REQUIRE(twin->CurrentAlternateTextureView() != nullptr);
-    CHECK(twin->CurrentAlternateTextureView()->desc.format == TextureFormat::BGRA8Unorm);
-    CHECK(twin->CurrentTextureView()->desc.format == TextureFormat::BGRA8UnormSrgb);
-    CHECK(twin->CurrentTexture()->desc.alternateViewFormat == TextureFormat::BGRA8Unorm);
+    REQUIRE(twin->CurrentAlternateTextureView().IsValid());
+    CHECK(device->Describe(twin->CurrentAlternateTextureView())->format == TextureFormat::BGRA8Unorm);
+    CHECK(device->Describe(twin->CurrentTextureView())->format == TextureFormat::BGRA8UnormSrgb);
+    CHECK(device->Describe(twin->CurrentTexture())->alternateViewFormat == TextureFormat::BGRA8Unorm);
+    CHECK(device->TextureOf(twin->CurrentAlternateTextureView()) == twin->CurrentTexture());
     device->DestroySwapChain(twin);
 
     desc.alternateViewFormat = TextureFormat::RGBA16Float; // not the twin: refused quietly

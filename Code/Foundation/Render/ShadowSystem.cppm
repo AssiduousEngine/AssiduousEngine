@@ -23,7 +23,7 @@ import foundation.shaders;
 import foundation.shaders.system;
 import :data;  // ShadowCascades
 import :views;     // ViewCamera
-import :resources; // GpuRetireQueue
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -31,7 +31,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // Unproject an NDC corner (clip xy in [-1,1], z an NDC depth: name it with projection::kNdcDepthNear
     // or kNdcDepthFar, never a literal) to world space via the inverse view-proj.
     [[nodiscard]] inline Float3 UnprojectNDC(const Float4x4& invViewProj, f32 ndcX, f32 ndcY,
@@ -405,9 +404,6 @@ export namespace foundation::render
 
         ~ShadowSystem() { Shutdown(); }
 
-        /// Wire the frames-in-flight retire queue (web-safe atlas grows). Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         /// The shaders the atlas tile clear builds from (borrowed). Without them, or when the clear
         /// does not build, the static atlas layer clears whole and every static tile redraws when
         /// one is dirty.
@@ -418,7 +414,7 @@ export namespace foundation::render
         /// clears that tile, in a pass that loads the rest of the layer. Built on first use and again
         /// when its shader reloads; a failed build is not retried until then. Null without a shader
         /// system or a build.
-        [[nodiscard]] rhi::RenderPipeline* TileClearPipeline();
+        [[nodiscard]] rhi::RenderPipelineHandle TileClearPipeline();
         ShadowSystem(const ShadowSystem&) = delete;
         ShadowSystem& operator=(const ShadowSystem&) = delete;
 
@@ -431,8 +427,9 @@ export namespace foundation::render
 
         /// The sizes the shadow textures take from now on (a quality level's shadows tier): each
         /// cascade's square resolution, and the local-light atlas's tile (the atlas is 4 x 4 tiles).
-        /// A frame slot whose textures are another size recreates them when it next prepares, retiring
-        /// the old through the queue; the cached static atlas tiles redraw (AtlasGeneration).
+        /// A frame slot whose textures are another size recreates them when it next prepares,
+        /// destroying the old (the device keeps them while frames in flight sample them); the cached
+        /// static atlas tiles redraw (AtlasGeneration).
         void SetResolutions(u32 cascade, u32 atlasTile) noexcept
         {
             m_resolution = Clamp(cascade, 256u, 4096u);
@@ -446,9 +443,9 @@ export namespace foundation::render
         // Ensure this frame's shadow array exists with enough layers for `viewCount` views' cascades
         // (called before the mesh renderer builds set 0, so the map view is available to bind). Returns
         // the array sample view, or null on failure.
-        rhi::TextureView* PrepareFrame(u32 frameIndex, u32 viewCount);
+        rhi::TextureViewHandle PrepareFrame(u32 frameIndex, u32 viewCount);
 
-        [[nodiscard]] rhi::TextureView* SampleView(u32 frameIndex) const noexcept;
+        [[nodiscard]] rhi::TextureViewHandle SampleView(u32 frameIndex) const noexcept;
 
         // Bumped whenever a shadow texture is (re)created (lazily, and when the array grows for more
         // views). A consumer caching a bind group over SampleView keys on this so a reused-address view
@@ -482,17 +479,16 @@ export namespace foundation::render
 
         // Ensure this frame's atlas exists at the current tile size; returns its sample view (null on
         // failure). Created lazily, and again only when the tile size changes.
-        rhi::TextureView* PrepareAtlas(u32 frameIndex);
+        rhi::TextureViewHandle PrepareAtlas(u32 frameIndex);
 
         // Import this frame's atlas into the graph: the atlas depth pass writes it, then it transitions to
         // DepthStencilRead for the forward sample. Returns the handle (invalid if no atlas).
         rendergraph::RGHandle ImportAtlas(rendergraph::RenderGraph& graph, u32 frameIndex);
 
     private:
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         shaders::ShaderSystem* m_shaders = nullptr; // borrowed; the tile clear's shader
-        rhi::PipelineLayout* m_tileClearLayout = nullptr;
-        rhi::RenderPipeline* m_tileClearPipeline = nullptr;
+        rhi::PipelineLayoutHandle m_tileClearLayout{};
+        rhi::RenderPipelineHandle m_tileClearPipeline{};
         u64 m_tileClearVersion = ~0ull; // the shader version the clear was built (or failed) at
         static constexpr rhi::TextureFormat kShadowFormat = rhi::TextureFormat::Depth32Float;
         u32 m_resolution = 1024; // per cascade (SetResolutions)
@@ -500,7 +496,7 @@ export namespace foundation::render
         u64 m_atlasGeneration = 0;
 
         // Retire (or, without a queue, drain and destroy) a texture and its two views.
-        void Release(rhi::Texture*& texture, rhi::TextureView*& attach, rhi::TextureView*& sample);
+        void Release(rhi::TextureHandle& texture, rhi::TextureViewHandle& attach, rhi::TextureViewHandle& sample);
         static constexpr u32 kCascadeCount = ShadowCascades::kCount;
         static constexpr u32 kMaxFramesInFlight = 8;
 
@@ -521,18 +517,18 @@ export namespace foundation::render
         u32 m_framesInFlight = 2;
         u64 m_generation = 0; // incremented on every shadow texture (re)creation
 
-        rhi::Texture* m_textures[kMaxFramesInFlight] = {};
-        rhi::TextureView* m_attachViews[kMaxFramesInFlight] = {}; // depth render target
-        rhi::TextureView* m_sampleViews[kMaxFramesInFlight] = {}; // sampled in the forward shader
+        rhi::TextureHandle m_textures[kMaxFramesInFlight] = {};
+        rhi::TextureViewHandle m_attachViews[kMaxFramesInFlight] = {}; // depth render target
+        rhi::TextureViewHandle m_sampleViews[kMaxFramesInFlight] = {}; // sampled in the forward shader
         rhi::ResourceState m_states[kMaxFramesInFlight] =
             {};                                     // last-known state (import current-state)
         u32 m_layerCounts[kMaxFramesInFlight] = {}; // current array layer count per slot
         u32 m_slotResolutions[kMaxFramesInFlight] = {}; // the cascade resolution each slot was made at
 
         // Local-light shadow atlas: one 2-layer depth array per frame slot.
-        rhi::Texture* m_atlasTextures[kMaxFramesInFlight] = {};
-        rhi::TextureView* m_atlasAttachViews[kMaxFramesInFlight] = {}; // depth render target
-        rhi::TextureView* m_atlasSampleViews[kMaxFramesInFlight] =
+        rhi::TextureHandle m_atlasTextures[kMaxFramesInFlight] = {};
+        rhi::TextureViewHandle m_atlasAttachViews[kMaxFramesInFlight] = {}; // depth render target
+        rhi::TextureViewHandle m_atlasSampleViews[kMaxFramesInFlight] =
             {}; // sampled in the forward shader
         rhi::ResourceState m_atlasStates[kMaxFramesInFlight] = {};
         u32 m_atlasSlotTiles[kMaxFramesInFlight] = {}; // the tile size each slot's atlas was made at

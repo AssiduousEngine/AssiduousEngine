@@ -26,6 +26,9 @@ export namespace foundation::rhi::dx12
 
         [[nodiscard]] ID3D12GraphicsCommandList* handle() const { return m_cmdList; }
 
+        /// The recording it came from (its encoder's), ended when a queue submits it.
+        SubmissionTracker::Recording recording = 0;
+
         void release()
         {
             if (m_cmdList)

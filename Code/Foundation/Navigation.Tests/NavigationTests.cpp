@@ -295,10 +295,10 @@ TEST_CASE("navigation: two agents cross head-on, both arrive, no hard overlap")
     REQUIRE(crowd.IsValid());
 
     NavigationAgentParams ap; // defaults: radius 0.6, maxSpeed 3.5
-    const i32 a = crowd.AddAgent(Float3{-5, 0, 0}, ap);
-    const i32 b = crowd.AddAgent(Float3{5, 0, 0}, ap);
-    REQUIRE(a >= 0);
-    REQUIRE(b >= 0);
+    const NavigationAgentId a = crowd.AddAgent(Float3{-5, 0, 0}, ap);
+    const NavigationAgentId b = crowd.AddAgent(Float3{5, 0, 0}, ap);
+    REQUIRE(a.IsValid());
+    REQUIRE(b.IsValid());
     CHECK(crowd.IsAgentValid(a));
     CHECK(crowd.IsAgentValid(b));
 
@@ -367,8 +367,8 @@ TEST_CASE("tiled bake: a large ground splits into tiles, paths span them, and it
     NavigationCrowd crowd(DefaultAllocator(), mesh, 4, 0.6f);
     REQUIRE(crowd.IsValid());
     NavigationAgentParams agent;
-    const i32 id = crowd.AddAgent(Float3{-27, 0, -27}, agent);
-    REQUIRE(id >= 0);
+    const NavigationAgentId id = crowd.AddAgent(Float3{-27, 0, -27}, agent);
+    REQUIRE(id.IsValid());
     REQUIRE(crowd.SetTarget(id, Float3{27, 0, 27}));
     for (int step = 0; step < 150; ++step) // 5 s at 3.5 units/s, about 12 units along the diagonal
     {
@@ -769,4 +769,37 @@ TEST_CASE("navigation: a bake with a zero or non-number cell size is refused, no
     nan.cellSize = Sqrt(-1.0f);
     CHECK_FALSE(AreBakeParamsUsable(nan));
     CHECK(NavigationMeshBuilder::Build(vspan, ispan, nan, out).Code() == ErrorCode::InvalidArgument);
+}
+
+TEST_CASE("navigation: a removed agent's id stays stale when the crowd reuses its slot")
+{
+    // Detour hands a removed agent's slot to the next one added: an index kept past the remove
+    // steered, read or removed whichever agent came next.
+    Array<Float3> verts;
+    Array<u32> indices;
+    AddGround(verts, indices, -10, 10, -10, 10);
+    Array<byte> blob;
+    REQUIRE(NavigationMeshBuilder::Build(Span<const Float3>{verts.Data(), verts.Size()},
+                                         Span<const u32>{indices.Data(), indices.Size()},
+                                         NavigationBakeParams{}, blob)
+                .IsOk());
+    NavigationMesh mesh(DefaultAllocator());
+    REQUIRE(mesh.Load(Span<const byte>{blob.Data(), blob.Size()}).IsOk());
+    NavigationCrowd crowd(DefaultAllocator(), mesh, 4, 0.6f);
+    REQUIRE(crowd.IsValid());
+
+    NavigationAgentParams ap;
+    const NavigationAgentId first = crowd.AddAgent(Float3{-5, 0, 0}, ap);
+    REQUIRE(first.IsValid());
+    crowd.RemoveAgent(first);
+    CHECK_FALSE(crowd.IsAgentValid(first));
+    const NavigationAgentId second = crowd.AddAgent(Float3{5, 0, 0}, ap);
+    REQUIRE(second.IsValid());
+    CHECK_FALSE(second == first);
+    CHECK_FALSE(crowd.IsAgentValid(first));
+    CHECK_FALSE(crowd.SetTarget(first, Float3{0, 0, 5})); // stale: refused
+    CHECK(crowd.AgentPosition(first).x == doctest::Approx(0.0f));
+    crowd.RemoveAgent(first); // stale: leaves the new agent in the crowd
+    CHECK(crowd.IsAgentValid(second));
+    CHECK(crowd.AgentPosition(second).x == doctest::Approx(5.0f).epsilon(0.05));
 }

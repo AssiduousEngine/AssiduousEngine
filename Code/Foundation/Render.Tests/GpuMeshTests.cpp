@@ -26,8 +26,8 @@ TEST_CASE("mesh GPU cache: uploads on first use, reuses after, frees on clear")
 
     const GpuMesh* g = cache.GetOrUpload(cube.Get());
     REQUIRE(g != nullptr);
-    CHECK(g->vertexBuffer != nullptr);
-    CHECK(g->indexBuffer != nullptr);
+    CHECK(g->vertexBuffer.IsValid());
+    CHECK(g->indexBuffer.IsValid());
     CHECK(g->indexCount == cube->IndexCount()); // 36
     CHECK(g->indexFormat == rhi::IndexFormat::UInt32);
     CHECK(cache.Size() == 1);
@@ -55,7 +55,7 @@ TEST_CASE("mesh GPU cache: a static mesh has a depth stream of its positions and
     RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
     const GpuMesh* g = cache.GetOrUpload(cube.Get());
     REQUIRE(g != nullptr);
-    CHECK(g->depthBuffer != nullptr); // what its shadow and depth prepass draws read
+    CHECK(g->depthBuffer.IsValid()); // what its shadow and depth prepass draws read
 
     // Each vertex's position then uv, packed: 20 bytes, not the full 52.
     Array<u8> stream;
@@ -87,8 +87,8 @@ TEST_CASE("mesh GPU cache: a static mesh has a depth stream of its positions and
     skinned->indices.AddTriangle(0, 1, 2);
     const GpuMesh* sk = cache.GetOrUpload(skinned.Get());
     REQUIRE(sk != nullptr);
-    CHECK(sk->depthBuffer == nullptr);
-    CHECK(sk->skinBuffer != nullptr);
+    CHECK(!sk->depthBuffer.IsValid());
+    CHECK(sk->skinBuffer.IsValid());
 }
 
 TEST_CASE("mesh GPU cache: null + empty meshes upload nothing")

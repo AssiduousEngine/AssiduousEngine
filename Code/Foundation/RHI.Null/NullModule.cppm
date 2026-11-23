@@ -16,7 +16,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi::null
 {
-
     // ---- Stub resource classes ----
 
     class NullBuffer : public Buffer
@@ -52,6 +51,8 @@ export namespace foundation::rhi::null
     };
     class NullCommandBuffer : public CommandBuffer
     {
+    public:
+        SubmissionTracker::Recording recording = 0; // from its encoder's Finish, ended at submit
     };
 
     class NullFence : public Fence
@@ -76,7 +77,9 @@ export namespace foundation::rhi::null
     class NullBindGroupLayout : public BindGroupLayout
     {
     public:
-        Span<const BindGroupLayoutEntry> Entries() const override { return {}; }
+        explicit NullBindGroupLayout(IAllocator& allocator) : entries(allocator) {}
+        Span<const BindGroupLayoutEntry> Entries() const override { return entries.AsSpan(); }
+        Array<BindGroupLayoutEntry> entries; // as created (their labels not kept)
     };
 
     class NullBindGroup : public BindGroup
@@ -132,20 +135,30 @@ export namespace foundation::rhi::null
     {
     public:
         DeviceCounterBlock* counters = nullptr;
+        // The device's pipelines, when a pool of a device made it: a bound pipeline is looked up as a
+        // GPU backend looks it up, so a stale one is reported here too.
+        const ResourceTable<RenderPipelineTag, NullRenderPipeline>* pipelines = nullptr;
         MeshShaderPassExt* AsMeshShaderExt() noexcept override { return this; }
-        void SetPipeline(RenderPipeline*) override { counters->PipelineBinds(); }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
+        void SetPipeline(RenderPipelineHandle pipeline) override
+        {
+            counters->PipelineBinds();
+            if (pipelines != nullptr)
+            {
+                (void)pipelines->Get(pipeline);
+            }
+        }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
-        void SetVertexBuffer(u32, Buffer*, u64) override {}
-        void SetIndexBuffer(Buffer*, IndexFormat, u64) override {}
+        void SetVertexBuffer(u32, BufferHandle, u64) override {}
+        void SetIndexBuffer(BufferHandle, IndexFormat, u64) override {}
         void SetViewport(f32, f32, f32, f32, f32, f32) override {}
         void SetScissor(i32, i32, u32, u32) override {}
         void SetBlendConstant(f32, f32, f32, f32) override {}
         void SetStencilReference(u32) override {}
         void Draw(u32, u32, u32, u32) override { counters->Draws(); }
         void DrawIndexed(u32, u32, u32, i32, u32) override { counters->Draws(); }
-        void DrawIndirect(Buffer*, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
-        void DrawIndexedIndirect(Buffer*, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
+        void DrawIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
+        void DrawIndexedIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
         void ExecuteBundles(Span<RenderBundle* const> bundles) override
         {
             for (RenderBundle* bundle : bundles)
@@ -153,14 +166,14 @@ export namespace foundation::rhi::null
                 static_cast<NullRenderBundle*>(bundle)->counts.AddTo(*counters);
             }
         }
-        void WriteTimestamp(QuerySet*, u32) override {}
-        void BeginOcclusionQuery(QuerySet*, u32) override {}
-        void EndOcclusionQuery(QuerySet*, u32) override {}
+        void WriteTimestamp(QuerySetHandle, u32) override {}
+        void BeginOcclusionQuery(QuerySetHandle, u32) override {}
+        void EndOcclusionQuery(QuerySetHandle, u32) override {}
         void End() override {}
-        void SetMeshPipeline(MeshPipeline*) override { counters->PipelineBinds(); }
+        void SetMeshPipeline(MeshPipelineHandle) override { counters->PipelineBinds(); }
         void DrawMeshTasks(u32, u32, u32) override { counters->Draws(); }
-        void DrawMeshTasksIndirect(Buffer*, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
-        void DrawMeshTasksIndirectCount(Buffer*, u64, Buffer*, u64, u32 maxDrawCount, u32) override
+        void DrawMeshTasksIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
+        void DrawMeshTasksIndirectCount(BufferHandle, u64, BufferHandle, u64, u32 maxDrawCount, u32) override
         {
             counters->Draws(maxDrawCount); // the count is on the GPU: at most this many
         }
@@ -170,15 +183,15 @@ export namespace foundation::rhi::null
     {
     public:
         // Counts what it records into its bundle (counted when the bundle runs), not the device.
-        void SetPipeline(RenderPipeline*) override { ++bundle.counts.pipelineBinds; }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { ++bundle.counts.bindGroupBinds; }
+        void SetPipeline(RenderPipelineHandle) override { ++bundle.counts.pipelineBinds; }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { ++bundle.counts.bindGroupBinds; }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
-        void SetVertexBuffer(u32, Buffer*, u64) override {}
-        void SetIndexBuffer(Buffer*, IndexFormat, u64) override {}
+        void SetVertexBuffer(u32, BufferHandle, u64) override {}
+        void SetIndexBuffer(BufferHandle, IndexFormat, u64) override {}
         void Draw(u32, u32, u32, u32) override { ++bundle.counts.draws; }
         void DrawIndexed(u32, u32, u32, i32, u32) override { ++bundle.counts.draws; }
-        void DrawIndirect(Buffer*, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
-        void DrawIndexedIndirect(Buffer*, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
+        void DrawIndirect(BufferHandle, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
+        void DrawIndexedIndirect(BufferHandle, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
         RenderBundle* Finish() override { return &bundle; }
         NullRenderBundle bundle;
     };
@@ -187,13 +200,13 @@ export namespace foundation::rhi::null
     {
     public:
         DeviceCounterBlock* counters = nullptr;
-        void SetPipeline(ComputePipeline*) override { counters->PipelineBinds(); }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
+        void SetPipeline(ComputePipelineHandle) override { counters->PipelineBinds(); }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void Dispatch(u32, u32, u32) override { counters->Dispatches(); }
-        void DispatchIndirect(Buffer*, u64) override { counters->Dispatches(); }
+        void DispatchIndirect(BufferHandle, u64) override { counters->Dispatches(); }
         void ComputeBarrier() override {}
-        void WriteTimestamp(QuerySet*, u32) override {}
+        void WriteTimestamp(QuerySetHandle, u32) override {}
         void End() override {}
     };
 
@@ -207,6 +220,7 @@ export namespace foundation::rhi::null
         NullCommandBuffer cb;
 
         DeviceCounterBlock* counters = nullptr;
+        SubmissionTracker::Recording recording = 0; // open from CreateEncoder to Finish
 
         // Made by a NullCommandPool, it counts into its device; made on its own (tests), into a
         // block of its own.
@@ -236,65 +250,104 @@ export namespace foundation::rhi::null
             return &rbe;
         }
         void Barrier(const BarrierGroup&) override {}
-        void CopyBufferToBuffer(Buffer*, u64, Buffer*, u64, u64) override {}
-        void CopyBufferToTexture(Buffer*, Texture*, const BufferTextureCopyRegion&) override {}
-        void CopyTextureToBuffer(Texture*, Buffer*, const BufferTextureCopyRegion&) override {}
-        void CopyTextureToTexture(Texture*, Texture*, const TextureCopyRegion&) override {}
-        void Blit(Texture*, Texture*) override {}
-        void GenerateMipmaps(Texture*) override {}
-        void ResolveTexture(Texture*, Texture*) override {}
-        void ResetQuerySet(QuerySet*, u32, u32) override {}
-        void WriteTimestamp(QuerySet*, u32) override {}
-        void BeginPipelineStatisticsQuery(QuerySet*, u32) override {}
-        void EndPipelineStatisticsQuery(QuerySet*, u32) override {}
-        void ResolveQuerySet(QuerySet*, u32, u32, Buffer*, u64) override {}
+        void CopyBufferToBuffer(BufferHandle, u64, BufferHandle, u64, u64) override {}
+        void CopyBufferToTexture(BufferHandle, TextureHandle, const BufferTextureCopyRegion&) override {}
+        void CopyTextureToBuffer(TextureHandle, BufferHandle, const BufferTextureCopyRegion&) override {}
+        void CopyTextureToTexture(TextureHandle, TextureHandle, const TextureCopyRegion&) override {}
+        void Blit(TextureHandle, TextureHandle) override {}
+        void GenerateMipmaps(TextureHandle) override {}
+        void ResolveTexture(TextureHandle, TextureHandle) override {}
+        void ResetQuerySet(QuerySetHandle, u32, u32) override {}
+        void WriteTimestamp(QuerySetHandle, u32) override {}
+        void BeginPipelineStatisticsQuery(QuerySetHandle, u32) override {}
+        void EndPipelineStatisticsQuery(QuerySetHandle, u32) override {}
+        void ResolveQuerySet(QuerySetHandle, u32, u32, BufferHandle, u64) override {}
         void BeginDebugLabel(StringView, f32, f32, f32, f32) override {}
         void EndDebugLabel() override {}
         void InsertDebugLabel(StringView, f32, f32, f32, f32) override {}
-        CommandBuffer* Finish() override { return &cb; }
+        CommandBuffer* Finish() override
+        {
+            cb.recording = recording;
+            recording = 0;
+            return &cb;
+        }
 
         // RayTracingEncoderExt
-        void BuildBottomLevelAccelStruct(AccelStruct*, Buffer*, u64,
+        void BuildBottomLevelAccelStruct(AccelStructHandle, BufferHandle, u64,
                                          Span<const AccelStructGeometryTriangles>,
                                          Span<const AccelStructGeometryAABBs>) override
         {
         }
-        void BuildTopLevelAccelStruct(AccelStruct*, Buffer*, u64, Buffer*, u64, u32) override {}
-        void SetRayTracingPipeline(RayTracingPipeline*) override { counters->PipelineBinds(); }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
+        void BuildTopLevelAccelStruct(AccelStructHandle, BufferHandle, u64, BufferHandle, u64, u32) override {}
+        void SetRayTracingPipeline(RayTracingPipelineHandle) override { counters->PipelineBinds(); }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
-        void TraceRays(Buffer*, u64, u64, Buffer*, u64, u64, Buffer*, u64, u64, u32, u32,
+        void TraceRays(BufferHandle, u64, u64, BufferHandle, u64, u64, BufferHandle, u64, u64, u32, u32,
                        u32) override
         {
             counters->Dispatches();
         }
     };
 
+    // The pool's one encoder records at a time; what it began is a recording the device's tracker
+    // counts until it is submitted, or discarded by DestroyEncoder, Reset or the pool's end.
     class NullCommandPool : public CommandPool
     {
     public:
-        explicit NullCommandPool(DeviceCounterBlock& counters) noexcept : enc(counters) {}
+        NullCommandPool(DeviceCounterBlock& counters, SubmissionTracker& tracker,
+                        const ResourceTable<RenderPipelineTag, NullRenderPipeline>& pipelines) noexcept
+            : enc(counters), m_tracker(&tracker)
+        {
+            enc.rpe.pipelines = &pipelines;
+        }
+        ~NullCommandPool() override { Discard(); }
         NullCommandEncoder enc;
         Status CreateEncoder(CommandEncoder*& out) override
         {
+            m_tracker->End(enc.recording); // one left open by an encoder never finished
+            enc.recording = m_tracker->Begin();
             out = &enc;
             return ErrorCode::Ok;
         }
-        void DestroyEncoder(CommandEncoder*&) override {}
-        void Reset() override {}
+        void DestroyEncoder(CommandEncoder*& encoder) override
+        {
+            m_tracker->End(enc.recording);
+            enc.recording = 0;
+            encoder = nullptr;
+        }
+        void Reset() override { Discard(); }
         RenderBundleEncoder* CreateRenderBundleEncoder(const RenderBundleDesc&) override
         {
+            // A bundle may be executed by any later command buffer until the pool resets.
+            if (m_bundle == 0)
+            {
+                m_bundle = m_tracker->Begin();
+            }
             enc.rbe.bundle.counts = RecordedCounts{};
             return &enc.rbe;
         }
+
+    private:
+        void Discard()
+        {
+            m_tracker->End(enc.recording);
+            m_tracker->End(enc.cb.recording);
+            m_tracker->End(m_bundle);
+            enc.recording = 0;
+            enc.cb.recording = 0;
+            m_bundle = 0;
+        }
+
+        SubmissionTracker* m_tracker;
+        SubmissionTracker::Recording m_bundle = 0;
     };
 
     class NullTransferBatch : public TransferBatch
     {
     public:
         DeviceCounterBlock* counters = nullptr;
-        void WriteBuffer(Buffer*, u64, Span<const u8> data) override { counters->Transfer(data.Size()); }
-        void WriteTexture(Texture*, Span<const u8> data, const TextureDataLayout&, Extent3D, u32,
+        void WriteBuffer(BufferHandle, u64, Span<const u8> data) override { counters->Transfer(data.Size()); }
+        void WriteTexture(TextureHandle, Span<const u8> data, const TextureDataLayout&, Extent3D, u32,
                           u32) override
         {
             counters->Transfer(data.Size());
@@ -311,6 +364,10 @@ export namespace foundation::rhi::null
         NullTexture tex;
         NullTextureView view;
         NullTextureView alternateView;
+        // The device's handles to them, taken back out of its tables when the swap chain goes.
+        TextureHandle texHandle{};
+        TextureViewHandle viewHandle{};
+        TextureViewHandle alternateHandle{};
         TextureFormat m_format = TextureFormat::BGRA8UnormSrgb;
         TextureFormat m_alternate = TextureFormat::Undefined;
         u32 m_width = 0;
@@ -340,14 +397,11 @@ export namespace foundation::rhi::null
             m_imgIdx = (m_imgIdx + 1) % m_count;
             return ErrorCode::Ok;
         }
-        Texture* CurrentTexture() override { return &tex; }
-        TextureView* CurrentTextureView() override { return &view; }
+        TextureHandle CurrentTexture() override { return texHandle; }
+        TextureViewHandle CurrentTextureView() override { return viewHandle; }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
         ContentRotation PreRotation() const override { return m_rotation; }
-        TextureView* CurrentAlternateTextureView() override
-        {
-            return m_alternate != TextureFormat::Undefined ? &alternateView : nullptr;
-        }
+        TextureViewHandle CurrentAlternateTextureView() override { return alternateHandle; }
         Status Present(Queue*) override
         {
             const Status fault = nextPresent;
@@ -368,27 +422,56 @@ export namespace foundation::rhi::null
         }
     };
 
+    // A submission completes as it is made (there is no GPU): it ends its command buffers'
+    // recordings at the queue's next value and frees what nothing can use any more.
     class NullQueue : public Queue
     {
     public:
         NullTransferBatch tb;
-        void Submit(Span<CommandBuffer* const>) override {}
-        void Submit(Span<CommandBuffer* const>, Fence* f, u64 v) override
+        SubmissionTracker* tracker = nullptr;
+        u32 slot = 0;
+        Function<void()> collect; // the device's: frees what is safe now
+
+        void Submit(Span<CommandBuffer* const> cbs) override { Submitted(cbs); }
+        void Submit(Span<CommandBuffer* const> cbs, Fence* f, u64 v) override
         {
+            Submitted(cbs);
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
         }
-        void Submit(Span<CommandBuffer* const>, Span<Fence* const>, Span<const u64>, Fence* f,
+        void Submit(Span<CommandBuffer* const> cbs, Span<Fence* const>, Span<const u64>, Fence* f,
                     u64 v) override
         {
+            Submitted(cbs);
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
         }
-        void SubmitFrame(Span<CommandBuffer* const>, SwapChain&, Span<Fence* const>, Span<const u64>, Fence* f,
+        void SubmitFrame(Span<CommandBuffer* const> cbs, SwapChain&, Span<Fence* const>, Span<const u64>, Fence* f,
                          u64 v) override
         {
+            Submitted(cbs);
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
+        }
+        void Submitted(Span<CommandBuffer* const> cbs)
+        {
+            if (tracker == nullptr)
+            {
+                return;
+            }
+            const u64 value = tracker->NextSubmission(slot);
+            for (CommandBuffer* cb : cbs)
+            {
+                if (auto* null = static_cast<NullCommandBuffer*>(cb))
+                {
+                    tracker->End(null->recording, slot, value);
+                    null->recording = 0;
+                }
+            }
+            if (collect)
+            {
+                collect();
+            }
         }
         using Queue::SubmitFrame;
         void WaitIdle() override {}
@@ -419,9 +502,63 @@ export namespace foundation::rhi::null
         bool refusePresentMode = false;
         PresentMode refusedPresentMode = PresentMode::Immediate;
 
+        SubmissionTracker m_tracker{m_allocator};
+        ResourceTable<BufferTag, NullBuffer> m_buffers{m_allocator, m_tracker, &FreeBuffer, this, "Buffer"};
+        ResourceTable<TextureTag, NullTexture> m_textures{m_allocator, m_tracker, &FreeTexture, this, "Texture"};
+        ResourceTable<TextureViewTag, NullTextureView> m_views{m_allocator, m_tracker, &FreeObject<NullTextureView>,
+                                                               this, "TextureView"};
+        ResourceTable<SamplerTag, NullSampler> m_samplers{m_allocator, m_tracker, &FreeObject<NullSampler>, this, "Sampler"};
+        ResourceTable<ShaderModuleTag, NullShaderModule> m_shaderModules{m_allocator, m_tracker, &FreeObject<NullShaderModule>, this, "ShaderModule"};
+        ResourceTable<BindGroupLayoutTag, NullBindGroupLayout> m_bindGroupLayouts{m_allocator, m_tracker, &FreeObject<NullBindGroupLayout>, this, "BindGroupLayout"};
+        ResourceTable<BindGroupTag, NullBindGroup> m_bindGroups{m_allocator, m_tracker, &FreeObject<NullBindGroup>, this, "BindGroup"};
+        ResourceTable<PipelineLayoutTag, NullPipelineLayout> m_pipelineLayouts{m_allocator, m_tracker, &FreeObject<NullPipelineLayout>, this, "PipelineLayout"};
+        ResourceTable<PipelineCacheTag, NullPipelineCache> m_pipelineCaches{m_allocator, m_tracker, &FreeObject<NullPipelineCache>, this, "PipelineCache"};
+        ResourceTable<RenderPipelineTag, NullRenderPipeline> m_renderPipelines{m_allocator, m_tracker, &FreeObject<NullRenderPipeline>, this, "RenderPipeline"};
+        ResourceTable<ComputePipelineTag, NullComputePipeline> m_computePipelines{m_allocator, m_tracker, &FreeObject<NullComputePipeline>, this, "ComputePipeline"};
+        ResourceTable<QuerySetTag, NullQuerySet> m_querySets{m_allocator, m_tracker, &FreeObject<NullQuerySet>, this, "QuerySet"};
+
+        static void FreeTexture(void* context, void* object)
+        {
+            auto* device = static_cast<NullDevice*>(context);
+            auto* texture = static_cast<NullTexture*>(object);
+            device->m_counters.TextureFreed(EstimateTextureBytes(texture->desc), CountsAsRenderTarget(texture->desc));
+            device->m_allocator.Delete(texture);
+        }
+        template <typename T>
+        static void FreeObject(void* context, void* object)
+        {
+            static_cast<NullDevice*>(context)->m_allocator.Delete(static_cast<T*>(object));
+        }
+
+        static void FreeBuffer(void* context, void* object)
+        {
+            auto* device = static_cast<NullDevice*>(context);
+            auto* buffer = static_cast<NullBuffer*>(object);
+            device->m_counters.BufferFreed(buffer->desc.size);
+            device->m_allocator.Delete(buffer);
+        }
+
+        // Everything submitted is complete: free what no open recording can still use.
+        void CollectRetired()
+        {
+            u64 completed[SubmissionTracker::kMaxQueues] = {};
+            for (u32 q = 0; q < SubmissionTracker::kMaxQueues; ++q)
+            {
+                completed[q] = m_tracker.LastSubmission(q);
+            }
+            m_tracker.Collect(Span<const u64>(completed, SubmissionTracker::kMaxQueues));
+        }
+
         explicit NullDevice(IAllocator& allocator) : m_allocator(allocator)
         {
             type = DeviceType::Null;
+            NullQueue* const queues[] = {&gfxQueue, &compQueue, &xferQueue};
+            for (NullQueue* queue : queues)
+            {
+                queue->tracker = &m_tracker;
+                queue->slot = m_tracker.AddQueue();
+                queue->collect = [this]() { CollectRetired(); };
+            }
             gfxQueue.tb.counters = &m_counters;
             compQueue.tb.counters = &m_counters;
             xferQueue.tb.counters = &m_counters;
@@ -471,77 +608,180 @@ export namespace foundation::rhi::null
                    FormatSupport::DepthStencil;
         }
 
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
             auto* b = m_allocator.New<NullBuffer>();
             b->desc = d;
             b->allocate(d.size);
+            out = m_buffers.Add(b, d.label);
+            if (!out.IsValid())
+            {
+                m_allocator.Delete(b);
+                return ErrorCode::OutOfMemory;
+            }
             m_counters.BufferMade(d.size);
-            out = b;
             return ErrorCode::Ok;
         }
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        const BufferDesc* Describe(BufferHandle buffer) const override
+        {
+            const NullBuffer* b = m_buffers.Get(buffer);
+            return b != nullptr ? &b->desc : nullptr;
+        }
+        void* Map(BufferHandle buffer) override
+        {
+            NullBuffer* b = m_buffers.Get(buffer);
+            return b != nullptr ? b->Map() : nullptr;
+        }
+        void Unmap(BufferHandle buffer) override
+        {
+            if (NullBuffer* b = m_buffers.Get(buffer))
+                b->Unmap();
+        }
+        void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
+        {
+            if (NullBuffer* b = m_buffers.Get(buffer))
+                b->FlushRange(offset, size);
+        }
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
         {
             auto* t = m_allocator.New<NullTexture>();
             t->desc = d;
             m_counters.TextureMade(EstimateTextureBytes(d), CountsAsRenderTarget(d));
-            out = t;
+            out = m_textures.Add(t, d.label);
             return ErrorCode::Ok;
         }
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
+            out = TextureViewHandle::Invalid();
+            if (m_textures.Get(tex) == nullptr)
+                return ErrorCode::InvalidArgument;
             auto* v = m_allocator.New<NullTextureView>();
             v->desc = d;
             v->texture = tex;
-            out = v;
+            out = m_views.Add(v, d.label);
             return ErrorCode::Ok;
         }
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
             auto* s = m_allocator.New<NullSampler>();
             s->desc = d;
-            out = s;
+            out = m_samplers.Add(s, d.label);
             return ErrorCode::Ok;
         }
-        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
+        const TextureDesc* Describe(TextureHandle texture) const override
         {
-            out = m_allocator.New<NullShaderModule>();
-            out->entryPoint = String(d.entryPoint);
+            const NullTexture* t = m_textures.Get(texture);
+            return t != nullptr ? &t->desc : nullptr;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle view) const override
+        {
+            const NullTextureView* v = m_views.Get(view);
+            return v != nullptr ? &v->desc : nullptr;
+        }
+        StringView Label(BufferHandle handle) const override { return m_buffers.Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_textures.Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_views.Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_samplers.Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_shaderModules.Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_bindGroupLayouts.Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_bindGroups.Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_pipelineLayouts.Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_pipelineCaches.Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_renderPipelines.Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_computePipelines.Label(handle); }
+        StringView Label(MeshPipelineHandle) const override { return {}; } // none made here
+        StringView Label(QuerySetHandle handle) const override { return m_querySets.Label(handle); }
+        StringView Label(AccelStructHandle) const override { return {}; } // none made here
+        StringView Label(RayTracingPipelineHandle) const override { return {}; } // none made here
+        bool IsLive(TextureViewHandle view) const override { return m_views.Find(view) != nullptr; }
+        TextureHandle TextureOf(TextureViewHandle view) const override
+        {
+            const NullTextureView* v = m_views.Get(view);
+            return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        const SamplerDesc* Describe(SamplerHandle sampler) const override
+        {
+            const NullSampler* s = m_samplers.Get(sampler);
+            return s != nullptr ? &s->desc : nullptr;
+        }
+        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModuleHandle& out) override
+        {
+            auto* module = m_allocator.New<NullShaderModule>();
+            module->entryPoint = String(d.entryPoint);
+            out = m_shaderModules.Add(module, d.label);
             return ErrorCode::Ok;
         }
-        Status CreateBindGroupLayout(const BindGroupLayoutDesc&, BindGroupLayout*& out) override
+        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayoutHandle& out) override
         {
-            out = m_allocator.New<NullBindGroupLayout>();
+            auto* layout = m_allocator.New<NullBindGroupLayout>(m_allocator);
+            for (BindGroupLayoutEntry entry : d.entries)
+            {
+                entry.label = {};
+                layout->entries.PushBack(entry);
+            }
+            out = m_bindGroupLayouts.Add(layout, d.label);
             return ErrorCode::Ok;
         }
-        Status CreateBindGroup(const BindGroupDesc&, BindGroup*& out) override
+        Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
         {
-            out = m_allocator.New<NullBindGroup>();
+            out = BindGroupHandle::Invalid();
+            if (m_bindGroupLayouts.Get(d.layout) == nullptr)
+                return ErrorCode::InvalidArgument;
+            auto* group = m_allocator.New<NullBindGroup>();
+            group->layout = d.layout;
+            out = m_bindGroups.Add(group, d.label);
             return ErrorCode::Ok;
         }
-        Status CreatePipelineLayout(const PipelineLayoutDesc&, PipelineLayout*& out) override
+        StringView EntryPointOf(ShaderModuleHandle module) const override
         {
-            out = m_allocator.New<NullPipelineLayout>();
+            const NullShaderModule* m = m_shaderModules.Get(module);
+            return m != nullptr ? m->entryPoint.AsView() : StringView{};
+        }
+        Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const override
+        {
+            const NullBindGroupLayout* l = m_bindGroupLayouts.Get(layout);
+            return l != nullptr ? l->Entries() : Span<const BindGroupLayoutEntry>{};
+        }
+        BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
+        {
+            const NullBindGroup* g = m_bindGroups.Get(group);
+            return g != nullptr ? g->layout : BindGroupLayoutHandle::Invalid();
+        }
+        void UpdateBindless(BindGroupHandle, Span<const BindlessUpdateEntry>) override {}
+        u32 PipelineCacheDataSize(PipelineCacheHandle) override { return 0; }
+        Status PipelineCacheData(PipelineCacheHandle cache, Span<u8>) override
+        {
+            return m_pipelineCaches.Get(cache) != nullptr ? Status(ErrorCode::Ok) : Status(ErrorCode::InvalidArgument);
+        }
+        const QuerySetDesc* Describe(QuerySetHandle querySet) const override
+        {
+            const NullQuerySet* q = m_querySets.Get(querySet);
+            return q != nullptr ? &q->desc : nullptr;
+        }
+        u64 DeviceAddress(AccelStructHandle) const override { return 0; }
+        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayoutHandle& out) override
+        {
+            out = m_pipelineLayouts.Add(m_allocator.New<NullPipelineLayout>(), d.label);
             return ErrorCode::Ok;
         }
-        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCache*& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCacheHandle& out) override
         {
-            out = m_allocator.New<NullPipelineCache>();
+            out = m_pipelineCaches.Add(m_allocator.New<NullPipelineCache>(), d.label);
             return ErrorCode::Ok;
         }
-        Status CreateRenderPipeline(const RenderPipelineDesc&, RenderPipeline*& out) override
+        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipelineHandle& out) override
         {
-            out = m_allocator.New<NullRenderPipeline>();
+            out = m_renderPipelines.Add(m_allocator.New<NullRenderPipeline>(), d.label);
             return ErrorCode::Ok;
         }
-        Status CreateComputePipeline(const ComputePipelineDesc&, ComputePipeline*& out) override
+        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipelineHandle& out) override
         {
-            out = m_allocator.New<NullComputePipeline>();
+            out = m_computePipelines.Add(m_allocator.New<NullComputePipeline>(), d.label);
             return ErrorCode::Ok;
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
         {
-            out = m_allocator.New<NullCommandPool>(m_counters);
+            out = m_allocator.New<NullCommandPool>(m_counters, m_tracker, m_renderPipelines);
             return ErrorCode::Ok;
         }
         Status CreateFence(u64, Fence*& out) override
@@ -549,12 +789,12 @@ export namespace foundation::rhi::null
             out = m_allocator.New<NullFence>();
             return ErrorCode::Ok;
         }
-        Status CreateQuerySet(const QuerySetDesc& d, QuerySet*& out) override
+        Status CreateQuerySet(const QuerySetDesc& d, QuerySetHandle& out) override
         {
             auto* q = m_allocator.New<NullQuerySet>();
-            q->type = d.type;
-            q->count = d.count;
-            out = q;
+            q->desc = d;
+            q->desc.label = {};
+            out = m_querySets.Add(q, d.label);
             return ErrorCode::Ok;
         }
         Status CreateSwapChain(Surface*, const SwapChainDesc& d, SwapChain*& out) override
@@ -576,68 +816,70 @@ export namespace foundation::rhi::null
             sc->m_width = swaps ? d.height : d.width;
             sc->m_height = swaps ? d.width : d.height;
             sc->m_count = d.bufferCount;
+            sc->texHandle = m_textures.Add(&sc->tex, u8"swap chain image");
+            sc->view.texture = sc->texHandle;
+            sc->alternateView.texture = sc->texHandle;
+            sc->viewHandle = m_views.Add(&sc->view, u8"swap chain image/view");
+            if (sc->m_alternate != TextureFormat::Undefined)
+                sc->alternateHandle = m_views.Add(&sc->alternateView, u8"swap chain image/alternate view");
             out = sc;
             return ErrorCode::Ok;
         }
 
-        void DestroyBuffer(Buffer*& x) override
+        void DestroyBuffer(BufferHandle& x) override
         {
-            if (x != nullptr)
-                m_counters.BufferFreed(x->desc.size);
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_buffers.Retire(x))
+                CollectRetired();
         }
-        void DestroyTexture(Texture*& x) override
+        void DestroyTexture(TextureHandle& x) override
         {
-            if (x != nullptr)
-                m_counters.TextureFreed(EstimateTextureBytes(x->desc), CountsAsRenderTarget(x->desc));
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_textures.Retire(x))
+                CollectRetired();
         }
-        void DestroyTextureView(TextureView*& x) override
+        void DestroyTextureView(TextureViewHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_views.Retire(x))
+                CollectRetired();
         }
-        void DestroySampler(Sampler*& x) override
+        void DestroySampler(SamplerHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_samplers.Retire(x))
+                CollectRetired();
         }
-        void DestroyShaderModule(ShaderModule*& x) override
+        void DestroyShaderModule(ShaderModuleHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_shaderModules.Retire(x))
+                CollectRetired();
         }
-        void DestroyBindGroupLayout(BindGroupLayout*& x) override
+        void DestroyBindGroupLayout(BindGroupLayoutHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_bindGroupLayouts.Retire(x))
+                CollectRetired();
         }
-        void DestroyBindGroup(BindGroup*& x) override
+        void DestroyBindGroup(BindGroupHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_bindGroups.Retire(x))
+                CollectRetired();
         }
-        void DestroyPipelineLayout(PipelineLayout*& x) override
+        void DestroyPipelineLayout(PipelineLayoutHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_pipelineLayouts.Retire(x))
+                CollectRetired();
         }
-        void DestroyPipelineCache(PipelineCache*& x) override
+        void DestroyPipelineCache(PipelineCacheHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_pipelineCaches.Retire(x))
+                CollectRetired();
         }
-        void DestroyRenderPipeline(RenderPipeline*& x) override
+        void DestroyRenderPipeline(RenderPipelineHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_renderPipelines.Retire(x))
+                CollectRetired();
         }
-        void DestroyComputePipeline(ComputePipeline*& x) override
+        void DestroyComputePipeline(ComputePipelineHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_computePipelines.Retire(x))
+                CollectRetired();
         }
         void DestroyCommandPool(CommandPool*& x) override
         {
@@ -649,13 +891,19 @@ export namespace foundation::rhi::null
             m_allocator.Delete(x);
             x = nullptr;
         }
-        void DestroyQuerySet(QuerySet*& x) override
+        void DestroyQuerySet(QuerySetHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_querySets.Retire(x))
+                CollectRetired();
         }
         void DestroySwapChain(SwapChain*& x) override
         {
+            if (auto* sc = static_cast<NullSwapChain*>(x))
+            {
+                (void)m_textures.Remove(sc->texHandle);
+                (void)m_views.Remove(sc->viewHandle);
+                (void)m_views.Remove(sc->alternateHandle);
+            }
             m_allocator.Delete(x);
             x = nullptr;
         }
@@ -672,25 +920,31 @@ export namespace foundation::rhi::null
         [[nodiscard]] bool SupportsSampleCount(u32 count) const noexcept override { return count <= 1; }
 
         // No mesh shaders and no ray tracing here.
-        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipeline*& out) override
+        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipelineHandle& out) override
         {
-            out = nullptr;
+            out = MeshPipelineHandle::Invalid();
             return ErrorCode::NotSupported;
         }
-        void DestroyMeshPipeline(MeshPipeline*& pipeline) override { pipeline = nullptr; }
-        Status CreateAccelStruct(const AccelStructDesc&, AccelStruct*& out) override
+        void DestroyMeshPipeline(MeshPipelineHandle& pipeline) override { pipeline = MeshPipelineHandle::Invalid(); }
+        Status CreateAccelStruct(const AccelStructDesc&, AccelStructHandle& out) override
         {
-            out = nullptr;
+            out = AccelStructHandle::Invalid();
             return ErrorCode::NotSupported;
         }
-        void DestroyAccelStruct(AccelStruct*& accelStruct) override { accelStruct = nullptr; }
-        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipeline*& out) override
+        void DestroyAccelStruct(AccelStructHandle& accelStruct) override { accelStruct = AccelStructHandle::Invalid(); }
+        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipelineHandle& out) override
         {
-            out = nullptr;
+            out = RayTracingPipelineHandle::Invalid();
             return ErrorCode::NotSupported;
         }
-        void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) override { pipeline = nullptr; }
-        Status GetShaderGroupHandles(RayTracingPipeline*, u32, u32, Span<u8>) override { return ErrorCode::NotSupported; }
+        void DestroyRayTracingPipeline(RayTracingPipelineHandle& pipeline) override
+        {
+            pipeline = RayTracingPipelineHandle::Invalid();
+        }
+        Status GetShaderGroupHandles(RayTracingPipelineHandle, u32, u32, Span<u8>) override
+        {
+            return ErrorCode::NotSupported;
+        }
         void Destroy() override
         {
             IAllocator& alloc = m_allocator;

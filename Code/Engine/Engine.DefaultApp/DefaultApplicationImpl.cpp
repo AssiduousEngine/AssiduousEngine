@@ -613,8 +613,7 @@ namespace engine::runtime
         engine::RegisterAllResourceTypes();
         if (GraphicsDevice* gfx = host.Graphics(); gfx != nullptr && gfx->Raw() != nullptr && m_gui != nullptr)
         {
-            m_gui->EnsureRenderReady(*gfx->Raw(), static_cast<core::i32>(gfx->FramesInFlight()),
-                                     m_render != nullptr ? m_render->RetireQueue() : nullptr);
+            m_gui->EnsureRenderReady(*gfx->Raw(), static_cast<core::i32>(gfx->FramesInFlight()));
         }
 
         if (m_borrowedResources == nullptr && m_contentDatabase != nullptr)
@@ -814,7 +813,7 @@ namespace engine::runtime
         auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>();
         auto* scenes = host.Subsystems().GetSubsystem<engine::scene::SceneSubsystem>();
         if (render == nullptr || !render->IsReady() || scenes == nullptr ||
-            frame.encoder == nullptr || frame.backbufferView == nullptr || frame.window == nullptr)
+            frame.encoder == nullptr || !frame.backbufferView.IsValid() || frame.window == nullptr)
         {
             frame.Clear(0.08f, 0.09f, 0.12f, 1.0f); // no renderer - present a clear
             return;

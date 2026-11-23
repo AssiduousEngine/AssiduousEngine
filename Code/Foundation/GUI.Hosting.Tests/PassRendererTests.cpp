@@ -23,13 +23,13 @@ namespace image = foundation::image;
 
 namespace
 {
-    rhi::ShaderModule* MakeModule(rhi::Device& d)
+    rhi::ShaderModuleHandle MakeModule(rhi::Device& d)
     {
         const u8 dummy[4] = {0, 0, 0, 0};
         rhi::ShaderModuleDesc desc{};
         desc.code = Span<const u8>(dummy, 4);
         desc.entryPoint = u8"main";
-        rhi::ShaderModule* m = nullptr;
+        rhi::ShaderModuleHandle m{};
         (void)d.CreateShaderModule(desc, m);
         return m;
     }
@@ -39,12 +39,12 @@ namespace
     struct Bed
     {
         rhi::null::NullDevice device{DefaultAllocator()};
-        rhi::ShaderModule* vs = MakeModule(device);
-        rhi::ShaderModule* fs = MakeModule(device);
+        rhi::ShaderModuleHandle vs = MakeModule(device);
+        rhi::ShaderModuleHandle fs = MakeModule(device);
         UniquePtr<GuiPassRenderer> renderer;
         rhi::CommandPool* pool = nullptr;
-        rhi::Texture* target = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle target{};
+        rhi::TextureViewHandle view{};
         RefPtr<GUIContext> context = MakeRef<GUIContext>(DefaultAllocator());
 
         Bed()

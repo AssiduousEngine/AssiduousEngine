@@ -90,8 +90,8 @@ namespace
                 return;
             }
             rhi::PipelineLayoutDesc plDesc;
-            rhi::BindGroupLayout* sets[1] = {m_bgl};
-            plDesc.bindGroupLayouts = core::Span<rhi::BindGroupLayout* const>(sets, 1);
+            rhi::BindGroupLayoutHandle sets[1] = {m_bgl};
+            plDesc.bindGroupLayouts = core::Span<rhi::BindGroupLayoutHandle const>(sets, 1);
             plDesc.label = u8"TrianglePL";
             if (!m_device->CreatePipelineLayout(plDesc, m_pipelineLayout).IsOk())
             {
@@ -113,7 +113,7 @@ namespace
             pipelineDesc.label = u8"TrianglePipeline";
             if (!m_device->CreateRenderPipeline(pipelineDesc, m_pipeline).IsOk())
             {
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
         }
 
@@ -125,7 +125,7 @@ namespace
             clear.b = 0.10f;
             clear.a = 1.0f;
             rhi::RenderPassEncoder* pass = frame.BeginBackbufferPass(clear);
-            if (pass != nullptr && m_pipeline != nullptr)
+            if (pass != nullptr && m_pipeline.IsValid())
             {
                 pass->SetPipeline(m_pipeline);
                 pass->SetViewport(0.0f, 0.0f, static_cast<core::f32>(frame.width),
@@ -142,19 +142,19 @@ namespace
             {
                 return;
             }
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
             }
-            if (m_pipelineLayout != nullptr)
+            if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
             }
-            if (m_bgl != nullptr)
+            if (m_bgl.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_bgl);
             }
-            if (m_shader != nullptr)
+            if (m_shader.IsValid())
             {
                 m_device->DestroyShaderModule(m_shader);
             }
@@ -162,10 +162,10 @@ namespace
 
     private:
         rhi::Device* m_device = nullptr;
-        rhi::ShaderModule* m_shader = nullptr;
-        rhi::BindGroupLayout* m_bgl = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::ShaderModuleHandle m_shader{};
+        rhi::BindGroupLayoutHandle m_bgl{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
     };
 }
 

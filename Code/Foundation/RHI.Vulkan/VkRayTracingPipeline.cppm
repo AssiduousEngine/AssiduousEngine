@@ -15,6 +15,7 @@ import foundation.rhi;
 import :shader_module;
 import :pipeline_layout;
 import :pipeline_cache;
+import :tables;
 
 using namespace foundation::core;
 
@@ -24,9 +25,9 @@ export namespace foundation::rhi::vk
     class VkRayTracingPipelineImpl : public RayTracingPipeline
     {
     public:
-        Status init(VkDevice device, const RayTracingPipelineDesc& desc)
+        Status init(VkDevice device, const VkTables* tables, const RayTracingPipelineDesc& desc)
         {
-            auto* vkLayout = static_cast<VkPipelineLayoutImpl*>(desc.layout);
+            auto* vkLayout = LookUp(tables, desc.layout);
             if (!vkLayout)
                 return ErrorCode::Unknown;
             layout = desc.layout;
@@ -38,7 +39,7 @@ export namespace foundation::rhi::vk
             for (usize i = 0; i < desc.stages.Size(); ++i)
             {
                 entryStrings[i] = String(desc.stages[i].entryPoint);
-                auto* mod = static_cast<VkShaderModuleImpl*>(desc.stages[i].module);
+                auto* mod = LookUp(tables, desc.stages[i].module);
                 if (!mod)
                     return ErrorCode::Unknown;
                 stages[i] = {};
@@ -103,8 +104,8 @@ export namespace foundation::rhi::vk
                 return ErrorCode::Unknown;
 
             VkPipelineCache cacheHandle = VK_NULL_HANDLE;
-            if (desc.cache)
-                cacheHandle = static_cast<VkPipelineCacheImpl*>(desc.cache)->handle();
+            if (auto* cache = LookUp(tables, desc.cache))
+                cacheHandle = cache->handle();
 
             if (pfn(device, VK_NULL_HANDLE, cacheHandle, 1, &ci, nullptr, &m_pipeline) !=
                 VK_SUCCESS)

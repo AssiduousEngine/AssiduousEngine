@@ -16,10 +16,12 @@ export module foundation.rhi.webgpu:command_pool;
 
 import foundation.core;
 import foundation.rhi;
+import :buffer;
 import :api;
 import :blit_helper;
 import :command_encoder;
 import :render_bundle_encoder;
+import :tables;
 
 using namespace foundation::core;
 
@@ -28,6 +30,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuCommandPool final : public CommandPool
     {
     public:
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts; set by the device
 
         void Initialize(const WebGpuApi& api, WGPUDevice device, IAllocator& allocator,
@@ -44,6 +48,7 @@ export namespace foundation::rhi::webgpu
             auto* encoder = m_allocator->New<WebGpuCommandEncoder>();
             encoder->Initialize(*m_api, m_device, *m_allocator, *m_blitHelper);
             encoder->SetCounters(counters);
+            encoder->tables = tables;
             m_encoders.PushBack(encoder);
             out = encoder;
             return ErrorCode::Ok;
@@ -81,6 +86,7 @@ export namespace foundation::rhi::webgpu
                 m_allocator->Delete(encoder);
                 return nullptr;
             }
+            encoder->tables = tables;
             m_bundleEncoders.PushBack(encoder);
             return encoder;
         }

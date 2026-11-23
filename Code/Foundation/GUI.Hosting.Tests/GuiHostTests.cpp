@@ -29,13 +29,13 @@ namespace graphics = foundation::graphics;
 
 namespace
 {
-    rhi::ShaderModule* MakeModule(rhi::Device& d)
+    rhi::ShaderModuleHandle MakeModule(rhi::Device& d)
     {
         const u8 dummy[4] = {0, 0, 0, 0};
         rhi::ShaderModuleDesc desc{};
         desc.code = Span<const u8>(dummy, 4);
         desc.entryPoint = u8"main";
-        rhi::ShaderModule* m = nullptr;
+        rhi::ShaderModuleHandle m{};
         (void)d.CreateShaderModule(desc, m);
         return m;
     }
@@ -45,8 +45,8 @@ namespace
     {
         shell::NullShell shell;
         UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
-        rhi::ShaderModule* vs = MakeModule(*device->Raw());
-        rhi::ShaderModule* fs = MakeModule(*device->Raw());
+        rhi::ShaderModuleHandle vs = MakeModule(*device->Raw());
+        rhi::ShaderModuleHandle fs = MakeModule(*device->Raw());
         UniquePtr<graphics::RenderWindow> main = device->CreateRenderWindow(*shell.MainWindow(), graphics::RenderWindowDesc{}).Value();
         UniquePtr<GuiHost> host;
 
@@ -450,8 +450,8 @@ TEST_CASE("gui.hosting: a press's release reaches its window though the pointer 
 {
     DrivenShell shellDriven;
     UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
-    rhi::ShaderModule* vs = MakeModule(*device->Raw());
-    rhi::ShaderModule* fs = MakeModule(*device->Raw());
+    rhi::ShaderModuleHandle vs = MakeModule(*device->Raw());
+    rhi::ShaderModuleHandle fs = MakeModule(*device->Raw());
     {
         UniquePtr<graphics::RenderWindow> main = device->CreateRenderWindow(*shellDriven.MainWindow(), graphics::RenderWindowDesc{}).Value();
         auto& windows = *static_cast<shell::NullWindowManager*>(shellDriven.WindowManager());
@@ -508,8 +508,8 @@ TEST_CASE("gui.hosting: a window closed by a press inside it closes once the pre
 {
     DrivenShell shellDriven;
     UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
-    rhi::ShaderModule* vs = MakeModule(*device->Raw());
-    rhi::ShaderModule* fs = MakeModule(*device->Raw());
+    rhi::ShaderModuleHandle vs = MakeModule(*device->Raw());
+    rhi::ShaderModuleHandle fs = MakeModule(*device->Raw());
     {
         auto& windows = *static_cast<shell::NullWindowManager*>(shellDriven.WindowManager());
         VgShaderSet shaders;
@@ -590,8 +590,8 @@ TEST_CASE("gui.hosting: on a scaled display the GUI fills the window's pixels, a
     window.Resize(800, 600);
     window.SetPixelDensity(1.75f);
     UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
-    rhi::ShaderModule* vs = MakeModule(*device->Raw());
-    rhi::ShaderModule* fs = MakeModule(*device->Raw());
+    rhi::ShaderModuleHandle vs = MakeModule(*device->Raw());
+    rhi::ShaderModuleHandle fs = MakeModule(*device->Raw());
     {
         UniquePtr<graphics::RenderWindow> main = device->CreateRenderWindow(window, graphics::RenderWindowDesc{}).Value();
         CHECK(main->Swap()->Width() == 1400u); // the swapchain is the window's pixels

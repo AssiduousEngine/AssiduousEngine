@@ -15,6 +15,7 @@ import foundation.core;
 import foundation.rhi;
 import :conversions;
 import :bind_group_layout;
+import :tables;
 
 using namespace foundation::core;
 
@@ -32,7 +33,7 @@ export namespace foundation::rhi::dx12
     class DxPipelineLayoutImpl : public PipelineLayout
     {
     public:
-        Status init(ID3D12Device* device, const PipelineLayoutDesc& d)
+        Status init(ID3D12Device* device, const DxTables* tables, const PipelineLayoutDesc& d)
         {
             m_numBindGroups = static_cast<u32>(d.bindGroupLayouts.Size());
 
@@ -44,7 +45,7 @@ export namespace foundation::rhi::dx12
 
             for (usize gi = 0; gi < d.bindGroupLayouts.Size(); ++gi)
             {
-                auto* layout = static_cast<DxBindGroupLayoutImpl*>(d.bindGroupLayouts[gi]);
+                auto* layout = LookUp(tables, d.bindGroupLayouts[gi]);
                 if (!layout)
                     return ErrorCode::Unknown;
 

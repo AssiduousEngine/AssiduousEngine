@@ -137,31 +137,31 @@ export namespace foundation::materials
         }
 
         // --- resource properties (become bind-group entries) ---
-        MaterialBuilder& Texture(StringView name, rhi::TextureView* def = nullptr)
+        MaterialBuilder& Texture(StringView name, rhi::TextureViewHandle def = {})
         {
             m_material->AddProperty(
                 MaterialPropertyDef{name, MaterialPropertyType::Texture2D, m_binding++, 0, 0});
-            if (def != nullptr)
+            if (def.IsValid())
             {
                 m_material->SetDefaultTexture(name, def);
             }
             return *this;
         }
-        MaterialBuilder& TextureCube(StringView name, rhi::TextureView* def = nullptr)
+        MaterialBuilder& TextureCube(StringView name, rhi::TextureViewHandle def = {})
         {
             m_material->AddProperty(
                 MaterialPropertyDef{name, MaterialPropertyType::TextureCube, m_binding++, 0, 0});
-            if (def != nullptr)
+            if (def.IsValid())
             {
                 m_material->SetDefaultTexture(name, def);
             }
             return *this;
         }
-        MaterialBuilder& Sampler(StringView name, rhi::Sampler* def = nullptr)
+        MaterialBuilder& Sampler(StringView name, rhi::SamplerHandle def = {})
         {
             m_material->AddProperty(
                 MaterialPropertyDef{name, MaterialPropertyType::Sampler, m_binding++, 0, 0});
-            if (def != nullptr)
+            if (def.IsValid())
             {
                 m_material->SetDefaultSampler(name, def);
             }

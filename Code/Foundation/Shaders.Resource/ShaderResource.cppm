@@ -310,10 +310,10 @@ export namespace foundation::shaders
         {
             return (m_system != nullptr) ? m_system->Version(m_name.AsView()) : 0ull;
         }
-        [[nodiscard]] rhi::ShaderModule* GetVariant(ShaderStage stage, ShaderFlags flags)
+        [[nodiscard]] rhi::ShaderModuleHandle GetVariant(ShaderStage stage, ShaderFlags flags)
         {
             return (m_system != nullptr) ? m_system->GetVariant(m_name.AsView(), stage, flags)
-                                         : nullptr;
+                                         : rhi::ShaderModuleHandle{};
         }
 
     private:

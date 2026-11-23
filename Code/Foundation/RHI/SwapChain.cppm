@@ -37,18 +37,18 @@ export namespace foundation::rhi
         virtual Status AcquireNextImage() = 0;
 
         /// The texture of the currently acquired back buffer.
-        [[nodiscard]] virtual Texture* CurrentTexture() = 0;
+        [[nodiscard]] virtual TextureHandle CurrentTexture() = 0;
         /// A view of the currently acquired back buffer.
-        [[nodiscard]] virtual TextureView* CurrentTextureView() = 0;
+        [[nodiscard]] virtual TextureViewHandle CurrentTextureView() = 0;
 
         /// The alternate view format the back buffers were made viewable in
         /// (SwapChainDesc::alternateViewFormat, the format's sRGB or UNORM twin), or Undefined
         /// when none was asked for or this device and surface cannot (Vulkan without
         /// VK_KHR_swapchain_mutable_format): a host then draws through CurrentTextureView alone.
         [[nodiscard]] virtual TextureFormat AlternateViewFormat() const = 0;
-        /// A view of the currently acquired back buffer in AlternateViewFormat; null when it is
+        /// A view of the currently acquired back buffer in AlternateViewFormat; invalid when it is
         /// Undefined.
-        [[nodiscard]] virtual TextureView* CurrentAlternateTextureView() = 0;
+        [[nodiscard]] virtual TextureViewHandle CurrentAlternateTextureView() = 0;
 
         /// How the back buffers' content is turned from the window's picture, clockwise: None unless
         /// SwapChainDesc::preRotate was asked and the surface presents turned. On a quarter turn the

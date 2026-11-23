@@ -1,6 +1,11 @@
 # RHI handles
 
-> STATUS: APPROVED 2026-11-22. Sized XL, in phases H0 to H6, green after each.
+> ARCHIVED 2026-11-23, fully built on the `rhi-handles` branch (H0 to H6) and merged to master;
+> what it left open is in Documentation/Plans/weekly_backlog.md ("Left over from the RHI handles
+> spec"). Non-authoritative: the original spec, kept as the record of what was built and why; the
+> code and the tests are the truth. Each phase's write-up is in Documentation/Plans/week-2026-11-21.md.
+
+> STATUS: DONE 2026-11-23, H0 to H6. Sized XL, in phases H0 to H6, green after each.
 > Origin: the user asked whether handles would make the RHI's API better or safer (2026-11-22);
 > the answer was yes, for lifetime, and a survey of the engine found the other places a slot is
 > reused without a generation. Read CONVENTIONS.md first.
@@ -149,14 +154,35 @@ namespace foundation::rhi
   device's pools carry its id (Decision 1), so a handle used on the wrong device fails its lookup.
   One table shared by the backends was weighed and not taken: it would catch the same mistake, but
   at the cost of a cast on every lookup and one lock across devices (user, 2026-11-22).
-- **`Destroy*(handle)` makes the handle stale at once and retires the object**: the device frees
-  it when the GPU has finished every submission made before the destroy, which it tracks by the
-  queue's submission fences (a timeline semaphore on Vulkan, the fence on Direct3D 12). WebGPU's
-  own objects already outlive the work that uses them; its backend frees at once if that holds in
-  the browser and wgpu-native, and retires as the others do if it does not (checked in H1).
+- **`Destroy*(handle)` makes the handle stale at once and retires the object**, and the device
+  frees it once the GPU can no longer use it. A command buffer recorded before the destroy may be
+  submitted after it (a frame's commands recorded, an upload that destroys a buffer submitted, then
+  the frame's commands), so "every submission made before the destroy" is not enough (user,
+  2026-11-22): a retired object waits until **every command buffer begun before the destroy has been
+  submitted or discarded**, and then until the last of those submissions completes. A shared tracker
+  in `foundation.rhi` does the bookkeeping; each backend reports a command buffer's begin, its
+  submit (with the queue's submission value) and its discard, and its queue signals an internal
+  timeline on every submit (a timeline semaphore on Vulkan, a fence on Direct3D 12) whose completed
+  value the tracker compares. WebGPU's
+  own objects already outlive the work that uses them, so its backend frees at once. That holds:
+  checked 2026-11-23 in Chrome (the WebLifetimeCheck sample, resources destroyed before and just
+  after their frame's submit, 1800 frames with no error) and on wgpu-native (an RHI.WebGPU test).
+- **A swap chain's images and views are in the device's tables** while it holds them, so a frame
+  names its back buffer by handle as it names any texture. They stay the swap chain's: taken back
+  out of the tables (not retired) when it rebuilds or goes, which waits for the GPU already. On
+  WebGPU, where each acquire wraps a new surface texture, every acquired image has handles of its
+  own, so nothing keyed on one is handed the next image.
+- **A view outlives its texture's destroy**: it stays usable while the texture is retired, and then
+  names a stale texture (`TextureOf` gives it, `Describe` of it is null). A backend's view does not
+  keep a pointer to its texture's object; Direct3D 12's holds its own reference to the resource.
 - **`GpuRetireQueue`, the per-pass `Retire*` paths and their `WaitIdle` fallbacks go**: a pass that
   replaces a resource destroys the old one and is done. The web frame drop the queue was written
   for cannot happen, since the device never waits.
+  What stays (H4): the waits that guard something other than a free (a readback mapped on the CPU,
+  ring slots the CPU writes into while the GPU may read them, teardown), and `GpuMesh`'s pool, which
+  holds a mesh's buffers for reuse until the frames in flight are done (reuse writes into them, so the
+  device's deferred free does not cover it). A cache keyed on views asks `Device::IsLive(view)`, a
+  query never reported as a stale use, to drop the groups of views their owners destroyed.
 - **Shutdown** frees everything retired after the device's final idle.
 
 ## Decision 5 - caches key on handles
@@ -172,6 +198,14 @@ A handle shows as a slot and a generation in a debugger, not the object. `Device
 gives the label the resource was created with, and the device's log of a stale use names it. A
 pretty printer for gdb and lldb, and a natvis for Visual Studio, show a handle's label and whether
 it is live, through the device the process has.
+
+As built (H5): each device table keeps its objects' labels (copied at creation) and the last 64
+destroyed ones; a stale lookup is logged once per handle, naming the label, and `IsLive` asks
+without logging. A table registers itself with Core's handle labels by noun and pool id, and
+`DebugHandleLabel(noun, index, generation)`, callable from a debugger in a live process, asks
+it. The gdb and lldb printers call it (`scripts/debug/`); a natvis cannot call into the process, so
+Visual Studio's view (`Core/Debug/Core.natvis`) shows the slot, count and pool, the label being a
+call in the Immediate window.
 
 ## Decision 7 - the other ids
 
@@ -201,6 +235,9 @@ get a handle the crowd's wrapper maps to Detour's index, for the same reason. `B
 - **H6 - the other ids.** Physics joints and characters and navigation agents on Core handles;
   `RGHandle` and `VoiceHandle` moved onto them. Tests: an id kept past its removal does nothing
   when a new joint, character or agent took its slot.
+  As built: each is a `Handle<Tag>` from a HandlePool. The render graph keeps its dense resource
+  array (the compile walks it by slot) and the audio engine its fixed voice pool (stealing picks a
+  slot by priority); a pool beside each names the entries and checks a handle.
 
 Each phase runs the full lanes (clang, gcc, clang-shared, wasm and ASAN), and H1 and H4 are
 measured in `build/clang-reldbg` with the render stress sample against the commit before them:
@@ -208,9 +245,11 @@ command recording within the noise.
 
 ## Gotchas
 
-- **Recording threads look up handles while others create**: the pool's pages never move, and a
-  slot's generation is read before its object, so a lookup racing a free sees a stale handle, not a
-  half-freed object. Creating and destroying take the device's lock, as today.
+- **Recording threads look up handles while others create**: the pool's pages never move and each
+  is published once, so a lookup is safe while the owner allocates. Destroying a resource a command
+  is still being recorded with is the caller's mistake, as today; the device's retirement (Decision
+  4) keeps the backend object alive past it in any case. Creating and destroying take the device's
+  lock, as today.
 - **A handle names a resource of one device**: two devices do not share tables, and the pool's id
   in the generation makes a handle from one fail its lookup on the other (Decision 1). The 8 bits
   allow 255 pools of a type alive at once (0 is never a pool's id).

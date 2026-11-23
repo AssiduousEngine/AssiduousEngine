@@ -47,21 +47,21 @@ private:
                                                  0.0f, 0.5f, -0.5f, 0.0f};
 
     // RT resources.
-    rhi::ShaderModule* m_rtShaderModule = nullptr;
-    rhi::RayTracingPipeline* m_rtPipeline = nullptr;
-    rhi::AccelStruct* m_blas = nullptr;
-    rhi::AccelStruct* m_tlas = nullptr;
-    rhi::Buffer* m_scratchBuffer = nullptr;
-    rhi::Buffer* m_rtVertexBuffer = nullptr; // Triangle for BLAS.
-    rhi::Buffer* m_instanceBuffer = nullptr; // TLAS instance data.
-    rhi::Buffer* m_sbtBuffer = nullptr;      // Shader binding table.
-    rhi::PipelineLayout* m_rtPipelineLayout = nullptr;
-    rhi::BindGroupLayout* m_rtBindGroupLayout = nullptr;
-    rhi::BindGroup* m_rtBindGroup = nullptr;
+    rhi::ShaderModuleHandle m_rtShaderModule{};
+    rhi::RayTracingPipelineHandle m_rtPipeline{};
+    rhi::AccelStructHandle m_blas{};
+    rhi::AccelStructHandle m_tlas{};
+    rhi::BufferHandle m_scratchBuffer{};
+    rhi::BufferHandle m_rtVertexBuffer{}; // Triangle for BLAS.
+    rhi::BufferHandle m_instanceBuffer{}; // TLAS instance data.
+    rhi::BufferHandle m_sbtBuffer{};      // Shader binding table.
+    rhi::PipelineLayoutHandle m_rtPipelineLayout{};
+    rhi::BindGroupLayoutHandle m_rtBindGroupLayout{};
+    rhi::BindGroupHandle m_rtBindGroup{};
 
     // RT output texture.
-    rhi::Texture* m_outputTexture = nullptr;
-    rhi::TextureView* m_outputTextureView = nullptr;
+    rhi::TextureHandle m_outputTexture{};
+    rhi::TextureViewHandle m_outputTextureView{};
     rhi::ResourceState m_outputTextureState = rhi::ResourceState::Undefined;
 
     // SBT layout info (cached for traceRays).
@@ -188,7 +188,7 @@ foundation::core::Status RayTracingSample::OnInit()
 
     // Fill instance data.
     {
-        auto* ptr = static_cast<foundation::core::u8*>(m_instanceBuffer->Map());
+        auto* ptr = static_cast<foundation::core::u8*>(m_device->Map(m_instanceBuffer));
         if (!ptr)
         {
             std::fprintf(stderr, "ERROR: Failed to map instance buffer\n");
@@ -215,9 +215,9 @@ foundation::core::Status RayTracingSample::OnInit()
         ptr[55] = 0x04; // VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR
 
         // accelerationStructureReference at offset 56.
-        *reinterpret_cast<foundation::core::u64*>(ptr + 56) = m_blas->DeviceAddress();
+        *reinterpret_cast<foundation::core::u64*>(ptr + 56) = m_device->DeviceAddress(m_blas);
 
-        m_instanceBuffer->Unmap();
+        m_device->Unmap(m_instanceBuffer);
     }
 
     // ---- Build BLAS and TLAS ----
@@ -273,9 +273,9 @@ foundation::core::Status RayTracingSample::OnInit()
 
     std::printf("BLAS and TLAS built successfully.\n");
     std::printf("  BLAS DeviceAddress: 0x%llx\n",
-                static_cast<unsigned long long>(m_blas->DeviceAddress()));
+                static_cast<unsigned long long>(m_device->DeviceAddress(m_blas)));
     std::printf("  TLAS DeviceAddress: 0x%llx\n",
-                static_cast<unsigned long long>(m_tlas->DeviceAddress()));
+                static_cast<unsigned long long>(m_device->DeviceAddress(m_tlas)));
 
     // ---- Create RT bind group layout and bind group ----
     {
@@ -320,10 +320,10 @@ foundation::core::Status RayTracingSample::OnInit()
 
     // ---- Create RT pipeline layout with bind group ----
     {
-        rhi::BindGroupLayout* bglArr[1] = {m_rtBindGroupLayout};
+        rhi::BindGroupLayoutHandle bglArr[1] = {m_rtBindGroupLayout};
 
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(bglArr, 1);
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(bglArr, 1);
         pld.label = u8"RTPipelineLayout";
         if (m_device->CreatePipelineLayout(pld, m_rtPipelineLayout) !=
             foundation::core::ErrorCode::Ok)
@@ -390,7 +390,7 @@ foundation::core::Status RayTracingSample::OnInit()
             return foundation::core::ErrorCode::Unknown;
 
         // Copy handles into SBT with proper alignment.
-        auto* sbtPtr = static_cast<foundation::core::u8*>(m_sbtBuffer->Map());
+        auto* sbtPtr = static_cast<foundation::core::u8*>(m_device->Map(m_sbtBuffer));
         if (!sbtPtr)
         {
             std::fprintf(stderr, "ERROR: Failed to map SBT buffer\n");
@@ -403,7 +403,7 @@ foundation::core::Status RayTracingSample::OnInit()
             std::memcpy(sbtPtr + (i * m_sbtAlignedStride), handleData + (i * handleSize),
                         handleSize);
         }
-        m_sbtBuffer->Unmap();
+        m_device->Unmap(m_sbtBuffer);
 
         std::printf(
             "SBT built: handleSize=%u, baseAlignment=%u, alignedStride=%u, totalSize=%llu\n",
@@ -506,9 +506,9 @@ void RayTracingSample::OnResize(foundation::core::u32 w, foundation::core::u32 h
         m_device->DestroyTextureView(m_outputTextureView);
     if (m_outputTexture)
         m_device->DestroyTexture(m_outputTexture);
-    m_rtBindGroup = nullptr;
-    m_outputTextureView = nullptr;
-    m_outputTexture = nullptr;
+    m_rtBindGroup = {};
+    m_outputTextureView = {};
+    m_outputTexture = {};
 
     // Recreate output texture at new size.
     rhi::TextureDesc td{};

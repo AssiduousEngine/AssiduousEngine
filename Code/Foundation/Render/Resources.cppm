@@ -51,8 +51,8 @@ export namespace foundation::render
             desc.depth = 1;
             desc.usage = rhi::TextureUsage::DepthStencil;
             desc.sampleCount = 1;
-            rhi::Texture* probe = nullptr;
-            if (device.CreateTexture(desc, probe).IsOk() && probe != nullptr)
+            rhi::TextureHandle probe{};
+            if (device.CreateTexture(desc, probe).IsOk() && probe.IsValid())
             {
                 device.DestroyTexture(probe);
                 return format;
@@ -60,128 +60,6 @@ export namespace foundation::render
         }
         return rhi::TextureFormat::Undefined;
     }
-
-    /// Frames-in-flight deferred GPU destruction: the web-safe alternative to a grow-path
-    /// `WaitIdle` (on web the wait pumps the browser event loop mid-frame, which expires
-    /// the canvas texture and drops the whole frame's submit). A replaced resource is
-    /// retired instead: it stays alive until every frame that could reference it has aged
-    /// out, then frees on Tick().
-    /// One queue per owner (the render subsystem shares one across its systems);
-    /// consumers fall back to WaitIdle when no queue is wired, so standalone and test use
-    /// keeps working.
-    class GpuRetireQueue
-    {
-    public:
-        void Initialize(rhi::Device* device, i32 framesInFlight)
-        {
-            m_device = device;
-            // +1: an entry retired during frame N is safe once N's whole ring has cycled.
-            m_age = Max(framesInFlight, 1) + 1;
-        }
-
-        void Retire(rhi::Buffer* buffer)
-        {
-            if (buffer != nullptr)
-            {
-                m_entries.PushBack(Entry{nullptr, nullptr, nullptr, buffer, m_age});
-            }
-        }
-        void Retire(rhi::Texture* texture)
-        {
-            if (texture != nullptr)
-            {
-                m_entries.PushBack(Entry{texture, nullptr, nullptr, nullptr, m_age});
-            }
-        }
-        void Retire(rhi::TextureView* view)
-        {
-            if (view != nullptr)
-            {
-                m_entries.PushBack(Entry{nullptr, view, nullptr, nullptr, m_age});
-            }
-        }
-        void Retire(rhi::BindGroup* bindGroup)
-        {
-            if (bindGroup != nullptr)
-            {
-                m_entries.PushBack(Entry{nullptr, nullptr, bindGroup, nullptr, m_age});
-            }
-        }
-
-        /// Age everything one frame; free what has outlived every in-flight frame.
-        /// Call once per frame, before or after the frame's submits; the +1 margin
-        /// covers either placement.
-        void Tick()
-        {
-            if (m_device == nullptr)
-            {
-                return;
-            }
-            for (usize i = m_entries.Size(); i-- > 0;)
-            {
-                Entry& entry = m_entries[i];
-                if (--entry.framesLeft > 0)
-                {
-                    continue;
-                }
-                Free(entry);
-                m_entries.RemoveAt(i);
-            }
-        }
-
-        /// Destroy everything now (shutdown; the caller has idled the GPU).
-        void Flush()
-        {
-            if (m_device == nullptr)
-            {
-                m_entries.Clear();
-                return;
-            }
-            for (Entry& entry : m_entries)
-            {
-                Free(entry);
-            }
-            m_entries.Clear();
-        }
-
-        [[nodiscard]] usize PendingCount() const { return m_entries.Size(); }
-
-    private:
-        struct Entry
-        {
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
-            rhi::BindGroup* bindGroup = nullptr;
-            rhi::Buffer* buffer = nullptr;
-            i32 framesLeft = 0;
-        };
-
-        void Free(Entry& entry)
-        {
-            // Views before their textures; bind groups before the buffers they reference.
-            if (entry.view != nullptr)
-            {
-                m_device->DestroyTextureView(entry.view);
-            }
-            if (entry.texture != nullptr)
-            {
-                m_device->DestroyTexture(entry.texture);
-            }
-            if (entry.bindGroup != nullptr)
-            {
-                m_device->DestroyBindGroup(entry.bindGroup);
-            }
-            if (entry.buffer != nullptr)
-            {
-                m_device->DestroyBuffer(entry.buffer);
-            }
-        }
-
-        rhi::Device* m_device = nullptr;
-        i32 m_age = 3;
-        Array<Entry> m_entries;
-    };
-
 
     // A chunked GPU buffer sub-allocator: hands out (buffer, offset) ranges from large shared
     // chunks instead of one buffer per allocation (no per-mesh buffers). A range freed (Free, once
@@ -204,7 +82,7 @@ export namespace foundation::render
 
         struct Alloc
         {
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 offset = 0;
             bool ok = false;
         };
@@ -324,7 +202,7 @@ export namespace foundation::render
     private:
         struct Chunk
         {
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 used = 0;
             u64 size = 0;
         };
@@ -336,7 +214,7 @@ export namespace foundation::render
             bd.usage = m_usage;
             bd.memory = rhi::MemoryLocation::GpuOnly;
             bd.label = m_label;
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             if (!m_device->CreateBuffer(bd, buffer).IsOk())
             {
                 return false;
@@ -348,7 +226,7 @@ export namespace foundation::render
 
         struct Range
         {
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 offset = 0;
             u64 size = 0;
         };
@@ -382,11 +260,12 @@ export namespace foundation::render
         DynamicUniformRing(const DynamicUniformRing&) = delete;
         DynamicUniformRing& operator=(const DynamicUniformRing&) = delete;
 
-        // Ensure each frame region holds at least `slotsPerFrame` slots. Grows by reallocating
-        // (draining the GPU first); never shrinks. Returns false if the buffer can't be created.
+        // Ensure each frame region holds at least `slotsPerFrame` slots. Grows by reallocating (the
+        // device frees the old buffer once no frame in flight uses it); never shrinks. Returns
+        // false if the buffer can't be created.
         bool Reserve(u32 slotsPerFrame)
         {
-            if (slotsPerFrame <= m_slotsPerFrame && m_buffer != nullptr)
+            if (slotsPerFrame <= m_slotsPerFrame && m_buffer.IsValid())
             {
                 return true;
             }
@@ -395,17 +274,6 @@ export namespace foundation::render
                 slotsPerFrame = 1;
             }
 
-            // An in-flight frame may still reference the old buffer: retire it when a
-            // queue is wired (web-safe), otherwise drain (standalone and test use).
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(m_buffer);
-                m_buffer = nullptr;
-            }
-            else
-            {
-                m_device->WaitIdle();
-            }
             Release();
 
             rhi::BufferDesc bd{};
@@ -416,7 +284,7 @@ export namespace foundation::render
             bd.label = m_label;
             if (!m_device->CreateBuffer(bd, m_buffer).IsOk())
             {
-                m_buffer = nullptr;
+                m_buffer = {};
                 return false;
             }
 
@@ -453,7 +321,7 @@ export namespace foundation::render
 
         [[nodiscard]] Range AllocateRange(u32 count)
         {
-            if (!m_inFrame || m_buffer == nullptr || count == 0)
+            if (!m_inFrame || !m_buffer.IsValid() || count == 0)
             {
                 return Range{};
             }
@@ -471,7 +339,7 @@ export namespace foundation::render
             }
             if (m_mapped == nullptr)
             {
-                m_mapped = static_cast<u8*>(m_buffer->Map()); // first write this frame
+                m_mapped = static_cast<u8*>(m_device->Map(m_buffer)); // first write this frame
                 if (m_mapped == nullptr)
                 {
                     return Range{};
@@ -491,7 +359,7 @@ export namespace foundation::render
         // first needs more is drawn whole rather than dropped while the ring catches up.
         [[nodiscard]] bool MakeRoom(u32 count)
         {
-            if (m_buffer != nullptr && m_cursor + count <= m_slotsPerFrame)
+            if (m_buffer.IsValid() && m_cursor + count <= m_slotsPerFrame)
             {
                 return true;
             }
@@ -507,14 +375,14 @@ export namespace foundation::render
         // mapping; the emulated one uploads that window and nothing else), then unmap.
         void EndFrame()
         {
-            if (m_mapped != nullptr && m_buffer != nullptr)
+            if (m_mapped != nullptr && m_buffer.IsValid())
             {
                 if (m_cursor > 0)
                 {
-                    m_buffer->FlushRange(static_cast<u64>(m_frameBase) * m_slotSize,
+                    m_device->FlushRange(m_buffer, static_cast<u64>(m_frameBase) * m_slotSize,
                                          static_cast<u64>(m_cursor) * m_slotSize);
                 }
-                m_buffer->Unmap();
+                m_device->Unmap(m_buffer);
             }
             m_mapped = nullptr;
             m_inFrame = false;
@@ -525,7 +393,7 @@ export namespace foundation::render
         /// Whether this frame's first allocation has mapped the buffer yet.
         [[nodiscard]] bool IsMappedThisFrame() const noexcept { return m_mapped != nullptr; }
 
-        [[nodiscard]] rhi::Buffer* Buffer() const noexcept { return m_buffer; }
+        [[nodiscard]] rhi::BufferHandle Buffer() const noexcept { return m_buffer; }
         [[nodiscard]] u64 SlotSize() const noexcept { return m_slotSize; }
         [[nodiscard]] u32 SlotsPerFrame() const noexcept { return m_slotsPerFrame; }
         [[nodiscard]] u64 ByteCapacity() const noexcept
@@ -535,16 +403,13 @@ export namespace foundation::render
         }
         [[nodiscard]] u32 Generation() const noexcept { return m_generation; } // bumps on realloc
 
-        /// Wire the frames-in-flight retire queue (web-safe grows). Null means drain on grow.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
     private:
         void Release()
         {
-            if (m_buffer != nullptr)
+            if (m_buffer.IsValid())
             {
                 m_device->DestroyBuffer(m_buffer);
-                m_buffer = nullptr;
+                m_buffer = {};
             }
             m_mapped = nullptr;
         }
@@ -552,8 +417,7 @@ export namespace foundation::render
         rhi::Device* m_device;
         rhi::BufferUsage m_usage;
         const char8_t* m_label;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
-        rhi::Buffer* m_buffer = nullptr;
+        rhi::BufferHandle m_buffer{};
         u8* m_mapped = nullptr;
         u32 m_framesInFlight;
         u64 m_slotSize;
@@ -583,8 +447,6 @@ export namespace foundation::render
               m_label(label), m_slotSize(slotSize), m_wanted(minViews < 1 ? 1 : minViews)
         {
         }
-
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_ring.SetRetireQueue(retire); }
 
         /// Starts a frame: the ring holds every view the last frame asked for, and `extraViews`
         /// more the caller knows this frame adds (views that cannot miss a frame).
@@ -641,7 +503,7 @@ export namespace foundation::render
 
         void EndFrame() { m_ring.EndFrame(); }
 
-        [[nodiscard]] rhi::Buffer* Buffer() const noexcept { return m_ring.Buffer(); }
+        [[nodiscard]] rhi::BufferHandle Buffer() const noexcept { return m_ring.Buffer(); }
         [[nodiscard]] u32 Generation() const noexcept { return m_ring.Generation(); } // bumps on growth
         [[nodiscard]] u32 SlotsPerFrame() const noexcept { return m_ring.SlotsPerFrame(); }
         [[nodiscard]] u32 FrameSlots() const noexcept { return m_ring.FrameAllocatedSlots(); }

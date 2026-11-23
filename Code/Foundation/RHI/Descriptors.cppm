@@ -221,14 +221,14 @@ export namespace foundation::rhi
     /// Describes one resource binding within a bind group.
     struct BindGroupEntry
     {
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         u64 bufferOffset = 0;
         u64 bufferSize = 0;
-        TextureView* textureView = nullptr;
-        Sampler* sampler = nullptr;
-        AccelStruct* accelStruct = nullptr;
+        TextureViewHandle textureView{};
+        SamplerHandle sampler{};
+        AccelStructHandle accelStruct{};
 
-        static BindGroupEntry BufferEntry(Buffer* buf, u64 offset, u64 size)
+        static BindGroupEntry BufferEntry(BufferHandle buf, u64 offset, u64 size)
         {
             BindGroupEntry e{};
             e.buffer = buf;
@@ -236,19 +236,19 @@ export namespace foundation::rhi
             e.bufferSize = size;
             return e;
         }
-        static BindGroupEntry TextureEntry(TextureView* view)
+        static BindGroupEntry TextureEntry(TextureViewHandle view)
         {
             BindGroupEntry e{};
             e.textureView = view;
             return e;
         }
-        static BindGroupEntry SamplerEntry(Sampler* s)
+        static BindGroupEntry SamplerEntry(SamplerHandle s)
         {
             BindGroupEntry e{};
             e.sampler = s;
             return e;
         }
-        static BindGroupEntry AccelStructEntry(AccelStruct* as)
+        static BindGroupEntry AccelStructEntry(AccelStructHandle as)
         {
             BindGroupEntry e{};
             e.accelStruct = as;
@@ -258,7 +258,7 @@ export namespace foundation::rhi
 
     struct BindGroupDesc
     {
-        BindGroupLayout* layout = nullptr;
+        BindGroupLayoutHandle layout{};
         Span<const BindGroupEntry> entries;
         StringView label;
     };
@@ -268,18 +268,18 @@ export namespace foundation::rhi
     {
         u32 layoutIndex = 0;
         u32 arrayIndex = 0;
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         u64 bufferOffset = 0;
         u64 bufferSize = 0;
-        TextureView* textureView = nullptr;
-        Sampler* sampler = nullptr;
+        TextureViewHandle textureView{};
+        SamplerHandle sampler{};
     };
 
     // ---- Pipelines ----
 
     struct PipelineLayoutDesc
     {
-        Span<BindGroupLayout* const> bindGroupLayouts;
+        Span<BindGroupLayoutHandle const> bindGroupLayouts;
         Span<const PushConstantRange> pushConstantRanges;
         StringView label;
     };
@@ -393,7 +393,7 @@ export namespace foundation::rhi
     /// means the module's own (ShaderModuleDesc::entryPoint); see EntryPointOf.
     struct ProgrammableStage
     {
-        ShaderModule* module = nullptr;
+        ShaderModuleHandle module{};
         StringView entryPoint;
         ShaderStage stage = ShaderStage::None;
     };
@@ -413,22 +413,22 @@ export namespace foundation::rhi
     /// Descriptor for creating a graphics (render) pipeline.
     struct RenderPipelineDesc
     {
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{};
         VertexState vertex;
         Optional<FragmentState> fragment;
         PrimitiveState primitive;
         Optional<DepthStencilState> depthStencil;
         MultisampleState multisample;
-        PipelineCache* cache = nullptr;
+        PipelineCacheHandle cache{};
         StringView label;
     };
 
     /// Descriptor for creating a compute pipeline.
     struct ComputePipelineDesc
     {
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{};
         ProgrammableStage compute;
-        PipelineCache* cache = nullptr;
+        PipelineCacheHandle cache{};
         StringView label;
     };
 
@@ -437,8 +437,8 @@ export namespace foundation::rhi
     /// Color attachment for a render pass.
     struct ColorAttachment
     {
-        TextureView* view = nullptr;
-        TextureView* resolveTarget = nullptr;
+        TextureViewHandle view{};
+        TextureViewHandle resolveTarget{};
         LoadOp loadOp = LoadOp::Clear;
         StoreOp storeOp = StoreOp::Store;
         ClearColor clearValue = ClearColor::Black();
@@ -447,7 +447,7 @@ export namespace foundation::rhi
     /// Depth/stencil attachment for a render pass.
     struct DepthStencilAttachment
     {
-        TextureView* view = nullptr;
+        TextureViewHandle view{};
         LoadOp depthLoadOp = LoadOp::Clear;
         StoreOp depthStoreOp = StoreOp::Store;
         f32 depthClearValue = 1.0f;
@@ -466,13 +466,13 @@ export namespace foundation::rhi
     {
         ColorAttachmentList colorAttachments;
         Optional<DepthStencilAttachment> depthStencilAttachment;
-        QuerySet* timestampQuerySet = nullptr;
+        QuerySetHandle timestampQuerySet{};
         u32 beginTimestampIndex = 0;
         u32 endTimestampIndex = 0;
         // The query set Begin/EndOcclusionQuery will target. WebGPU requires the
         // declaration at pass begin; Vulkan and DX12 receive the set in the Begin call
         // itself and need nothing here (the validation layer may cross-check).
-        QuerySet* occlusionQuerySet = nullptr;
+        QuerySetHandle occlusionQuerySet{};
         // How draws are supplied. Default Inline; set SecondaryCommandBuffers to execute render
         // bundles into this pass (Vulkan needs to know at begin time; other backends ignore it).
         RenderPassContents contents = RenderPassContents::Inline;
@@ -509,7 +509,7 @@ export namespace foundation::rhi
 
     struct BufferBarrier
     {
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         ResourceState oldState = ResourceState::Undefined;
         ResourceState newState = ResourceState::Undefined;
         u64 offset = 0;
@@ -518,7 +518,7 @@ export namespace foundation::rhi
 
     struct TextureBarrier
     {
-        Texture* texture = nullptr;
+        TextureHandle texture{};
         ResourceState oldState = ResourceState::Undefined;
         ResourceState newState = ResourceState::Undefined;
         u32 baseMipLevel = 0;

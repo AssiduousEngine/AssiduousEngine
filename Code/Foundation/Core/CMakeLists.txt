@@ -6,6 +6,11 @@
 util_add_engine_library(Core ALIAS Foundation::Core)
 target_link_libraries(Core PUBLIC Foundation::Policy)
 
+# Visual Studio's view of Core's handles: every binary that links Core carries it in its PDB.
+if(MSVC)
+    target_link_options(Core PUBLIC "/NATVIS:${CMAKE_CURRENT_SOURCE_DIR}/Debug/Core.natvis")
+endif()
+
 # Classic (non-module) translation units: macro-centric subsystems whose
 # functions need external linkage reachable from any module's GMF (see
 # Debug/Assert.h). Kept minimal.
@@ -20,6 +25,7 @@ target_sources(Core PRIVATE
     Threading/JobSystemImpl.cpp          # global JobSystem pointer and worker slot (one per process)
     Threading/ThreadImpl.cpp             # the calling thread's name (one per process)
     FixedStepperImpl.cpp                 # the calling thread's running fixed step (one per process)
+    Containers/HandlePoolImpl.cpp        # the live HandlePools' ids per handle type (one table per process)
     Text/TextImpl.cpp                    # float to_chars (STL tables must not reach consumers)
     Reflection/CoreReflectionImpl.cpp)   # REFLECT_* bodies (see CoreReflection.cppm)
 
@@ -46,6 +52,7 @@ target_sources(Core
             Containers/FixedArray.cppm
             Containers/InlineArray.cppm
             Containers/RingBuffer.cppm
+            Containers/HandlePool.cppm
             Containers/IntrusiveList.cppm
             Hash.cppm
             Sha256.cppm

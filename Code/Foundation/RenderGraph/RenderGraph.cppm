@@ -43,7 +43,7 @@ export namespace foundation::rendergraph
         // The allocator (required; the owner decides) backs passes, resources,
         // the transient texture pool, and the GPU profiler.
         RenderGraph(IAllocator& allocator, rhi::Device* device, RenderGraphConfig config = {})
-            : m_allocator(&allocator), m_device(device), m_config(config)
+            : m_allocator(&allocator), m_device(device), m_config(config), m_handles(allocator)
         {
             if (device != nullptr)
             {
@@ -247,7 +247,7 @@ export namespace foundation::rendergraph
             if (!m_subresourceViews.IsEmpty())
             {
                 Array<DeferredDeletion>& deletions = DeferredSlot();
-                for (rhi::TextureView* view : m_subresourceViews)
+                for (rhi::TextureViewHandle view : m_subresourceViews)
                 {
                     DeferredDeletion d{};
                     d.view = view;
@@ -296,64 +296,54 @@ export namespace foundation::rendergraph
             return AddResource(res);
         }
 
-        RGHandle RegisterPersistent(StringView name, rhi::Texture* texture, rhi::TextureView* view)
+        RGHandle RegisterPersistent(StringView name, rhi::TextureHandle texture, rhi::TextureViewHandle view)
         {
             RenderGraphResource* res = (*m_allocator).New<RenderGraphResource>(
                 name, RGResourceType::Texture, RGResourceLifetime::Persistent);
-            res->texture = texture;
-            res->textureView = view;
+            Attach(*res, texture, view);
             res->persistentData = MakeUnique<PersistentResource>((*m_allocator), texture, view);
             return AddResource(res);
         }
 
-        RGHandle RegisterPersistentPingPong(StringView name, rhi::Texture* tex0, rhi::Texture* tex1,
-                                            rhi::TextureView* view0, rhi::TextureView* view1)
+        RGHandle RegisterPersistentPingPong(StringView name, rhi::TextureHandle tex0, rhi::TextureHandle tex1,
+                                            rhi::TextureViewHandle view0, rhi::TextureViewHandle view1)
         {
             RenderGraphResource* res = (*m_allocator).New<RenderGraphResource>(
                 name, RGResourceType::Texture, RGResourceLifetime::Persistent);
-            res->texture = tex0;
-            res->textureView = view0;
+            Attach(*res, tex0, view0);
             res->persistentData =
                 MakeUnique<PersistentResource>((*m_allocator), tex0, tex1, view0, view1);
             return AddResource(res);
         }
 
-        RGHandle ImportTarget(StringView name, rhi::Texture* texture, rhi::TextureView* view,
+        RGHandle ImportTarget(StringView name, rhi::TextureHandle texture, rhi::TextureViewHandle view,
                               Optional<rhi::ResourceState> finalState = {},
                               Optional<rhi::ResourceState> currentState = {})
         {
             RenderGraphResource* res = (*m_allocator).New<RenderGraphResource>(
                 name, RGResourceType::Texture, RGResourceLifetime::Imported);
-            res->texture = texture;
-            res->textureView = view;
+            Attach(*res, texture, view);
             res->finalState = finalState;
-            res->lastKnownState =
-                currentState.HasValue()
-                    ? currentState.Value()
-                    : (texture != nullptr ? texture->initialState : rhi::ResourceState::Undefined);
+            res->lastKnownState = currentState.HasValue() ? currentState.Value() : rhi::ResourceState::Undefined;
             return AddResource(res);
         }
 
         // Depth import variant carrying a depth-only view for shader sampling.
-        RGHandle ImportTarget(StringView name, rhi::Texture* texture, rhi::TextureView* view,
-                              rhi::TextureView* depthOnlyView,
+        RGHandle ImportTarget(StringView name, rhi::TextureHandle texture, rhi::TextureViewHandle view,
+                              rhi::TextureViewHandle depthOnlyView,
                               Optional<rhi::ResourceState> finalState = {},
                               Optional<rhi::ResourceState> currentState = {})
         {
             RenderGraphResource* res = (*m_allocator).New<RenderGraphResource>(
                 name, RGResourceType::Texture, RGResourceLifetime::Imported);
-            res->texture = texture;
-            res->textureView = view;
+            Attach(*res, texture, view);
             res->depthOnlyView = depthOnlyView;
             res->finalState = finalState;
-            res->lastKnownState =
-                currentState.HasValue()
-                    ? currentState.Value()
-                    : (texture != nullptr ? texture->initialState : rhi::ResourceState::Undefined);
+            res->lastKnownState = currentState.HasValue() ? currentState.Value() : rhi::ResourceState::Undefined;
             return AddResource(res);
         }
 
-        RGHandle ImportBuffer(StringView name, rhi::Buffer* buffer)
+        RGHandle ImportBuffer(StringView name, rhi::BufferHandle buffer)
         {
             RenderGraphResource* res = (*m_allocator).New<RenderGraphResource>(
                 name, RGResourceType::Buffer, RGResourceLifetime::Imported);
@@ -387,22 +377,22 @@ export namespace foundation::rendergraph
         }
 
         // --- resource access (during execute callbacks) ---
-        [[nodiscard]] rhi::Texture* GetTexture(RGHandle handle)
+        [[nodiscard]] rhi::TextureHandle GetTexture(RGHandle handle)
         {
             RenderGraphResource* res = ResolveChecked(handle);
             if (res == nullptr)
             {
-                return nullptr;
+                return {};
             }
             return res->persistentData.Get() != nullptr ? res->persistentData->CurrentTexture()
                                                         : res->texture;
         }
-        [[nodiscard]] rhi::TextureView* GetTextureView(RGHandle handle)
+        [[nodiscard]] rhi::TextureViewHandle GetTextureView(RGHandle handle)
         {
             RenderGraphResource* res = ResolveChecked(handle);
             if (res == nullptr)
             {
-                return nullptr;
+                return {};
             }
             return res->persistentData.Get() != nullptr ? res->persistentData->CurrentView()
                                                         : res->textureView;
@@ -417,15 +407,15 @@ export namespace foundation::rendergraph
             RenderGraphResource* res = ResolveChecked(handle);
             return res != nullptr ? res->textureGeneration : 0;
         }
-        [[nodiscard]] rhi::TextureView* GetDepthOnlyTextureView(RGHandle handle)
+        [[nodiscard]] rhi::TextureViewHandle GetDepthOnlyTextureView(RGHandle handle)
         {
             RenderGraphResource* res = ResolveChecked(handle);
-            return res != nullptr ? res->depthOnlyView : nullptr;
+            return res != nullptr ? res->depthOnlyView : rhi::TextureViewHandle{};
         }
-        [[nodiscard]] rhi::Buffer* GetBuffer(RGHandle handle)
+        [[nodiscard]] rhi::BufferHandle GetBuffer(RGHandle handle)
         {
             RenderGraphResource* res = ResolveChecked(handle);
-            return res != nullptr ? res->buffer : nullptr;
+            return res != nullptr ? res->buffer : rhi::BufferHandle{};
         }
 
         void SwapPingPong(RGHandle handle)
@@ -434,8 +424,7 @@ export namespace foundation::rendergraph
             if (res != nullptr && res->persistentData.Get() != nullptr)
             {
                 res->persistentData->Swap();
-                res->texture = res->persistentData->CurrentTexture();
-                res->textureView = res->persistentData->CurrentView();
+                Attach(*res, res->persistentData->CurrentTexture(), res->persistentData->CurrentView());
             }
         }
 
@@ -472,7 +461,7 @@ export namespace foundation::rendergraph
                 RenderGraphResource* res = m_resources[i];
                 if (res != nullptr && res->name == name)
                 {
-                    return RGHandle{static_cast<u32>(i), res->generation};
+                    return res->handle;
                 }
             }
             return RGHandle::Invalid();
@@ -491,12 +480,21 @@ export namespace foundation::rendergraph
         }
 
     private:
+        // A resource takes a texture and its view, with the texture's mip and layer counts (the
+        // barrier solver tracks each subresource).
+        void Attach(RenderGraphResource& res, rhi::TextureHandle texture, rhi::TextureViewHandle view)
+        {
+            res.texture = texture;
+            res.textureView = view;
+            res.TakeExtent(m_device != nullptr ? m_device->Describe(texture) : nullptr);
+        }
+
         struct DeferredDeletion
         {
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
-            rhi::TextureView* view2 = nullptr;
-            rhi::Buffer* buffer = nullptr;
+            rhi::TextureHandle texture{};
+            rhi::TextureViewHandle view{};
+            rhi::TextureViewHandle view2{};
+            rhi::BufferHandle buffer{};
 
             void Execute(rhi::Device* device)
             {
@@ -504,19 +502,19 @@ export namespace foundation::rendergraph
                 {
                     return;
                 }
-                if (view2 != nullptr)
+                if (view2.IsValid())
                 {
                     device->DestroyTextureView(view2);
                 }
-                if (view != nullptr)
+                if (view.IsValid())
                 {
                     device->DestroyTextureView(view);
                 }
-                if (texture != nullptr)
+                if (texture.IsValid())
                 {
                     device->DestroyTexture(texture);
                 }
-                if (buffer != nullptr)
+                if (buffer.IsValid())
                 {
                     device->DestroyBuffer(buffer);
                 }
@@ -575,12 +573,8 @@ export namespace foundation::rendergraph
             {
                 return nullptr;
             }
-            RenderGraphResource* res = m_resources[handle.index];
-            if (res == nullptr || res->generation != handle.generation)
-            {
-                return nullptr;
-            }
-            return res;
+            RenderGraphResource* const* res = m_handles.Get(handle);
+            return res != nullptr ? *res : nullptr;
         }
         // Validate a handle (bounds only; ignores generation), for mutators.
         [[nodiscard]] RenderGraphResource* Resolve(RGHandle handle)
@@ -592,26 +586,18 @@ export namespace foundation::rendergraph
             return m_resources[handle.index];
         }
 
-        // A slot's generation moves each time it takes a resource, so a handle to what held it
-        // before (a pass's handle kept from an earlier frame) no longer resolves to its successor.
-        // Every resource was generation 1, so such a handle reached whatever took the slot.
+        // The pool names the resource; its slot is the resource's place in m_resources, so the
+        // compile walks a dense array and a handle kept past a recycle resolves to nothing.
         RGHandle AddResource(RenderGraphResource* res)
         {
-            u32 idx = 0;
-            if (!m_freeResourceSlots.IsEmpty())
+            const RGHandle handle = m_handles.Allocate(res);
+            while (m_resources.Size() <= handle.index)
             {
-                idx = static_cast<u32>(m_freeResourceSlots.Back());
-                m_freeResourceSlots.PopBack();
-                m_resources[idx] = res;
+                m_resources.PushBack(nullptr);
             }
-            else
-            {
-                idx = static_cast<u32>(m_resources.Size());
-                m_resources.PushBack(res);
-                m_slotGenerations.PushBack(0);
-            }
-            res->generation = ++m_slotGenerations[idx];
-            return RGHandle{idx, res->generation};
+            m_resources[handle.index] = res;
+            res->handle = handle;
+            return handle;
         }
 
         template <typename Setup>
@@ -646,7 +632,7 @@ export namespace foundation::rendergraph
                 }
                 if (res->lifetime != RGResourceLifetime::Persistent)
                 {
-                    m_freeResourceSlots.PushBack(static_cast<i32>(i));
+                    (void)m_handles.Free(res->handle);
                     (*m_allocator).Delete(res);
                     m_resources[i] = nullptr;
                 }
@@ -1047,8 +1033,8 @@ export namespace foundation::rendergraph
                 if (res->resourceType == RGResourceType::Texture && m_device != nullptr)
                 {
                     rhi::TextureDesc rhiDesc = res->textureDesc.ToTextureDesc(res->name.AsView());
-                    rhi::Texture* tex = nullptr;
-                    rhi::TextureView* view = nullptr;
+                    rhi::TextureHandle tex{};
+                    rhi::TextureViewHandle view{};
                     u64 pooledGen = 0;
                     if (m_texturePool.Get() != nullptr &&
                         m_texturePool->TryAcquire(rhiDesc, tex, view, pooledGen))
@@ -1056,6 +1042,7 @@ export namespace foundation::rendergraph
                         ++poolHits;
                         res->texture = tex;
                         res->textureView = view;
+                        res->TakeExtent(&rhiDesc);
                         res->textureGeneration = pooledGen; // reused physical texture keeps its id
                         if (rhi::IsDepthFormat(res->textureDesc.format) &&
                             rhi::HasStencil(res->textureDesc.format))
@@ -1063,7 +1050,7 @@ export namespace foundation::rendergraph
                             rhi::TextureViewDesc depthDesc{};
                             depthDesc.aspect = rhi::TextureAspect::DepthOnly;
                             depthDesc.label = u8"RGDepthOnlyView";
-                            rhi::TextureView* depthOnly = nullptr;
+                            rhi::TextureViewHandle depthOnly{};
                             if (m_device->CreateTextureView(tex, depthDesc, depthOnly).IsOk())
                             {
                                 res->depthOnlyView = depthOnly;
@@ -1115,19 +1102,19 @@ export namespace foundation::rendergraph
                     continue;
                 }
 
-                if (res->resourceType == RGResourceType::Texture && res->texture != nullptr)
+                if (res->resourceType == RGResourceType::Texture && res->texture.IsValid())
                 {
                     // Only pool a fully valid texture. A texture with a null view (a partial or failed
                     // allocation) must never re-enter the pool: a later TryAcquire would hand it back and
                     // ExecuteRenderPass would drop that attachment, desyncing the render-pass signature
                     // from the pipelines and bundles permanently, keyed by size. Destroy it instead.
-                    if (m_texturePool.Get() != nullptr && res->textureView != nullptr)
+                    if (m_texturePool.Get() != nullptr && res->textureView.IsValid())
                     {
                         const rhi::TextureDesc rhiDesc =
                             res->textureDesc.ToTextureDesc(res->name.AsView());
                         m_texturePool->ReturnToPool(rhiDesc, res->texture, res->textureView,
                                                     res->textureGeneration);
-                        if (res->depthOnlyView != nullptr)
+                        if (res->depthOnlyView.IsValid())
                         {
                             DeferredDeletion d{};
                             d.view = res->depthOnlyView;
@@ -1142,31 +1129,31 @@ export namespace foundation::rendergraph
                         d.view2 = res->depthOnlyView;
                         deletions.PushBack(d);
                     }
-                    res->texture = nullptr;
-                    res->textureView = nullptr;
-                    res->depthOnlyView = nullptr;
+                    res->texture = {};
+                    res->textureView = {};
+                    res->depthOnlyView = {};
                 }
-                else if (res->resourceType == RGResourceType::Buffer && res->buffer != nullptr)
+                else if (res->resourceType == RGResourceType::Buffer && res->buffer.IsValid())
                 {
                     DeferredDeletion d{};
                     d.buffer = res->buffer;
                     deletions.PushBack(d);
-                    res->buffer = nullptr;
+                    res->buffer = {};
                 }
             }
         }
 
         // === pass execution ===
-        rhi::TextureView* CreateSubresourceView(RGHandle handle, RGSubresourceRange subresource)
+        rhi::TextureViewHandle CreateSubresourceView(RGHandle handle, RGSubresourceRange subresource)
         {
             if (m_device == nullptr)
             {
-                return nullptr;
+                return {};
             }
-            rhi::Texture* texture = GetTexture(handle);
-            if (texture == nullptr)
+            rhi::TextureHandle texture = GetTexture(handle);
+            if (!texture.IsValid())
             {
-                return nullptr;
+                return {};
             }
 
             rhi::TextureViewDesc viewDesc{};
@@ -1179,13 +1166,13 @@ export namespace foundation::rendergraph
             viewDesc.dimension = viewDesc.arrayLayerCount == 1
                                      ? rhi::TextureViewDimension::Texture2D
                                      : rhi::TextureViewDimension::Texture2DArray;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             if (m_device->CreateTextureView(texture, viewDesc, view).IsOk())
             {
                 m_subresourceViews.PushBack(view);
                 return view;
             }
-            return nullptr;
+            return {};
         }
 
         // The full-target render area for a pass, from an attachment's resolved dimensions (the
@@ -1206,13 +1193,13 @@ export namespace foundation::rendergraph
                         return true;
                     }
                 }
-                if (rhi::TextureView* v = GetTextureView(h))
+                if (rhi::TextureViewHandle v = GetTextureView(h); v && m_device != nullptr)
                 {
-                    if (v->texture != nullptr && v->texture->desc.width > 0 &&
-                        v->texture->desc.height > 0)
+                    const rhi::TextureDesc* d = m_device->Describe(m_device->TextureOf(v));
+                    if (d != nullptr && d->width > 0 && d->height > 0)
                     {
-                        w = v->texture->desc.width;
-                        h2 = v->texture->desc.height;
+                        w = d->width;
+                        h2 = d->height;
                         return true;
                     }
                 }
@@ -1252,13 +1239,13 @@ export namespace foundation::rendergraph
             // is better.
             for (const RGColorTarget& ct : pass.colorTargets)
             {
-                if (GetTextureView(ct.handle) == nullptr)
+                if (!GetTextureView(ct.handle).IsValid())
                 {
                     return;
                 }
             }
             if (pass.depthTarget.HasValue() &&
-                GetTextureView(pass.depthTarget.Value().handle) == nullptr)
+                !GetTextureView(pass.depthTarget.Value().handle).IsValid())
             {
                 return;
             }
@@ -1282,14 +1269,14 @@ export namespace foundation::rendergraph
             for (usize i = 0; i < pass.colorTargets.Size(); ++i)
             {
                 const RGColorTarget& ct = pass.colorTargets[i];
-                rhi::TextureView* view = GetTextureView(ct.handle);
-                if (view == nullptr)
+                rhi::TextureViewHandle view = GetTextureView(ct.handle);
+                if (!view.IsValid())
                 {
                     continue;
                 }
                 if (!ct.subresource.IsAll())
                 {
-                    if (rhi::TextureView* subView =
+                    if (rhi::TextureViewHandle subView =
                             CreateSubresourceView(ct.handle, ct.subresource))
                     {
                         view = subView;
@@ -1305,7 +1292,7 @@ export namespace foundation::rendergraph
                 // subrange is not needed by the scene pass).
                 if (ct.resolveHandle.IsValid())
                 {
-                    if (rhi::TextureView* resolveView = GetTextureView(ct.resolveHandle))
+                    if (rhi::TextureViewHandle resolveView = GetTextureView(ct.resolveHandle))
                     {
                         attachment.resolveTarget = resolveView;
                     }
@@ -1316,12 +1303,12 @@ export namespace foundation::rendergraph
             if (pass.depthTarget.HasValue())
             {
                 const RGDepthTarget& dt = pass.depthTarget.Value();
-                rhi::TextureView* view = GetTextureView(dt.handle);
-                if (view != nullptr)
+                rhi::TextureViewHandle view = GetTextureView(dt.handle);
+                if (view.IsValid())
                 {
                     if (!dt.subresource.IsAll())
                     {
-                        if (rhi::TextureView* subView =
+                        if (rhi::TextureViewHandle subView =
                                 CreateSubresourceView(dt.handle, dt.subresource))
                         {
                             view = subView;
@@ -1402,8 +1389,7 @@ export namespace foundation::rendergraph
         rhi::Device* m_device;
         RenderGraphConfig m_config;
         Array<RenderGraphResource*> m_resources;
-        Array<i32> m_freeResourceSlots;
-        Array<u32> m_slotGenerations; // by slot: how many resources it has held (kept as slots are reused)
+        HandlePool<RGResourceTag, RenderGraphResource*> m_handles; // slot = index in m_resources
         Array<RenderGraphPass*> m_passes;
         Array<i32> m_executionOrder;
         Array<i32> m_finalAfter; // per resource: the execution position it takes its final state after
@@ -1416,7 +1402,7 @@ export namespace foundation::rendergraph
         BarrierSolver m_barrierSolver;
         UniquePtr<TransientTexturePool> m_texturePool;
         Array<Array<DeferredDeletion>> m_deferredDeletions;
-        Array<rhi::TextureView*> m_subresourceViews;
+        Array<rhi::TextureViewHandle> m_subresourceViews;
         i32 m_frameIndex = 0;
         u32 m_outputWidth = 1920;
         u32 m_outputHeight = 1080;

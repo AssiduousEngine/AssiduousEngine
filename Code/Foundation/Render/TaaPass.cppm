@@ -27,7 +27,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :bind_group_cache;
-import :resources; // GpuRetireQueue
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -36,7 +36,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The TAA resolve's push block (TaaPush, taa.ps.hlsl); Integration.ShaderBlocks checks it
     // against the compiled shader, member by member.
     struct GpuTaaPush
@@ -74,10 +73,6 @@ export namespace foundation::render
 
         Status Initialize();
 
-        // The queue a replaced bind group is retired into (a frame in flight may still use it);
-        // borrowed. Without one, the GPU is idled before the group is destroyed.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         [[nodiscard]] rhi::TextureFormat HistoryFormat() const noexcept { return kHistoryFormat; }
 
         // Resolve TAA for one view: reads the jittered HDR (`current`), the previous history, and the motion
@@ -104,8 +99,8 @@ export namespace foundation::render
     private:
         struct ViewHistory
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 w = 0, h = 0, cur = 0;
@@ -116,25 +111,23 @@ export namespace foundation::render
 
         void DestroyHistory(ViewHistory& hist);
 
-        rhi::RenderPipeline* MakePipeline();
+        rhi::RenderPipelineHandle MakePipeline();
 
         // One bind group per history view, rebuilt when any of the frame's transient inputs (the
         // jittered colour, motion, depth; BindGroupCache) is a different view or texture.
         using BindInputs = BindGroupInputs<3>;
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* histPrev, const BindInputs& inputs);
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle histPrev, const BindInputs& inputs);
 
         void Shutdown();
 
-
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null: idle the GPU before destroying
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_pointSampler = nullptr;
-        rhi::Sampler* m_linearSampler = nullptr;
+        rhi::SamplerHandle m_pointSampler{};
+        rhi::SamplerHandle m_linearSampler{};
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
         BindGroupCache<3> m_bindGroups;
     };

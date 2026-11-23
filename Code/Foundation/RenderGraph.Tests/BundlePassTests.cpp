@@ -21,8 +21,8 @@ namespace
     struct GraphHarness
     {
         rhi::null::NullDevice device{DefaultAllocator()};
-        rhi::Texture* tex = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle tex{};
+        rhi::TextureViewHandle view{};
         rhi::CommandPool* pool = nullptr;
         rhi::CommandEncoder* enc = nullptr;
 

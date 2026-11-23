@@ -7,6 +7,7 @@
 export module foundation.rhi:queue;
 
 import foundation.core;
+import :forward;
 import :enums;
 import :resources;
 

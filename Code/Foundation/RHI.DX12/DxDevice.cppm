@@ -48,12 +48,12 @@ import :render_pass_encoder;
 import :compute_pass_encoder;
 import :queue;
 import :swap_chain;
+import :tables;
 
 using namespace foundation::core;
 
 export namespace foundation::rhi::dx12
 {
-
     class DxDeviceImpl : public Device
     {
     public:
@@ -120,6 +120,7 @@ export namespace foundation::rhi::dx12
                     break;
                 }
                 q->counters = &m_counters;
+                wireQueue(*q);
                 m_graphicsQueues.PushBack(q);
             }
             for (u32 i = 0; i < desc.computeQueueCount; ++i)
@@ -131,6 +132,7 @@ export namespace foundation::rhi::dx12
                     break;
                 }
                 q->counters = &m_counters;
+                wireQueue(*q);
                 m_computeQueues.PushBack(q);
             }
             for (u32 i = 0; i < desc.transferQueueCount; ++i)
@@ -142,6 +144,7 @@ export namespace foundation::rhi::dx12
                     break;
                 }
                 q->counters = &m_counters;
+                wireQueue(*q);
                 m_transferQueues.PushBack(q);
             }
 
@@ -344,274 +347,374 @@ export namespace foundation::rhi::dx12
         // Device interface: resource creation
         // ==================================================================
 
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
+            out = BufferHandle::Invalid();
             auto* b = m_allocator.New<DxBufferImpl>();
             if (b->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(b);
-                out = nullptr;
                 return ErrorCode::Unknown;
+            }
+            out = m_tables.buffers.Add(b, d.label);
+            if (!out)
+            {
+                b->cleanup();
+                m_allocator.Delete(b);
+                return ErrorCode::OutOfMemory;
             }
             setDebugName(b->handle(), d.label);
             m_counters.BufferMade(d.size);
-            out = b;
             return ErrorCode::Ok;
         }
-
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        const BufferDesc* Describe(BufferHandle buffer) const override
         {
+            const DxBufferImpl* b = m_tables.buffers.Get(buffer);
+            return b != nullptr ? &b->desc : nullptr;
+        }
+        void* Map(BufferHandle buffer) override
+        {
+            DxBufferImpl* b = m_tables.buffers.Get(buffer);
+            return b != nullptr ? b->Map() : nullptr;
+        }
+        void Unmap(BufferHandle buffer) override
+        {
+            if (DxBufferImpl* b = m_tables.buffers.Get(buffer))
+                b->Unmap();
+        }
+        void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
+        {
+            if (DxBufferImpl* b = m_tables.buffers.Get(buffer))
+                b->FlushRange(offset, size);
+        }
+
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
+        {
+            out = TextureHandle::Invalid();
             auto* t = m_allocator.New<DxTextureImpl>();
             if (t->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(t);
-                out = nullptr;
                 return ErrorCode::Unknown;
+            }
+            out = m_tables.textures.Add(t, d.label);
+            if (!out)
+            {
+                t->cleanup();
+                m_allocator.Delete(t);
+                return ErrorCode::OutOfMemory;
             }
             setDebugName(t->handle(), d.label);
             // The description's size (the driver may pad; GetResourceAllocationInfo would say).
             m_counters.TextureMade(EstimateTextureBytes(d), CountsAsRenderTarget(d));
-            out = t;
             return ErrorCode::Ok;
         }
 
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
-            auto* dxTex = static_cast<DxTextureImpl*>(tex);
+            out = TextureViewHandle::Invalid();
+            auto* dxTex = m_tables.textures.Get(tex);
             if (!dxTex)
-            {
-                LogError("DxDevice: cast to DxTextureImpl failed");
-                out = nullptr;
-                return ErrorCode::Unknown;
-            }
+                return ErrorCode::InvalidArgument;
             auto* v = m_allocator.New<DxTextureViewImpl>();
-            if (v->init(m_device.Get(), dxTex, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap) !=
+            if (v->init(m_device.Get(), dxTex, tex, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap) !=
                 ErrorCode::Ok)
             {
                 m_allocator.Delete(v);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = v;
+            out = m_tables.textureViews.Add(v, d.label);
+            if (!out)
+            {
+                v->cleanup();
+                m_allocator.Delete(v);
+                return ErrorCode::OutOfMemory;
+            }
             return ErrorCode::Ok;
         }
 
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
+            out = SamplerHandle::Invalid();
             auto* s = m_allocator.New<DxSamplerImpl>();
             if (s->init(m_device.Get(), d, &m_samplerHeap) != ErrorCode::Ok)
             {
                 m_allocator.Delete(s);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = s;
+            out = m_tables.samplers.Add(s, d.label);
+            if (!out)
+            {
+                s->cleanup();
+                m_allocator.Delete(s);
+                return ErrorCode::OutOfMemory;
+            }
             return ErrorCode::Ok;
         }
 
-        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
+        const TextureDesc* Describe(TextureHandle texture) const override
         {
+            const DxTextureImpl* t = m_tables.textures.Get(texture);
+            return t != nullptr ? &t->desc : nullptr;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle view) const override
+        {
+            const DxTextureViewImpl* v = m_tables.textureViews.Get(view);
+            return v != nullptr ? &v->desc : nullptr;
+        }
+        StringView Label(BufferHandle handle) const override { return m_tables.buffers.Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_tables.textures.Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_tables.textureViews.Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_tables.samplers.Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_tables.shaderModules.Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_tables.bindGroupLayouts.Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_tables.bindGroups.Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_tables.pipelineLayouts.Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_tables.pipelineCaches.Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_tables.renderPipelines.Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_tables.computePipelines.Label(handle); }
+        StringView Label(MeshPipelineHandle handle) const override { return m_tables.meshPipelines.Label(handle); }
+        StringView Label(QuerySetHandle handle) const override { return m_tables.querySets.Label(handle); }
+        StringView Label(AccelStructHandle handle) const override { return m_tables.accelStructs.Label(handle); }
+        StringView Label(RayTracingPipelineHandle handle) const override { return m_tables.rayTracingPipelines.Label(handle); }
+        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Find(view) != nullptr; }
+        TextureHandle TextureOf(TextureViewHandle view) const override
+        {
+            const DxTextureViewImpl* v = m_tables.textureViews.Get(view);
+            return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        StringView EntryPointOf(ShaderModuleHandle module) const override
+        {
+            const DxShaderModuleImpl* m = m_tables.shaderModules.Get(module);
+            return m != nullptr ? m->entryPoint.AsView() : StringView{};
+        }
+        Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const override
+        {
+            const DxBindGroupLayoutImpl* l = m_tables.bindGroupLayouts.Get(layout);
+            return l != nullptr ? l->Entries() : Span<const BindGroupLayoutEntry>{};
+        }
+        /// The backend's own bind group a handle names, or null: for tests that read its state (its
+        /// descriptor offsets).
+        [[nodiscard]] DxBindGroupImpl* BindGroupImplOf(BindGroupHandle group) const noexcept
+        {
+            return m_tables.bindGroups.Get(group);
+        }
+        BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
+        {
+            const DxBindGroupImpl* g = m_tables.bindGroups.Get(group);
+            return g != nullptr ? g->layout : BindGroupLayoutHandle::Invalid();
+        }
+        void UpdateBindless(BindGroupHandle group, Span<const BindlessUpdateEntry> entries) override
+        {
+            if (DxBindGroupImpl* g = m_tables.bindGroups.Get(group))
+                g->UpdateBindless(entries);
+        }
+        u32 PipelineCacheDataSize(PipelineCacheHandle cache) override
+        {
+            DxPipelineCacheImpl* c = m_tables.pipelineCaches.Get(cache);
+            return c != nullptr ? c->GetDataSize() : 0;
+        }
+        Status PipelineCacheData(PipelineCacheHandle cache, Span<u8> outData) override
+        {
+            DxPipelineCacheImpl* c = m_tables.pipelineCaches.Get(cache);
+            return c != nullptr ? c->GetData(outData) : Status(ErrorCode::InvalidArgument);
+        }
+        const QuerySetDesc* Describe(QuerySetHandle querySet) const override
+        {
+            const DxQuerySetImpl* q = m_tables.querySets.Get(querySet);
+            return q != nullptr ? &q->desc : nullptr;
+        }
+        u64 DeviceAddress(AccelStructHandle accelStruct) const override
+        {
+            const DxAccelStructImpl* a = m_tables.accelStructs.Get(accelStruct);
+            return a != nullptr ? a->DeviceAddress() : 0;
+        }
+        const SamplerDesc* Describe(SamplerHandle sampler) const override
+        {
+            const DxSamplerImpl* s = m_tables.samplers.Get(sampler);
+            return s != nullptr ? &s->desc : nullptr;
+        }
+
+        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModuleHandle& out) override
+        {
+            out = {};
             auto* m = m_allocator.New<DxShaderModuleImpl>();
             if (m->init(d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(m);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             m->entryPoint = String(d.entryPoint);
-            out = m;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.shaderModules, m, out, d.label);
         }
 
         // ==================================================================
         // Binding and pipelines
         // ==================================================================
 
-        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayout*& out) override
+        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayoutHandle& out) override
         {
+            out = {};
             auto* l = m_allocator.New<DxBindGroupLayoutImpl>();
             if (l->init(d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(l);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = l;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.bindGroupLayouts, l, out, d.label);
         }
 
-        Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
+        Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
         {
+            out = {};
             auto* g = m_allocator.New<DxBindGroupImpl>();
+            g->tables = &m_tables;
             if (g->init(m_device.Get(), d, &m_cpuSrvHeap, &m_cpuSamplerHeap, &m_gpuSamplerHeap, &m_samplerTables) !=
                 ErrorCode::Ok)
             {
                 m_allocator.Delete(g);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = g;
-            return ErrorCode::Ok;
+            g->layout = d.layout;
+            return Adopt(m_tables.bindGroups, g, out, d.label);
         }
 
-        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayout*& out) override
+        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayoutHandle& out) override
         {
+            out = {};
             auto* l = m_allocator.New<DxPipelineLayoutImpl>();
-            if (l->init(m_device.Get(), d) != ErrorCode::Ok)
+            if (l->init(m_device.Get(), &m_tables, d) != ErrorCode::Ok)
             {
                 LogError("DxDevice: createPipelineLayout failed");
                 m_allocator.Delete(l);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             setDebugName(l->handle(), d.label);
-            out = l;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.pipelineLayouts, l, out, d.label);
         }
 
-        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCache*& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCacheHandle& out) override
         {
+            out = {};
             auto* c = m_allocator.New<DxPipelineCacheImpl>();
             if (c->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(c);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             if (c->handle())
                 setDebugName(c->handle(), d.label);
-            out = c;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.pipelineCaches, c, out, d.label);
         }
 
-        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipeline*& out) override
+        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipelineHandle& out) override
         {
+            out = {};
             auto* p = m_allocator.New<DxRenderPipelineImpl>();
-            if (p->init(m_device.Get(), d) != ErrorCode::Ok)
+            if (p->init(m_device.Get(), &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             setDebugName(p->handle(), d.label);
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.renderPipelines, p, out, d.label);
         }
 
-        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipeline*& out) override
+        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipelineHandle& out) override
         {
+            out = {};
             auto* p = m_allocator.New<DxComputePipelineImpl>();
-            if (p->init(m_device.Get(), d) != ErrorCode::Ok)
+            if (p->init(m_device.Get(), &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             setDebugName(p->handle(), d.label);
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.computePipelines, p, out, d.label);
         }
 
         // ==================================================================
         // Mesh shader (folded in)
         // ==================================================================
 
-        Status CreateMeshPipeline(const MeshPipelineDesc& d, MeshPipeline*& out) override
+        Status CreateMeshPipeline(const MeshPipelineDesc& d, MeshPipelineHandle& out) override
         {
+            out = {};
             if (!m_meshEnabled)
             {
-                out = nullptr;
                 return ErrorCode::NotSupported;
             }
             auto* p = m_allocator.New<DxMeshPipelineImpl>();
-            if (p->init(m_device.Get(), d) != ErrorCode::Ok)
+            if (p->init(m_device.Get(), &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             setDebugName(p->handle(), d.label);
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.meshPipelines, p, out, d.label);
         }
 
-        void DestroyMeshPipeline(MeshPipeline*& p) override
+        void DestroyMeshPipeline(MeshPipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<DxMeshPipelineImpl*>(p)->cleanup();
-                m_allocator.Delete(static_cast<DxMeshPipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.meshPipelines.Retire(p))
+                collectRetired();
         }
 
         // ==================================================================
         // Ray tracing (folded in)
         // ==================================================================
 
-        Status CreateAccelStruct(const AccelStructDesc& d, AccelStruct*& out) override
+        Status CreateAccelStruct(const AccelStructDesc& d, AccelStructHandle& out) override
         {
+            out = {};
             if (!m_rtEnabled)
             {
-                out = nullptr;
                 return ErrorCode::NotSupported;
             }
             auto* a = m_allocator.New<DxAccelStructImpl>();
             if (a->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(a);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = a;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.accelStructs, a, out, d.label);
         }
 
-        void DestroyAccelStruct(AccelStruct*& a) override
+        void DestroyAccelStruct(AccelStructHandle& a) override
         {
-            if (a)
-            {
-                static_cast<DxAccelStructImpl*>(a)->cleanup();
-                m_allocator.Delete(static_cast<DxAccelStructImpl*>(a));
-                a = nullptr;
-            }
+            if (m_tables.accelStructs.Retire(a))
+                collectRetired();
         }
 
         Status CreateRayTracingPipeline(const RayTracingPipelineDesc& d,
-                                        RayTracingPipeline*& out) override
+                                        RayTracingPipelineHandle& out) override
         {
+            out = {};
             if (!m_rtEnabled)
             {
-                out = nullptr;
                 return ErrorCode::NotSupported;
             }
             auto* p = m_allocator.New<DxRayTracingPipelineImpl>();
-            if (p->init(m_device.Get(), d) != ErrorCode::Ok)
+            if (p->init(m_device.Get(), &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.rayTracingPipelines, p, out, d.label);
         }
 
-        void DestroyRayTracingPipeline(RayTracingPipeline*& p) override
+        void DestroyRayTracingPipeline(RayTracingPipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<DxRayTracingPipelineImpl*>(p)->cleanup();
-                m_allocator.Delete(static_cast<DxRayTracingPipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.rayTracingPipelines.Retire(p))
+                collectRetired();
         }
 
-        Status GetShaderGroupHandles(RayTracingPipeline* pipeline, u32 firstGroup, u32 groupCount,
+        Status GetShaderGroupHandles(RayTracingPipelineHandle pipeline, u32 firstGroup, u32 groupCount,
                                      Span<u8> outData) override
         {
             if (!m_rtEnabled)
                 return ErrorCode::NotSupported;
-            auto* dxPipeline = static_cast<DxRayTracingPipelineImpl*>(pipeline);
+            auto* dxPipeline = m_tables.rayTracingPipelines.Get(pipeline);
             if (!dxPipeline || !dxPipeline->properties())
             {
                 LogError("DxDevice: pipeline or properties is null");
@@ -654,6 +757,8 @@ export namespace foundation::rhi::dx12
         Status CreateCommandPool(QueueType qt, CommandPool*& out) override
         {
             auto* p = m_allocator.New<DxCommandPoolImpl>();
+            p->tables = &m_tables;
+            p->tracker = &m_tracker;
             if (p->init(this, m_device.Get(), qt, &m_cpuSrvHeap, &m_gpuSrvHeap, &m_cpuSamplerHeap,
                         &m_gpuSamplerHeap, m_allocator) != ErrorCode::Ok)
             {
@@ -686,18 +791,17 @@ export namespace foundation::rhi::dx12
         // Queries
         // ==================================================================
 
-        Status CreateQuerySet(const QuerySetDesc& d, QuerySet*& out) override
+        Status CreateQuerySet(const QuerySetDesc& d, QuerySetHandle& out) override
         {
+            out = {};
             auto* q = m_allocator.New<DxQuerySetImpl>();
             if (q->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(q);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             setDebugName(q->handle(), d.label);
-            out = q;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.querySets, q, out, d.label);
         }
 
         // ==================================================================
@@ -723,9 +827,10 @@ export namespace foundation::rhi::dx12
 
             auto* sc = m_allocator.New<DxSwapChainImpl>();
             if (sc->init(m_device.Get(), m_adapter->factory(), m_graphicsQueues[0]->handle(),
-                         dxSurface, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap,
+                         dxSurface, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap, m_tables,
                          m_allocator) != ErrorCode::Ok)
             {
+                sc->cleanup(); // the back buffers it got before failing are in the tables
                 m_allocator.Delete(sc);
                 out = nullptr;
                 return ErrorCode::Unknown;
@@ -738,105 +843,60 @@ export namespace foundation::rhi::dx12
         // Resource destruction
         // ==================================================================
 
-        void DestroyBuffer(Buffer*& b) override
+        void DestroyBuffer(BufferHandle& b) override
         {
-            if (b)
-            {
-                m_counters.BufferFreed(b->desc.size);
-                static_cast<DxBufferImpl*>(b)->cleanup();
-                m_allocator.Delete(static_cast<DxBufferImpl*>(b));
-                b = nullptr;
-            }
+            if (m_tables.buffers.Retire(b))
+                collectRetired();
         }
-        void DestroyTexture(Texture*& t) override
+        void DestroyTexture(TextureHandle& t) override
         {
-            if (t)
-            {
-                m_counters.TextureFreed(EstimateTextureBytes(t->desc), CountsAsRenderTarget(t->desc));
-                static_cast<DxTextureImpl*>(t)->cleanup();
-                m_allocator.Delete(static_cast<DxTextureImpl*>(t));
-                t = nullptr;
-            }
+            if (m_tables.textures.Retire(t))
+                collectRetired();
         }
-        void DestroyTextureView(TextureView*& v) override
+        void DestroyTextureView(TextureViewHandle& v) override
         {
-            if (v)
-            {
-                static_cast<DxTextureViewImpl*>(v)->cleanup();
-                m_allocator.Delete(static_cast<DxTextureViewImpl*>(v));
-                v = nullptr;
-            }
+            if (m_tables.textureViews.Retire(v))
+                collectRetired();
         }
-        void DestroySampler(Sampler*& s) override
+        void DestroySampler(SamplerHandle& s) override
         {
-            if (s)
-            {
-                static_cast<DxSamplerImpl*>(s)->cleanup();
-                m_allocator.Delete(static_cast<DxSamplerImpl*>(s));
-                s = nullptr;
-            }
+            if (m_tables.samplers.Retire(s))
+                collectRetired();
         }
-        void DestroyShaderModule(ShaderModule*& m) override
+        void DestroyShaderModule(ShaderModuleHandle& m) override
         {
-            if (m)
-            {
-                static_cast<DxShaderModuleImpl*>(m)->cleanup();
-                m_allocator.Delete(static_cast<DxShaderModuleImpl*>(m));
-                m = nullptr;
-            }
+            if (m_tables.shaderModules.Retire(m))
+                collectRetired();
         }
-        void DestroyBindGroupLayout(BindGroupLayout*& l) override
+        void DestroyBindGroupLayout(BindGroupLayoutHandle& l) override
         {
-            if (l)
-            {
-                m_allocator.Delete(static_cast<DxBindGroupLayoutImpl*>(l));
-                l = nullptr;
-            }
+            if (m_tables.bindGroupLayouts.Retire(l))
+                collectRetired();
         }
-        void DestroyBindGroup(BindGroup*& g) override
+        void DestroyBindGroup(BindGroupHandle& g) override
         {
-            if (g)
-            {
-                static_cast<DxBindGroupImpl*>(g)->cleanup();
-                m_allocator.Delete(static_cast<DxBindGroupImpl*>(g));
-                g = nullptr;
-            }
+            if (m_tables.bindGroups.Retire(g))
+                collectRetired();
         }
-        void DestroyPipelineLayout(PipelineLayout*& l) override
+        void DestroyPipelineLayout(PipelineLayoutHandle& l) override
         {
-            if (l)
-            {
-                static_cast<DxPipelineLayoutImpl*>(l)->cleanup();
-                m_allocator.Delete(static_cast<DxPipelineLayoutImpl*>(l));
-                l = nullptr;
-            }
+            if (m_tables.pipelineLayouts.Retire(l))
+                collectRetired();
         }
-        void DestroyPipelineCache(PipelineCache*& c) override
+        void DestroyPipelineCache(PipelineCacheHandle& c) override
         {
-            if (c)
-            {
-                static_cast<DxPipelineCacheImpl*>(c)->cleanup();
-                m_allocator.Delete(static_cast<DxPipelineCacheImpl*>(c));
-                c = nullptr;
-            }
+            if (m_tables.pipelineCaches.Retire(c))
+                collectRetired();
         }
-        void DestroyRenderPipeline(RenderPipeline*& p) override
+        void DestroyRenderPipeline(RenderPipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<DxRenderPipelineImpl*>(p)->cleanup();
-                m_allocator.Delete(static_cast<DxRenderPipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.renderPipelines.Retire(p))
+                collectRetired();
         }
-        void DestroyComputePipeline(ComputePipeline*& p) override
+        void DestroyComputePipeline(ComputePipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<DxComputePipelineImpl*>(p)->cleanup();
-                m_allocator.Delete(static_cast<DxComputePipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.computePipelines.Retire(p))
+                collectRetired();
         }
         void DestroyCommandPool(CommandPool*& p) override
         {
@@ -856,14 +916,10 @@ export namespace foundation::rhi::dx12
                 f = nullptr;
             }
         }
-        void DestroyQuerySet(QuerySet*& q) override
+        void DestroyQuerySet(QuerySetHandle& q) override
         {
-            if (q)
-            {
-                static_cast<DxQuerySetImpl*>(q)->cleanup();
-                m_allocator.Delete(static_cast<DxQuerySetImpl*>(q));
-                q = nullptr;
-            }
+            if (m_tables.querySets.Retire(q))
+                collectRetired();
         }
         void DestroySwapChain(SwapChain*& sc) override
         {
@@ -903,6 +959,31 @@ export namespace foundation::rhi::dx12
             for (auto* q : m_transferQueues)
                 q->WaitIdle();
             drainDebugMessages();
+            collectRetired();
+        }
+
+        /// Frees the retired resources no recording and no queue can still use. After each
+        /// submit, each destroy and each idle.
+        void collectRetired()
+        {
+            u64 completed[SubmissionTracker::kMaxQueues] = {};
+            for (u32 q = 0; q < SubmissionTracker::kMaxQueues; ++q)
+                completed[q] = ~u64{0}; // a slot no queue took holds nothing back
+            const Array<DxQueueImpl*>* families[] = {&m_graphicsQueues, &m_computeQueues, &m_transferQueues};
+            for (const Array<DxQueueImpl*>* family : families)
+                for (DxQueueImpl* queue : *family)
+                    if (queue->timeline().valid())
+                        completed[queue->timeline().slot()] = queue->timeline().completed();
+            m_tracker.Collect(Span<const u64>(completed, SubmissionTracker::kMaxQueues));
+        }
+
+        // A queue made: its timeline, its batches' buffers, and the collection after its submits.
+        void wireQueue(DxQueueImpl& queue)
+        {
+            queue.tables = &m_tables;
+            queue.collect = [this]() { collectRetired(); };
+            if (queue.initTimeline(m_tracker) != ErrorCode::Ok)
+                LogError("[RHI] a D3D12 queue's timeline could not be made: what it uses is freed only when the device goes");
         }
 
         void drainDebugMessages()
@@ -935,6 +1016,9 @@ export namespace foundation::rhi::dx12
         void Destroy() override
         {
             WaitIdle();
+            // Freed while the D3D12 device still lives (the members' destructors run after).
+            m_tables.FreeAll();
+            m_tracker.FreeAll();
 
             // Queues.
             for (auto* q : m_graphicsQueues)
@@ -1293,6 +1377,67 @@ export namespace foundation::rhi::dx12
         ComPtr<ID3D12InfoQueue> m_infoQueue;
         DxAdapterImpl* m_adapter = nullptr;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
+        // When a destroyed resource may go, and its objects by handle (Specs/rhi-handles.md).
+        SubmissionTracker m_tracker{m_allocator};
+        DxTables m_tables{m_allocator, m_tracker, this, Frees()};
+        [[nodiscard]] static constexpr DxTableFrees Frees() noexcept
+        {
+            DxTableFrees f;
+            f.buffer = &FreeBuffer;
+            f.texture = &FreeTexture;
+            f.textureView = &FreeObject<DxTextureViewImpl>;
+            f.sampler = &FreeObject<DxSamplerImpl>;
+            f.shaderModule = &FreeObject<DxShaderModuleImpl>;
+            f.bindGroupLayout = &FreeObject<DxBindGroupLayoutImpl>;
+            f.bindGroup = &FreeObject<DxBindGroupImpl>;
+            f.pipelineLayout = &FreeObject<DxPipelineLayoutImpl>;
+            f.pipelineCache = &FreeObject<DxPipelineCacheImpl>;
+            f.renderPipeline = &FreeObject<DxRenderPipelineImpl>;
+            f.computePipeline = &FreeObject<DxComputePipelineImpl>;
+            f.meshPipeline = &FreeObject<DxMeshPipelineImpl>;
+            f.querySet = &FreeObject<DxQuerySetImpl>;
+            f.accelStruct = &FreeObject<DxAccelStructImpl>;
+            f.rayTracingPipeline = &FreeObject<DxRayTracingPipelineImpl>;
+            return f;
+        }
+        // A new object into its table; freed again if the table is full.
+        template <typename TTable, typename TImpl, typename THandle>
+        Status Adopt(TTable& table, TImpl* object, THandle& out, StringView label)
+        {
+            out = table.Add(object, label);
+            if (!out)
+            {
+                FreeObject<TImpl>(this, object);
+                return ErrorCode::OutOfMemory;
+            }
+            return ErrorCode::Ok;
+        }
+        static void FreeTexture(void* context, void* object)
+        {
+            auto* device = static_cast<DxDeviceImpl*>(context);
+            auto* texture = static_cast<DxTextureImpl*>(object);
+            device->m_counters.TextureFreed(EstimateTextureBytes(texture->desc), CountsAsRenderTarget(texture->desc));
+            texture->cleanup();
+            device->m_allocator.Delete(texture);
+        }
+        // Its D3D12 objects or descriptors, then itself.
+        template <typename T>
+        static void FreeObject(void* context, void* object)
+        {
+            auto* device = static_cast<DxDeviceImpl*>(context);
+            T* typed = static_cast<T*>(object);
+            if constexpr (requires { typed->cleanup(); })
+                typed->cleanup(); // a bind group layout has nothing of D3D12's to release
+            device->m_allocator.Delete(typed);
+        }
+        static void FreeBuffer(void* context, void* object)
+        {
+            auto* device = static_cast<DxDeviceImpl*>(context);
+            auto* buffer = static_cast<DxBufferImpl*>(object);
+            device->m_counters.BufferFreed(buffer->desc.size);
+            buffer->cleanup();
+            device->m_allocator.Delete(buffer);
+        }
 
         // Queues.
         Array<DxQueueImpl*> m_graphicsQueues;
@@ -1357,7 +1502,6 @@ export namespace foundation::rhi::dx12
                                                DxTextureImpl* dstTex, u32 dstMip, u32 dstWidth,
                                                u32 dstHeight, DXGI_FORMAT dxgiFormat)
     {
-
         auto* blitRootSig = m_device->blitRootSignature();
         if (!blitRootSig)
             return;
@@ -1455,6 +1599,7 @@ export namespace foundation::rhi::dx12
         rpeCtx.drawIndexedSig = m_device->drawIndexedSignature();
         rpeCtx.dispatchMeshSig = m_device->dispatchMeshSignature();
         rpeCtx.counters = m_device->counters();
+        rpeCtx.tables = tables;
 
         DxComputePassContext cpeCtx{};
         cpeCtx.cmdList = cmdList;
@@ -1463,9 +1608,11 @@ export namespace foundation::rhi::dx12
         cpeCtx.gpuSamplerHeap = m_device->gpuSamplerHeap();
         cpeCtx.dispatchSig = m_device->dispatchSignature();
         cpeCtx.counters = m_device->counters();
+        cpeCtx.tables = tables;
 
         auto* enc = m_allocPtr->New<DxCommandEncoderImpl>(m_device, cmdList, this, rpeCtx, cpeCtx,
                                                           *m_allocPtr);
+        enc->recording = beginRecording();
         ++m_unfinishedEncoders; // balanced by Finish() closing the list
         out = enc;
         return ErrorCode::Ok;
@@ -1475,7 +1622,12 @@ export namespace foundation::rhi::dx12
     {
         if (encoder)
         {
-            m_allocPtr->Delete(static_cast<DxCommandEncoderImpl*>(encoder));
+            // One never finished is discarded; a finished one's command buffer holds its
+            // recording, which its submit (or the pool's Reset) ends.
+            auto* dxEncoder = static_cast<DxCommandEncoderImpl*>(encoder);
+            if (!dxEncoder->finished && tracker != nullptr)
+                tracker->End(dxEncoder->recording);
+            m_allocPtr->Delete(dxEncoder);
             encoder = nullptr;
         }
     }
@@ -1503,6 +1655,8 @@ export namespace foundation::rhi::dx12
 
         DxRenderPassContext ctx{};
         ctx.cmdList = list.Get();
+        ctx.tables = tables;
+        beginBundleRecording();
         ctx.srvStaging = &m_srvStaging;
         ctx.gpuSrvHeap = m_device->gpuSrvHeap();
         ctx.gpuSamplerHeap = m_device->gpuSamplerHeap();

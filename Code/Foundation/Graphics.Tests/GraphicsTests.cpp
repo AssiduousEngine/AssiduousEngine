@@ -51,7 +51,7 @@ TEST_CASE("graphics: a window renders, and the frame ring advances")
     CHECK(f0.frameIndex == 0u);
     CHECK(f0.window == rw.Get());
     CHECK(f0.encoder != nullptr);
-    CHECK(f0.backbufferView != nullptr);
+    CHECK(f0.backbufferView.IsValid());
     rw->EndFrame(f0);
     gd->AdvanceFrame();
     CHECK(gd->CurrentFrame() == 1u);

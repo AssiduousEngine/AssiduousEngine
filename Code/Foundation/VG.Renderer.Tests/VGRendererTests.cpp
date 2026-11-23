@@ -23,13 +23,13 @@ namespace image = foundation::image;
 
 namespace
 {
-    rhi::ShaderModule* MakeModule(rhi::Device& d)
+    rhi::ShaderModuleHandle MakeModule(rhi::Device& d)
     {
         const u8 dummy[4] = {0, 0, 0, 0};
         rhi::ShaderModuleDesc desc{};
         desc.code = Span<const u8>(dummy, 4);
         desc.entryPoint = u8"main"; // what the shader system records on a module it compiles
-        rhi::ShaderModule* m = nullptr;
+        rhi::ShaderModuleHandle m{};
         (void)d.CreateShaderModule(desc, m);
         return m;
     }
@@ -55,14 +55,14 @@ TEST_CASE("vg.renderer: render-vertex passes color through RAW (the shader owns 
 TEST_CASE("vg.renderer: initialize + prepare a batch (headless Null backend)")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
 
     VGRenderer renderer{DefaultAllocator()};
     REQUIRE(
-        renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2)
+        renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2)
             .IsOk());
     CHECK(renderer.IsInitialized());
 
@@ -99,12 +99,12 @@ TEST_CASE("vg.renderer: a batch whose indices outgrow the frame's buffers draws 
     // indices (three a vertex of capacity is the index buffer's size) asked for the size the
     // buffers already were, and never drew.
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
     VGRenderer renderer{DefaultAllocator()};
-    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2).IsOk());
+    REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2).IsOk());
 
     VGContext ctx;
     ctx.FillRect(Rectangle{10, 10, 100, 50}, Color::Red);
@@ -145,12 +145,12 @@ TEST_CASE("vg.renderer: a frame past its uniform slots says so once")
         }
     };
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
     VGRenderer renderer{DefaultAllocator()};
-    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2).IsOk());
+    REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2).IsOk());
     VGContext ctx;
     ctx.FillRect(Rectangle{0, 0, 10, 10}, Color::Green);
 
@@ -178,20 +178,20 @@ TEST_CASE("vg.renderer: a frame past its uniform slots says so once")
 TEST_CASE("vg.renderer: external texture register / rebind / unregister")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
 
     VGRenderer renderer{DefaultAllocator()};
-    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::RGBA16Float, /*frameCount*/ 2)
+    REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::RGBA16Float, /*frameCount*/ 2)
                 .IsOk());
 
     // A caller-owned view standing in for a viewport's offscreen color target.
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA16Float, 64, 48);
-    rhi::Texture* tex = nullptr;
+    rhi::TextureHandle tex{};
     REQUIRE(device.CreateTexture(td, tex).IsOk());
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(tex, rhi::TextureViewDesc{}, view).IsOk());
 
     // The identity key: a pixel-less ImageDataRef (dimensions only).
@@ -210,7 +210,7 @@ TEST_CASE("vg.renderer: external texture register / rebind / unregister")
     CHECK(slice.isValid);
 
     // Rebinding the same key to a new view keeps a single entry (still external).
-    rhi::TextureView* view2 = nullptr;
+    rhi::TextureViewHandle view2{};
     REQUIRE(device.CreateTextureView(tex, rhi::TextureViewDesc{}, view2).IsOk());
     renderer.RegisterExternalTexture(&key, view2);
     CHECK(renderer.IsExternalTextureRegistered(&key));
@@ -233,18 +233,18 @@ TEST_CASE("vg.renderer: external texture register / rebind / unregister")
 TEST_CASE("vg.renderer: Dispose leaves a still-registered external view intact")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
 
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA16Float, 32, 32);
-    rhi::Texture* tex = nullptr;
+    rhi::TextureHandle tex{};
     REQUIRE(device.CreateTexture(td, tex).IsOk());
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(tex, rhi::TextureViewDesc{}, view).IsOk());
 
     {
         VGRenderer renderer{DefaultAllocator()};
-        REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::RGBA16Float, 1).IsOk());
+        REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::RGBA16Float, 1).IsOk());
         image::ImageDataRef key(32, 32);
         renderer.RegisterExternalTexture(&key, view);
         // Dispose(), through ClearTextureCache(), must not destroy the external view.
@@ -261,11 +261,11 @@ TEST_CASE("vg.renderer: Dispose leaves a still-registered external view intact")
 TEST_CASE("vg.renderer: empty batch yields an invalid slice")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
 
     VGRenderer renderer{DefaultAllocator()};
-    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1).IsOk());
+    REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1).IsOk());
 
     VGContext ctx; // nothing drawn
     renderer.BeginFrame(0);
@@ -320,14 +320,14 @@ TEST_CASE("vg.renderer: ComputeScissor clamps to content then offsets to the vie
 TEST_CASE("vg.renderer: batch eviction retires cached textures until frames age out")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
 
     VGRenderer renderer{DefaultAllocator()};
     REQUIRE(
-        renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2)
+        renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2)
             .IsOk());
 
     // A gradient fill produces a LUT texture the renderer caches at first sight.
@@ -349,19 +349,16 @@ TEST_CASE("vg.renderer: batch eviction retires cached textures until frames age 
     CHECK(cachedAfterDraw >= 2u); // white + the LUT
 
     // The producer announces the LUT's death through the batch's eviction list: the
-    // entry must leave the cache immediately (the address may be recycled this frame)
-    // but its GPU resources retire until every in-flight frame has aged past them.
+    // entry leaves the cache immediately (the address may be recycled this frame) and its
+    // GPU objects are destroyed (the device keeps them while in-flight frames use them).
     const foundation::image::ImageData* lut = ctx.GetBatch().textures[1];
+    const u32 texturesBefore = device.m_textures.Size();
     VGBatch evictionBatch;
     evictionBatch.evictedTextures.PushBack(lut);
     renderer.BeginFrame(1);
     (void)renderer.Prepare(evictionBatch, 1, 800, 600); // empty batch: evictions still apply
     CHECK(renderer.CachedTextureCount() == cachedAfterDraw - 1u);
-    CHECK(renderer.RetiredTextureCount() == 1u);
-
-    renderer.BeginFrame(0);
-    renderer.BeginFrame(1); // frameCount=2: two BeginFrames age the retiree out
-    CHECK(renderer.RetiredTextureCount() == 0u);
+    CHECK(device.m_textures.Size() == texturesBefore - 1u); // the LUT's texture left the device's table
 
     renderer.Dispose();
     device.DestroyShaderModule(vs);
@@ -371,13 +368,13 @@ TEST_CASE("vg.renderer: batch eviction retires cached textures until frames age 
 TEST_CASE("vg.renderer: texture cache detects address reuse via ImageData::InstanceId")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
 
     VGRenderer renderer{DefaultAllocator()};
-    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1).IsOk());
+    REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1).IsOk());
 
     // Two different images constructed at the same address (placement new models the
     // allocator recycling a freed image's storage).
@@ -417,15 +414,15 @@ TEST_CASE("vg.renderer: texture cache detects address reuse via ImageData::Insta
 TEST_CASE("vg.renderer: stencil target config builds the stencil-then-cover pipelines")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    REQUIRE(vs != nullptr);
-    REQUIRE(fs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    REQUIRE(vs.IsValid());
+    REQUIRE(fs.IsValid());
 
     // Without a stencil format: no stencil support, stencil commands would be skipped.
     {
         VGRenderer renderer{DefaultAllocator()};
-        REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1)
+        REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1)
                     .IsOk());
         CHECK_FALSE(renderer.StencilFillsSupported());
         renderer.Dispose();
@@ -438,8 +435,8 @@ TEST_CASE("vg.renderer: stencil target config builds the stencil-then-cover pipe
         config.sampleCount = 4;
         config.depthStencilFormat = rhi::TextureFormat::Depth24PlusStencil8;
         REQUIRE(renderer
-                    .Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1, nullptr,
-                                nullptr, nullptr, config)
+                    .Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1, {},
+                                {}, {}, config)
                     .IsOk());
         CHECK(renderer.StencilFillsSupported());
 
@@ -474,8 +471,8 @@ namespace
     // A headless render pass on the Null device: a colour target + an encoder.
     struct NullPass
     {
-        rhi::Texture* texture = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle texture{};
+        rhi::TextureViewHandle view{};
         rhi::CommandPool* pool = nullptr;
         rhi::CommandEncoder* encoder = nullptr;
         rhi::RenderPassEncoder* pass = nullptr;
@@ -491,7 +488,7 @@ namespace
             td.height = 64;
             td.format = rhi::TextureFormat::BGRA8UnormSrgb;
             td.usage = rhi::TextureUsage::RenderTarget;
-            if (!device.CreateTexture(td, texture).IsOk() || texture == nullptr)
+            if (!device.CreateTexture(td, texture).IsOk() || !texture.IsValid())
                 return false;
             if (!device.CreateTextureView(texture, rhi::TextureViewDesc{}, view).IsOk())
                 return false;
@@ -516,9 +513,9 @@ namespace
                 pool->DestroyEncoder(encoder);
             if (pool != nullptr)
                 device.DestroyCommandPool(pool);
-            if (view != nullptr)
+            if (view.IsValid())
                 device.DestroyTextureView(view);
-            if (texture != nullptr)
+            if (texture.IsValid())
                 device.DestroyTexture(texture);
         }
     };
@@ -604,15 +601,15 @@ namespace
 TEST_CASE("vg.renderer: every blend x draw mode, stencil phase x rule x clip, and spread dispatch headlessly")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    rhi::ShaderModule* df = MakeModule(device);
-    rhi::ShaderModule* radial = MakeModule(device);
-    rhi::ShaderModule* conic = MakeModule(device);
-    rhi::ShaderModule* shadow = MakeModule(device);
-    rhi::ShaderModule* boxVs = MakeModule(device);
-    rhi::ShaderModule* boxFs = MakeModule(device);
-    REQUIRE(vs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    rhi::ShaderModuleHandle df = MakeModule(device);
+    rhi::ShaderModuleHandle radial = MakeModule(device);
+    rhi::ShaderModuleHandle conic = MakeModule(device);
+    rhi::ShaderModuleHandle shadow = MakeModule(device);
+    rhi::ShaderModuleHandle boxVs = MakeModule(device);
+    rhi::ShaderModuleHandle boxFs = MakeModule(device);
+    REQUIRE(vs.IsValid());
 
     VGContext ctx;
     BuildDispatchBatch(ctx);
@@ -647,7 +644,7 @@ TEST_CASE("vg.renderer: every blend x draw mode, stencil phase x rule x clip, an
         config.sampleCount = 4;
         config.depthStencilFormat = rhi::TextureFormat::Depth24PlusStencil8;
         REQUIRE(renderer
-                    .Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1, df, radial,
+                    .Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1, df, radial,
                                 conic, config, shadow, boxVs, boxFs)
                     .IsOk());
         REQUIRE(renderer.StencilFillsSupported());
@@ -668,7 +665,7 @@ TEST_CASE("vg.renderer: every blend x draw mode, stencil phase x rule x clip, an
     // would show as flat colour, box vertices are not VG vertices); everything else dispatches.
     {
         VGRenderer renderer{DefaultAllocator()};
-        REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1)
+        REQUIRE(renderer.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1)
                     .IsOk());
         REQUIRE_FALSE(renderer.StencilFillsSupported());
         renderer.BeginFrame(0);
@@ -693,14 +690,13 @@ TEST_CASE("vg.renderer: every blend x draw mode, stencil phase x rule x clip, an
     device.DestroyShaderModule(vs);
 }
 
-
 TEST_CASE("vg.renderer: layers draw into targets of their own, then composite into what holds them")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    rhi::ShaderModule* layerFs = MakeModule(device);
-    REQUIRE(layerFs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    rhi::ShaderModuleHandle layerFs = MakeModule(device);
+    REQUIRE(layerFs.IsValid());
 
     VGContext ctx;
     ctx.SetLayers(true);
@@ -720,13 +716,13 @@ TEST_CASE("vg.renderer: layers draw into targets of their own, then composite in
     VGTargetConfig config;
     config.sampleCount = 4; // layer targets resolve their own multisampled draws
     config.depthStencilFormat = rhi::TextureFormat::Depth24PlusStencil8;
-    const auto run = [&](rhi::ShaderModule* layerShader, VGRenderer::RenderStats& layers,
+    const auto run = [&](rhi::ShaderModuleHandle layerShader, VGRenderer::RenderStats& layers,
                          VGRenderer::RenderStats& main)
     {
         VGRenderer renderer{DefaultAllocator()};
         REQUIRE(renderer
-                    .Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 2, nullptr, nullptr,
-                                nullptr, config, nullptr, nullptr, nullptr, layerShader)
+                    .Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 2, {}, {},
+                                {}, config, {}, {}, {}, layerShader)
                     .IsOk());
         for (i32 frame = 0; frame < 3; ++frame) // the frame slots' targets are reused
         {
@@ -764,7 +760,7 @@ TEST_CASE("vg.renderer: layers draw into targets of their own, then composite in
     {
         VGRenderer::RenderStats layers;
         VGRenderer::RenderStats main;
-        run(nullptr, layers, main);
+        run(rhi::ShaderModuleHandle{}, layers, main);
         CHECK(layers.layers == 0);
         CHECK(main.drawn == 1);
         CHECK(main.skipped == 2);
@@ -778,11 +774,11 @@ TEST_CASE("vg.renderer: layers draw into targets of their own, then composite in
 TEST_CASE("vg.renderer: a blurred layer runs two blur passes before its composite, or none without the shader")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    rhi::ShaderModule* layerFs = MakeModule(device);
-    rhi::ShaderModule* blurVs = MakeModule(device);
-    rhi::ShaderModule* blurFs = MakeModule(device);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    rhi::ShaderModuleHandle layerFs = MakeModule(device);
+    rhi::ShaderModuleHandle blurVs = MakeModule(device);
+    rhi::ShaderModuleHandle blurFs = MakeModule(device);
 
     VGContext ctx;
     ctx.SetLayers(true);
@@ -794,12 +790,12 @@ TEST_CASE("vg.renderer: a blurred layer runs two blur passes before its composit
     VGTargetConfig config;
     config.sampleCount = 4; // the content resolves; the blur passes run single-sampled
     config.depthStencilFormat = rhi::TextureFormat::Depth24PlusStencil8;
-    const auto run = [&](rhi::ShaderModule* blurVertex, rhi::ShaderModule* blurFragment, u64& passes)
+    const auto run = [&](rhi::ShaderModuleHandle blurVertex, rhi::ShaderModuleHandle blurFragment, u64& passes)
     {
         VGRenderer renderer{DefaultAllocator()};
         REQUIRE(renderer
-                    .Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 1, nullptr, nullptr, nullptr,
-                                config, nullptr, nullptr, nullptr, layerFs, blurVertex, blurFragment)
+                    .Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 1, {}, {}, {},
+                                config, {}, {}, {}, layerFs, blurVertex, blurFragment)
                     .IsOk());
         renderer.BeginFrame(0);
         const VGRenderSlice slice = renderer.Prepare(batch, 0, 64, 64);
@@ -813,7 +809,7 @@ TEST_CASE("vg.renderer: a blurred layer runs two blur passes before its composit
     u64 blurred = 0;
     u64 sharp = 0;
     run(blurVs, blurFs, blurred);
-    run(nullptr, nullptr, sharp);
+    run(rhi::ShaderModuleHandle{}, rhi::ShaderModuleHandle{}, sharp);
     CHECK(blurred == 3); // the content, across, down
     CHECK(sharp == 1);   // the content alone: drawn, composited, not blurred
 
@@ -858,10 +854,10 @@ TEST_CASE("vg.renderer: pass targets configure, create, resize and describe the 
 TEST_CASE("vg.renderer: a premultiplied image draws through the composite shader with its own texture, or not at all")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::ShaderModule* vs = MakeModule(device);
-    rhi::ShaderModule* fs = MakeModule(device);
-    rhi::ShaderModule* layerFs = MakeModule(device);
-    REQUIRE(layerFs != nullptr);
+    rhi::ShaderModuleHandle vs = MakeModule(device);
+    rhi::ShaderModuleHandle fs = MakeModule(device);
+    rhi::ShaderModuleHandle layerFs = MakeModule(device);
+    REQUIRE(layerFs.IsValid());
 
     static const u8 pixels[16]{};
     const image::OwnedImageData picture(2, 2, image::PixelFormat::RGBA8, Span<const u8>(pixels, 16));
@@ -870,12 +866,12 @@ TEST_CASE("vg.renderer: a premultiplied image draws through the composite shader
     ctx.DrawImagePremultiplied(&picture, Rectangle{10, 10, 20, 20}, Rectangle{0, 0, 2, 2});
     VGBatch& batch = ctx.GetBatch();
 
-    const auto run = [&](rhi::ShaderModule* layerShader)
+    const auto run = [&](rhi::ShaderModuleHandle layerShader)
     {
         VGRenderer renderer{DefaultAllocator()};
         REQUIRE(renderer
-                    .Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 2, nullptr, nullptr, nullptr,
-                                VGTargetConfig{}, nullptr, nullptr, nullptr, layerShader)
+                    .Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 2, {}, {}, {},
+                                VGTargetConfig{}, {}, {}, {}, layerShader)
                     .IsOk());
         renderer.BeginFrame(0);
         const VGRenderSlice slice = renderer.Prepare(batch, 0, 64, 64);
@@ -896,7 +892,7 @@ TEST_CASE("vg.renderer: a premultiplied image draws through the composite shader
     CHECK(with.skipped == 0);
     // Without the composite shader the picture is skipped, never premultiplied again by the
     // default one.
-    const VGRenderer::RenderStats without = run(nullptr);
+    const VGRenderer::RenderStats without = run(rhi::ShaderModuleHandle{});
     CHECK(without.drawn == 1);
     CHECK(without.skipped == 1);
 

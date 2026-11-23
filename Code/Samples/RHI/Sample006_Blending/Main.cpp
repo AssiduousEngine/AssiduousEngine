@@ -40,10 +40,10 @@ private:
     static constexpr foundation::core::u16 kIdx[] = {0, 1, 2,  0, 2,  3,  4,  5,  6,  4,  6,  7,
                                                    8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15};
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline *m_opaquePipe = nullptr, *m_blendPipe = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_opaquePipe{}, m_blendPipe{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;

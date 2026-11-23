@@ -23,8 +23,8 @@ export namespace foundation::rhi::dx12
     public:
         Status init(ID3D12Device* device, const QuerySetDesc& d)
         {
-            type = d.type;
-            count = d.count;
+            desc = d;
+            desc.label = {};
 
             D3D12_QUERY_HEAP_DESC hd{};
             hd.Type = toQueryHeapType(d.type);

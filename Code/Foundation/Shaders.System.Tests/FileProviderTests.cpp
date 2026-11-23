@@ -173,14 +173,14 @@ TEST_CASE("shader system: pulls source from the provider; includes resolve; "
         ss.SetIncludeResolver(&provider); // includes come through the mount, not the disk
 
         // Never registered: the source comes from the provider, the #include from the mount.
-        rhi::ShaderModule* m = ss.GetVariant(u8"prov", ShaderStage::Fragment, ShaderFlags::None);
-        CHECK(m != nullptr);
+        rhi::ShaderModuleHandle m = ss.GetVariant(u8"prov", ShaderStage::Fragment, ShaderFlags::None);
+        CHECK(m.IsValid());
 
         // Explicit registration takes precedence over the provider on the next compile.
         ss.RegisterSource(u8"prov", ShaderStage::Fragment,
                           u8"float4 main() : SV_Target { return oops; }", kCorpusEntryPoint);
         ss.InvalidateShader(u8"prov");
-        CHECK(ss.GetVariant(u8"prov", ShaderStage::Fragment, ShaderFlags::None) == nullptr);
+        CHECK(!ss.GetVariant(u8"prov", ShaderStage::Fragment, ShaderFlags::None).IsValid());
     }
     compiler->Destroy();
 }
@@ -211,7 +211,7 @@ TEST_CASE("shader system: PumpReloads picks up file edits and .hlsli edits")
         ss.SetSourceProvider(&provider);
         ss.SetIncludeResolver(&provider);
 
-        CHECK(ss.GetVariant(u8"hot", ShaderStage::Fragment, ShaderFlags::None) != nullptr);
+        CHECK(ss.GetVariant(u8"hot", ShaderStage::Fragment, ShaderFlags::None).IsValid());
         CHECK(ss.Version(u8"hot") == 0);
 
         // A registered (project) shader that includes the library file, which does not yet
@@ -220,7 +220,7 @@ TEST_CASE("shader system: PumpReloads picks up file edits and .hlsli edits")
                           u8"#include \"reload_common.hlsli\"\n"
                           u8"float4 main() : SV_Target { return float4(COMMON_RED, 0, 0, 1); }\n",
                           kCorpusEntryPoint);
-        CHECK(ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None) == nullptr);
+        CHECK(!ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None).IsValid());
 
         // With no edits, a full throttle window of pumps reloads nothing.
         CHECK(SpinReloads(ss) == 0);
@@ -231,7 +231,7 @@ TEST_CASE("shader system: PumpReloads picks up file edits and .hlsli edits")
         CHECK(SpinReloads(ss) == 1);
         CHECK(ss.Version(u8"hot") == 1);
         CHECK(ss.Version(u8"cold") == 0);
-        CHECK(ss.GetVariant(u8"hot", ShaderStage::Fragment, ShaderFlags::None) != nullptr);
+        CHECK(ss.GetVariant(u8"hot", ShaderStage::Fragment, ShaderFlags::None).IsValid());
         String fetched;
         String entryPoint;
         CHECK(provider.FetchSource(u8"hot", ShaderStage::Fragment, fetched, entryPoint));
@@ -247,8 +247,8 @@ TEST_CASE("shader system: PumpReloads picks up file edits and .hlsli edits")
         CHECK(ss.Version(u8"user") == 1);
         // ... and a remembered failure gets another compile: the registered shader that needed
         // the fixed library file now compiles.
-        rhi::ShaderModule* const before = ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None);
-        CHECK(before != nullptr);
+        rhi::ShaderModuleHandle const before = ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None);
+        CHECK(before.IsValid());
 
         // A compiled registered shader is rebuilt too, not kept from before the edit: its
         // variant was cached, and only the provider's own shaders were dropped.
@@ -256,7 +256,7 @@ TEST_CASE("shader system: PumpReloads picks up file edits and .hlsli edits")
                   "// v3 - bigger than both before it\n#define COMMON_RED 0.5\n");
         CHECK(SpinReloads(ss) == 3);
         CHECK(ss.Version(u8"user") == 2);
-        CHECK(ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None) != nullptr);
+        CHECK(ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None).IsValid());
     }
     compiler->Destroy();
 }

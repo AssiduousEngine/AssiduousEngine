@@ -130,12 +130,12 @@ private:
 
     void recreateMsaaTarget(foundation::core::u32 w, foundation::core::u32 h);
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::Texture* m_msaaTex = nullptr;
-    rhi::TextureView* m_msaaView = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
+    rhi::TextureHandle m_msaaTex{};
+    rhi::TextureViewHandle m_msaaView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -146,12 +146,12 @@ void ResolveTextureSample::recreateMsaaTarget(foundation::core::u32 w, foundatio
     if (m_msaaView)
     {
         m_device->DestroyTextureView(m_msaaView);
-        m_msaaView = nullptr;
+        m_msaaView = {};
     }
     if (m_msaaTex)
     {
         m_device->DestroyTexture(m_msaaTex);
-        m_msaaTex = nullptr;
+        m_msaaTex = {};
     }
     // Need RenderTarget (to draw into) and CopySrc (source for resolveTexture).
     rhi::TextureDesc td{};
@@ -261,7 +261,7 @@ void ResolveTextureSample::OnRender()
 
     rhi::ColorAttachment ca{};
     ca.view = m_msaaView;
-    ca.resolveTarget = nullptr; // No auto-resolve; we resolve explicitly.
+    ca.resolveTarget = {}; // No auto-resolve; we resolve explicitly.
     ca.loadOp = rhi::LoadOp::Clear;
     ca.storeOp = rhi::StoreOp::Store;
     ca.clearValue = rhi::ClearColor(0.08f, 0.08f, 0.12f, 1.0f);

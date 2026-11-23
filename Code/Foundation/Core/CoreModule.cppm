@@ -28,6 +28,7 @@ export import :fixed_array;
 export import :inline_array;
 export import :ring_buffer;
 export import :intrusive_list;
+export import :handle_pool;
 export import :string;
 export import :string_hash;
 export import :string_util;

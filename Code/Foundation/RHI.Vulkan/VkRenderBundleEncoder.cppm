@@ -25,6 +25,7 @@ import :buffer;
 import :bind_group;
 import :render_pipeline;
 import :pipeline_layout;
+import :tables;
 
 using namespace foundation::core;
 
@@ -52,6 +53,8 @@ export namespace foundation::rhi::vk
     class VkRenderBundleEncoderImpl : public RenderBundleEncoder
     {
     public:
+        /// The device's tables, by which this looks its handles up as it records.
+        const VkTables* tables = nullptr;
         VkRenderBundleEncoderImpl(VkCommandBuffer cmdBuf, IAllocator& allocator)
             : m_cmdBuf(cmdBuf), m_allocator(allocator)
         {
@@ -61,18 +64,18 @@ export namespace foundation::rhi::vk
             m_allocator.Delete(m_bundle);
         } // frees the produced bundle wrapper
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
-            m_currentPipeline = static_cast<VkRenderPipelineImpl*>(pipeline);
+            m_currentPipeline = LookUp(tables, pipeline);
             if (m_currentPipeline)
                 vkCmdBindPipeline(m_cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   m_currentPipeline->handle());
             ++m_recorded.pipelineBinds;
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
-            auto* bg = static_cast<VkBindGroupImpl*>(group);
+            auto* bg = LookUp(tables, group);
             auto* layout = m_currentPipeline ? m_currentPipeline->vkLayout() : nullptr;
             if (!bg || !layout)
                 return;
@@ -92,18 +95,18 @@ export namespace foundation::rhi::vk
                                size, data);
         }
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buffer);
+            auto* vkBuf = LookUp(tables, buffer);
             if (!vkBuf)
                 return;
             VkBuffer handle = vkBuf->handle();
             vkCmdBindVertexBuffers(m_cmdBuf, slot, 1, &handle, &offset);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buffer);
+            auto* vkBuf = LookUp(tables, buffer);
             if (!vkBuf)
                 return;
             vkCmdBindIndexBuffer(m_cmdBuf, vkBuf->handle(), offset, toVkIndexType(format));
@@ -123,9 +126,9 @@ export namespace foundation::rhi::vk
             ++m_recorded.draws;
         }
 
-        void DrawIndirect(Buffer* buf, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buf);
+            auto* vkBuf = LookUp(tables, buf);
             if (!vkBuf)
                 return;
             vkCmdDrawIndirect(m_cmdBuf, vkBuf->handle(), offset, drawCount,
@@ -133,9 +136,9 @@ export namespace foundation::rhi::vk
             m_recorded.draws += drawCount;
         }
 
-        void DrawIndexedIndirect(Buffer* buf, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buf);
+            auto* vkBuf = LookUp(tables, buf);
             if (!vkBuf)
                 return;
             vkCmdDrawIndexedIndirect(m_cmdBuf, vkBuf->handle(), offset, drawCount,

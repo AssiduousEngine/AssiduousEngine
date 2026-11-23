@@ -257,15 +257,15 @@ export namespace foundation::gui
             vg::renderer::VGTargetConfig config = targets ? data->Targets->ConfigFor() : vg::renderer::VGTargetConfig{};
             config.blendSpace = data->Encoded ? vg::VGBlendSpace::Encoded : vg::VGBlendSpace::Linear;
             if (!data->Renderer
-                     .Initialize(*m_device.Raw(), *m_shaders.Vertex, *m_shaders.Fragment, data->DrawFormat,
+                     .Initialize(*m_device.Raw(), m_shaders.Vertex, m_shaders.Fragment, data->DrawFormat,
                                  static_cast<i32>(m_device.FramesInFlight()), m_shaders.DistanceField, m_shaders.GradientRadial,
                                  m_shaders.GradientConic, config, m_shaders.BoxShadow, m_shaders.BoxVertex, m_shaders.BoxFragment,
                                  m_shaders.Layer, m_shaders.BlurVertex, m_shaders.BlurFragment)
                      .IsOk())
                 return;
-            data->Canvas->SetPerPixelGradients(m_shaders.GradientRadial != nullptr && m_shaders.GradientConic != nullptr);
-            data->Canvas->SetAnalyticBoxes(m_shaders.BoxVertex != nullptr && m_shaders.BoxFragment != nullptr);
-            data->Canvas->SetLayers(m_shaders.Layer != nullptr);
+            data->Canvas->SetPerPixelGradients(m_shaders.GradientRadial.IsValid() && m_shaders.GradientConic.IsValid());
+            data->Canvas->SetAnalyticBoxes(m_shaders.BoxVertex.IsValid() && m_shaders.BoxFragment.IsValid());
+            data->Canvas->SetLayers(m_shaders.Layer.IsValid());
             data->Canvas->SetStencilFills(data->Renderer.StencilFillsSupported());
 
             // The first window gives the baker its format, and every window samples the bakes.
@@ -273,9 +273,8 @@ export namespace foundation::gui
                 m_baker->AddTarget(data->Renderer);
 
             GuiWindowData* raw = data.Get();
-            // The payload is replaced while frames in flight may use it, so wait for them first.
-            if (window.Data() != nullptr)
-                m_device.Raw()->WaitIdle();
+            // The payload is replaced while frames in flight may use it: the device keeps its GPU
+            // objects until they are done.
             window.SetData(Move(data));
             m_attached.PushBack(Attached{&window, raw});
             AddPane(window, Move(root), Rectangle{});
@@ -640,7 +639,7 @@ export namespace foundation::gui
             }
             PROFILE_SCOPE("GUI.Encode"); // the window's pass: every draw command
             const rhi::ClearColor clear = ClearFor(data->Encoded);
-            rhi::TextureView* view = data->Encoded ? frame.backbufferAlternateView : frame.backbufferView;
+            rhi::TextureViewHandle view = data->Encoded ? frame.backbufferAlternateView : frame.backbufferView;
             // The targets follow the backbuffer this frame draws into, not the window: while a window
             // is resized its swapchain need not match it, and a pass resolves only into its own size.
             // New targets are made at once and the old ones retired, then freed once the frames in

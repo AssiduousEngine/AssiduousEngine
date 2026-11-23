@@ -15,6 +15,7 @@
 export module foundation.rhi:extensions;
 
 import foundation.core;
+import :forward;
 import :enums;
 import :types;
 import :descriptors;
@@ -34,14 +35,14 @@ export namespace foundation::rhi
         virtual ~MeshShaderPassExt() = default;
 
         /// Bind a mesh shader pipeline.
-        virtual void SetMeshPipeline(MeshPipeline* pipeline) = 0;
+        virtual void SetMeshPipeline(MeshPipelineHandle pipeline) = 0;
         /// Dispatch mesh shader work groups.
         virtual void DrawMeshTasks(u32 groupCountX, u32 groupCountY = 1, u32 groupCountZ = 1) = 0;
         /// Dispatch mesh shader work groups via an indirect buffer.
-        virtual void DrawMeshTasksIndirect(Buffer* buffer, u64 offset, u32 drawCount = 1,
+        virtual void DrawMeshTasksIndirect(BufferHandle buffer, u64 offset, u32 drawCount = 1,
                                            u32 stride = 0) = 0;
         /// Dispatch mesh shader work groups with an indirect count buffer.
-        virtual void DrawMeshTasksIndirectCount(Buffer* buffer, u64 offset, Buffer* countBuffer,
+        virtual void DrawMeshTasksIndirectCount(BufferHandle buffer, u64 offset, BufferHandle countBuffer,
                                                 u64 countOffset, u32 maxDrawCount, u32 stride) = 0;
     };
 
@@ -53,21 +54,21 @@ export namespace foundation::rhi
         virtual ~RayTracingEncoderExt() = default;
 
         /// Build a bottom-level acceleration structure from triangle or AABB geometry, or both.
-        virtual void BuildBottomLevelAccelStruct(AccelStruct* dst, Buffer* scratchBuffer,
+        virtual void BuildBottomLevelAccelStruct(AccelStructHandle dst, BufferHandle scratchBuffer,
                                                  u64 scratchOffset,
                                                  Span<const AccelStructGeometryTriangles> triangles,
                                                  Span<const AccelStructGeometryAABBs> aabbs) = 0;
 
         /// Build a top-level acceleration structure from an instance buffer.
-        virtual void BuildTopLevelAccelStruct(AccelStruct* dst, Buffer* scratchBuffer,
-                                              u64 scratchOffset, Buffer* instanceBuffer,
+        virtual void BuildTopLevelAccelStruct(AccelStructHandle dst, BufferHandle scratchBuffer,
+                                              u64 scratchOffset, BufferHandle instanceBuffer,
                                               u64 instanceOffset, u32 instanceCount) = 0;
 
         /// Bind a ray tracing pipeline.
-        virtual void SetRayTracingPipeline(RayTracingPipeline* pipeline) = 0;
+        virtual void SetRayTracingPipeline(RayTracingPipelineHandle pipeline) = 0;
 
         /// Bind a resource group for the ray tracing pipeline.
-        virtual void SetBindGroup(u32 index, BindGroup* group,
+        virtual void SetBindGroup(u32 index, BindGroupHandle group,
                                   Span<const u32> dynamicOffsets = {}) = 0;
 
         /// Upload push constants for the ray tracing pipeline.
@@ -75,8 +76,8 @@ export namespace foundation::rhi
                                       const void* data) = 0;
 
         /// Dispatch rays using shader binding tables.
-        virtual void TraceRays(Buffer* raygenSBT, u64 raygenOffset, u64 raygenStride,
-                               Buffer* missSBT, u64 missOffset, u64 missStride, Buffer* hitSBT,
+        virtual void TraceRays(BufferHandle raygenSBT, u64 raygenOffset, u64 raygenStride,
+                               BufferHandle missSBT, u64 missOffset, u64 missStride, BufferHandle hitSBT,
                                u64 hitOffset, u64 hitStride, u32 width, u32 height,
                                u32 depth = 1) = 0;
     };

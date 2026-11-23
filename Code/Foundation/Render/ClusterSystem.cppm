@@ -33,7 +33,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The cluster build's parameters (cbuffer ClusterBuildParams, cluster_build.cs.hlsl): 16-byte
     // rows of scalars, then two row-major matrices. Integration.ShaderBlocks checks it against the
     // compiled shader, member by member.
@@ -53,10 +52,10 @@ export namespace foundation::render
     // fragment shader needs to map a pixel and depth to its cluster. Filled by DeclareBuild.
     struct ClusterBinding
     {
-        rhi::Buffer* offsets = nullptr;      // uint2 per cluster: (indexStart, count)
-        rhi::Buffer* lightIndices = nullptr; // flat uint light-index list
+        rhi::BufferHandle offsets{};      // uint2 per cluster: (indexStart, count)
+        rhi::BufferHandle lightIndices{}; // flat uint light-index list
         // Bumped every time this slot's buffers are reallocated (resize). Consumers must invalidate any
-        // cached bind group on a version change: a freed rhi::Buffer* address can be reused by the new
+        // cached bind group on a version change: a freed rhi::BufferHandle address can be reused by the new
         // allocation, so pointer equality is not a reliable "unchanged" test.
         u32 version = 0;
         rendergraph::RGHandle offsetsHandle =
@@ -69,7 +68,7 @@ export namespace foundation::render
         f32 nearZ = 0.0f, farZ = 0.0f, logScale = 0.0f, logBias = 0.0f;
         [[nodiscard]] bool Valid() const noexcept
         {
-            return offsets != nullptr && lightIndices != nullptr;
+            return offsets.IsValid() && lightIndices.IsValid();
         }
     };
 
@@ -106,16 +105,7 @@ export namespace foundation::render
         ClusterBinding DeclareBuild(rendergraph::RenderGraph& graph, const RenderView& view,
                                     u32 frameIndex, u32 viewIndex);
 
-        /// Wire the frames-in-flight retire queue (web-safe buffer grows). Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept
-        {
-            m_retire = retire;
-            m_paramsRing.SetRetireQueue(retire);
-            m_lightRing.SetRetireQueue(retire);
-        }
-
     private:
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         static constexpr u32 kTileSize = 16;
         static constexpr u32 kSliceCount = 24;
         static constexpr u32 kMaxPerCluster =
@@ -134,16 +124,16 @@ export namespace foundation::render
         // in one frame must not share buffers, or the second view's build overwrites the first's.
         struct Slot
         {
-            rhi::Buffer* offsets = nullptr; // cluster (offset, count)
-            rhi::Buffer* indices = nullptr; // the shared light-index list
+            rhi::BufferHandle offsets{}; // cluster (offset, count)
+            rhi::BufferHandle indices{}; // the shared light-index list
             u64 offsetsBytes = 0;           // size of the slot's buffers (views can differ)
             u64 indicesBytes = 0;
             u32 bufferVersion = 0; // incremented on realloc; consumers invalidate cached bind groups
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BindGroupHandle bindGroup{};
             u32 bgParamsGen = 0;
             u32 bgLightGen = 0;
-            rhi::Buffer* bgOffsets = nullptr;
-            rhi::Buffer* bgIndices = nullptr;
+            rhi::BufferHandle bgOffsets{};
+            rhi::BufferHandle bgIndices{};
         };
 
         // (Re)create one slot's cluster buffers when its cluster count grows. Lazy: only the slots
@@ -161,9 +151,9 @@ export namespace foundation::render
         shaders::ShaderSystem* m_shaders;
         u32 m_framesInFlight = 2;
 
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::ComputePipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::ComputePipelineHandle m_pipeline{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
 
         DynamicUniformRing m_paramsRing;

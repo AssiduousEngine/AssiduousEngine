@@ -25,6 +25,9 @@ export namespace foundation::rhi::vk
 
         [[nodiscard]] VkCommandBuffer handle() const { return m_cmdBuf; }
 
+        /// The recording it came from (its encoder's), ended when a queue submits it.
+        SubmissionTracker::Recording recording = 0;
+
     private:
         VkCommandBuffer m_cmdBuf = VK_NULL_HANDLE;
     };

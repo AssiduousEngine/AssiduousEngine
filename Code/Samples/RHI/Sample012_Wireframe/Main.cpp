@@ -34,13 +34,13 @@ protected:
     void OnShutdown() override;
 
 private:
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
-    rhi::BindGroupLayout* m_bgl = nullptr;
-    rhi::BindGroup* m_bg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_wirePipe = nullptr;
+    rhi::BindGroupLayoutHandle m_bgl{};
+    rhi::BindGroupHandle m_bg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_wirePipe{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -102,7 +102,7 @@ foundation::core::Status WireframeSample::OnInit()
     ubd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(ubd, m_ub) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_ubMapped = m_ub->Map();
+    m_ubMapped = m_device->Map(m_ub);
 
     rhi::BindGroupLayoutEntry bglE[1] = {
         rhi::BindGroupLayoutEntry::UniformBuffer(0, rhi::ShaderStage::Vertex)};
@@ -116,9 +116,9 @@ foundation::core::Status WireframeSample::OnInit()
     bgd.entries = Span<const rhi::BindGroupEntry>(bgE, 1);
     if (m_device->CreateBindGroup(bgd, m_bg) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    rhi::BindGroupLayout* sets[1] = {m_bgl};
+    rhi::BindGroupLayoutHandle sets[1] = {m_bgl};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 1);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 1);
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 

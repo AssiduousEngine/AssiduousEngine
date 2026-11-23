@@ -136,14 +136,14 @@ private:
 
     void recreateDepth(foundation::core::u32 w, foundation::core::u32 h);
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::Texture* m_depthTex = nullptr;
-    rhi::TextureView* m_depthView = nullptr;
-    rhi::QuerySet* m_occlusionQuerySet = nullptr;
-    rhi::Buffer* m_queryResultBuf = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
+    rhi::TextureHandle m_depthTex{};
+    rhi::TextureViewHandle m_depthView{};
+    rhi::QuerySetHandle m_occlusionQuerySet{};
+    rhi::BufferHandle m_queryResultBuf{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -156,12 +156,12 @@ void OcclusionQuerySample::recreateDepth(foundation::core::u32 w, foundation::co
     if (m_depthView)
     {
         m_device->DestroyTextureView(m_depthView);
-        m_depthView = nullptr;
+        m_depthView = {};
     }
     if (m_depthTex)
     {
         m_device->DestroyTexture(m_depthTex);
-        m_depthTex = nullptr;
+        m_depthTex = {};
     }
 
     rhi::TextureDesc td = rhi::TextureDesc::DepthBuffer(rhi::TextureFormat::Depth24PlusStencil8, w,
@@ -279,7 +279,7 @@ void OcclusionQuerySample::OnRender()
     // Read back previous frame's occlusion results (after fence wait ensures GPU is done).
     if (m_frameCount > 1)
     {
-        void* mapped = m_queryResultBuf->Map();
+        void* mapped = m_device->Map(m_queryResultBuf);
         if (mapped)
         {
             auto* results = static_cast<u64*>(mapped);
@@ -293,7 +293,7 @@ void OcclusionQuerySample::OnRender()
                             static_cast<unsigned long long>(pixelsB));
                 m_lastReportTime = m_totalTime;
             }
-            m_queryResultBuf->Unmap();
+            m_device->Unmap(m_queryResultBuf);
         }
     }
 

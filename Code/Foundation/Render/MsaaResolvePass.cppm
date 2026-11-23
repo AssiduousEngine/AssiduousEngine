@@ -23,7 +23,7 @@ import foundation.shaders;
 import foundation.shaders.system;
 import :data; // kGNormalFormat, kGVelocityFormat, kGMaterialFormat
 import :bind_group_cache;
-import :resources; // GpuRetireQueue
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -58,10 +58,6 @@ export namespace foundation::render
 
         Status Initialize();
 
-        // The queue a replaced bind group is retired into (a frame in flight may still use it);
-        // borrowed. Without one, the GPU is idled before the group is destroyed.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         // Declare the first-sample resolve of the MSAA depth and aux into fresh 1x transients.
         // `depthFormat` is the scene depth format (the resolved depth matches it, written via SV_Depth).
         // Returns invalid handles (no pass emitted) if the pipeline is unavailable.
@@ -74,20 +70,27 @@ export namespace foundation::render
                                                         rhi::TextureFormat depthFormat, u32 w, u32 h);
 
     private:
-        rhi::RenderPipeline* MakePipeline(rhi::TextureFormat depthFormat);
+        rhi::RenderPipelineHandle MakePipeline(rhi::TextureFormat depthFormat);
+        rhi::RenderPipelineHandle PipelineFor(rhi::TextureFormat depthFormat);
+        void DestroyPipelines();
         // The multisampled inputs: normal, velocity, material, depth, albedo.
         using BindInputs = BindGroupInputs<5>;
-        rhi::BindGroup* EnsureBindGroup(const BindInputs& inputs);
+        rhi::BindGroupHandle EnsureBindGroup(const BindInputs& inputs);
         void Shutdown();
 
         rhi::Device* m_device = nullptr;
         shaders::ShaderSystem* m_shaders = nullptr;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null: idle the GPU before destroying
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
-        rhi::TextureFormat m_pipelineDepthFormat = rhi::TextureFormat::Undefined;
-        u64 m_pipelineShaderVersion = 0;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        // One pipeline per depth format: each declared pass resolves with the pipeline it was declared
+        // with, whatever views later in the frame ask for.
+        struct Pipeline
+        {
+            rhi::TextureFormat depth = rhi::TextureFormat::Undefined;
+            rhi::RenderPipelineHandle pipeline{};
+        };
+        Array<Pipeline> m_pipelines;
+        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version they were built at (hot reload)
 
         // Bind groups keyed by the depth view, each kept only while all five inputs (views and
         // their textures' generations) are the ones it was built from: transients are pooled per

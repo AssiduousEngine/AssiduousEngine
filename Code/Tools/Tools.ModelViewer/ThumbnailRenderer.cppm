@@ -155,7 +155,7 @@ export namespace modelviewer
         /// copy-back of the view declared last frame.
         void Render(rhi::CommandEncoder& encoder)
         {
-            if (m_state == State::CopyPending && m_target != nullptr)
+            if (m_state == State::CopyPending && m_target.IsValid())
             {
                 m_capture.Request(m_png.AsView());
                 if (m_capture.Record(*m_device, encoder, m_target, rhi::TextureFormat::RGBA16Float, m_size, m_size, rhi::ResourceState::CopySrc))
@@ -198,13 +198,13 @@ export namespace modelviewer
             if (m_device != nullptr)
             {
                 m_capture.Release(*m_device);
-                if (m_targetView != nullptr)
+                if (m_targetView.IsValid())
                     m_device->DestroyTextureView(m_targetView);
-                if (m_target != nullptr)
+                if (m_target.IsValid())
                     m_device->DestroyTexture(m_target);
             }
-            m_targetView = nullptr;
-            m_target = nullptr;
+            m_targetView = {};
+            m_target = {};
             if (m_scene != nullptr)
                 m_sceneManager.DestroyScene(m_scene);
             m_scene = nullptr;
@@ -347,7 +347,7 @@ export namespace modelviewer
 
         bool EnsureTarget()
         {
-            if (m_target != nullptr)
+            if (m_target.IsValid())
                 return true;
             if (m_device == nullptr)
                 return false;
@@ -356,16 +356,16 @@ export namespace modelviewer
             desc.height = m_size;
             desc.format = rhi::TextureFormat::RGBA16Float;
             desc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
-            if (!m_device->CreateTexture(desc, m_target).IsOk() || m_target == nullptr)
+            if (!m_device->CreateTexture(desc, m_target).IsOk() || !m_target.IsValid())
             {
-                m_target = nullptr;
+                m_target = {};
                 return false;
             }
-            if (!m_device->CreateTextureView(m_target, rhi::TextureViewDesc{}, m_targetView).IsOk() || m_targetView == nullptr)
+            if (!m_device->CreateTextureView(m_target, rhi::TextureViewDesc{}, m_targetView).IsOk() || !m_targetView.IsValid())
             {
                 m_device->DestroyTexture(m_target);
-                m_target = nullptr;
-                m_targetView = nullptr;
+                m_target = {};
+                m_targetView = {};
                 return false;
             }
             m_targetState = rhi::ResourceState::Undefined;
@@ -379,8 +379,8 @@ export namespace modelviewer
         TaskPool* m_parts = nullptr; // the host's: where a model's parts decode
         scene::SceneManager m_sceneManager;
         scene::Scene* m_scene = nullptr;
-        rhi::Texture* m_target = nullptr;
-        rhi::TextureView* m_targetView = nullptr;
+        rhi::TextureHandle m_target{};
+        rhi::TextureViewHandle m_targetView{};
         rhi::ResourceState m_targetState = rhi::ResourceState::Undefined;
         foundation::rhi::ScreenshotCapture m_capture;
 

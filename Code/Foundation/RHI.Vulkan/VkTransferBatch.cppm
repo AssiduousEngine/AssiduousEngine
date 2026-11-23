@@ -18,6 +18,8 @@ import :conversions;
 import :buffer;
 import :texture;
 import :fence;
+import :queue_timeline;
+import :tables;
 
 using namespace foundation::core;
 
@@ -27,6 +29,10 @@ export namespace foundation::rhi::vk
     class VkTransferBatchImpl : public TransferBatch
     {
     public:
+        /// The device's tables, by which this looks its handles up as it records.
+        const VkTables* tables = nullptr;
+        /// Its queue's timeline, which its submissions signal like the queue's own.
+        VkQueueTimeline* timeline = nullptr;
         VkTransferBatchImpl(VkDevice device, VkQueue queue, u32 queueFamilyIndex,
                             VkPhysicalDevice physDevice, DeviceCounterBlock* counters)
             : m_device(device), m_physDevice(physDevice), m_queue(queue),
@@ -34,7 +40,7 @@ export namespace foundation::rhi::vk
         {
         }
 
-        void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) override
+        void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
             u64 needed = m_stagingOffset + data.Size();
             if (ensureStagingBuffer(needed) != ErrorCode::Ok)
@@ -51,7 +57,7 @@ export namespace foundation::rhi::vk
             m_stagingOffset = (m_stagingOffset + data.Size() + 15) & ~static_cast<u64>(15);
         }
 
-        void WriteTexture(Texture* dst, Span<const u8> data, const TextureDataLayout& layout,
+        void WriteTexture(TextureHandle dst, Span<const u8> data, const TextureDataLayout& layout,
                           Extent3D extent, u32 mipLevel, u32 arrayLayer) override
         {
             u64 needed = m_stagingOffset + data.Size();
@@ -73,12 +79,26 @@ export namespace foundation::rhi::vk
             if (cmdBuf == VK_NULL_HANDLE)
                 return ErrorCode::Unknown;
 
+            const u64 submission = timeline != nullptr && timeline->valid() ? timeline->next() : 0;
+            VkSemaphore timelineSem = submission != 0 ? timeline->semaphore() : VK_NULL_HANDLE;
+            VkTimelineSemaphoreSubmitInfo tsi{};
+            tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+            tsi.signalSemaphoreValueCount = submission != 0 ? 1u : 0u;
+            tsi.pSignalSemaphoreValues = &submission;
+
             VkSubmitInfo si{};
             si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            si.pNext = &tsi;
             si.commandBufferCount = 1;
             si.pCommandBuffers = &cmdBuf;
+            si.signalSemaphoreCount = submission != 0 ? 1u : 0u;
+            si.pSignalSemaphores = &timelineSem;
             if (vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE) != VK_SUCCESS)
+            {
+                if (submission != 0)
+                    timeline->signalFromHost(m_device, submission); // the work is lost
                 return ErrorCode::Unknown;
+            }
             vkQueueWaitIdle(m_queue);
             cleanupCmdPool();
             return ErrorCode::Ok;
@@ -96,23 +116,30 @@ export namespace foundation::rhi::vk
             if (!vkFence)
                 return ErrorCode::Unknown;
 
-            VkSemaphore sem = vkFence->handle();
+            // The caller's fence, and the queue's timeline (how the device knows the copies are
+            // done with their buffers).
+            const u64 submission = timeline != nullptr && timeline->valid() ? timeline->next() : 0;
+            VkSemaphore sems[2] = {vkFence->handle(), submission != 0 ? timeline->semaphore() : VK_NULL_HANDLE};
+            const u64 values[2] = {signalValue, submission};
+            const u32 signalCount = submission != 0 ? 2u : 1u;
             VkTimelineSemaphoreSubmitInfo tsi{};
             tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-            tsi.signalSemaphoreValueCount = 1;
-            tsi.pSignalSemaphoreValues = &signalValue;
+            tsi.signalSemaphoreValueCount = signalCount;
+            tsi.pSignalSemaphoreValues = values;
 
             VkSubmitInfo si{};
             si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             si.pNext = &tsi;
             si.commandBufferCount = 1;
             si.pCommandBuffers = &cmdBuf;
-            si.signalSemaphoreCount = 1;
-            si.pSignalSemaphores = &sem;
+            si.signalSemaphoreCount = signalCount;
+            si.pSignalSemaphores = sems;
 
             if (vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE) != VK_SUCCESS)
             {
                 // Nothing was queued: the fence will never reach the value, so nothing waits on it.
+                if (submission != 0)
+                    timeline->signalFromHost(m_device, submission);
                 cleanupCmdPool();
                 return ErrorCode::Unknown;
             }
@@ -161,14 +188,14 @@ export namespace foundation::rhi::vk
     private:
         struct BufCopy
         {
-            Buffer* dst;
+            BufferHandle dst;
             u64 dstOffset;
             u64 stagingOffset;
             u64 size;
         };
         struct TexCopy
         {
-            Texture* dst;
+            TextureHandle dst;
             u64 stagingOffset;
             u32 mipLevel;
             u32 arrayLayer;
@@ -284,7 +311,7 @@ export namespace foundation::rhi::vk
 
             for (const auto& c : m_bufferCopies)
             {
-                auto* dst = static_cast<VkBufferImpl*>(c.dst);
+                auto* dst = LookUp(tables, c.dst);
                 if (!dst)
                     continue;
                 VkBufferCopy r{};
@@ -296,7 +323,7 @@ export namespace foundation::rhi::vk
 
             for (const auto& c : m_textureCopies)
             {
-                auto* dst = static_cast<VkTextureImpl*>(c.dst);
+                auto* dst = LookUp(tables, c.dst);
                 if (!dst)
                     continue;
                 auto aspect = getAspectMask(dst->desc.format);

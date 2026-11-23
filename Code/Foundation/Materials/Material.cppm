@@ -233,7 +233,7 @@ export namespace foundation::materials
         /// `owner` is the object that owns `tex`, usually its texture resource. The material keeps a
         /// reference to it, so the resource manager does not release a texture the material still
         /// draws with. Pass null when the caller keeps the view alive.
-        void SetDefaultTexture(StringView n, rhi::TextureView* tex, RefPtr<Object> owner = {})
+        void SetDefaultTexture(StringView n, rhi::TextureViewHandle tex, RefPtr<Object> owner = {})
         {
             const isize i = GetPropertyIndex(n);
             if (i >= 0 && m_properties[static_cast<usize>(i)].IsTexture())
@@ -245,7 +245,7 @@ export namespace foundation::materials
                     (void)m_textureOwners.Remove(static_cast<usize>(i));
             }
         }
-        void SetDefaultSampler(StringView n, rhi::Sampler* s)
+        void SetDefaultSampler(StringView n, rhi::SamplerHandle s)
         {
             const isize i = GetPropertyIndex(n);
             if (i >= 0 && m_properties[static_cast<usize>(i)].IsSampler())
@@ -271,15 +271,15 @@ export namespace foundation::materials
                 MemCopy(m_defaultUniformData.Data(), data.Data(), n);
             }
         }
-        [[nodiscard]] rhi::TextureView* GetDefaultTexture(usize propIndex) const noexcept
+        [[nodiscard]] rhi::TextureViewHandle GetDefaultTexture(usize propIndex) const noexcept
         {
-            rhi::TextureView* const* p = m_defaultTextures.Find(propIndex);
-            return (p != nullptr) ? *p : nullptr;
+            const rhi::TextureViewHandle* p = m_defaultTextures.Find(propIndex);
+            return p != nullptr ? *p : rhi::TextureViewHandle{};
         }
-        [[nodiscard]] rhi::Sampler* GetDefaultSampler(usize propIndex) const noexcept
+        [[nodiscard]] rhi::SamplerHandle GetDefaultSampler(usize propIndex) const noexcept
         {
-            rhi::Sampler* const* p = m_defaultSamplers.Find(propIndex);
-            return (p != nullptr) ? *p : nullptr;
+            const rhi::SamplerHandle* p = m_defaultSamplers.Find(propIndex);
+            return p != nullptr ? *p : rhi::SamplerHandle{};
         }
 
         // --- effect groups ---
@@ -530,9 +530,9 @@ export namespace foundation::materials
             return counter.fetch_add(1) + 1;
         }
 
-        HashMap<usize, rhi::TextureView*> m_defaultTextures;
+        HashMap<usize, rhi::TextureViewHandle> m_defaultTextures;
         HashMap<usize, RefPtr<Object>> m_textureOwners; // keeps each default texture alive
-        HashMap<usize, rhi::Sampler*> m_defaultSamplers;
+        HashMap<usize, rhi::SamplerHandle> m_defaultSamplers;
     };
 
     RTTI_DEFINE_OBJECT(Material, "rtti::materials")

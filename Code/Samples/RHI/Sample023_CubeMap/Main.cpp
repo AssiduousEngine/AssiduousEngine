@@ -52,27 +52,27 @@ private:
     };
 
     // Skybox resources
-    rhi::ShaderModule* m_skyboxVs = nullptr;
-    rhi::ShaderModule* m_skyboxPs = nullptr;
-    rhi::Texture* m_cubeTexture = nullptr;
-    rhi::TextureView* m_cubeView = nullptr;
-    rhi::Sampler* m_linearSampler = nullptr;
-    rhi::BindGroupLayout* m_skyboxBgl = nullptr;
-    rhi::BindGroup* m_skyboxBg = nullptr;
-    rhi::PipelineLayout* m_skyboxPl = nullptr;
-    rhi::RenderPipeline* m_skyboxPipeline = nullptr;
+    rhi::ShaderModuleHandle m_skyboxVs{};
+    rhi::ShaderModuleHandle m_skyboxPs{};
+    rhi::TextureHandle m_cubeTexture{};
+    rhi::TextureViewHandle m_cubeView{};
+    rhi::SamplerHandle m_linearSampler{};
+    rhi::BindGroupLayoutHandle m_skyboxBgl{};
+    rhi::BindGroupHandle m_skyboxBg{};
+    rhi::PipelineLayoutHandle m_skyboxPl{};
+    rhi::RenderPipelineHandle m_skyboxPipeline{};
 
     // Shadow comparison resources
-    rhi::ShaderModule* m_shadowVs = nullptr;
-    rhi::ShaderModule* m_shadowPs = nullptr;
-    rhi::Texture* m_depthTexture = nullptr;
-    rhi::TextureView* m_depthView = nullptr;
-    rhi::Sampler* m_comparisonSampler = nullptr;
-    rhi::Buffer* m_quadVb = nullptr;
-    rhi::BindGroupLayout* m_shadowBgl = nullptr;
-    rhi::BindGroup* m_shadowBg = nullptr;
-    rhi::PipelineLayout* m_shadowPl = nullptr;
-    rhi::RenderPipeline* m_shadowPipeline = nullptr;
+    rhi::ShaderModuleHandle m_shadowVs{};
+    rhi::ShaderModuleHandle m_shadowPs{};
+    rhi::TextureHandle m_depthTexture{};
+    rhi::TextureViewHandle m_depthView{};
+    rhi::SamplerHandle m_comparisonSampler{};
+    rhi::BufferHandle m_quadVb{};
+    rhi::BindGroupLayoutHandle m_shadowBgl{};
+    rhi::BindGroupHandle m_shadowBg{};
+    rhi::PipelineLayoutHandle m_shadowPl{};
+    rhi::RenderPipelineHandle m_shadowPipeline{};
 
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
@@ -154,14 +154,14 @@ foundation::core::Status CubeMapSample::OnInit()
 
     // Skybox pipeline layout
     {
-        rhi::BindGroupLayout* sets[1] = {m_skyboxBgl};
+        rhi::BindGroupLayoutHandle sets[1] = {m_skyboxBgl};
         rhi::PushConstantRange pcr{};
         pcr.stages = rhi::ShaderStage::Vertex | rhi::ShaderStage::Fragment;
         pcr.offset = 0;
         pcr.size = sizeof(PushData);
         rhi::PushConstantRange pushRanges[1] = {pcr};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 1);
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 1);
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>(pushRanges, 1);
         pld.label = u8"SkyboxPL";
         if (m_device->CreatePipelineLayout(pld, m_skyboxPl) != foundation::core::ErrorCode::Ok)
@@ -239,14 +239,14 @@ foundation::core::Status CubeMapSample::OnInit()
 
     // Shadow pipeline layout
     {
-        rhi::BindGroupLayout* sets[1] = {m_shadowBgl};
+        rhi::BindGroupLayoutHandle sets[1] = {m_shadowBgl};
         rhi::PushConstantRange pcr{};
         pcr.stages = rhi::ShaderStage::Vertex | rhi::ShaderStage::Fragment;
         pcr.offset = 0;
         pcr.size = sizeof(PushData);
         rhi::PushConstantRange pushRanges[1] = {pcr};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 1);
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 1);
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>(pushRanges, 1);
         pld.label = u8"ShadowPL";
         if (m_device->CreatePipelineLayout(pld, m_shadowPl) != foundation::core::ErrorCode::Ok)

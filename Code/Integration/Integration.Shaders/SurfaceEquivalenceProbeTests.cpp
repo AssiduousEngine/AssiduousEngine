@@ -199,14 +199,14 @@ namespace
                 // The surface programs resolve: the draws below are the surface shader's, not a
                 // fallback (a missing program would skip the draw, and the images would differ).
                 CHECK(shaderSystem.GetVariant(kSurfaceName, shaders::ShaderStage::Fragment,
-                                              shaders::ShaderFlags::GBuffer) != nullptr);
+shaders::ShaderFlags::GBuffer).IsValid());
                 CHECK(shaderSystem.GetVariant(u8"surface_pbr.depth", shaders::ShaderStage::Vertex,
-                                              shaders::ShaderFlags::None) != nullptr);
+shaders::ShaderFlags::None).IsValid());
                 if (cutOut)
                 {
                     // The cut-out's own depth pixel stage, which the shadow and the prepass run.
                     CHECK(shaderSystem.GetVariant(u8"surface_pbr.depth", shaders::ShaderStage::Fragment,
-                                                  shaders::ShaderFlags::AlphaTest) != nullptr);
+shaders::ShaderFlags::AlphaTest).IsValid());
                 }
             }
             materials::PipelineStateCache psoCache(shaderSystem, device);
@@ -278,11 +278,11 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"surface.target";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
             rhi::CommandPool* pool = nullptr;
             REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());

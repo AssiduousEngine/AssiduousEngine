@@ -21,6 +21,7 @@ import :texture;
 import :texture_view;
 import :sampler;
 import :accel_struct;
+import :tables;
 
 using namespace foundation::core;
 
@@ -134,13 +135,16 @@ export namespace foundation::rhi::dx12
     class DxBindGroupImpl : public BindGroup
     {
     public:
+        /// The device's tables, by which its entries' handles are looked up (set before
+        /// init; a bindless update looks them up again).
+        const DxTables* tables = nullptr;
         Status init(ID3D12Device* device, const BindGroupDesc& d, DxGpuDescriptorHeap* cpuSrvHeap,
                     DxGpuDescriptorHeap* cpuSamplerHeap, DxGpuDescriptorHeap* gpuSamplerHeap,
                     DxSamplerTables* samplerTables)
         {
             m_device = device;
             m_samplerTables = samplerTables;
-            m_layout = static_cast<DxBindGroupLayoutImpl*>(d.layout);
+            m_layout = LookUp(tables, d.layout);
             m_cpuSrvHeap = cpuSrvHeap;
             m_cpuSamplerHeap = cpuSamplerHeap;
             m_gpuSamplerHeap = gpuSamplerHeap;
@@ -301,10 +305,10 @@ export namespace foundation::rhi::dx12
                 const auto& e = d.entries[entryIdx++];
                 if (!r.isSampler || r.hasDynamicOffset)
                     continue;
-                auto* s = static_cast<DxSamplerImpl*>(e.sampler);
+                auto* s = LookUp(tables, e.sampler);
                 if (s == nullptr || r.heapOffset >= m_cachedSamplerCount)
                     return false;
-                descs[r.heapOffset] = s->desc();
+                descs[r.heapOffset] = s->nativeDesc();
                 sources[r.heapOffset] = s->handle();
             }
             const i32 offset = m_samplerTables->acquire(Span<const D3D12_SAMPLER_DESC>(descs.Data(), descs.Size()),
@@ -339,7 +343,7 @@ export namespace foundation::rhi::dx12
 
                 if (r.hasDynamicOffset)
                 {
-                    if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                    if (auto* buf = LookUp(tables, e.buffer))
                         m_dynAddrs.PushBack(buf->gpuAddress() + e.bufferOffset);
                     else
                         m_dynAddrs.PushBack(0);
@@ -360,7 +364,7 @@ export namespace foundation::rhi::dx12
             switch (r.type)
             {
             case BindingType::UniformBuffer:
-                if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                if (auto* buf = LookUp(tables, e.buffer))
                 {
                     D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
                     cbv.BufferLocation = buf->gpuAddress() + e.bufferOffset;
@@ -370,7 +374,7 @@ export namespace foundation::rhi::dx12
                 }
                 break;
             case BindingType::StorageBufferReadOnly:
-                if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                if (auto* buf = LookUp(tables, e.buffer))
                 {
                     u64 sz = (e.bufferSize > 0) ? e.bufferSize : buf->desc.size;
                     D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
@@ -395,7 +399,7 @@ export namespace foundation::rhi::dx12
                 }
                 break;
             case BindingType::StorageBufferReadWrite:
-                if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                if (auto* buf = LookUp(tables, e.buffer))
                 {
                     u64 sz = (e.bufferSize > 0) ? e.bufferSize : buf->desc.size;
                     D3D12_UNORDERED_ACCESS_VIEW_DESC uav{};
@@ -422,19 +426,19 @@ export namespace foundation::rhi::dx12
             case BindingType::BindlessTextures:
                 // A view whose descriptor heap had no room has a null handle: no copy source
                 // (copying from it is invalid and can remove the device), so the slot is left.
-                if (auto* v = static_cast<DxTextureViewImpl*>(e.textureView); v != nullptr && v->getSrv().ptr != 0)
+                if (auto* v = LookUp(tables, e.textureView); v != nullptr && v->getSrv().ptr != 0)
                     m_device->CopyDescriptorsSimple(1, dest, v->getSrv(),
                                                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 break;
             case BindingType::StorageTextureReadOnly:
             case BindingType::StorageTextureReadWrite:
             case BindingType::BindlessStorageTextures:
-                if (auto* v = static_cast<DxTextureViewImpl*>(e.textureView); v != nullptr && v->getUav().ptr != 0)
+                if (auto* v = LookUp(tables, e.textureView); v != nullptr && v->getUav().ptr != 0)
                     m_device->CopyDescriptorsSimple(1, dest, v->getUav(),
                                                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 break;
             case BindingType::AccelerationStructure:
-                if (auto* dxAs = static_cast<DxAccelStructImpl*>(e.accelStruct))
+                if (auto* dxAs = LookUp(tables, e.accelStruct))
                 {
                     D3D12_SHADER_RESOURCE_VIEW_DESC asSrv{};
                     asSrv.Format = DXGI_FORMAT_UNKNOWN;
@@ -451,7 +455,7 @@ export namespace foundation::rhi::dx12
 
         void writeSampler(const BindGroupEntry& e, const DxBindingRangeInfo& r, u32 arrayIdx = 0)
         {
-            auto* s = static_cast<DxSamplerImpl*>(e.sampler);
+            auto* s = LookUp(tables, e.sampler);
             if (!s || m_sharedSamplers)
                 return; // a shared table was written when it was made
             u32 off = static_cast<u32>(m_samplerOffset) + r.heapOffset + arrayIdx;

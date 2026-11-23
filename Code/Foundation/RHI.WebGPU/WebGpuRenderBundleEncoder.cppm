@@ -22,6 +22,7 @@ import :bind_group;
 import :buffer;
 import :render_pipeline;
 import :push_constant_emulator;
+import :tables;
 
 using namespace foundation::core;
 
@@ -62,6 +63,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuRenderBundleEncoder final : public RenderBundleEncoder
     {
     public:
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         Status Initialize(const WebGpuApi& api, WGPUDevice device, IAllocator& allocator,
                           const RenderBundleDesc& bundleDesc)
         {
@@ -91,18 +94,23 @@ export namespace foundation::rhi::webgpu
             return m_encoder != nullptr ? Status(ErrorCode::Ok) : Status(ErrorCode::Unknown);
         }
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
-            auto* wgpuPipeline = static_cast<WebGpuRenderPipeline*>(pipeline);
+            auto* wgpuPipeline = LookUp(tables, pipeline);
+            if (wgpuPipeline == nullptr)
+                return; // a stale handle
             m_api->wgpuRenderBundleEncoderSetPipeline(m_encoder, wgpuPipeline->Handle());
             m_pushConstants.SetPipeline(wgpuPipeline->PushConstants());
             ++m_recorded.pipelineBinds;
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
+            const WebGpuBindGroup* bindGroup = LookUp(tables, group);
+            if (bindGroup == nullptr)
+                return; // a stale handle
             m_api->wgpuRenderBundleEncoderSetBindGroup(
-                m_encoder, index, static_cast<WebGpuBindGroup*>(group)->Handle(),
+                m_encoder, index, bindGroup->Handle(),
                 dynamicOffsets.Size(), dynamicOffsets.Data());
             ++m_recorded.bindGroupBinds;
         }
@@ -119,17 +127,17 @@ export namespace foundation::rhi::webgpu
             }
         }
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
             m_api->wgpuRenderBundleEncoderSetVertexBuffer(
-                m_encoder, slot, static_cast<WebGpuBuffer*>(buffer)->Handle(), offset,
+                m_encoder, slot, WgpuOf(tables, buffer), offset,
                 WGPU_WHOLE_SIZE);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
             m_api->wgpuRenderBundleEncoderSetIndexBuffer(
-                m_encoder, static_cast<WebGpuBuffer*>(buffer)->Handle(),
+                m_encoder, WgpuOf(tables, buffer),
                 format == IndexFormat::UInt16 ? WGPUIndexFormat_Uint16 : WGPUIndexFormat_Uint32,
                 offset, WGPU_WHOLE_SIZE);
         }
@@ -151,10 +159,10 @@ export namespace foundation::rhi::webgpu
             ++m_recorded.draws;
         }
 
-        void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             FlushPushConstants();
-            const WGPUBuffer handle = static_cast<WebGpuBuffer*>(buffer)->Handle();
+            const WGPUBuffer handle = WgpuOf(tables, buffer);
             for (u32 i = 0; i < drawCount; ++i)
             {
                 m_api->wgpuRenderBundleEncoderDrawIndirect(
@@ -163,10 +171,10 @@ export namespace foundation::rhi::webgpu
             m_recorded.draws += drawCount;
         }
 
-        void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             FlushPushConstants();
-            const WGPUBuffer handle = static_cast<WebGpuBuffer*>(buffer)->Handle();
+            const WGPUBuffer handle = WgpuOf(tables, buffer);
             for (u32 i = 0; i < drawCount; ++i)
             {
                 m_api->wgpuRenderBundleEncoderDrawIndexedIndirect(

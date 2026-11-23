@@ -205,7 +205,7 @@ export namespace foundation::render
     // to blit it).
     struct TargetState
     {
-        rhi::Texture* texture = nullptr;
+        rhi::TextureHandle texture{};
         rhi::ResourceState currentState = rhi::ResourceState::RenderTarget;
         rhi::ResourceState finalState = rhi::ResourceState::RenderTarget;
     };
@@ -400,7 +400,7 @@ export namespace foundation::render
         // finished image (its shown part, for a crop) into the viewport, clearing the target around
         // it black: a game with a fixed render resolution fitted into a window of another shape.
         // The projection takes that size's aspect. Unset draws at the viewport's own size.
-        virtual void RenderScene(scene::Scene& scene, rhi::TextureView* target,
+        virtual void RenderScene(scene::Scene& scene, rhi::TextureViewHandle target,
                                  rhi::TextureFormat targetFormat, u32 width, u32 height,
                                  ViewportRect viewport = {},
                                  const CameraOverride* cameraOverride = nullptr,
@@ -442,9 +442,9 @@ export namespace foundation::render
         // `safeArea` is the window's safe area (ScreenOverlayView::safeArea), empty for all of it.
         // `preRotation` is how the target's content is turned from the window's picture
         // (ScreenOverlayView::preRotation); `width` and `height` stay the target's.
-        virtual void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
+        virtual void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureViewHandle target,
                                     rhi::TextureFormat targetFormat, u32 width, u32 height,
-                                    u32 frameIndex, rhi::TextureView* encodedTarget = nullptr,
+                                    u32 frameIndex, rhi::TextureViewHandle encodedTarget = {},
                                     core::Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f},
                                     core::ContentRotation preRotation = core::ContentRotation::None) = 0;
     };

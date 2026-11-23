@@ -50,20 +50,20 @@ export namespace foundation::rendergraph
             // set with a null `textureView` after a view-create failure would poison the transient
             // pool and desync render-pass attachments (see ReturnTransientResources /
             // ExecuteRenderPass).
-            rhi::Texture* tex = nullptr;
+            rhi::TextureHandle tex{};
             if (!device.CreateTexture(rhiDesc, tex).IsOk())
             {
                 return Status{ErrorCode::Unknown};
             }
 
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             if (!device.CreateTextureView(tex, rhi::TextureViewDesc{}, view).IsOk())
             {
                 device.DestroyTexture(tex);
                 return Status{ErrorCode::Unknown};
             }
 
-            rhi::TextureView* depthOnly = nullptr;
+            rhi::TextureViewHandle depthOnly{};
             if (rhi::IsDepthFormat(textureDesc.format) && rhi::HasStencil(textureDesc.format))
             {
                 rhi::TextureViewDesc depthDesc{};
@@ -80,7 +80,8 @@ export namespace foundation::rendergraph
             texture = tex;
             textureView = view;
             depthOnlyView = depthOnly;
-            lastKnownState = tex->initialState;
+            TakeExtent(&rhiDesc);
+            lastKnownState = rhi::ResourceState::Undefined;
             return Status{};
         }
 
@@ -92,7 +93,7 @@ export namespace foundation::rendergraph
             rhiDesc.usage = bufferDesc.usage;
             rhiDesc.label = name.AsView();
 
-            rhi::Buffer* buf = nullptr;
+            rhi::BufferHandle buf{};
             if (!device.CreateBuffer(rhiDesc, buf).IsOk())
             {
                 return Status{ErrorCode::Unknown};
@@ -109,29 +110,37 @@ export namespace foundation::rendergraph
             {
                 return;
             }
-            if (depthOnlyView != nullptr)
+            if (depthOnlyView.IsValid())
             {
                 device.DestroyTextureView(depthOnlyView);
             }
-            if (textureView != nullptr)
+            if (textureView.IsValid())
             {
                 device.DestroyTextureView(textureView);
             }
-            if (texture != nullptr)
+            if (texture.IsValid())
             {
                 device.DestroyTexture(texture);
             }
-            if (buffer != nullptr)
+            if (buffer.IsValid())
             {
                 device.DestroyBuffer(buffer);
             }
         }
 
+        /// The mip and layer counts of the texture it now holds (its description, read when it took
+        /// the texture); 1 each without one.
+        void TakeExtent(const rhi::TextureDesc* desc) noexcept
+        {
+            textureMipCount = desc != nullptr ? desc->mipLevelCount : 1;
+            textureLayerCount = desc != nullptr ? desc->arrayLayerCount : 1;
+        }
+
         [[nodiscard]] u32 TotalMipLevels() const
         {
-            if (texture != nullptr)
+            if (texture.IsValid())
             {
-                return texture->desc.mipLevelCount;
+                return textureMipCount;
             }
             if (resourceType == RGResourceType::Texture)
             {
@@ -141,9 +150,9 @@ export namespace foundation::rendergraph
         }
         [[nodiscard]] u32 TotalArrayLayers() const
         {
-            if (texture != nullptr)
+            if (texture.IsValid())
             {
-                return texture->desc.arrayLayerCount;
+                return textureLayerCount;
             }
             if (resourceType == RGResourceType::Texture)
             {
@@ -165,7 +174,7 @@ export namespace foundation::rendergraph
         String name;
         RGResourceType resourceType;
         RGResourceLifetime lifetime;
-        u32 generation = 1;
+        RGHandle handle; // the graph's handle to it, set when the graph adds it
 
         // --- reference tracking (computed during compile) ---
         i32 refCount = 0;
@@ -176,9 +185,11 @@ export namespace foundation::rendergraph
 
         // --- texture data ---
         RGTextureDesc textureDesc;
-        rhi::Texture* texture = nullptr;
-        rhi::TextureView* textureView = nullptr;
-        rhi::TextureView* depthOnlyView = nullptr;
+        rhi::TextureHandle texture{};
+        rhi::TextureViewHandle textureView{};
+        rhi::TextureViewHandle depthOnlyView{};
+        u32 textureMipCount = 1;   // of `texture` (TakeExtent)
+        u32 textureLayerCount = 1;
         // Stable id of the backing physical texture; changes when a transient is (re)allocated a
         // different texture (e.g. on resize). Consumers caching a bind group over textureView key on
         // this so a reused-address view does not alias a stale, destroyed texture.
@@ -186,7 +197,7 @@ export namespace foundation::rendergraph
 
         // --- buffer data ---
         RGBufferDesc bufferDesc;
-        rhi::Buffer* buffer = nullptr;
+        rhi::BufferHandle buffer{};
 
         // --- state tracking ---
         rhi::ResourceState lastKnownState = rhi::ResourceState::Undefined;

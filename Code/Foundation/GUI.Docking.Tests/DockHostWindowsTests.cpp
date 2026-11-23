@@ -28,13 +28,13 @@ namespace
 {
     StringView SV(const char8_t* s) { return StringView(s); }
 
-    rhi::ShaderModule* MakeModule(rhi::Device& d)
+    rhi::ShaderModuleHandle MakeModule(rhi::Device& d)
     {
         const u8 dummy[4] = {0, 0, 0, 0};
         rhi::ShaderModuleDesc desc{};
         desc.code = Span<const u8>(dummy, 4);
         desc.entryPoint = u8"main";
-        rhi::ShaderModule* m = nullptr;
+        rhi::ShaderModuleHandle m{};
         (void)d.CreateShaderModule(desc, m);
         return m;
     }
@@ -45,8 +45,8 @@ namespace
     {
         shell::NullShell shell;
         UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
-        rhi::ShaderModule* vs = MakeModule(*device->Raw());
-        rhi::ShaderModule* fs = MakeModule(*device->Raw());
+        rhi::ShaderModuleHandle vs = MakeModule(*device->Raw());
+        rhi::ShaderModuleHandle fs = MakeModule(*device->Raw());
         UniquePtr<graphics::RenderWindow> main = device->CreateRenderWindow(*shell.MainWindow(), graphics::RenderWindowDesc{}).Value();
         UniquePtr<GuiHost> host;
         Array<UniquePtr<graphics::RenderWindow>> opened;

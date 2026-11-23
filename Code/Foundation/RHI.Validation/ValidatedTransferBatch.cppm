@@ -22,7 +22,7 @@ export namespace foundation::rhi::validation
     public:
         explicit ValidatedTransferBatch(TransferBatch* inner) : m_inner(inner) {}
 
-        void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) override
+        void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
             if (m_destroyed)
             {
@@ -43,7 +43,7 @@ export namespace foundation::rhi::validation
             m_inner->WriteBuffer(dst, dstOffset, data);
         }
 
-        void WriteTexture(Texture* dst, Span<const u8> data, const TextureDataLayout& layout,
+        void WriteTexture(TextureHandle dst, Span<const u8> data, const TextureDataLayout& layout,
                           Extent3D extent, u32 mipLevel, u32 arrayLayer) override
         {
             if (m_destroyed)

@@ -623,8 +623,8 @@ export namespace foundation::ui::runtime
             rtDesc.depth = 1;
             rtDesc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             rtDesc.label = u8"icon bake";
-            rhi::Texture* rt = nullptr;
-            rhi::TextureView* rtView = nullptr;
+            rhi::TextureHandle rt{};
+            rhi::TextureViewHandle rtView{};
             if (!device->CreateTexture(rtDesc, rt).IsOk() ||
                 !device->CreateTextureView(rt, rhi::TextureViewDesc{}, rtView).IsOk())
             {
@@ -665,7 +665,7 @@ export namespace foundation::ui::runtime
             readDesc.size = static_cast<u64>(rowPitch) * rtHeight;
             readDesc.usage = rhi::BufferUsage::CopyDst;
             readDesc.memory = rhi::MemoryLocation::GpuToCpu;
-            rhi::Buffer* readBuffer = nullptr;
+            rhi::BufferHandle readBuffer{};
             rhi::CommandPool* pool = nullptr;
             rhi::Fence* fence = nullptr;
             bool ok = device->CreateBuffer(readDesc, readBuffer).IsOk() &&
@@ -735,7 +735,7 @@ export namespace foundation::ui::runtime
             {
                 device->DestroyCommandPool(pool);
             }
-            if (readBuffer != nullptr)
+            if (readBuffer.IsValid())
             {
                 device->DestroyBuffer(readBuffer);
             }
@@ -982,20 +982,20 @@ export namespace foundation::ui::runtime
         core::IAllocator* m_allocator;
 
         graphics::GraphicsDevice* m_device; // borrowed
-        rhi::ShaderModule* m_distanceFieldFragmentShader = nullptr; // MSDF text fragment (borrowed; null = no DF pipeline)
+        rhi::ShaderModuleHandle m_distanceFieldFragmentShader{}; // MSDF text fragment (borrowed; null = no DF pipeline)
         shell::IShell* m_shell;             // borrowed
         fonts::IFontService* m_fonts;       // borrowed
         shaders::ShaderSystemHost m_shaderHost; // owns the ShaderSystem and the VG modules (ctor allocator)
-        rhi::ShaderModule* m_vs = nullptr;      // borrowed from m_shaderHost
-        rhi::ShaderModule* m_fs = nullptr;      // borrowed from m_shaderHost
-        rhi::ShaderModule* m_gradRadialFs = nullptr; // per-pixel radial gradient (borrowed)
-        rhi::ShaderModule* m_gradConicFs = nullptr;  // per-pixel conic gradient (borrowed)
-        rhi::ShaderModule* m_boxShadowFs = nullptr;  // blurred rounded rect (borrowed)
-        rhi::ShaderModule* m_boxVs = nullptr;        // analytic box (borrowed)
-        rhi::ShaderModule* m_boxFs = nullptr;
-        rhi::ShaderModule* m_layerFs = nullptr;      // layer composite (borrowed)
-        rhi::ShaderModule* m_blurVs = nullptr;       // layer blur (borrowed)
-        rhi::ShaderModule* m_blurFs = nullptr;
+        rhi::ShaderModuleHandle m_vs{};      // borrowed from m_shaderHost
+        rhi::ShaderModuleHandle m_fs{};      // borrowed from m_shaderHost
+        rhi::ShaderModuleHandle m_gradRadialFs{}; // per-pixel radial gradient (borrowed)
+        rhi::ShaderModuleHandle m_gradConicFs{};  // per-pixel conic gradient (borrowed)
+        rhi::ShaderModuleHandle m_boxShadowFs{};  // blurred rounded rect (borrowed)
+        rhi::ShaderModuleHandle m_boxVs{};        // analytic box (borrowed)
+        rhi::ShaderModuleHandle m_boxFs{};
+        rhi::ShaderModuleHandle m_layerFs{};      // layer composite (borrowed)
+        rhi::ShaderModuleHandle m_blurVs{};       // layer blur (borrowed)
+        rhi::ShaderModuleHandle m_blurFs{};
 
         UIContext m_ctx; // shared context; owns every window's RootView (allocator from the ctor)
         core::UniquePtr<shell::InputRouter> m_router;

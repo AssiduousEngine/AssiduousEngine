@@ -46,7 +46,7 @@ export namespace engine::terrain
             {
                 return;
             }
-            mgr->SetRenderContext(m_render->Device(), m_rendererId, m_render->RetireQueue());
+            mgr->SetRenderContext(m_render->Device(), m_rendererId);
             m_render->RegisterProvider(scene, *mgr);
             m_managers.PushBack(mgr); // tracked for GPU teardown (scene destroy and shutdown)
         }
@@ -136,7 +136,6 @@ export namespace engine::terrain
             if (m_renderer->Initialize().IsOk())
             {
                 m_rendererId = m_render->RegisterRenderer(*m_renderer);
-                m_renderer->SetRetireQueue(m_render->RetireQueue());
             }
             else
             {

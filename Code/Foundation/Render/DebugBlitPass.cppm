@@ -75,13 +75,13 @@ export namespace foundation::render
                 return Status{ErrorCode::Unknown};
             }
 
-            rhi::BindGroupLayout* layouts[] = {m_layout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_layout};
             rhi::PushConstantRange pc{};
             pc.stages = rhi::ShaderStage::Fragment;
             pc.offset = 0;
             pc.size = sizeof(GpuDebugBlitPush);
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pc, 1};
             if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
             {
@@ -99,8 +99,8 @@ export namespace foundation::render
                               f32 srcWidth, f32 srcHeight, bool srcIsDepth,
                               const ViewDebugView& config)
         {
-            rhi::RenderPipeline* pipeline = EnsurePipeline(ldrFormat);
-            if (pipeline == nullptr)
+            rhi::RenderPipelineHandle pipeline = EnsurePipeline(ldrFormat);
+            if (!pipeline.IsValid())
             {
                 return;
             }
@@ -135,15 +135,15 @@ export namespace foundation::render
                         [this, &graph, src, pipeline, viewIndex, frameIndex, push,
                          srcIsDepth](rhi::RenderPassEncoder& rp)
                         {
-                            rhi::TextureView* view = srcIsDepth ? graph.GetDepthOnlyTextureView(src)
+                            rhi::TextureViewHandle view = srcIsDepth ? graph.GetDepthOnlyTextureView(src)
                                                                 : graph.GetTextureView(src);
-                            if (view == nullptr)
+                            if (!view.IsValid())
                             {
                                 view = graph.GetTextureView(src);
                             }
-                            rhi::BindGroup* bg =
+                            rhi::BindGroupHandle bg =
                                 EnsureBindGroup(viewIndex, frameIndex, view, graph.GetTextureGeneration(src));
-                            if (bg == nullptr)
+                            if (!bg.IsValid())
                             {
                                 return;
                             }
@@ -160,18 +160,18 @@ export namespace foundation::render
         static constexpr usize kMaxPipelineFormats = 4;
         struct PipelineEntry
         {
-            rhi::RenderPipeline* pipeline = nullptr;
+            rhi::RenderPipelineHandle pipeline{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             u64 shaderVersion = 0;
         };
 
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt)
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat fmt)
         {
             const u64 shaderVersion = m_shaders->Version(u8"debug_blit"); // hot reload rebuilds
             PipelineEntry* entry = nullptr;
             for (PipelineEntry& candidate : m_pipelines)
             {
-                if (candidate.pipeline != nullptr && candidate.format == fmt)
+                if (candidate.pipeline.IsValid() && candidate.format == fmt)
                 {
                     entry = &candidate;
                     break;
@@ -181,19 +181,19 @@ export namespace foundation::render
             {
                 return entry->pipeline;
             }
-            rhi::ShaderModule* vs = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
                 u8"debug_blit", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* ps = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
                 u8"debug_blit", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
-                return nullptr;
+                return {};
             }
             if (entry == nullptr)
             {
                 for (PipelineEntry& candidate : m_pipelines)
                 {
-                    if (candidate.pipeline == nullptr)
+                    if (!candidate.pipeline.IsValid())
                     {
                         entry = &candidate;
                         break;
@@ -204,10 +204,10 @@ export namespace foundation::render
             {
                 entry = &m_pipelines[0];
             }
-            if (entry->pipeline != nullptr)
+            if (entry->pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(entry->pipeline);
-                entry->pipeline = nullptr;
+                entry->pipeline = {};
             }
             rhi::ColorTargetState color{};
             color.format = fmt;
@@ -223,30 +223,30 @@ export namespace foundation::render
             pd.label = u8"debug.blit";
             if (!m_device->CreateRenderPipeline(pd, entry->pipeline).IsOk())
             {
-                entry->pipeline = nullptr;
-                return nullptr;
+                entry->pipeline = {};
+                return {};
             }
             entry->format = fmt;
             entry->shaderVersion = shaderVersion;
             return entry->pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* srcView, u64 generation)
+        rhi::BindGroupHandle EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle srcView, u64 generation)
         {
-            if (srcView == nullptr)
+            if (!srcView.IsValid())
             {
-                return nullptr;
+                return {};
             }
             Slot& slot = m_slots.At(viewIndex, frameIndex);
-            if (slot.group != nullptr && slot.view == srcView &&
+            if (slot.group.IsValid() && slot.view == srcView &&
                 slot.generation == generation)
             {
                 return slot.group;
             }
-            if (slot.group != nullptr)
+            if (slot.group.IsValid())
             {
                 m_device->DestroyBindGroup(slot.group);
-                slot.group = nullptr;
+                slot.group = {};
             }
             rhi::BindGroupEntry entries[] = {rhi::BindGroupEntry::TextureEntry(srcView)};
             rhi::BindGroupDesc bgd{};
@@ -254,8 +254,8 @@ export namespace foundation::render
             bgd.entries = Span<const rhi::BindGroupEntry>{entries, 1};
             if (!m_device->CreateBindGroup(bgd, slot.group).IsOk())
             {
-                slot.group = nullptr;
-                return nullptr;
+                slot.group = {};
+                return {};
             }
             slot.view = srcView;
             slot.generation = generation;
@@ -266,44 +266,44 @@ export namespace foundation::render
         {
             for (Slot& slot : m_slots.All())
             {
-                if (slot.group != nullptr)
+                if (slot.group.IsValid())
                 {
                     m_device->DestroyBindGroup(slot.group);
-                    slot.group = nullptr;
+                    slot.group = {};
                 }
             }
             for (PipelineEntry& entry : m_pipelines)
             {
-                if (entry.pipeline != nullptr)
+                if (entry.pipeline.IsValid())
                 {
                     m_device->DestroyRenderPipeline(entry.pipeline);
-                    entry.pipeline = nullptr;
+                    entry.pipeline = {};
                 }
             }
-            if (m_pipelineLayout != nullptr)
+            if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
-                m_pipelineLayout = nullptr;
+                m_pipelineLayout = {};
             }
-            if (m_layout != nullptr)
+            if (m_layout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_layout);
-                m_layout = nullptr;
+                m_layout = {};
             }
         }
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         u32 m_framesInFlight = 2;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
         PipelineEntry m_pipelines[kMaxPipelineFormats] = {};
         // Per (view, frame in flight), however many views a frame has: one bind group and the source
         // view and generation it was built from.
         struct Slot
         {
-            rhi::BindGroup* group = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::BindGroupHandle group{};
+            rhi::TextureViewHandle view{};
             u64 generation = 0;
         };
         ViewSlots<Slot> m_slots;

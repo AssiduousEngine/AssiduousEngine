@@ -18,6 +18,7 @@ import :surface;
 import :texture;
 import :texture_view;
 import :descriptor_heap;
+import :tables;
 
 using namespace foundation::core;
 
@@ -33,9 +34,10 @@ export namespace foundation::rhi::dx12
         Status init(ID3D12Device* device, IDXGIFactory4* factory, ID3D12CommandQueue* gfxQueue,
                     DxSurfaceImpl* surface, const SwapChainDesc& d,
                     DxDescriptorHeapAllocator* srvHeap, DxDescriptorHeapAllocator* rtvHeap,
-                    DxDescriptorHeapAllocator* dsvHeap, IAllocator& allocator)
+                    DxDescriptorHeapAllocator* dsvHeap, DxTables& tables, IAllocator& allocator)
         {
             m_d3dDevice = device;
+            m_tables = &tables;
             m_format = d.format;
             // Flip-model buffers are created without sRGB (stripSrgb below) and viewed with it, so a
             // view in either twin is always valid: an asked-for twin is honoured.
@@ -95,20 +97,23 @@ export namespace foundation::rhi::dx12
         u32 Height() const override { return m_height; }
         u32 BufferCount() const override { return m_bufferCount; }
         u32 CurrentImageIndex() const override { return m_currentIndex; }
-        Texture* CurrentTexture() override
+        TextureHandle CurrentTexture() override
         {
-            return (m_currentIndex < m_textures.Size()) ? m_textures[m_currentIndex] : nullptr;
+            return (m_currentIndex < m_textureHandles.Size()) ? m_textureHandles[m_currentIndex]
+                                                              : TextureHandle::Invalid();
         }
-        TextureView* CurrentTextureView() override
+        TextureViewHandle CurrentTextureView() override
         {
-            return (m_currentIndex < m_views.Size()) ? m_views[m_currentIndex] : nullptr;
+            return (m_currentIndex < m_viewHandles.Size()) ? m_viewHandles[m_currentIndex]
+                                                           : TextureViewHandle::Invalid();
         }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
         // A desktop window is presented as it stands.
         ContentRotation PreRotation() const override { return ContentRotation::None; }
-        TextureView* CurrentAlternateTextureView() override
+        TextureViewHandle CurrentAlternateTextureView() override
         {
-            return (m_currentIndex < m_alternateViews.Size()) ? m_alternateViews[m_currentIndex] : nullptr;
+            return (m_currentIndex < m_alternateHandles.Size()) ? m_alternateHandles[m_currentIndex]
+                                                                : TextureViewHandle::Invalid();
         }
 
         Status AcquireNextImage() override
@@ -188,6 +193,8 @@ export namespace foundation::rhi::dx12
                 tex->initFromExisting(resource, td);
                 resource->Release(); // initFromExisting AddRef'd
                 m_textures.PushBack(tex);
+                const TextureHandle texHandle = m_tables->textures.Add(tex, u8"swap chain image");
+                m_textureHandles.PushBack(texHandle);
 
                 auto* view = m_allocator->New<DxTextureViewImpl>();
                 TextureViewDesc vd{};
@@ -195,16 +202,18 @@ export namespace foundation::rhi::dx12
                 vd.dimension = TextureViewDimension::Texture2D;
                 vd.mipLevelCount = 1;
                 vd.arrayLayerCount = 1;
-                view->init(m_d3dDevice, tex, vd, m_srvHeap, m_rtvHeap, m_dsvHeap);
+                view->init(m_d3dDevice, tex, texHandle, vd, m_srvHeap, m_rtvHeap, m_dsvHeap);
                 m_views.PushBack(view);
+                m_viewHandles.PushBack(m_tables->textureViews.Add(view, u8"swap chain image/view"));
 
                 if (m_alternate != TextureFormat::Undefined)
                 {
                     auto* alternate = m_allocator->New<DxTextureViewImpl>();
                     TextureViewDesc ad = vd;
                     ad.format = m_alternate;
-                    alternate->init(m_d3dDevice, tex, ad, m_srvHeap, m_rtvHeap, m_dsvHeap);
+                    alternate->init(m_d3dDevice, tex, texHandle, ad, m_srvHeap, m_rtvHeap, m_dsvHeap);
                     m_alternateViews.PushBack(alternate);
+                    m_alternateHandles.PushBack(m_tables->textureViews.Add(alternate, u8"swap chain image/alternate view"));
                 }
             }
             return ErrorCode::Ok;
@@ -212,6 +221,15 @@ export namespace foundation::rhi::dx12
 
         void releaseBackBuffers()
         {
+            for (TextureViewHandle& h : m_viewHandles)
+                (void)m_tables->textureViews.Remove(h);
+            m_viewHandles.Clear();
+            for (TextureViewHandle& h : m_alternateHandles)
+                (void)m_tables->textureViews.Remove(h);
+            m_alternateHandles.Clear();
+            for (TextureHandle& h : m_textureHandles)
+                (void)m_tables->textures.Remove(h);
+            m_textureHandles.Clear();
             for (auto* v : m_views)
             {
                 v->cleanup();
@@ -244,6 +262,12 @@ export namespace foundation::rhi::dx12
         Array<DxTextureImpl*> m_textures;
         Array<DxTextureViewImpl*> m_views;
         Array<DxTextureViewImpl*> m_alternateViews;
+        // The device's handles to the back buffers and views, which stay the swap chain's: taken
+        // back out of its tables as they go, not retired (a resize or teardown waits for the GPU).
+        DxTables* m_tables = nullptr;
+        Array<TextureHandle> m_textureHandles;
+        Array<TextureViewHandle> m_viewHandles;
+        Array<TextureViewHandle> m_alternateHandles;
         DxDescriptorHeapAllocator* m_srvHeap = nullptr;
         DxDescriptorHeapAllocator* m_rtvHeap = nullptr;
         DxDescriptorHeapAllocator* m_dsvHeap = nullptr;

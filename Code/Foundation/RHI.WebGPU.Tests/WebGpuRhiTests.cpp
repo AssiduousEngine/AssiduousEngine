@@ -103,15 +103,15 @@ TEST_CASE("rhi.webgpu: unimplemented stages fail honestly, extensions unsupporte
 
     // An empty buffer desc must fail validation, not hand back wgpu's "invalid
     // object".
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     CHECK(device->CreateBuffer(BufferDesc{}, buffer).Code() == ErrorCode::InvalidArgument);
-    CHECK(buffer == nullptr);
+    CHECK(!buffer.IsValid());
 
     // Pipeline statistics have no WebGPU shape: NotSupported.
     QuerySetDesc statisticsDesc;
     statisticsDesc.type = QueryType::PipelineStatistics;
     statisticsDesc.count = 1;
-    QuerySet* statistics = nullptr;
+    QuerySetHandle statistics{};
     CHECK(device->CreateQuerySet(statisticsDesc, statistics).Code() ==
           ErrorCode::NotSupported);
     // ...so a statistics result takes no room and reads as zeros, and no GPU timestamp can be
@@ -127,7 +127,7 @@ TEST_CASE("rhi.webgpu: unimplemented stages fail honestly, extensions unsupporte
         CHECK(cpu == 4u);
     }
 
-    MeshPipeline* mesh = nullptr;
+    MeshPipelineHandle mesh{};
     CHECK(device->CreateMeshPipeline(MeshPipelineDesc{}, mesh).Code() ==
           ErrorCode::NotSupported);
 
@@ -204,7 +204,7 @@ TEST_CASE("rhi.webgpu: blit-capable = WebGPU-renderable color formats only (no A
         desc.height = 16;
         desc.mipLevelCount = 3;
         desc.usage = TextureUsage::Sampled | TextureUsage::CopyDst;
-        Texture* texture = nullptr;
+        TextureHandle texture{};
         REQUIRE(device->CreateTexture(desc, texture).IsOk());
         CommandPool* pool = nullptr;
         REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -271,12 +271,12 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     bufferDesc.size = 256;
     bufferDesc.usage = BufferUsage::Uniform | BufferUsage::CopyDst;
     bufferDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device->CreateBuffer(bufferDesc, buffer).IsOk());
-    void* mapped = buffer->Map();
+    void* mapped = device->Map(buffer);
     REQUIRE(mapped != nullptr);
     MemSet(mapped, 0xAB, 256);
-    buffer->Unmap(); // queue-ordered upload; GPU validation would log on error
+    device->Unmap(buffer); // queue-ordered upload; GPU validation would log on error
     device->WaitIdle();
     CHECK(!device->IsLost());
 
@@ -285,24 +285,24 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     gpuOnly.size = 64;
     gpuOnly.usage = BufferUsage::Storage;
     gpuOnly.memory = MemoryLocation::GpuOnly;
-    Buffer* deviceLocal = nullptr;
+    BufferHandle deviceLocal{};
     REQUIRE(device->CreateBuffer(gpuOnly, deviceLocal).IsOk());
-    CHECK(deviceLocal->Map() == nullptr);
+    CHECK(device->Map(deviceLocal) == nullptr);
 
     // Texture + a full-resource view.
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device
                 ->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 64),
                                 texture)
                 .IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(texture, viewDesc, view).IsOk());
-    CHECK(view->texture == texture);
+    CHECK(device->TextureOf(view) == texture);
 
     // A format WebGPU does not have fails cleanly.
-    Texture* unsupported = nullptr;
+    TextureHandle unsupported{};
     CHECK(device
               ->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA16Unorm, 4, 4),
                               unsupported)
@@ -312,7 +312,7 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     SamplerDesc samplerDesc;
     samplerDesc.minFilter = FilterMode::Nearest;
     samplerDesc.maxAnisotropy = 8; // invalid with nearest; the backend clamps to 1
-    Sampler* sampler = nullptr;
+    SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(samplerDesc, sampler).IsOk());
 
     // WGSL shader module (the non-SPIR-V ingestion branch; the samples exercise SPIR-V).
@@ -321,7 +321,7 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     ShaderModuleDesc moduleDesc;
     moduleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl),
                                      StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     device->DestroyShaderModule(shaderModule);
@@ -354,26 +354,26 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     };
     BindGroupLayoutDesc layoutDesc;
     layoutDesc.entries = Span<const BindGroupLayoutEntry>(entries, 3);
-    BindGroupLayout* layout = nullptr;
+    BindGroupLayoutHandle layout{};
     REQUIRE(device->CreateBindGroupLayout(layoutDesc, layout).IsOk());
-    CHECK(layout->Entries().Size() == 3u);
+    CHECK(device->LayoutEntries(layout).Size() == 3u);
 
     // Resources to bind.
     BufferDesc uboDesc;
     uboDesc.size = 16;
     uboDesc.usage = BufferUsage::Uniform;
     uboDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ubo = nullptr;
+    BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     TextureDesc texDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
     texDesc.usage = TextureUsage::Sampled | TextureUsage::CopyDst;
     REQUIRE(device->CreateTexture(texDesc, texture).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(texture, viewDesc, view).IsOk());
-    Sampler* sampler = nullptr;
+    SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(SamplerDesc{}, sampler).IsOk());
 
     const BindGroupEntry groupEntries[] = {
@@ -384,17 +384,17 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     BindGroupDesc groupDesc;
     groupDesc.layout = layout;
     groupDesc.entries = Span<const BindGroupEntry>(groupEntries, 3);
-    BindGroup* group = nullptr;
+    BindGroupHandle group{};
     REQUIRE(device->CreateBindGroup(groupDesc, group).IsOk());
-    CHECK(group->Layout() == layout);
+    CHECK(device->LayoutOf(group) == layout);
 
     // Pipeline layout and a render pipeline whose WGSL uses the shifted binding numbers
     // (the compact WebGPU profile: SRV +100, sampler +300); if the shift scheme
     // mismatched the layout, creation would fail.
     PipelineLayoutDesc plDesc;
-    BindGroupLayout* layouts[] = {layout};
-    plDesc.bindGroupLayouts = Span<BindGroupLayout* const>(layouts, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    BindGroupLayoutHandle layouts[] = {layout};
+    plDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(layouts, 1);
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(plDesc, pipelineLayout).IsOk());
 
     const char8_t* wgsl =
@@ -409,7 +409,7 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     ShaderModuleDesc moduleDesc;
     moduleDesc.code =
         Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     RenderPipelineDesc rpDesc;
@@ -422,13 +422,13 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     fragment.shader = ProgrammableStage{shaderModule, u8"fragmentMain", ShaderStage::Fragment};
     fragment.targets = Span<const ColorTargetState>(&target, 1);
     rpDesc.fragment = fragment;
-    RenderPipeline* renderPipeline = nullptr;
+    RenderPipelineHandle renderPipeline{};
     REQUIRE(device->CreateRenderPipeline(rpDesc, renderPipeline).IsOk());
 
     // Wireframe has no WebGPU shape: NotSupported.
     RenderPipelineDesc wireframeDesc = rpDesc;
     wireframeDesc.primitive.fillMode = FillMode::Wireframe;
-    RenderPipeline* wireframe = nullptr;
+    RenderPipelineHandle wireframe{};
     CHECK(device->CreateRenderPipeline(wireframeDesc, wireframe).Code() ==
           ErrorCode::NotSupported);
 
@@ -438,15 +438,15 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     ShaderModuleDesc computeModuleDesc;
     computeModuleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(computeWgsl),
                                             StringView(computeWgsl).Size());
-    ShaderModule* computeModule = nullptr;
+    ShaderModuleHandle computeModule{};
     REQUIRE(device->CreateShaderModule(computeModuleDesc, computeModule).IsOk());
     PipelineLayoutDesc emptyLayoutDesc;
-    PipelineLayout* emptyLayout = nullptr;
+    PipelineLayoutHandle emptyLayout{};
     REQUIRE(device->CreatePipelineLayout(emptyLayoutDesc, emptyLayout).IsOk());
     ComputePipelineDesc cpDesc;
     cpDesc.layout = emptyLayout;
     cpDesc.compute = ProgrammableStage{computeModule, u8"computeMain", ShaderStage::Compute};
-    ComputePipeline* computePipeline = nullptr;
+    ComputePipelineHandle computePipeline{};
     REQUIRE(device->CreateComputePipeline(cpDesc, computePipeline).IsOk());
 
     device->DestroyComputePipeline(computePipeline);
@@ -480,11 +480,11 @@ TEST_CASE("rhi.webgpu: encode + submit + readback - a full GPU round trip")
     // Offscreen 4x4 target, cleared to a known color by a real render pass.
     TextureDesc targetDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
     targetDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device->CreateTexture(targetDesc, target).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(target, viewDesc, view).IsOk());
 
     // Readback buffer: 4 rows x 256 bytes (WebGPU's bytesPerRow alignment).
@@ -492,7 +492,7 @@ TEST_CASE("rhi.webgpu: encode + submit + readback - a full GPU round trip")
     readbackDesc.size = 4 * 256;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -528,14 +528,14 @@ TEST_CASE("rhi.webgpu: encode + submit + readback - a full GPU round trip")
     REQUIRE(fence->Wait(1, ~0ull));
 
     // Map the readback and verify the clear color survived the round trip.
-    const u8* pixels = static_cast<const u8*>(readback->Map());
+    const u8* pixels = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixels != nullptr);
     CHECK(pixels[0] == 255); // R
     CHECK(pixels[1] == 0);   // G
     CHECK(pixels[2] == 0);   // B
     CHECK(pixels[3] == 255); // A
     CHECK(pixels[256 * 3 + 0] == 255); // last row, first pixel
-    readback->Unmap();
+    device->Unmap(readback);
 
     CHECK(!device->IsLost());
     device->DestroyFence(fence);
@@ -565,7 +565,7 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     gpuDesc.size = 64;
     gpuDesc.usage = BufferUsage::Storage | BufferUsage::CopySrc | BufferUsage::CopyDst;
     gpuDesc.memory = MemoryLocation::GpuOnly;
-    Buffer* gpuBuffer = nullptr;
+    BufferHandle gpuBuffer{};
     REQUIRE(device->CreateBuffer(gpuDesc, gpuBuffer).IsOk());
 
     u8 pattern[64];
@@ -581,7 +581,7 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     texDesc.width = 4;
     texDesc.height = 4;
     texDesc.usage = TextureUsage::CopyDst | TextureUsage::CopySrc;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(texDesc, texture).IsOk());
     u8 texels[4 * 4 * 4];
     for (u32 i = 0; i < sizeof(texels); ++i)
@@ -601,7 +601,7 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     readDesc.size = 4 * 256;
     readDesc.usage = BufferUsage::CopyDst;
     readDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -617,12 +617,12 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
         ->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* bytes = static_cast<const u8*>(readback->Map());
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 0);
     CHECK(bytes[21] == static_cast<u8>(21 * 3));
     CHECK(bytes[63] == static_cast<u8>(63 * 3));
-    readback->Unmap();
+    device->Unmap(readback);
 
     // Texture readback through the second copy path.
     BufferTextureCopyRegion region;
@@ -637,12 +637,12 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     device->GetQueue(QueueType::Graphics)
         ->Submit(Span<CommandBuffer* const>(second, 1), fence, 2);
     REQUIRE(fence->Wait(2, ~0ull));
-    bytes = static_cast<const u8*>(readback->Map());
+    bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 255);                 // first texel byte
     CHECK(bytes[15] == static_cast<u8>(255 - 15)); // last byte of row 0
     CHECK(bytes[256 + 0] == static_cast<u8>(255 - 16)); // row 1 starts at bytesPerRow
-    readback->Unmap();
+    device->Unmap(readback);
 
     queue->DestroyTransferBatch(batch);
     device->DestroyFence(fence);
@@ -694,7 +694,7 @@ TEST_CASE("rhi.webgpu: a compressed texture whose size is not whole blocks is ma
     desc.height = 10;
     desc.mipLevelCount = 5; // 18x10, 9x5, 4x2, 2x1, 1x1
     desc.usage = TextureUsage::CopyDst | TextureUsage::Sampled;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(desc, texture).IsOk());
 
     u8 blocks[20 * 12];
@@ -749,7 +749,7 @@ TEST_CASE("rhi.webgpu: a compressed texture's whole mip chain uploads, the tail 
     desc.height = 16;
     desc.mipLevelCount = 5; // 16, 8, 4, 2, 1
     desc.usage = TextureUsage::CopyDst | TextureUsage::Sampled;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(desc, texture).IsOk());
 
     // Each level as the texture resource lays it out: texel extent, block-row pitch and count.
@@ -797,13 +797,13 @@ TEST_CASE("rhi.webgpu: per-frame map/unmap/resubmit cycle stays valid")
     sourceDesc.size = 64;
     sourceDesc.usage = BufferUsage::CopySrc | BufferUsage::CopyDst;
     sourceDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* source = nullptr;
+    BufferHandle source{};
     REQUIRE(device->CreateBuffer(sourceDesc, source).IsOk());
     BufferDesc readbackDesc;
     readbackDesc.size = 64;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -817,11 +817,11 @@ TEST_CASE("rhi.webgpu: per-frame map/unmap/resubmit cycle stays valid")
         if (frame > 1)
         {
             REQUIRE(fence->Wait(frame - 1, ~0ull));
-            void* mapped = readback->Map();
+            void* mapped = device->Map(readback);
             CHECK(mapped != nullptr);
             if (mapped != nullptr)
             {
-                readback->Unmap();
+                device->Unmap(readback);
             }
         }
         CommandEncoder* encoder = nullptr;
@@ -861,7 +861,7 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     mipDesc.height = 8;
     mipDesc.mipLevelCount = 4;
     mipDesc.usage = TextureUsage::Sampled | TextureUsage::CopyDst | TextureUsage::CopySrc;
-    Texture* mipTexture = nullptr;
+    TextureHandle mipTexture{};
     REQUIRE(device->CreateTexture(mipDesc, mipTexture).IsOk());
 
     u8 texels[8 * 8 * 4];
@@ -893,7 +893,7 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     readbackDesc.size = 4 * 256; // sized for the 4x4 blit readback below too
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
     BufferTextureCopyRegion region;
     region.bytesPerRow = 256;
@@ -909,18 +909,18 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixel = static_cast<const u8*>(readback->Map());
+    const u8* pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     CHECK(pixel[0] == 0);   // R
     CHECK(pixel[1] == 255); // G survived three downsamples
     CHECK(pixel[2] == 0);   // B
     CHECK(pixel[3] == 255); // A
-    readback->Unmap();
+    device->Unmap(readback);
 
     // Scaling blit: the 8x8 green source into a 4x4 target of a DIFFERENT format.
     TextureDesc blitDesc = TextureDesc::RenderTarget(TextureFormat::BGRA8Unorm, 4, 4);
     blitDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* blitTarget = nullptr;
+    TextureHandle blitTarget{};
     REQUIRE(device->CreateTexture(blitDesc, blitTarget).IsOk());
     REQUIRE(pool->CreateEncoder(encoder).IsOk());
     encoder->Blit(mipTexture, blitTarget);
@@ -933,12 +933,12 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     CommandBuffer* second[] = {commandBuffer};
     queue->Submit(Span<CommandBuffer* const>(second, 1), fence, 2);
     REQUIRE(fence->Wait(2, ~0ull));
-    pixel = static_cast<const u8*>(readback->Map());
+    pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     CHECK(pixel[0] == 0);   // B (BGRA order now)
     CHECK(pixel[1] == 255); // G
     CHECK(pixel[2] == 0);   // R
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -967,16 +967,16 @@ TEST_CASE("rhi.webgpu: persistent mapping - writes without Unmap reach the GPU")
     uboDesc.size = 64;
     uboDesc.usage = BufferUsage::Uniform | BufferUsage::CopySrc;
     uboDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ubo = nullptr;
+    BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
     BufferDesc readbackDesc;
     readbackDesc.size = 64;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
-    u8* persistent = static_cast<u8*>(ubo->Map()); // never unmapped
+    u8* persistent = static_cast<u8*>(device->Map(ubo)); // never unmapped
     REQUIRE(persistent != nullptr);
 
     CommandPool* pool = nullptr;
@@ -995,11 +995,11 @@ TEST_CASE("rhi.webgpu: persistent mapping - writes without Unmap reach the GPU")
         queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, frame);
         REQUIRE(fence->Wait(frame, ~0ull));
 
-        const u8* bytes = static_cast<const u8*>(readback->Map());
+        const u8* bytes = static_cast<const u8*>(device->Map(readback));
         REQUIRE(bytes != nullptr);
         CHECK(bytes[0] == static_cast<u8>(frame * 17)); // this frame's write arrived
         CHECK(bytes[63] == static_cast<u8>(frame * 17));
-        readback->Unmap();
+        device->Unmap(readback);
         pool->DestroyEncoder(encoder);
     }
 
@@ -1031,18 +1031,18 @@ TEST_CASE("rhi.webgpu: persistent shadow flush skips byte-identical re-uploads")
     uboDesc.size = 64;
     uboDesc.usage = BufferUsage::Uniform | BufferUsage::CopySrc;
     uboDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ubo = nullptr;
+    BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
-    auto* webgpuUbo = static_cast<webgpu::WebGpuBuffer*>(ubo);
+    auto* webgpuUbo = static_cast<webgpu::WebGpuDevice*>(device)->BufferOf(ubo);
 
     BufferDesc readbackDesc;
     readbackDesc.size = 64;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
-    u8* persistent = static_cast<u8*>(ubo->Map()); // held open, never Unmapped
+    u8* persistent = static_cast<u8*>(device->Map(ubo)); // held open, never Unmapped
     REQUIRE(persistent != nullptr);
 
     CommandPool* pool = nullptr;
@@ -1075,21 +1075,21 @@ TEST_CASE("rhi.webgpu: persistent shadow flush skips byte-identical re-uploads")
     CHECK(webgpuUbo->UploadCount() == 1u); // three redundant re-uploads elided
 
     // ...and the GPU still holds frame 1's bytes despite those skipped flushes.
-    const u8* bytes = static_cast<const u8*>(readback->Map());
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 0x11);
     CHECK(bytes[63] == 0x11);
-    readback->Unmap();
+    device->Unmap(readback);
 
     // Frame 5: a real change uploads again and the new data lands.
     MemSet(persistent, 0x22, 64);
     submitCopy(5);
     CHECK(webgpuUbo->UploadCount() == 2u);
-    bytes = static_cast<const u8*>(readback->Map());
+    bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 0x22);
     CHECK(bytes[63] == 0x22);
-    readback->Unmap();
+    device->Unmap(readback);
 
     CHECK(!device->IsLost());
     device->DestroyFence(fence);
@@ -1116,15 +1116,15 @@ TEST_CASE("rhi.webgpu: FlushRange uploads only the written window; Unmap then ad
     ringDesc.size = 1024;
     ringDesc.usage = BufferUsage::Uniform | BufferUsage::CopySrc;
     ringDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ring = nullptr;
+    BufferHandle ring{};
     REQUIRE(device->CreateBuffer(ringDesc, ring).IsOk());
-    auto* webgpuRing = static_cast<webgpu::WebGpuBuffer*>(ring);
+    auto* webgpuRing = static_cast<webgpu::WebGpuDevice*>(device)->BufferOf(ring);
 
     BufferDesc readbackDesc;
     readbackDesc.size = 1024;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1145,53 +1145,53 @@ TEST_CASE("rhi.webgpu: FlushRange uploads only the written window; Unmap then ad
 
     // Frame 1: map, write the window, flush the window, unmap: one upload, and the Unmap after
     // a ranged flush must not add a whole-buffer one.
-    u8* mapped = static_cast<u8*>(ring->Map());
+    u8* mapped = static_cast<u8*>(device->Map(ring));
     REQUIRE(mapped != nullptr);
     MemSet(mapped + 512, 0x5A, 64);
-    ring->FlushRange(512, 64);
+    device->FlushRange(ring, 512, 64);
     CHECK(webgpuRing->UploadCount() == 1u);
-    ring->Unmap();
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 1u);
     submitCopy(1);
     CHECK(webgpuRing->UploadCount() == 1u); // and the submit hook re-sends nothing
     {
-        const u8* bytes = static_cast<const u8*>(readback->Map());
+        const u8* bytes = static_cast<const u8*>(device->Map(readback));
         REQUIRE(bytes != nullptr);
         CHECK(bytes[0] == 0x00);   // untouched bytes stay zero-initialized
         CHECK(bytes[511] == 0x00);
         CHECK(bytes[512] == 0x5A); // the window landed
         CHECK(bytes[575] == 0x5A);
         CHECK(bytes[576] == 0x00);
-        readback->Unmap();
+        device->Unmap(readback);
     }
 
     // Frame 2: the same bytes flushed again are a skipped upload (the ranged compare).
-    mapped = static_cast<u8*>(ring->Map());
-    ring->FlushRange(512, 64);
-    ring->Unmap();
+    mapped = static_cast<u8*>(device->Map(ring));
+    device->FlushRange(ring, 512, 64);
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 1u);
 
     // Frame 3: a different window uploads once more and lands beside the first.
-    mapped = static_cast<u8*>(ring->Map());
+    mapped = static_cast<u8*>(device->Map(ring));
     MemSet(mapped + 128, 0xA5, 32);
-    ring->FlushRange(128, 32);
-    ring->Unmap();
+    device->FlushRange(ring, 128, 32);
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 2u);
     submitCopy(2);
     {
-        const u8* bytes = static_cast<const u8*>(readback->Map());
+        const u8* bytes = static_cast<const u8*>(device->Map(readback));
         REQUIRE(bytes != nullptr);
         CHECK(bytes[128] == 0xA5);
         CHECK(bytes[159] == 0xA5);
         CHECK(bytes[160] == 0x00);
         CHECK(bytes[512] == 0x5A); // the earlier window survives a partial upload
-        readback->Unmap();
+        device->Unmap(readback);
     }
 
     // A plain Map/Unmap with no writes still costs at most the whole-shadow compare, never an
     // upload (the GPU holds these exact bytes).
-    (void)ring->Map();
-    ring->Unmap();
+    (void)device->Map(ring);
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 2u);
 
     CHECK(!device->IsLost());
@@ -1222,7 +1222,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     cubeDesc.height = 4;
     cubeDesc.arrayLayerCount = 6;
     cubeDesc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
-    Texture* cube = nullptr;
+    TextureHandle cube{};
     REQUIRE(device->CreateTexture(cubeDesc, cube).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1231,7 +1231,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     REQUIRE(pool->CreateEncoder(encoder).IsOk());
 
     // Clear each face to a distinct red level via its own 2D layer view.
-    TextureView* faceViews[6] = {};
+    TextureViewHandle faceViews[6] = {};
     for (u32 face = 0; face < 6; ++face)
     {
         TextureViewDesc faceDesc;
@@ -1253,9 +1253,9 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     cubeViewDesc.format = TextureFormat::RGBA8Unorm;
     cubeViewDesc.dimension = TextureViewDimension::TextureCube;
     cubeViewDesc.arrayLayerCount = 6;
-    TextureView* cubeView = nullptr;
+    TextureViewHandle cubeView{};
     REQUIRE(device->CreateTextureView(cube, cubeViewDesc, cubeView).IsOk());
-    Sampler* sampler = nullptr;
+    SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(SamplerDesc{}, sampler).IsOk());
 
     const BindGroupLayoutEntry layoutEntries[] = {
@@ -1265,7 +1265,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     };
     BindGroupLayoutDesc layoutDesc;
     layoutDesc.entries = Span<const BindGroupLayoutEntry>(layoutEntries, 2);
-    BindGroupLayout* layout = nullptr;
+    BindGroupLayoutHandle layout{};
     REQUIRE(device->CreateBindGroupLayout(layoutDesc, layout).IsOk());
     const BindGroupEntry groupEntries[] = {
         BindGroupEntry::TextureEntry(cubeView),
@@ -1274,7 +1274,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     BindGroupDesc groupDesc;
     groupDesc.layout = layout;
     groupDesc.entries = Span<const BindGroupEntry>(groupEntries, 2);
-    BindGroup* group = nullptr;
+    BindGroupHandle group{};
     REQUIRE(device->CreateBindGroup(groupDesc, group).IsOk());
 
     const char8_t* wgsl =
@@ -1292,13 +1292,13 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     ShaderModuleDesc moduleDesc;
     moduleDesc.code =
         Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     PipelineLayoutDesc pipelineLayoutDesc;
-    BindGroupLayout* layouts[] = {layout};
-    pipelineLayoutDesc.bindGroupLayouts = Span<BindGroupLayout* const>(layouts, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    BindGroupLayoutHandle layouts[] = {layout};
+    pipelineLayoutDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(layouts, 1);
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(pipelineLayoutDesc, pipelineLayout).IsOk());
     RenderPipelineDesc pipelineDesc;
     pipelineDesc.layout = pipelineLayout;
@@ -1310,16 +1310,16 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     fragment.shader = ProgrammableStage{shaderModule, u8"fragmentMain", ShaderStage::Fragment};
     fragment.targets = Span<const ColorTargetState>(&target, 1);
     pipelineDesc.fragment = fragment;
-    RenderPipeline* pipeline = nullptr;
+    RenderPipelineHandle pipeline{};
     REQUIRE(device->CreateRenderPipeline(pipelineDesc, pipeline).IsOk());
 
     TextureDesc outDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 1, 1);
     outDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* outTexture = nullptr;
+    TextureHandle outTexture{};
     REQUIRE(device->CreateTexture(outDesc, outTexture).IsOk());
     TextureViewDesc outViewDesc;
     outViewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* outView = nullptr;
+    TextureViewHandle outView{};
     REQUIRE(device->CreateTextureView(outTexture, outViewDesc, outView).IsOk());
 
     RenderPassDesc samplePass;
@@ -1336,7 +1336,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     readbackDesc.size = 256;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
     BufferTextureCopyRegion region;
     region.bytesPerRow = 256;
@@ -1351,11 +1351,11 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixel = static_cast<const u8*>(readback->Map());
+    const u8* pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     // +X is face 0: red = 1/8 = 32.
     CHECK(pixel[0] == 32);
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1398,28 +1398,28 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     // panic in submit), on both d3d12 and vulkan. A real prepass-depth reader declares Sampled
     // anyway.
     depthDesc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled;
-    Texture* depthTexture = nullptr;
+    TextureHandle depthTexture{};
     REQUIRE(device->CreateTexture(depthDesc, depthTexture).IsOk());
     TextureViewDesc depthViewDesc;
     depthViewDesc.format = TextureFormat::Depth32Float;
-    TextureView* depthView = nullptr;
+    TextureViewHandle depthView{};
     REQUIRE(device->CreateTextureView(depthTexture, depthViewDesc, depthView).IsOk());
 
     TextureDesc colorDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
     colorDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* colorTexture = nullptr;
+    TextureHandle colorTexture{};
     REQUIRE(device->CreateTexture(colorDesc, colorTexture).IsOk());
     TextureViewDesc colorViewDesc;
     colorViewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* colorView = nullptr;
+    TextureViewHandle colorView{};
     REQUIRE(device->CreateTextureView(colorTexture, colorViewDesc, colorView).IsOk());
     TextureDesc velocityDesc = TextureDesc::RenderTarget(TextureFormat::RG16Float, 4, 4);
-    Texture* velocityTexture = nullptr;
+    TextureHandle velocityTexture{};
     REQUIRE(device->CreateTexture(velocityDesc, velocityTexture).IsOk());
     TextureViewDesc velocityViewDesc;
     velocityViewDesc.format = TextureFormat::RG16Float;
     velocityViewDesc.dimension = TextureViewDimension::Texture2D;
-    TextureView* velocityView = nullptr;
+    TextureViewHandle velocityView{};
     REQUIRE(device->CreateTextureView(velocityTexture, velocityViewDesc, velocityView).IsOk());
 
     const char8_t* wgsl =
@@ -1441,10 +1441,10 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     ShaderModuleDesc moduleDesc;
     moduleDesc.code =
         Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
     PipelineLayoutDesc emptyLayout;
-    PipelineLayout* pipelineLayout = nullptr;
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(emptyLayout, pipelineLayout).IsOk());
 
     RenderPipelineDesc pipelineDesc;
@@ -1464,7 +1464,7 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     depthState.depthWriteEnabled = false;
     depthState.depthCompare = foundation::rhi::depth::NearerOrEqual(); // at the far plane: only a cleared pixel
     pipelineDesc.depthStencil = depthState;
-    RenderPipeline* pipeline = nullptr;
+    RenderPipelineHandle pipeline{};
     REQUIRE(device->CreateRenderPipeline(pipelineDesc, pipeline).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1511,7 +1511,7 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     readbackDesc.size = 4 * 256;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
     BufferTextureCopyRegion region;
     region.bytesPerRow = 256;
@@ -1526,10 +1526,10 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixel = static_cast<const u8*>(readback->Map());
+    const u8* pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     CHECK(pixel[2] == 255); // the sky-blue fragment survived the far-plane depth test
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1574,11 +1574,11 @@ TEST_CASE("rhi.webgpu: a bundle that may write depth, run in a pass that holds d
     REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
     TextureDesc depthDesc = TextureDesc::DepthBuffer(TextureFormat::Depth32Float, 4, 4);
     depthDesc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled; // read-only needs Sampled
-    Texture* depthTexture = nullptr;
+    TextureHandle depthTexture{};
     REQUIRE(device->CreateTexture(depthDesc, depthTexture).IsOk());
     TextureViewDesc depthViewDesc;
     depthViewDesc.format = TextureFormat::Depth32Float;
-    TextureView* depthView = nullptr;
+    TextureViewHandle depthView{};
     REQUIRE(device->CreateTextureView(depthTexture, depthViewDesc, depthView).IsOk());
     CommandPool* pool = nullptr;
     REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -1658,7 +1658,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
         u8"}\n";
     ShaderModuleDesc moduleDesc;
     moduleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     // Group 0: the read-write storage output.
@@ -1667,21 +1667,21 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     };
     BindGroupLayoutDesc bglDesc;
     bglDesc.entries = Span<const BindGroupLayoutEntry>(layoutEntries, 1);
-    BindGroupLayout* bgl = nullptr;
+    BindGroupLayoutHandle bgl{};
     REQUIRE(device->CreateBindGroupLayout(bglDesc, bgl).IsOk());
 
     BufferDesc storageDesc;
     storageDesc.size = 16;
     storageDesc.usage = BufferUsage::Storage | BufferUsage::CopySrc;
     storageDesc.memory = MemoryLocation::GpuOnly;
-    Buffer* storage = nullptr;
+    BufferHandle storage{};
     REQUIRE(device->CreateBuffer(storageDesc, storage).IsOk());
 
     const BindGroupEntry groupEntries[] = {BindGroupEntry::BufferEntry(storage, 0, 16)};
     BindGroupDesc groupDesc;
     groupDesc.layout = bgl;
     groupDesc.entries = Span<const BindGroupEntry>(groupEntries, 1);
-    BindGroup* bindGroup = nullptr;
+    BindGroupHandle bindGroup{};
     REQUIRE(device->CreateBindGroup(groupDesc, bindGroup).IsOk());
 
     // Pipeline layout declares a push-constant range targeting @group(1): the layout must
@@ -1692,16 +1692,16 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     pushRange.size = 16;
     pushRange.bindGroupIndex = 1;
     PipelineLayoutDesc plDesc;
-    BindGroupLayout* layouts[] = {bgl};
-    plDesc.bindGroupLayouts = Span<BindGroupLayout* const>(layouts, 1);
+    BindGroupLayoutHandle layouts[] = {bgl};
+    plDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(layouts, 1);
     plDesc.pushConstantRanges = Span<const PushConstantRange>(&pushRange, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(plDesc, pipelineLayout).IsOk());
 
     ComputePipelineDesc cpDesc;
     cpDesc.layout = pipelineLayout;
     cpDesc.compute = ProgrammableStage{shaderModule, u8"computeMain", ShaderStage::Compute};
-    ComputePipeline* pipeline = nullptr;
+    ComputePipelineHandle pipeline{};
     REQUIRE(device->CreateComputePipeline(cpDesc, pipeline).IsOk());
 
     // Readback buffer for the storage output.
@@ -1709,7 +1709,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     readbackDesc.size = 16;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1736,13 +1736,13 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
         ->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u32* result = static_cast<const u32*>(readback->Map());
+    const u32* result = static_cast<const u32*>(device->Map(readback));
     REQUIRE(result != nullptr);
     CHECK(result[0] == pushValues[0]); // the push-constant data reached the shader...
     CHECK(result[1] == pushValues[1]); // ...through the emulated uniform bind group
     CHECK(result[2] == pushValues[2]);
     CHECK(result[3] == pushValues[3]);
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1784,7 +1784,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
         u8"@fragment fn fragmentMain() -> @location(0) vec4f { return pc.color; }\n";
     ShaderModuleDesc moduleDesc;
     moduleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     PushConstantRange pushRange;
@@ -1794,7 +1794,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     pushRange.bindGroupIndex = 0; // no bind groups, so the push block lives at group 0
     PipelineLayoutDesc plDesc;
     plDesc.pushConstantRanges = Span<const PushConstantRange>(&pushRange, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(plDesc, pipelineLayout).IsOk());
 
     ColorTargetState target;
@@ -1807,7 +1807,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     rpDesc.vertex.shader = ProgrammableStage{shaderModule, u8"vertexMain", ShaderStage::Vertex};
     rpDesc.fragment = frag;
     rpDesc.primitive.topology = PrimitiveTopology::TriangleList;
-    RenderPipeline* pipeline = nullptr;
+    RenderPipelineHandle pipeline{};
     REQUIRE(device->CreateRenderPipeline(rpDesc, pipeline).IsOk());
 
     TextureDesc texDesc;
@@ -1815,18 +1815,18 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     texDesc.width = 2;
     texDesc.height = 1;
     texDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* tex = nullptr;
+    TextureHandle tex{};
     REQUIRE(device->CreateTexture(texDesc, tex).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(tex, viewDesc, view).IsOk());
 
     BufferDesc readbackDesc;
     readbackDesc.size = 256; // bytesPerRow-aligned single row
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1867,13 +1867,13 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
         ->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixels = static_cast<const u8*>(readback->Map());
+    const u8* pixels = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixels != nullptr);
     CHECK(pixels[0] == 255); // left = red (first draw's push data survived the second Set)
     CHECK(pixels[1] == 0);
     CHECK(pixels[4] == 0); // right = green
     CHECK(pixels[5] == 255);
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1938,11 +1938,11 @@ TEST_CASE("rhi.webgpu: a scissor reaching outside the render area is clipped to 
     Device* device = nullptr;
     REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
     TextureDesc targetDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 48);
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device->CreateTexture(targetDesc, target).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(target, viewDesc, view).IsOk());
     CommandPool* pool = nullptr;
     REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -1979,6 +1979,88 @@ TEST_CASE("rhi.webgpu: a scissor reaching outside the render area is clipped to 
     device->DestroyCommandPool(pool);
     device->DestroyTextureView(view);
     device->DestroyTexture(target);
+    device->Destroy();
+    backend->Destroy();
+}
+
+// The backend frees a destroyed texture at once, releasing its reference: what recorded work uses
+// holds one of its own. A texture destroyed after a copy out of it was recorded, and before that
+// copy is submitted, is still copied whole, with no WebGPU error (the browser's twin of this is the
+// WebLifetimeCheck sample).
+TEST_CASE("rhi.webgpu: a texture destroyed after a copy out of it was recorded is still copied")
+{
+    Backend* backend = TryCreateBackend();
+    if (backend == nullptr)
+    {
+        return;
+    }
+    u32 errors = 0;
+    SetLogSink(&CountWebGpuErrors, &errors);
+    Device* device = nullptr;
+    REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+    Queue* queue = device->GetQueue(QueueType::Graphics);
+    TransferBatch* batch = nullptr;
+    REQUIRE(queue->CreateTransferBatch(batch).IsOk());
+
+    TextureDesc texDesc;
+    texDesc.format = TextureFormat::RGBA8Unorm;
+    texDesc.width = 4;
+    texDesc.height = 4;
+    texDesc.usage = TextureUsage::CopyDst | TextureUsage::CopySrc;
+    texDesc.label = u8"webgpu.lifetime.texture";
+    TextureHandle texture{};
+    REQUIRE(device->CreateTexture(texDesc, texture).IsOk());
+    u8 texels[4 * 4 * 4];
+    for (u32 i = 0; i < sizeof(texels); ++i)
+    {
+        texels[i] = static_cast<u8>(i * 5);
+    }
+    TextureDataLayout layout;
+    layout.bytesPerRow = 16;
+    layout.rowsPerImage = 4;
+    batch->WriteTexture(texture, Span<const u8>(texels, sizeof(texels)), layout, Extent3D{4, 4, 1});
+    REQUIRE(batch->Submit().IsOk());
+
+    BufferDesc readDesc;
+    readDesc.size = 4 * 256;
+    readDesc.usage = BufferUsage::CopyDst;
+    readDesc.memory = MemoryLocation::GpuToCpu;
+    BufferHandle readback{};
+    REQUIRE(device->CreateBuffer(readDesc, readback).IsOk());
+
+    CommandPool* pool = nullptr;
+    REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
+    CommandEncoder* encoder = nullptr;
+    REQUIRE(pool->CreateEncoder(encoder).IsOk());
+    BufferTextureCopyRegion region;
+    region.bytesPerRow = 256;
+    region.rowsPerImage = 4;
+    region.textureExtent = Extent3D{4, 4, 1};
+    encoder->CopyTextureToBuffer(texture, readback, region);
+    device->DestroyTexture(texture); // before the copy is even finished recording
+    CHECK(device->Describe(texture) == nullptr);
+    CommandBuffer* commandBuffer = encoder->Finish();
+    Fence* fence = nullptr;
+    REQUIRE(device->CreateFence(0, fence).IsOk());
+    CommandBuffer* commandBuffers[] = {commandBuffer};
+    queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
+    REQUIRE(fence->Wait(1, ~0ull));
+
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
+    REQUIRE(bytes != nullptr);
+    CHECK(bytes[0] == 0);
+    CHECK(bytes[15] == static_cast<u8>(15 * 5));
+    CHECK(bytes[256 + 0] == static_cast<u8>(16 * 5)); // row 1 starts at bytesPerRow
+    device->Unmap(readback);
+    device->WaitIdle(); // the error callbacks arrive through the event pump
+    CHECK(errors == 0);
+    CHECK(!device->IsLost());
+    SetLogSink(nullptr, nullptr);
+
+    queue->DestroyTransferBatch(batch);
+    device->DestroyFence(fence);
+    device->DestroyCommandPool(pool);
+    device->DestroyBuffer(readback);
     device->Destroy();
     backend->Destroy();
 }

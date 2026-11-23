@@ -20,6 +20,7 @@ import :bind_group_layout;
 import :buffer;
 import :texture_view;
 import :sampler;
+import :tables;
 
 using namespace foundation::core;
 
@@ -28,10 +29,12 @@ export namespace foundation::rhi::webgpu
     class WebGpuBindGroup final : public BindGroup
     {
     public:
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         Status Initialize(const WebGpuApi& api, WGPUDevice device, const BindGroupDesc& groupDesc)
         {
             m_api = &api;
-            m_layout = static_cast<WebGpuBindGroupLayout*>(groupDesc.layout);
+            m_layout = LookUp(tables, groupDesc.layout);
             if (m_layout == nullptr)
             {
                 return ErrorCode::InvalidArgument;
@@ -50,21 +53,28 @@ export namespace foundation::rhi::webgpu
 
                 WGPUBindGroupEntry wgpuEntry = WGPU_BIND_GROUP_ENTRY_INIT;
                 wgpuEntry.binding = ShiftedBinding(layoutEntry.type, layoutEntry.binding);
-                if (entry.buffer != nullptr)
+                if (entry.buffer.IsValid())
                 {
-                    wgpuEntry.buffer = static_cast<WebGpuBuffer*>(entry.buffer)->Handle();
+                    wgpuEntry.buffer = WgpuOf(tables, entry.buffer);
                     wgpuEntry.offset = entry.bufferOffset;
                     wgpuEntry.size =
                         entry.bufferSize != 0 ? entry.bufferSize : WGPU_WHOLE_SIZE;
                 }
-                else if (entry.textureView != nullptr)
+                else if (entry.textureView.IsValid())
                 {
-                    wgpuEntry.textureView =
-                        static_cast<WebGpuTextureView*>(entry.textureView)->Handle();
+                    wgpuEntry.textureView = WgpuOf(tables, entry.textureView);
+                    if (wgpuEntry.textureView == nullptr)
+                    {
+                        return ErrorCode::InvalidArgument; // a stale view
+                    }
                 }
-                else if (entry.sampler != nullptr)
+                else if (entry.sampler.IsValid())
                 {
-                    wgpuEntry.sampler = static_cast<WebGpuSampler*>(entry.sampler)->Handle();
+                    wgpuEntry.sampler = WgpuOf(tables, entry.sampler);
+                    if (wgpuEntry.sampler == nullptr)
+                    {
+                        return ErrorCode::InvalidArgument; // a stale sampler
+                    }
                 }
                 else
                 {

@@ -14,7 +14,9 @@ import foundation.core;
 import foundation.rhi;
 import :adapter;
 import :command_buffer;
+import :buffer;
 import :query_set; // kPipelineStatisticsFlags (a bundle inherits them)
+import :tables;
 
 using namespace foundation::core;
 
@@ -62,6 +64,7 @@ export namespace foundation::rhi::vk
 
         void cleanup()
         {
+            DiscardRecordings();
             for (auto* cb : m_trackedBuffers)
                 m_allocator->Delete(cb);
             m_trackedBuffers.Clear();
@@ -116,6 +119,31 @@ export namespace foundation::rhi::vk
 
         // Stored so the encoder can access it.
         VkDeviceImpl* ownerDevice = nullptr;
+        /// The device's tables (its encoders look their handles up in them) and the tracker its
+        /// recordings are counted by.
+        const VkTables* tables = nullptr;
+        SubmissionTracker* tracker = nullptr;
+
+        /// A recording this pool began (an encoder's, its bundles'); ended at its submit, or by the
+        /// pool's next Reset or its end if it is never submitted.
+        [[nodiscard]] SubmissionTracker::Recording beginRecording()
+        {
+            if (tracker == nullptr)
+                return 0;
+            const SubmissionTracker::Recording recording = tracker->Begin();
+            m_recordings.PushBack(recording);
+            return recording;
+        }
+        /// Ends every recording this pool began and nothing submitted (a submitted one is ended
+        /// already, and ending it again does nothing).
+        void DiscardRecordings()
+        {
+            if (tracker != nullptr)
+                for (SubmissionTracker::Recording recording : m_recordings)
+                    tracker->End(recording);
+            m_recordings.Clear();
+            m_bundleRecording = 0;
+        }
         // The device's counts its encoders bump (Device::Counters).
         DeviceCounterBlock* counters = nullptr;
 
@@ -124,6 +152,9 @@ export namespace foundation::rhi::vk
         [[nodiscard]] QueueType queueType() const noexcept { return m_queueType; }
 
     private:
+        friend class VkCommandEncoderImpl;
+        Array<SubmissionTracker::Recording> m_recordings;
+        SubmissionTracker::Recording m_bundleRecording = 0; // the pool's bundles', until Reset
         VkDevice m_device = VK_NULL_HANDLE;
         VkCommandPool m_pool = VK_NULL_HANDLE;
         IAllocator* m_allocator = nullptr;

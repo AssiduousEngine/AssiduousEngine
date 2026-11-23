@@ -36,7 +36,7 @@ export namespace foundation::rhi::validation
 
         // ---- RenderPassEncoder ----
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
             if (m_ended)
             {
@@ -53,7 +53,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPipeline(pipeline);
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
             if (m_ended)
             {
@@ -94,7 +94,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPushConstants(stages, offset, size, data);
         }
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
             if (m_ended)
             {
@@ -109,7 +109,7 @@ export namespace foundation::rhi::validation
             m_inner->SetVertexBuffer(slot, buffer, offset);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
             if (m_ended)
             {
@@ -179,7 +179,7 @@ export namespace foundation::rhi::validation
             m_inner->DrawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
         }
 
-        void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (!checkDrawReady("drawIndirect"))
                 return;
@@ -191,7 +191,7 @@ export namespace foundation::rhi::validation
             m_inner->DrawIndirect(buffer, offset, drawCount, stride);
         }
 
-        void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (!checkDrawReady("drawIndexedIndirect"))
                 return;
@@ -232,7 +232,7 @@ export namespace foundation::rhi::validation
             m_inner->ExecuteBundles(Span<RenderBundle* const>{inner.Data(), inner.Size()});
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;
@@ -244,7 +244,7 @@ export namespace foundation::rhi::validation
             m_inner->WriteTimestamp(qs, index);
         }
 
-        void BeginOcclusionQuery(QuerySet* qs, u32 index) override
+        void BeginOcclusionQuery(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;
@@ -256,7 +256,7 @@ export namespace foundation::rhi::validation
             m_inner->BeginOcclusionQuery(qs, index);
         }
 
-        void EndOcclusionQuery(QuerySet* qs, u32 index) override
+        void EndOcclusionQuery(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;
@@ -267,7 +267,7 @@ export namespace foundation::rhi::validation
 
         // ---- MeshShaderPassExt ----
 
-        void SetMeshPipeline(MeshPipeline* pipeline) override
+        void SetMeshPipeline(MeshPipelineHandle pipeline) override
         {
             if (m_ended)
             {
@@ -298,7 +298,7 @@ export namespace foundation::rhi::validation
                 mp->DrawMeshTasks(gx, gy, gz);
         }
 
-        void DrawMeshTasksIndirect(Buffer* buf, u64 offset, u32 drawCount, u32 stride) override
+        void DrawMeshTasksIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
             if (!checkDrawReady("drawMeshTasksIndirect"))
                 return;
@@ -312,7 +312,7 @@ export namespace foundation::rhi::validation
                 mp->DrawMeshTasksIndirect(buf, offset, drawCount, stride);
         }
 
-        void DrawMeshTasksIndirectCount(Buffer* buf, u64 offset, Buffer* countBuf, u64 countOffset,
+        void DrawMeshTasksIndirectCount(BufferHandle buf, u64 offset, BufferHandle countBuf, u64 countOffset,
                                         u32 maxDrawCount, u32 stride) override
         {
             if (!checkDrawReady("drawMeshTasksIndirectCount"))

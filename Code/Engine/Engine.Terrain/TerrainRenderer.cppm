@@ -234,33 +234,33 @@ export namespace engine::terrain
 
             // Two pipeline layouts: the color pass binds set 3 (material); the depth pass does not (so
             // WebGPU's "every declared set must be bound" rule is satisfied without a spurious bind).
-            rhi::BindGroupLayout* colorLayouts[] = {m_viewLayout, m_chunkLayout, m_heightLayout,
+            rhi::BindGroupLayoutHandle colorLayouts[] = {m_viewLayout, m_chunkLayout, m_heightLayout,
                                                     m_materialLayout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{colorLayouts, 4};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{colorLayouts, 4};
             if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            rhi::BindGroupLayout* depthLayouts[] = {m_viewLayout, m_chunkLayout, m_heightLayout};
+            rhi::BindGroupLayoutHandle depthLayouts[] = {m_viewLayout, m_chunkLayout, m_heightLayout};
             rhi::PipelineLayoutDesc dpld{};
-            dpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{depthLayouts, 3};
+            dpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{depthLayouts, 3};
             if (!m_device->CreatePipelineLayout(dpld, m_depthPipelineLayout).IsOk())
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
             // The HOLES twins: set 2 is the height, the hole mask and a sampler.
-            rhi::BindGroupLayout* holeColorLayouts[] = {m_viewLayout, m_chunkLayout, m_heightHoleLayout,
+            rhi::BindGroupLayoutHandle holeColorLayouts[] = {m_viewLayout, m_chunkLayout, m_heightHoleLayout,
                                                         m_materialLayout};
             rhi::PipelineLayoutDesc hpld{};
-            hpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{holeColorLayouts, 4};
+            hpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{holeColorLayouts, 4};
             if (!m_device->CreatePipelineLayout(hpld, m_holePipelineLayout).IsOk())
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            rhi::BindGroupLayout* holeDepthLayouts[] = {m_viewLayout, m_chunkLayout, m_heightHoleLayout};
+            rhi::BindGroupLayoutHandle holeDepthLayouts[] = {m_viewLayout, m_chunkLayout, m_heightHoleLayout};
             rhi::PipelineLayoutDesc hdpld{};
-            hdpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{holeDepthLayouts, 3};
+            hdpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{holeDepthLayouts, 3};
             if (!m_device->CreatePipelineLayout(hdpld, m_holeDepthPipelineLayout).IsOk())
             {
                 return core::Status{core::ErrorCode::Unknown};
@@ -280,10 +280,10 @@ export namespace engine::terrain
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* p = m_gridVertexBuffer->Map())
+            if (void* p = m_device->Map(m_gridVertexBuffer))
             {
                 MemCopy(p, verts.Data(), verts.Size() * sizeof(Float3));
-                m_gridVertexBuffer->Unmap();
+                m_device->Unmap(m_gridVertexBuffer);
             }
 
             // One index buffer per LOD (stride 2^lod over the shared grid).
@@ -307,10 +307,10 @@ export namespace engine::terrain
                 {
                     return core::Status{core::ErrorCode::Unknown};
                 }
-                if (void* p = lm.indexBuffer->Map())
+                if (void* p = m_device->Map(lm.indexBuffer))
                 {
                     MemCopy(p, indices.Data(), indices.Size() * sizeof(u32));
-                    lm.indexBuffer->Unmap();
+                    m_device->Unmap(lm.indexBuffer);
                 }
             }
 
@@ -459,8 +459,8 @@ export namespace engine::terrain
             {
                 StringView label;
                 bool array;
-                rhi::Texture** tex;
-                rhi::TextureView** view;
+                rhi::TextureHandle* tex;
+                rhi::TextureViewHandle* view;
             };
             const DummyDesc dummies[] = {
                 {u8"terrain.flatNormal", false, &m_flatNormalTex, &m_flatNormalView},
@@ -503,11 +503,11 @@ export namespace engine::terrain
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* mapped = m_dummyTileBuffer->Map())
+            if (void* mapped = m_device->Map(m_dummyTileBuffer))
             {
                 const f32 one = 1.0f;
                 MemCopy(mapped, &one, sizeof(one));
-                m_dummyTileBuffer->Unmap();
+                m_device->Unmap(m_dummyTileBuffer);
             }
 
             if (rhi::Queue* q = m_device->GetQueue(rhi::QueueType::Graphics))
@@ -586,14 +586,14 @@ export namespace engine::terrain
                 return;
             }
             m_depthFormat = ctx.depthFormat;
-            rhi::RenderPipeline* pso = EnsurePipeline(ctx.colorFormat, ctx.sampleCount);
-            if (pso == nullptr)
+            rhi::RenderPipelineHandle pso = EnsurePipeline(ctx.colorFormat, ctx.sampleCount);
+            if (!pso.IsValid())
             {
                 return;
             }
-            rhi::BindGroup* viewBg = EnsureViewBindGroup();
-            rhi::BindGroup* chunkBg = EnsureChunkBindGroup();
-            if (viewBg == nullptr || chunkBg == nullptr)
+            rhi::BindGroupHandle viewBg = EnsureViewBindGroup();
+            rhi::BindGroupHandle chunkBg = EnsureChunkBindGroup();
+            if (!viewBg.IsValid() || !chunkBg.IsValid())
             {
                 return;
             }
@@ -627,7 +627,7 @@ export namespace engine::terrain
                 }
                 const auto* data = static_cast<const TerrainRenderData*>(items[it].data);
                 if (data == nullptr || data->chunks == nullptr || data->nodes == nullptr ||
-                    data->heightView == nullptr || data->chunkCount == 0)
+                    !data->heightView.IsValid() || data->chunkCount == 0)
                 {
                     continue;
                 }
@@ -676,21 +676,21 @@ export namespace engine::terrain
                     ubo.shadowStrength = ctx.cascades.strength;
                     ubo.shadowFarFade = ctx.cascades.farFade;
                 }
-                const bool hasWeights = data->weightView != nullptr && data->indexView != nullptr &&
-                                        data->paletteArrayView != nullptr && data->paletteCount > 0;
+                const bool hasWeights = data->weightView.IsValid() && data->indexView.IsValid() &&
+                                        data->paletteArrayView.IsValid() && data->paletteCount > 0;
                 ubo.paletteCount = static_cast<f32>(data->paletteCount);
                 ubo.weightsBound = hasWeights ? 1u : 0u;
                 ubo.baseTileScale = data->baseTileScale;
-                ubo.baseBound = data->baseAlbedoView != nullptr ? 1u : 0u;
+                ubo.baseBound = data->baseAlbedoView.IsValid() ? 1u : 0u;
                 // Height blend: on when any base or palette height map is present, with the
                 // soft-skirt contrast. Off, the PS keeps the linear weighting, byte-identical.
                 const bool heightBound =
-                    data->baseHeightView != nullptr || data->heightArrayView != nullptr;
+                    data->baseHeightView.IsValid() || data->heightArrayView.IsValid();
                 ubo.heightBlendContrast = data->heightBlendContrast;
                 ubo.heightMapsBound = heightBound ? 1u : 0u;
                 // Coverage mask: on when a palette mask array is present. Off, the PS skips the
                 // coverage multiply, byte-identical.
-                const bool maskBound = data->maskArrayView != nullptr;
+                const bool maskBound = data->maskArrayView.IsValid();
                 ubo.maskMapsBound = maskBound ? 1u : 0u;
                 MemCopy(vr.ptr, &ubo, sizeof(ubo));
 
@@ -719,16 +719,16 @@ export namespace engine::terrain
                     }
                 }
 
-                rhi::BindGroup* heightBg = EnsureHeightBindGroup(data->heightView);
-                rhi::BindGroup* materialBg = EnsureMaterialBindGroup(*data);
+                rhi::BindGroupHandle heightBg = EnsureHeightBindGroup(data->heightView);
+                rhi::BindGroupHandle materialBg = EnsureMaterialBindGroup(*data);
                 // A terrain with holes: the HOLES twin and the mask bind group for its holed chunks.
-                rhi::RenderPipeline* holePso =
-                    data->holeView != nullptr ? EnsurePipeline(ctx.colorFormat, ctx.sampleCount, /*holes*/ true)
-                                              : nullptr;
-                rhi::BindGroup* holeBg = data->holeView != nullptr
+                rhi::RenderPipelineHandle holePso =
+                    data->holeView.IsValid() ? EnsurePipeline(ctx.colorFormat, ctx.sampleCount, /*holes*/ true)
+                                              : rhi::RenderPipelineHandle{};
+                rhi::BindGroupHandle holeBg = data->holeView.IsValid()
                                              ? EnsureHeightHoleBindGroup(data->heightView, data->holeView)
-                                             : nullptr;
-                if (heightBg == nullptr || materialBg == nullptr)
+                                             : rhi::BindGroupHandle{};
+                if (!heightBg.IsValid() || !materialBg.IsValid())
                 {
                     continue;
                 }
@@ -744,7 +744,7 @@ export namespace engine::terrain
                     {
                         continue;
                     }
-                    if (lm.indexBuffer == nullptr || lm.indexCount == 0)
+                    if (!lm.indexBuffer.IsValid() || lm.indexCount == 0)
                     {
                         continue;
                     }
@@ -760,7 +760,7 @@ export namespace engine::terrain
                     GpuTerrainChunk cb = MakeChunkUBO(*data, c);
                     MemCopy(cr.ptr, &cb, sizeof(cb));
 
-                    const bool holed = c.hasHoles && holePso != nullptr && holeBg != nullptr;
+                    const bool holed = c.hasHoles && holePso.IsValid() && holeBg.IsValid();
                     render::ResolvedDraw draw{};
                     draw.pso = holed ? holePso : pso;
                     draw.viewSet = viewBg;
@@ -810,15 +810,15 @@ export namespace engine::terrain
                 return;
             }
             m_depthFormat = ctx.depthFormat;
-            rhi::RenderPipeline* pso =
+            rhi::RenderPipelineHandle pso =
                 pick ? EnsurePickPipeline(ctx.colorFormat, ctx.depthFormat)
                      : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass, ctx.clampShadowCasters,
                                            DepthSamples(ctx));
             // The depth-pass group binds the dummy shadow view, not the live cascade being written:
             // a cascade-cast pass would otherwise sample its own render attachment (a WebGPU hazard).
-            rhi::BindGroup* viewBg = EnsureDepthViewBindGroup();
-            rhi::BindGroup* chunkBg = EnsureChunkBindGroup();
-            if (pso == nullptr || viewBg == nullptr || chunkBg == nullptr)
+            rhi::BindGroupHandle viewBg = EnsureDepthViewBindGroup();
+            rhi::BindGroupHandle chunkBg = EnsureChunkBindGroup();
+            if (!pso.IsValid() || !viewBg.IsValid() || !chunkBg.IsValid())
             {
                 return;
             }
@@ -836,7 +836,7 @@ export namespace engine::terrain
                 }
                 const auto* data = static_cast<const TerrainRenderData*>(items[it].data);
                 if (data == nullptr || data->chunks == nullptr || data->nodes == nullptr ||
-                    data->heightView == nullptr || data->chunkCount == 0)
+                    !data->heightView.IsValid() || data->chunkCount == 0)
                 {
                     continue;
                 }
@@ -889,10 +889,10 @@ export namespace engine::terrain
                         m_draws[d].lod = tmodel::kMaxChunkLod;
                     }
                 }
-                rhi::BindGroup* heightBg = EnsureHeightBindGroup(data->heightView);
-                rhi::RenderPipeline* holePso = nullptr;
-                rhi::BindGroup* holeBg = nullptr;
-                if (data->holeView != nullptr)
+                rhi::BindGroupHandle heightBg = EnsureHeightBindGroup(data->heightView);
+                rhi::RenderPipelineHandle holePso{};
+                rhi::BindGroupHandle holeBg{};
+                if (data->holeView.IsValid())
                 {
                     holePso = pick ? EnsurePickPipeline(ctx.colorFormat, ctx.depthFormat, /*holes*/ true)
                                    : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass,
@@ -900,7 +900,7 @@ export namespace engine::terrain
                                                          /*holes*/ true);
                     holeBg = EnsureHeightHoleBindGroup(data->heightView, data->holeView);
                 }
-                if (heightBg == nullptr)
+                if (!heightBg.IsValid())
                 {
                     continue;
                 }
@@ -915,7 +915,7 @@ export namespace engine::terrain
                     {
                         continue;
                     }
-                    if (lm.indexBuffer == nullptr || lm.surfaceIndexCount == 0)
+                    if (!lm.indexBuffer.IsValid() || lm.surfaceIndexCount == 0)
                     {
                         continue;
                     }
@@ -929,7 +929,7 @@ export namespace engine::terrain
                     GpuTerrainChunk cb = MakeChunkUBO(*data, c);
                     MemCopy(cr.ptr, &cb, sizeof(cb));
 
-                    const bool holed = c.hasHoles && holePso != nullptr && holeBg != nullptr;
+                    const bool holed = c.hasHoles && holePso.IsValid() && holeBg.IsValid();
                     render::ResolvedDraw draw{};
                     draw.pso = holed ? holePso : pso;
                     draw.viewSet = viewBg;
@@ -958,19 +958,12 @@ export namespace engine::terrain
             m_chunkRing.EndFrame();
         }
 
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept
-        {
-            m_retire = retire; // stale height bind groups retire through it too (in-flight safety)
-            m_viewRing.SetRetireQueue(retire);
-            m_chunkRing.SetRetireQueue(retire);
-        }
-
         // The frame's CSM cascade array (null = no caster this frame: the dummy map, sampled as fully lit).
         // RenderFrame hands it to every registered renderer each frame, before PrepareFrame.
-        void SetShadowMap(rhi::TextureView* view, u64 generation) override
+        void SetShadowMap(rhi::TextureViewHandle view, u64 generation) override
         {
-            m_activeShadowView = (view != nullptr) ? view : m_dummyShadowView;
-            m_activeShadowGen = (view != nullptr) ? generation : 0;
+            m_activeShadowView = (view.IsValid()) ? view : m_dummyShadowView;
+            m_activeShadowGen = (view.IsValid()) ? generation : 0;
         }
         // Terrain samples only the directional CSM, not the local (spot/point) atlas, so the base
         // SetShadowAtlas no-op stays.
@@ -982,7 +975,7 @@ export namespace engine::terrain
         // only for that transition, as MeshRenderer::UploadSkinning does.
         void UploadSkinning(Span<const render::ExtractedScene* const>, rhi::CommandEncoder& encoder) override
         {
-            if (!m_dummyDepthInit && m_dummyShadowTex != nullptr)
+            if (!m_dummyDepthInit && m_dummyShadowTex.IsValid())
             {
                 encoder.TransitionTexture(m_dummyShadowTex, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::DepthStencilRead);
@@ -1023,7 +1016,7 @@ export namespace engine::terrain
 
         struct LodMesh
         {
-            rhi::Buffer* indexBuffer = nullptr;
+            rhi::BufferHandle indexBuffer{};
             u32 indexCount = 0;        // surface and skirt walls
             u32 surfaceIndexCount = 0; // the surface prefix (skirtless draw range)
         };
@@ -1053,22 +1046,21 @@ export namespace engine::terrain
                 lm.indexBuffer = hm.indexBuffers[lod];
                 lm.indexCount = hm.indexCounts[lod];
                 lm.surfaceIndexCount = hm.surfaceIndexCounts[lod];
-                return lm.indexBuffer != nullptr && lm.indexCount != 0;
+                return lm.indexBuffer.IsValid() && lm.indexCount != 0;
             }
             return false; // a holed chunk without its buffers (a failed upload) draws nothing
         }
 
-
         struct DepthPso
         {
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             u32 samples = 1;
             u64 shaderVersion = 0;
         };
         struct ColorPso
         {
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             u32 samples = 1;
             u64 shaderVersion = 0;
@@ -1076,7 +1068,7 @@ export namespace engine::terrain
 
         struct PickPso
         {
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             rhi::TextureFormat colorFormat = rhi::TextureFormat::Undefined;
             rhi::TextureFormat depthFormat = rhi::TextureFormat::Undefined;
             u64 shaderVersion = 0;
@@ -1103,7 +1095,7 @@ export namespace engine::terrain
 
         // The forward/resolve pass view bind group: t1 = the live CSM cascade array (or the dummy
         // when there is no caster this frame), which the terrain PS samples for shadow receive.
-        rhi::BindGroup* EnsureViewBindGroup()
+        rhi::BindGroupHandle EnsureViewBindGroup()
         {
             return BuildViewBindGroup(m_activeShadowView, m_activeShadowGen, m_viewBg, m_viewBgGen,
                                       m_viewBgShadow, m_viewBgShadowGen);
@@ -1114,33 +1106,32 @@ export namespace engine::terrain
         // cascade cast the live cascade is the render attachment, so binding it here too is a WebGPU
         // read and write hazard ("usage (TextureBinding|RenderAttachment) ... same synchronization
         // scope"). The dummy is a standalone depth texture, never an attachment, so it is always safe.
-        rhi::BindGroup* EnsureDepthViewBindGroup()
+        rhi::BindGroupHandle EnsureDepthViewBindGroup()
         {
             return BuildViewBindGroup(m_dummyShadowView, 0, m_depthViewBg, m_depthViewBgGen,
                                       m_depthViewBgShadow, m_depthViewBgShadowGen);
         }
 
-        rhi::BindGroup* BuildViewBindGroup(rhi::TextureView* shadowT1, u64 shadowGen,
-                                           rhi::BindGroup*& bg, u32& bgGen,
-                                           rhi::TextureView*& bgShadow, u64& bgShadowGen)
+        rhi::BindGroupHandle BuildViewBindGroup(rhi::TextureViewHandle shadowT1, u64 shadowGen,
+                                           rhi::BindGroupHandle& bg, u32& bgGen,
+                                           rhi::TextureViewHandle& bgShadow, u64& bgShadowGen)
         {
             const u32 gen = m_viewRing.Generation();
             // Rebuild on a ring roll-over or a change of the bound shadow map (pointer or generation:
             // a freed view's address can be reused, so the generation guards address aliasing).
-            if (bg != nullptr && bgGen == gen && bgShadow == shadowT1 && bgShadowGen == shadowGen)
+            if (bg.IsValid() && bgGen == gen && bgShadow == shadowT1 && bgShadowGen == shadowGen)
             {
                 return bg;
             }
-            if (bg != nullptr)
+            if (bg.IsValid())
             {
-                // May sit in a submitted frame's descriptor set: retired (frame-aged), or with no
-                // queue wired, freed after the GPU idles.
-                render::RetireBindGroup(*m_device, m_retire, bg);
-                bg = nullptr;
+                // May sit in a submitted frame's descriptor set: the device keeps it until that has run.
+                m_device->DestroyBindGroup(bg);
+                bg = {};
             }
-            if (m_viewRing.Buffer() == nullptr || shadowT1 == nullptr)
+            if (!m_viewRing.Buffer().IsValid() || !shadowT1.IsValid())
             {
-                return nullptr;
+                return {};
             }
             rhi::BindGroupEntry entries[] = {
                 rhi::BindGroupEntry::BufferEntry(m_viewRing.Buffer(), 0, kViewSlotSize), // b0
@@ -1152,8 +1143,8 @@ export namespace engine::terrain
             bgd.entries = Span<const rhi::BindGroupEntry>{entries, 3};
             if (!m_device->CreateBindGroup(bgd, bg).IsOk())
             {
-                bg = nullptr;
-                return nullptr;
+                bg = {};
+                return {};
             }
             bgGen = gen;
             bgShadow = shadowT1;
@@ -1161,22 +1152,22 @@ export namespace engine::terrain
             return bg;
         }
 
-        rhi::BindGroup* EnsureChunkBindGroup()
+        rhi::BindGroupHandle EnsureChunkBindGroup()
         {
             const u32 gen = m_chunkRing.Generation();
-            if (m_chunkBg != nullptr && m_chunkBgGen == gen)
+            if (m_chunkBg.IsValid() && m_chunkBgGen == gen)
             {
                 return m_chunkBg;
             }
-            if (m_chunkBg != nullptr)
+            if (m_chunkBg.IsValid())
             {
                 // May sit in a submitted frame's descriptor set, now that the ring grows.
-                render::RetireBindGroup(*m_device, m_retire, m_chunkBg);
-                m_chunkBg = nullptr;
+                m_device->DestroyBindGroup(m_chunkBg); // kept by the device while a frame in flight uses it
+                m_chunkBg = {};
             }
-            if (m_chunkRing.Buffer() == nullptr)
+            if (!m_chunkRing.Buffer().IsValid())
             {
-                return nullptr;
+                return {};
             }
             rhi::BindGroupEntry e =
                 rhi::BindGroupEntry::BufferEntry(m_chunkRing.Buffer(), 0, kChunkSlotSize);
@@ -1185,39 +1176,31 @@ export namespace engine::terrain
             bgd.entries = Span<const rhi::BindGroupEntry>{&e, 1};
             if (!m_device->CreateBindGroup(bgd, m_chunkBg).IsOk())
             {
-                m_chunkBg = nullptr;
-                return nullptr;
+                m_chunkBg = {};
+                return {};
             }
             m_chunkBgGen = gen;
             return m_chunkBg;
         }
 
-        // Per-height-texture bind group (set 2), keyed by view, validated by uniqueId (address reuse).
-        rhi::BindGroup* EnsureHeightBindGroup(rhi::TextureView* tex)
+        // Per-height-texture bind group (set 2), keyed by view handle.
+        rhi::BindGroupHandle EnsureHeightBindGroup(rhi::TextureViewHandle tex)
         {
-            if (tex == nullptr)
+            if (!tex.IsValid())
             {
-                return nullptr;
+                return {};
             }
             if (HeightBindGroup* found = m_heightBindGroups.Find(tex))
             {
-                if (found->viewId == tex->uniqueId)
+                if (found->view == tex)
                 {
                     return found->bindGroup;
                 }
-                if (found->bindGroup != nullptr)
+                if (found->bindGroup.IsValid())
                 {
-                    // The old group may sit in a submitted frame's descriptor bindings, so retire
-                    // it (frame-aged) rather than destroy it in place; destroy directly only when
-                    // no queue is wired (Null-device tests).
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(found->bindGroup);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(found->bindGroup);
-                    }
+                    // The old group may sit in a submitted frame's descriptor bindings: the device
+                    // keeps it until that frame has run.
+                    m_device->DestroyBindGroup(found->bindGroup);
                 }
                 m_heightBindGroups.Remove(tex);
             }
@@ -1225,39 +1208,32 @@ export namespace engine::terrain
             rhi::BindGroupDesc bgd{};
             bgd.layout = m_heightLayout;
             bgd.entries = Span<const rhi::BindGroupEntry>{&e, 1};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(bgd, bg).IsOk())
             {
-                return nullptr;
+                return {};
             }
-            m_heightBindGroups.InsertOrAssign(tex, HeightBindGroup{bg, tex->uniqueId});
+            m_heightBindGroups.InsertOrAssign(tex, HeightBindGroup{bg, tex});
             return bg;
         }
 
         // Set 2 for a holed chunk: height, hole mask and sampler, cached per hole view and
-        // validated by both views' uniqueIds (never raw pointers).
-        rhi::BindGroup* EnsureHeightHoleBindGroup(rhi::TextureView* height, rhi::TextureView* hole)
+        // checked against the height view it was built with.
+        rhi::BindGroupHandle EnsureHeightHoleBindGroup(rhi::TextureViewHandle height, rhi::TextureViewHandle hole)
         {
-            if (height == nullptr || hole == nullptr || m_holeSampler == nullptr)
+            if (!height.IsValid() || !hole.IsValid() || !m_holeSampler.IsValid())
             {
-                return nullptr;
+                return {};
             }
             if (HeightHoleBindGroup* found = m_heightHoleBindGroups.Find(hole))
             {
-                if (found->heightId == height->uniqueId && found->holeId == hole->uniqueId)
+                if (found->height == height && found->hole == hole)
                 {
                     return found->bindGroup;
                 }
-                if (found->bindGroup != nullptr)
+                if (found->bindGroup.IsValid())
                 {
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(found->bindGroup);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(found->bindGroup);
-                    }
+                    m_device->DestroyBindGroup(found->bindGroup);
                 }
                 m_heightHoleBindGroups.Remove(hole);
             }
@@ -1268,82 +1244,74 @@ export namespace engine::terrain
             rhi::BindGroupDesc bgd{};
             bgd.layout = m_heightHoleLayout;
             bgd.entries = Span<const rhi::BindGroupEntry>{entries, 3};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(bgd, bg).IsOk())
             {
-                return nullptr;
+                return {};
             }
             m_heightHoleBindGroups.InsertOrAssign(
-                hole, HeightHoleBindGroup{bg, height->uniqueId, hole->uniqueId});
+                hole, HeightHoleBindGroup{bg, height, hole});
             return bg;
         }
 
         // Set 3 (splat material): the eleven views, the tileScale buffer and the albedo sampler,
-        // with dummies for absent slots. Cached per weight view and validated by the uniqueId of
-        // every view (never raw pointers: addresses are reused); a hot swap retires the stale group
-        // through the frame-retire queue.
-        rhi::BindGroup* EnsureMaterialBindGroup(const TerrainRenderData& data)
+        // with dummies for absent slots. Cached per weight view and checked against every view it
+        // was built from; a hot swap destroys the stale group (the device keeps it for frames in flight).
+        rhi::BindGroupHandle EnsureMaterialBindGroup(const TerrainRenderData& data)
         {
             // Absent slots bind the dummies: zero weights/indices = pure base; white base/array.
-            rhi::TextureView* idx =
-                (data.indexView != nullptr) ? data.indexView : m_zeroIndexView;
-            rhi::TextureView* wgt =
-                (data.weightView != nullptr) ? data.weightView : m_zeroWeightView;
-            rhi::TextureView* base =
-                (data.baseAlbedoView != nullptr) ? data.baseAlbedoView : m_whiteView;
-            rhi::TextureView* pal =
-                (data.paletteArrayView != nullptr) ? data.paletteArrayView : m_whiteArrayView;
-            rhi::Buffer* tiles =
-                (data.tileScaleBuffer != nullptr) ? data.tileScaleBuffer : m_dummyTileBuffer;
-            const u64 tileGen = (data.tileScaleBuffer != nullptr) ? data.tileScaleGeneration : 0;
+            rhi::TextureViewHandle idx =
+                (data.indexView.IsValid()) ? data.indexView : m_zeroIndexView;
+            rhi::TextureViewHandle wgt =
+                (data.weightView.IsValid()) ? data.weightView : m_zeroWeightView;
+            rhi::TextureViewHandle base =
+                (data.baseAlbedoView.IsValid()) ? data.baseAlbedoView : m_whiteView;
+            rhi::TextureViewHandle pal =
+                (data.paletteArrayView.IsValid()) ? data.paletteArrayView : m_whiteArrayView;
+            rhi::BufferHandle tiles =
+                (data.tileScaleBuffer.IsValid()) ? data.tileScaleBuffer : m_dummyTileBuffer;
+            const u64 tileGen = (data.tileScaleBuffer.IsValid()) ? data.tileScaleGeneration : 0;
             // PBR maps: absent = the flat-normal / default-ORM dummies.
-            rhi::TextureView* baseNrm =
-                (data.baseNormalView != nullptr) ? data.baseNormalView : m_flatNormalView;
-            rhi::TextureView* nrmArr =
-                (data.normalArrayView != nullptr) ? data.normalArrayView : m_flatNormalArrayView;
-            rhi::TextureView* baseOrm =
-                (data.baseOrmView != nullptr) ? data.baseOrmView : m_defaultOrmView;
-            rhi::TextureView* ormArr =
-                (data.ormArrayView != nullptr) ? data.ormArrayView : m_defaultOrmArrayView;
+            rhi::TextureViewHandle baseNrm =
+                (data.baseNormalView.IsValid()) ? data.baseNormalView : m_flatNormalView;
+            rhi::TextureViewHandle nrmArr =
+                (data.normalArrayView.IsValid()) ? data.normalArrayView : m_flatNormalArrayView;
+            rhi::TextureViewHandle baseOrm =
+                (data.baseOrmView.IsValid()) ? data.baseOrmView : m_defaultOrmView;
+            rhi::TextureViewHandle ormArr =
+                (data.ormArrayView.IsValid()) ? data.ormArrayView : m_defaultOrmArrayView;
             // Height maps: absent = the mid-height dummies.
-            rhi::TextureView* baseHgt =
-                (data.baseHeightView != nullptr) ? data.baseHeightView : m_midHeightView;
-            rhi::TextureView* hgtArr =
-                (data.heightArrayView != nullptr) ? data.heightArrayView : m_midHeightArrayView;
+            rhi::TextureViewHandle baseHgt =
+                (data.baseHeightView.IsValid()) ? data.baseHeightView : m_midHeightView;
+            rhi::TextureViewHandle hgtArr =
+                (data.heightArrayView.IsValid()) ? data.heightArrayView : m_midHeightArrayView;
             // Coverage mask: absent = the opaque dummy (no coverage cut).
-            rhi::TextureView* maskArr =
-                (data.maskArrayView != nullptr) ? data.maskArrayView : m_opaqueMaskArrayView;
+            rhi::TextureViewHandle maskArr =
+                (data.maskArrayView.IsValid()) ? data.maskArrayView : m_opaqueMaskArrayView;
 
-            // Keyed by the weight view pointer, validated by every view's uniqueId and the buffer
-            // generation (pointers alias across reloads; ids don't).
+            // Keyed by the weight view, checked against every view it was built from and the
+            // buffer generation.
             if (MaterialBindGroup* found = m_materialBindGroups.Find(wgt))
             {
                 const bool match =
-                    found->ids[0] == idx->uniqueId && found->ids[1] == wgt->uniqueId &&
-                    found->ids[2] == base->uniqueId && found->ids[3] == pal->uniqueId &&
-                    found->ids[4] == baseNrm->uniqueId && found->ids[5] == nrmArr->uniqueId &&
-                    found->ids[6] == baseOrm->uniqueId && found->ids[7] == ormArr->uniqueId &&
-                    found->ids[8] == baseHgt->uniqueId && found->ids[9] == hgtArr->uniqueId &&
-                    found->ids[10] == maskArr->uniqueId && found->tileGen == tileGen;
+                    found->views[0] == idx && found->views[1] == wgt &&
+                    found->views[2] == base && found->views[3] == pal &&
+                    found->views[4] == baseNrm && found->views[5] == nrmArr &&
+                    found->views[6] == baseOrm && found->views[7] == ormArr &&
+                    found->views[8] == baseHgt && found->views[9] == hgtArr &&
+                    found->views[10] == maskArr && found->tileGen == tileGen;
                 if (match)
                 {
                     return found->bindGroup;
                 }
-                if (found->bindGroup != nullptr)
+                if (found->bindGroup.IsValid())
                 {
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(found->bindGroup);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(found->bindGroup);
-                    }
+                    m_device->DestroyBindGroup(found->bindGroup);
                 }
                 m_materialBindGroups.Remove(wgt);
             }
             const u64 tilesSize =
-                (data.tileScaleBuffer != nullptr)
+                (data.tileScaleBuffer.IsValid())
                     ? static_cast<u64>(data.paletteCount) * sizeof(f32)
                     : sizeof(f32);
             rhi::BindGroupEntry entries[] = {
@@ -1364,16 +1332,16 @@ export namespace engine::terrain
             rhi::BindGroupDesc bgd{};
             bgd.layout = m_materialLayout;
             bgd.entries = Span<const rhi::BindGroupEntry>{entries, 13};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(bgd, bg).IsOk())
             {
-                return nullptr;
+                return {};
             }
             MaterialBindGroup entry{bg,
-                                    {idx->uniqueId, wgt->uniqueId, base->uniqueId, pal->uniqueId,
-                                     baseNrm->uniqueId, nrmArr->uniqueId, baseOrm->uniqueId,
-                                     ormArr->uniqueId, baseHgt->uniqueId, hgtArr->uniqueId,
-                                     maskArr->uniqueId},
+                                    {idx, wgt, base, pal,
+                                     baseNrm, nrmArr, baseOrm,
+                                     ormArr, baseHgt, hgtArr,
+                                     maskArr},
                                     tileGen};
             m_materialBindGroups.InsertOrAssign(wgt, entry);
             return bg;
@@ -1388,29 +1356,29 @@ export namespace engine::terrain
         }
 
         // `samples` is the scene pass's MSAA count: the pipeline's must equal its targets'.
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, u32 samples, bool holes = false)
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat colorFormat, u32 samples, bool holes = false)
         {
             const u64 shaderVersion = m_shaders->Version(u8"terrain");
             ColorPso& cp = holes ? m_holeColorPso : m_colorPso;
-            if (cp.pso != nullptr && cp.format == colorFormat && cp.samples == samples &&
+            if (cp.pso.IsValid() && cp.format == colorFormat && cp.samples == samples &&
                 cp.shaderVersion == shaderVersion)
             {
                 return cp.pso;
             }
-            if (cp.pso != nullptr)
+            if (cp.pso.IsValid())
             {
                 m_device->DestroyRenderPipeline(cp.pso);
-                cp.pso = nullptr;
+                cp.pso = {};
             }
             const shaders::ShaderFlags flags =
                 holes ? shaders::ShaderFlags::Holes : shaders::ShaderFlags::None;
-            rhi::ShaderModule* vs =
+            rhi::ShaderModuleHandle vs =
                 m_shaders->GetVariant(u8"terrain", shaders::ShaderStage::Vertex, flags);
-            rhi::ShaderModule* ps =
+            rhi::ShaderModuleHandle ps =
                 m_shaders->GetVariant(u8"terrain", shaders::ShaderStage::Fragment, flags);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
-                return nullptr;
+                return {};
             }
 
             const rhi::VertexAttribute attrs[] = {{rhi::VertexFormat::Float32x3, 0, 0}};
@@ -1453,10 +1421,10 @@ export namespace engine::terrain
             pd.primitive.cullMode = rhi::CullMode::Back;
             pd.multisample.count = samples;
             pd.label = holes ? u8"terrain.holes" : u8"terrain";
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
             {
-                return nullptr;
+                return {};
             }
             cp.pso = pso;
             cp.format = colorFormat;
@@ -1481,7 +1449,7 @@ export namespace engine::terrain
         // cascades (terrain_depth.ps's input is terrain.vs's VSOut; holed chunks are rare, so the
         // cascade's extra interpolants cost little) with terrain_depth's fragment stage discarding
         // by the hole mask, so the prepass depth and the cascades open with the colour pass.
-        rhi::RenderPipeline* EnsureDepthPipeline(rhi::TextureFormat depthFormat, bool biased, bool clamped,
+        rhi::RenderPipelineHandle EnsureDepthPipeline(rhi::TextureFormat depthFormat, bool biased, bool clamped,
                                                  u32 samples, bool holes = false)
         {
             // The HOLES twin always takes the "terrain" VS module: terrain_depth.ps declares
@@ -1490,25 +1458,25 @@ export namespace engine::terrain
             const StringView shaderName = (biased && !holes) ? u8"terrain_depth" : u8"terrain";
             DepthPso& p = (holes ? m_holeDepthPso : m_depthPso)[!biased ? 0u : clamped ? 1u : 2u];
             const u64 shaderVersion = m_shaders->Version(shaderName);
-            if (p.pso != nullptr && p.format == depthFormat && p.samples == samples &&
+            if (p.pso.IsValid() && p.format == depthFormat && p.samples == samples &&
                 p.shaderVersion == shaderVersion)
             {
                 return p.pso;
             }
-            if (p.pso != nullptr)
+            if (p.pso.IsValid())
             {
                 m_device->DestroyRenderPipeline(p.pso);
-                p.pso = nullptr;
+                p.pso = {};
             }
             const shaders::ShaderFlags flags =
                 holes ? shaders::ShaderFlags::Holes : shaders::ShaderFlags::None;
-            rhi::ShaderModule* vs = m_shaders->GetVariant(shaderName, shaders::ShaderStage::Vertex, flags);
-            rhi::ShaderModule* holePs =
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(shaderName, shaders::ShaderStage::Vertex, flags);
+            rhi::ShaderModuleHandle holePs =
                 holes ? m_shaders->GetVariant(u8"terrain_depth", shaders::ShaderStage::Fragment, flags)
-                      : nullptr;
-            if (vs == nullptr || (holes && holePs == nullptr))
+                      : rhi::ShaderModuleHandle{};
+            if (!vs.IsValid() || (holes && !holePs.IsValid()))
             {
-                return nullptr;
+                return {};
             }
             const rhi::VertexAttribute attrs[] = {{rhi::VertexFormat::Float32x3, 0, 0}};
             rhi::VertexBufferLayout vbl{};
@@ -1548,10 +1516,10 @@ export namespace engine::terrain
             pd.primitive.cullMode = rhi::CullMode::Back;
             pd.multisample.count = samples;
             pd.label = holes ? u8"terrain.depth.holes" : u8"terrain.depth";
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
             {
-                return nullptr;
+                return {};
             }
             p.pso = pso;
             p.format = depthFormat;
@@ -1561,29 +1529,29 @@ export namespace engine::terrain
         }
 
         // The pick PSO: the depth layout (3 sets) and the terrain_pick fragment writing the id target.
-        rhi::RenderPipeline* EnsurePickPipeline(rhi::TextureFormat colorFormat,
+        rhi::RenderPipelineHandle EnsurePickPipeline(rhi::TextureFormat colorFormat,
                                                 rhi::TextureFormat depthFormat, bool holes = false)
         {
             const StringView shaderName = u8"terrain_pick";
             PickPso& p = holes ? m_holePickPso : m_pickPso;
             const u64 shaderVersion = m_shaders->Version(shaderName);
-            if (p.pso != nullptr && p.colorFormat == colorFormat && p.depthFormat == depthFormat &&
+            if (p.pso.IsValid() && p.colorFormat == colorFormat && p.depthFormat == depthFormat &&
                 p.shaderVersion == shaderVersion)
             {
                 return p.pso;
             }
-            if (p.pso != nullptr)
+            if (p.pso.IsValid())
             {
                 m_device->DestroyRenderPipeline(p.pso);
-                p.pso = nullptr;
+                p.pso = {};
             }
             const shaders::ShaderFlags flags =
                 holes ? shaders::ShaderFlags::Holes : shaders::ShaderFlags::None;
-            rhi::ShaderModule* vs = m_shaders->GetVariant(shaderName, shaders::ShaderStage::Vertex, flags);
-            rhi::ShaderModule* fs = m_shaders->GetVariant(shaderName, shaders::ShaderStage::Fragment, flags);
-            if (vs == nullptr || fs == nullptr)
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(shaderName, shaders::ShaderStage::Vertex, flags);
+            rhi::ShaderModuleHandle fs = m_shaders->GetVariant(shaderName, shaders::ShaderStage::Fragment, flags);
+            if (!vs.IsValid() || !fs.IsValid())
             {
-                return nullptr;
+                return {};
             }
             const rhi::VertexAttribute attrs[] = {{rhi::VertexFormat::Float32x3, 0, 0}};
             rhi::VertexBufferLayout vbl{};
@@ -1613,10 +1581,10 @@ export namespace engine::terrain
             pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
             pd.primitive.cullMode = rhi::CullMode::Back;
             pd.label = holes ? u8"terrain.pick.holes" : u8"terrain.pick";
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
             {
-                return nullptr;
+                return {};
             }
             p.pso = pso;
             p.colorFormat = colorFormat;
@@ -1629,7 +1597,7 @@ export namespace engine::terrain
         {
             for (auto& kv : m_heightBindGroups)
             {
-                if (kv.value.bindGroup != nullptr)
+                if (kv.value.bindGroup.IsValid())
                 {
                     m_device->DestroyBindGroup(kv.value.bindGroup);
                 }
@@ -1637,57 +1605,57 @@ export namespace engine::terrain
             m_heightBindGroups.Clear();
             for (auto& kv : m_materialBindGroups)
             {
-                if (kv.value.bindGroup != nullptr)
+                if (kv.value.bindGroup.IsValid())
                 {
                     m_device->DestroyBindGroup(kv.value.bindGroup);
                 }
             }
             m_materialBindGroups.Clear();
-            if (m_viewBg != nullptr)
+            if (m_viewBg.IsValid())
             {
                 m_device->DestroyBindGroup(m_viewBg);
-                m_viewBg = nullptr;
+                m_viewBg = {};
             }
-            if (m_depthViewBg != nullptr)
+            if (m_depthViewBg.IsValid())
             {
                 m_device->DestroyBindGroup(m_depthViewBg);
-                m_depthViewBg = nullptr;
+                m_depthViewBg = {};
             }
-            if (m_chunkBg != nullptr)
+            if (m_chunkBg.IsValid())
             {
                 m_device->DestroyBindGroup(m_chunkBg);
-                m_chunkBg = nullptr;
+                m_chunkBg = {};
             }
             for (ColorPso* cp : {&m_colorPso, &m_holeColorPso})
             {
-                if (cp->pso != nullptr)
+                if (cp->pso.IsValid())
                 {
                     m_device->DestroyRenderPipeline(cp->pso);
-                    cp->pso = nullptr;
+                    cp->pso = {};
                 }
             }
             for (DepthPso* dps : {m_depthPso, m_holeDepthPso})
             {
                 for (u32 i = 0; i < 3; ++i)
                 {
-                    if (dps[i].pso != nullptr)
+                    if (dps[i].pso.IsValid())
                     {
                         m_device->DestroyRenderPipeline(dps[i].pso);
-                        dps[i].pso = nullptr;
+                        dps[i].pso = {};
                     }
                 }
             }
             for (PickPso* pp : {&m_pickPso, &m_holePickPso})
             {
-                if (pp->pso != nullptr)
+                if (pp->pso.IsValid())
                 {
                     m_device->DestroyRenderPipeline(pp->pso);
-                    pp->pso = nullptr;
+                    pp->pso = {};
                 }
             }
             for (auto& kv : m_heightHoleBindGroups)
             {
-                if (kv.value.bindGroup != nullptr)
+                if (kv.value.bindGroup.IsValid())
                 {
                     m_device->DestroyBindGroup(kv.value.bindGroup);
                 }
@@ -1695,177 +1663,177 @@ export namespace engine::terrain
             m_heightHoleBindGroups.Clear();
             for (LodMesh& lm : m_lodMeshes)
             {
-                if (lm.indexBuffer != nullptr)
+                if (lm.indexBuffer.IsValid())
                 {
                     m_device->DestroyBuffer(lm.indexBuffer);
-                    lm.indexBuffer = nullptr;
+                    lm.indexBuffer = {};
                 }
             }
-            if (m_gridVertexBuffer != nullptr)
+            if (m_gridVertexBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_gridVertexBuffer);
-                m_gridVertexBuffer = nullptr;
+                m_gridVertexBuffer = {};
             }
-            if (m_dummyShadowView != nullptr)
+            if (m_dummyShadowView.IsValid())
             {
                 m_device->DestroyTextureView(m_dummyShadowView);
-                m_dummyShadowView = nullptr;
+                m_dummyShadowView = {};
             }
-            if (m_dummyShadowTex != nullptr)
+            if (m_dummyShadowTex.IsValid())
             {
                 m_device->DestroyTexture(m_dummyShadowTex);
-                m_dummyShadowTex = nullptr;
+                m_dummyShadowTex = {};
             }
-            if (m_shadowSampler != nullptr)
+            if (m_shadowSampler.IsValid())
             {
                 m_device->DestroySampler(m_shadowSampler);
-                m_shadowSampler = nullptr;
+                m_shadowSampler = {};
             }
-            if (m_whiteView != nullptr)
+            if (m_whiteView.IsValid())
             {
                 m_device->DestroyTextureView(m_whiteView);
-                m_whiteView = nullptr;
+                m_whiteView = {};
             }
-            if (m_whiteTex != nullptr)
+            if (m_whiteTex.IsValid())
             {
                 m_device->DestroyTexture(m_whiteTex);
-                m_whiteTex = nullptr;
+                m_whiteTex = {};
             }
-            if (m_zeroWeightView != nullptr)
+            if (m_zeroWeightView.IsValid())
             {
                 m_device->DestroyTextureView(m_zeroWeightView);
-                m_zeroWeightView = nullptr;
+                m_zeroWeightView = {};
             }
-            if (m_zeroWeightTex != nullptr)
+            if (m_zeroWeightTex.IsValid())
             {
                 m_device->DestroyTexture(m_zeroWeightTex);
-                m_zeroWeightTex = nullptr;
+                m_zeroWeightTex = {};
             }
-            if (m_zeroIndexView != nullptr)
+            if (m_zeroIndexView.IsValid())
             {
                 m_device->DestroyTextureView(m_zeroIndexView);
-                m_zeroIndexView = nullptr;
+                m_zeroIndexView = {};
             }
-            if (m_zeroIndexTex != nullptr)
+            if (m_zeroIndexTex.IsValid())
             {
                 m_device->DestroyTexture(m_zeroIndexTex);
-                m_zeroIndexTex = nullptr;
+                m_zeroIndexTex = {};
             }
-            if (m_whiteArrayView != nullptr)
+            if (m_whiteArrayView.IsValid())
             {
                 m_device->DestroyTextureView(m_whiteArrayView);
-                m_whiteArrayView = nullptr;
+                m_whiteArrayView = {};
             }
-            if (m_whiteArrayTex != nullptr)
+            if (m_whiteArrayTex.IsValid())
             {
                 m_device->DestroyTexture(m_whiteArrayTex);
-                m_whiteArrayTex = nullptr;
+                m_whiteArrayTex = {};
             }
-            rhi::TextureView* pbrViews[] = {m_flatNormalView,     m_flatNormalArrayView,
+            rhi::TextureViewHandle pbrViews[] = {m_flatNormalView,     m_flatNormalArrayView,
                                             m_defaultOrmView,     m_defaultOrmArrayView,
                                             m_midHeightView,      m_midHeightArrayView,
                                             m_opaqueMaskArrayView};
-            for (rhi::TextureView*& v : pbrViews)
+            for (rhi::TextureViewHandle& v : pbrViews)
             {
-                if (v != nullptr)
+                if (v.IsValid())
                 {
                     m_device->DestroyTextureView(v);
                 }
             }
             m_flatNormalView = m_flatNormalArrayView = m_defaultOrmView = m_defaultOrmArrayView =
-                m_midHeightView = m_midHeightArrayView = m_opaqueMaskArrayView = nullptr;
-            rhi::Texture* pbrTex[] = {m_flatNormalTex,      m_flatNormalArrayTex, m_defaultOrmTex,
+                m_midHeightView = m_midHeightArrayView = m_opaqueMaskArrayView = {};
+            rhi::TextureHandle pbrTex[] = {m_flatNormalTex,      m_flatNormalArrayTex, m_defaultOrmTex,
                                       m_defaultOrmArrayTex, m_midHeightTex,       m_midHeightArrayTex,
                                       m_opaqueMaskArrayTex};
-            for (rhi::Texture*& t : pbrTex)
+            for (rhi::TextureHandle& t : pbrTex)
             {
-                if (t != nullptr)
+                if (t.IsValid())
                 {
                     m_device->DestroyTexture(t);
                 }
             }
             m_flatNormalTex = m_flatNormalArrayTex = m_defaultOrmTex = m_defaultOrmArrayTex =
-                m_midHeightTex = m_midHeightArrayTex = m_opaqueMaskArrayTex = nullptr;
-            if (m_dummyTileBuffer != nullptr)
+                m_midHeightTex = m_midHeightArrayTex = m_opaqueMaskArrayTex = {};
+            if (m_dummyTileBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_dummyTileBuffer);
-                m_dummyTileBuffer = nullptr;
+                m_dummyTileBuffer = {};
             }
-            if (m_albedoSampler != nullptr)
+            if (m_albedoSampler.IsValid())
             {
                 m_device->DestroySampler(m_albedoSampler);
-                m_albedoSampler = nullptr;
+                m_albedoSampler = {};
             }
-            if (m_depthPipelineLayout != nullptr)
+            if (m_depthPipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_depthPipelineLayout);
-                m_depthPipelineLayout = nullptr;
+                m_depthPipelineLayout = {};
             }
-            if (m_holeDepthPipelineLayout != nullptr)
+            if (m_holeDepthPipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_holeDepthPipelineLayout);
-                m_holeDepthPipelineLayout = nullptr;
+                m_holeDepthPipelineLayout = {};
             }
-            if (m_holePipelineLayout != nullptr)
+            if (m_holePipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_holePipelineLayout);
-                m_holePipelineLayout = nullptr;
+                m_holePipelineLayout = {};
             }
-            if (m_heightHoleLayout != nullptr)
+            if (m_heightHoleLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_heightHoleLayout);
-                m_heightHoleLayout = nullptr;
+                m_heightHoleLayout = {};
             }
-            if (m_holeSampler != nullptr)
+            if (m_holeSampler.IsValid())
             {
                 m_device->DestroySampler(m_holeSampler);
-                m_holeSampler = nullptr;
+                m_holeSampler = {};
             }
-            if (m_pipelineLayout != nullptr)
+            if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
-                m_pipelineLayout = nullptr;
+                m_pipelineLayout = {};
             }
-            if (m_materialLayout != nullptr)
+            if (m_materialLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_materialLayout);
-                m_materialLayout = nullptr;
+                m_materialLayout = {};
             }
-            if (m_heightLayout != nullptr)
+            if (m_heightLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_heightLayout);
-                m_heightLayout = nullptr;
+                m_heightLayout = {};
             }
-            if (m_chunkLayout != nullptr)
+            if (m_chunkLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_chunkLayout);
-                m_chunkLayout = nullptr;
+                m_chunkLayout = {};
             }
-            if (m_viewLayout != nullptr)
+            if (m_viewLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_viewLayout);
-                m_viewLayout = nullptr;
+                m_viewLayout = {};
             }
         }
 
         struct HeightBindGroup
         {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 viewId = 0;
+            rhi::BindGroupHandle bindGroup{};
+            rhi::TextureViewHandle view{};
         };
         struct HeightHoleBindGroup
         {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 heightId = 0;
-            u64 holeId = 0;
+            rhi::BindGroupHandle bindGroup{};
+            rhi::TextureViewHandle height{};
+            rhi::TextureViewHandle hole{};
         };
 
         struct MaterialBindGroup
         {
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BindGroupHandle bindGroup{};
             // index/weight/base/palette, baseNormal/normalArray/baseOrm/ormArray,
-            // baseHeight/heightArray and maskArray view uniqueIds.
-            u64 ids[11] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+            // baseHeight/heightArray and maskArray views it was built from.
+            rhi::TextureViewHandle views[11] = {};
             u64 tileGen = 0;
         };
 
@@ -1873,66 +1841,65 @@ export namespace engine::terrain
         shaders::ShaderSystem* m_shaders;
         render::DynamicUniformRing m_viewRing;
         render::DynamicUniformRing m_chunkRing;
-        rhi::BindGroupLayout* m_viewLayout = nullptr;
-        rhi::BindGroupLayout* m_chunkLayout = nullptr;
-        rhi::BindGroupLayout* m_heightLayout = nullptr;
-        rhi::BindGroupLayout* m_heightHoleLayout = nullptr; // set 2 for holed chunks: adds the mask and sampler
-        rhi::BindGroupLayout* m_materialLayout = nullptr; // set 3: splat material
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;      // color: 4 sets
-        rhi::PipelineLayout* m_depthPipelineLayout = nullptr; // depth: 3 sets (no material)
-        rhi::PipelineLayout* m_holePipelineLayout = nullptr;      // the HOLES twins
-        rhi::PipelineLayout* m_holeDepthPipelineLayout = nullptr;
-        rhi::Sampler* m_holeSampler = nullptr;
-        HashMap<rhi::TextureView*, HeightHoleBindGroup> m_heightHoleBindGroups;
-        rhi::Buffer* m_gridVertexBuffer = nullptr;
+        rhi::BindGroupLayoutHandle m_viewLayout{};
+        rhi::BindGroupLayoutHandle m_chunkLayout{};
+        rhi::BindGroupLayoutHandle m_heightLayout{};
+        rhi::BindGroupLayoutHandle m_heightHoleLayout{}; // set 2 for holed chunks: adds the mask and sampler
+        rhi::BindGroupLayoutHandle m_materialLayout{}; // set 3: splat material
+        rhi::PipelineLayoutHandle m_pipelineLayout{};      // color: 4 sets
+        rhi::PipelineLayoutHandle m_depthPipelineLayout{}; // depth: 3 sets (no material)
+        rhi::PipelineLayoutHandle m_holePipelineLayout{};      // the HOLES twins
+        rhi::PipelineLayoutHandle m_holeDepthPipelineLayout{};
+        rhi::SamplerHandle m_holeSampler{};
+        HashMap<rhi::TextureViewHandle, HeightHoleBindGroup> m_heightHoleBindGroups;
+        rhi::BufferHandle m_gridVertexBuffer{};
         u32 m_gridVertexCount = 0;
         LodMesh m_lodMeshes[tmodel::kMaxChunkLod + 1];
-        rhi::BindGroup* m_viewBg = nullptr;
+        rhi::BindGroupHandle m_viewBg{};
         u32 m_viewBgGen = 0;
         // The depth/shadow-cast pass's own view group (t1 = dummy shadow view, never the live
         // cascade being rendered, which would be a WebGPU read and write hazard).
-        rhi::BindGroup* m_depthViewBg = nullptr;
+        rhi::BindGroupHandle m_depthViewBg{};
         u32 m_depthViewBgGen = 0;
-        rhi::TextureView* m_depthViewBgShadow = nullptr;
+        rhi::TextureViewHandle m_depthViewBgShadow{};
         u64 m_depthViewBgShadowGen = 0;
-        rhi::BindGroup* m_chunkBg = nullptr;
+        rhi::BindGroupHandle m_chunkBg{};
         u32 m_chunkBgGen = 0;
-        HashMap<rhi::TextureView*, HeightBindGroup> m_heightBindGroups;
+        HashMap<rhi::TextureViewHandle, HeightBindGroup> m_heightBindGroups;
         // Top-K splat material (set 3): absent-slot dummies and the per-weights bind cache.
-        rhi::Sampler* m_albedoSampler = nullptr;
-        rhi::Texture* m_whiteTex = nullptr; // 1x1 white (absent base albedo)
-        rhi::TextureView* m_whiteView = nullptr;
-        rhi::Texture* m_zeroWeightTex = nullptr; // 1x1 zero weights (= pure base)
-        rhi::TextureView* m_zeroWeightView = nullptr;
-        rhi::Texture* m_zeroIndexTex = nullptr; // 1x1 zero indices (RGBA8Uint)
-        rhi::TextureView* m_zeroIndexView = nullptr;
-        rhi::Texture* m_whiteArrayTex = nullptr; // 1x1x1 white palette array
-        rhi::TextureView* m_whiteArrayView = nullptr;
-        rhi::Texture* m_flatNormalTex = nullptr; // 1x1 flat normal (base, absent normal map)
-        rhi::TextureView* m_flatNormalView = nullptr;
-        rhi::Texture* m_flatNormalArrayTex = nullptr; // 1x1x1 flat-normal palette array
-        rhi::TextureView* m_flatNormalArrayView = nullptr;
-        rhi::Texture* m_defaultOrmTex = nullptr; // 1x1 default ORM (base, absent ORM map)
-        rhi::TextureView* m_defaultOrmView = nullptr;
-        rhi::Texture* m_defaultOrmArrayTex = nullptr; // 1x1x1 default-ORM palette array
-        rhi::TextureView* m_defaultOrmArrayView = nullptr;
-        rhi::Texture* m_midHeightTex = nullptr; // 1x1 mid height 0.5 (base, absent height map)
-        rhi::TextureView* m_midHeightView = nullptr;
-        rhi::Texture* m_midHeightArrayTex = nullptr; // 1x1x1 mid-height palette array
-        rhi::TextureView* m_midHeightArrayView = nullptr;
-        rhi::Texture* m_opaqueMaskArrayTex = nullptr; // 1x1x1 opaque-coverage palette array
-        rhi::TextureView* m_opaqueMaskArrayView = nullptr;
-        rhi::Buffer* m_dummyTileBuffer = nullptr; // one f32 = 1.0
-        HashMap<rhi::TextureView*, MaterialBindGroup> m_materialBindGroups;
-        render::GpuRetireQueue* m_retire = nullptr; // borrowed (RenderSubsystem owns and ticks it)
+        rhi::SamplerHandle m_albedoSampler{};
+        rhi::TextureHandle m_whiteTex{}; // 1x1 white (absent base albedo)
+        rhi::TextureViewHandle m_whiteView{};
+        rhi::TextureHandle m_zeroWeightTex{}; // 1x1 zero weights (= pure base)
+        rhi::TextureViewHandle m_zeroWeightView{};
+        rhi::TextureHandle m_zeroIndexTex{}; // 1x1 zero indices (RGBA8Uint)
+        rhi::TextureViewHandle m_zeroIndexView{};
+        rhi::TextureHandle m_whiteArrayTex{}; // 1x1x1 white palette array
+        rhi::TextureViewHandle m_whiteArrayView{};
+        rhi::TextureHandle m_flatNormalTex{}; // 1x1 flat normal (base, absent normal map)
+        rhi::TextureViewHandle m_flatNormalView{};
+        rhi::TextureHandle m_flatNormalArrayTex{}; // 1x1x1 flat-normal palette array
+        rhi::TextureViewHandle m_flatNormalArrayView{};
+        rhi::TextureHandle m_defaultOrmTex{}; // 1x1 default ORM (base, absent ORM map)
+        rhi::TextureViewHandle m_defaultOrmView{};
+        rhi::TextureHandle m_defaultOrmArrayTex{}; // 1x1x1 default-ORM palette array
+        rhi::TextureViewHandle m_defaultOrmArrayView{};
+        rhi::TextureHandle m_midHeightTex{}; // 1x1 mid height 0.5 (base, absent height map)
+        rhi::TextureViewHandle m_midHeightView{};
+        rhi::TextureHandle m_midHeightArrayTex{}; // 1x1x1 mid-height palette array
+        rhi::TextureViewHandle m_midHeightArrayView{};
+        rhi::TextureHandle m_opaqueMaskArrayTex{}; // 1x1x1 opaque-coverage palette array
+        rhi::TextureViewHandle m_opaqueMaskArrayView{};
+        rhi::BufferHandle m_dummyTileBuffer{}; // one f32 = 1.0
+        HashMap<rhi::TextureViewHandle, MaterialBindGroup> m_materialBindGroups;
         // Shadow receive (set 0: t1 CSM array, s0 comparison sampler).
-        rhi::Sampler* m_shadowSampler = nullptr;
-        rhi::Texture* m_dummyShadowTex = nullptr;      // 1x1 Texture2DArray depth (no-caster fallback)
-        rhi::TextureView* m_dummyShadowView = nullptr;
-        rhi::TextureView* m_activeShadowView = nullptr; // borrowed: the CSM array, or the dummy
+        rhi::SamplerHandle m_shadowSampler{};
+        rhi::TextureHandle m_dummyShadowTex{};      // 1x1 Texture2DArray depth (no-caster fallback)
+        rhi::TextureViewHandle m_dummyShadowView{};
+        rhi::TextureViewHandle m_activeShadowView{}; // borrowed: the CSM array, or the dummy
         bool m_dummyDepthInit = false; // the dummy depth transitioned out of UNDEFINED once (VUID-09600)
         u64 m_activeShadowGen = 0;
-        rhi::TextureView* m_viewBgShadow = nullptr; // what the cached view BG was built against
+        rhi::TextureViewHandle m_viewBgShadow{}; // what the cached view BG was built against
         u64 m_viewBgShadowGen = 0;
         ColorPso m_colorPso;     // the colour pass
         ColorPso m_holeColorPso; // its HOLES twin (holed chunks: the hole-mask discard)

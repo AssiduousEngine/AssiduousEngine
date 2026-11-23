@@ -24,6 +24,7 @@ import :buffer;
 import :render_pipeline;
 import :render_bundle_encoder;
 import :push_constant_emulator;
+import :tables;
 
 using namespace foundation::core;
 
@@ -32,6 +33,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuRenderPassEncoder final : public RenderPassEncoder
     {
     public:
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts; set by the command encoder
 
         // `width` x `height`: the pass's render area (its attachments' size), which scissors are
@@ -52,19 +55,24 @@ export namespace foundation::rhi::webgpu
             m_pushConstants.Begin(api, device);
         }
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
-            auto* wgpuPipeline = static_cast<WebGpuRenderPipeline*>(pipeline);
+            auto* wgpuPipeline = LookUp(tables, pipeline);
+            if (wgpuPipeline == nullptr)
+                return; // a stale handle
             m_api->wgpuRenderPassEncoderSetPipeline(m_encoder, wgpuPipeline->Handle());
             m_pushConstants.SetPipeline(wgpuPipeline->PushConstants());
             if (counters)
                 counters->PipelineBinds();
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
+            const WebGpuBindGroup* bindGroup = LookUp(tables, group);
+            if (bindGroup == nullptr)
+                return; // a stale handle
             m_api->wgpuRenderPassEncoderSetBindGroup(
-                m_encoder, index, static_cast<WebGpuBindGroup*>(group)->Handle(),
+                m_encoder, index, bindGroup->Handle(),
                 dynamicOffsets.Size(), dynamicOffsets.Data());
             if (counters)
                 counters->BindGroupBinds();
@@ -81,17 +89,17 @@ export namespace foundation::rhi::webgpu
             }
         }
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
             m_api->wgpuRenderPassEncoderSetVertexBuffer(
-                m_encoder, slot, static_cast<WebGpuBuffer*>(buffer)->Handle(), offset,
+                m_encoder, slot, WgpuOf(tables, buffer), offset,
                 WGPU_WHOLE_SIZE);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
             m_api->wgpuRenderPassEncoderSetIndexBuffer(
-                m_encoder, static_cast<WebGpuBuffer*>(buffer)->Handle(),
+                m_encoder, WgpuOf(tables, buffer),
                 format == IndexFormat::UInt16 ? WGPUIndexFormat_Uint16 : WGPUIndexFormat_Uint32,
                 offset, WGPU_WHOLE_SIZE);
         }
@@ -152,10 +160,10 @@ export namespace foundation::rhi::webgpu
                 counters->Draws();
         }
 
-        void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             FlushPushConstants();
-            const WGPUBuffer handle = static_cast<WebGpuBuffer*>(buffer)->Handle();
+            const WGPUBuffer handle = WgpuOf(tables, buffer);
             for (u32 i = 0; i < drawCount; ++i) // core WebGPU: one draw per indirect call
             {
                 m_api->wgpuRenderPassEncoderDrawIndirect(m_encoder, handle,
@@ -165,10 +173,10 @@ export namespace foundation::rhi::webgpu
                 counters->Draws(drawCount);
         }
 
-        void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             FlushPushConstants();
-            const WGPUBuffer handle = static_cast<WebGpuBuffer*>(buffer)->Handle();
+            const WGPUBuffer handle = WgpuOf(tables, buffer);
             for (u32 i = 0; i < drawCount; ++i)
             {
                 m_api->wgpuRenderPassEncoderDrawIndexedIndirect(
@@ -211,19 +219,19 @@ export namespace foundation::rhi::webgpu
             }
         }
 
-        void WriteTimestamp(QuerySet*, u32) override
+        void WriteTimestamp(QuerySetHandle, u32) override
         {
             // Pass-interior timestamps have no WebGPU shape; begin/end-of-pass writes
             // ride the pass descriptor (RenderPassDesc.timestampQuerySet).
         }
 
-        void BeginOcclusionQuery(QuerySet*, u32 index) override
+        void BeginOcclusionQuery(QuerySetHandle, u32 index) override
         {
             // The set itself was declared at pass begin (RenderPassDesc.
             // occlusionQuerySet); WebGPU only takes the index here.
             m_api->wgpuRenderPassEncoderBeginOcclusionQuery(m_encoder, index);
         }
-        void EndOcclusionQuery(QuerySet*, u32) override
+        void EndOcclusionQuery(QuerySetHandle, u32) override
         {
             m_api->wgpuRenderPassEncoderEndOcclusionQuery(m_encoder);
         }

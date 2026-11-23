@@ -33,18 +33,18 @@ export namespace foundation::rhi
         virtual ~RenderCommandEncoder() = default;
 
         /// Bind a graphics (rasterization) pipeline.
-        virtual void SetPipeline(RenderPipeline* pipeline) = 0;
+        virtual void SetPipeline(RenderPipelineHandle pipeline) = 0;
         /// Bind a resource group at the given index.
-        virtual void SetBindGroup(u32 index, BindGroup* group,
+        virtual void SetBindGroup(u32 index, BindGroupHandle group,
                                   Span<const u32> dynamicOffsets = {}) = 0;
         /// Upload push constant data.
         virtual void SetPushConstants(ShaderStage stages, u32 offset, u32 size,
                                       const void* data) = 0;
 
         /// Bind a vertex buffer to a slot.
-        virtual void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset = 0) = 0;
+        virtual void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset = 0) = 0;
         /// Bind an index buffer.
-        virtual void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset = 0) = 0;
+        virtual void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset = 0) = 0;
 
         /// Issue a non-indexed draw call.
         virtual void Draw(u32 vertexCount, u32 instanceCount = 1, u32 firstVertex = 0,
@@ -53,10 +53,10 @@ export namespace foundation::rhi
         virtual void DrawIndexed(u32 indexCount, u32 instanceCount = 1, u32 firstIndex = 0,
                                  i32 baseVertex = 0, u32 firstInstance = 0) = 0;
         /// Issue an indirect draw call.
-        virtual void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount = 1,
+        virtual void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount = 1,
                                   u32 stride = 0) = 0;
         /// Issue an indexed indirect draw call.
-        virtual void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount = 1,
+        virtual void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount = 1,
                                          u32 stride = 0) = 0;
     };
 
@@ -87,11 +87,11 @@ export namespace foundation::rhi
         virtual void ExecuteBundles(Span<RenderBundle* const> bundles) = 0;
 
         /// Write a timestamp query.
-        virtual void WriteTimestamp(QuerySet* querySet, u32 index) = 0;
+        virtual void WriteTimestamp(QuerySetHandle querySet, u32 index) = 0;
         /// Begin an occlusion query.
-        virtual void BeginOcclusionQuery(QuerySet* querySet, u32 index) = 0;
+        virtual void BeginOcclusionQuery(QuerySetHandle querySet, u32 index) = 0;
         /// End an occlusion query.
-        virtual void EndOcclusionQuery(QuerySet* querySet, u32 index) = 0;
+        virtual void EndOcclusionQuery(QuerySetHandle querySet, u32 index) = 0;
 
         /// End the render pass.
         virtual void End() = 0;
@@ -124,8 +124,8 @@ export namespace foundation::rhi
     public:
         virtual ~ComputePassEncoder() = default;
 
-        virtual void SetPipeline(ComputePipeline* pipeline) = 0;
-        virtual void SetBindGroup(u32 index, BindGroup* group,
+        virtual void SetPipeline(ComputePipelineHandle pipeline) = 0;
+        virtual void SetBindGroup(u32 index, BindGroupHandle group,
                                   Span<const u32> dynamicOffsets = {}) = 0;
         virtual void SetPushConstants(ShaderStage stages, u32 offset, u32 size,
                                       const void* data) = 0;
@@ -133,12 +133,12 @@ export namespace foundation::rhi
         /// Dispatch compute work groups.
         virtual void Dispatch(u32 x, u32 y = 1, u32 z = 1) = 0;
         /// Dispatch compute work groups via an indirect buffer.
-        virtual void DispatchIndirect(Buffer* buffer, u64 offset) = 0;
+        virtual void DispatchIndirect(BufferHandle buffer, u64 offset) = 0;
 
         /// Insert a compute-to-compute memory barrier.
         virtual void ComputeBarrier() = 0;
 
-        virtual void WriteTimestamp(QuerySet* querySet, u32 index) = 0;
+        virtual void WriteTimestamp(QuerySetHandle querySet, u32 index) = 0;
         virtual void End() = 0;
     };
 
@@ -170,7 +170,7 @@ export namespace foundation::rhi
         virtual void Barrier(const BarrierGroup& group) = 0;
 
         /// Convenience: transition a single texture between resource states.
-        void TransitionTexture(Texture* tex, ResourceState oldState, ResourceState newState)
+        void TransitionTexture(TextureHandle tex, ResourceState oldState, ResourceState newState)
         {
             TextureBarrier tb{};
             tb.texture = tex;
@@ -182,7 +182,7 @@ export namespace foundation::rhi
         }
 
         /// Convenience: transition a single buffer between resource states.
-        void TransitionBuffer(Buffer* buf, ResourceState oldState, ResourceState newState)
+        void TransitionBuffer(BufferHandle buf, ResourceState oldState, ResourceState newState)
         {
             BufferBarrier bb{};
             bb.buffer = buf;
@@ -194,33 +194,33 @@ export namespace foundation::rhi
         }
 
         /// Copy operations.
-        virtual void CopyBufferToBuffer(Buffer* src, u64 srcOffset, Buffer* dst, u64 dstOffset,
+        virtual void CopyBufferToBuffer(BufferHandle src, u64 srcOffset, BufferHandle dst, u64 dstOffset,
                                         u64 size) = 0;
-        virtual void CopyBufferToTexture(Buffer* src, Texture* dst,
+        virtual void CopyBufferToTexture(BufferHandle src, TextureHandle dst,
                                          const BufferTextureCopyRegion& region) = 0;
-        virtual void CopyTextureToBuffer(Texture* src, Buffer* dst,
+        virtual void CopyTextureToBuffer(TextureHandle src, BufferHandle dst,
                                          const BufferTextureCopyRegion& region) = 0;
-        virtual void CopyTextureToTexture(Texture* src, Texture* dst,
+        virtual void CopyTextureToTexture(TextureHandle src, TextureHandle dst,
                                           const TextureCopyRegion& region) = 0;
 
         /// Blit (scaled copy) from one texture to another.
-        virtual void Blit(Texture* src, Texture* dst) = 0;
+        virtual void Blit(TextureHandle src, TextureHandle dst) = 0;
         /// Generate mipmaps for a texture.
-        virtual void GenerateMipmaps(Texture* texture) = 0;
+        virtual void GenerateMipmaps(TextureHandle texture) = 0;
         /// Resolve a multisampled texture to a single-sampled texture.
-        virtual void ResolveTexture(Texture* src, Texture* dst) = 0;
+        virtual void ResolveTexture(TextureHandle src, TextureHandle dst) = 0;
 
         /// Query operations.
-        virtual void ResetQuerySet(QuerySet* querySet, u32 first, u32 count) = 0;
-        virtual void WriteTimestamp(QuerySet* querySet, u32 index) = 0;
+        virtual void ResetQuerySet(QuerySetHandle querySet, u32 first, u32 count) = 0;
+        virtual void WriteTimestamp(QuerySetHandle querySet, u32 index) = 0;
         /// Count pipeline statistics (Features::pipelineStatisticsQueries) into query `index` of a
         /// PipelineStatistics set, from Begin to End, both outside any pass (one may span whole
         /// passes); one statistics query at a time, they do not nest.
-        virtual void BeginPipelineStatisticsQuery(QuerySet* querySet, u32 index) = 0;
-        virtual void EndPipelineStatisticsQuery(QuerySet* querySet, u32 index) = 0;
+        virtual void BeginPipelineStatisticsQuery(QuerySetHandle querySet, u32 index) = 0;
+        virtual void EndPipelineStatisticsQuery(QuerySetHandle querySet, u32 index) = 0;
         /// Copy `count` results into `dst` from `dstOffset`, each Device::QueryResultSize(type)
         /// bytes apart.
-        virtual void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, Buffer* dst,
+        virtual void ResolveQuerySet(QuerySetHandle querySet, u32 first, u32 count, BufferHandle dst,
                                      u64 dstOffset) = 0;
 
         /// Debug labels.
@@ -272,9 +272,9 @@ export namespace foundation::rhi
         virtual ~TransferBatch() = default;
 
         /// Stage a buffer write.
-        virtual void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) = 0;
+        virtual void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) = 0;
         /// Stage a texture write.
-        virtual void WriteTexture(Texture* dst, Span<const u8> data,
+        virtual void WriteTexture(TextureHandle dst, Span<const u8> data,
                                   const TextureDataLayout& layout, Extent3D extent,
                                   u32 mipLevel = 0, u32 arrayLayer = 0) = 0;
 

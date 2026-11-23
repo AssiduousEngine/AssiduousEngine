@@ -110,7 +110,7 @@ namespace engine::gui
             return Resources != nullptr ? Resources->Database().GetInstance(id) : nullptr;
         }
 
-        void Tell(const image::ImageData* key, rhi::TextureView* view) const
+        void Tell(const image::ImageData* key, rhi::TextureViewHandle view) const
         {
             if (Sink && key != nullptr)
                 Sink(key, view);
@@ -121,7 +121,7 @@ namespace engine::gui
         bool Refresh(Image& entry)
         {
             foundation::texture::Texture* texture = entry.Texture.Get();
-            const u64 uid = texture != nullptr && texture->View() != nullptr ? texture->Uid() : 0;
+            const u64 uid = texture != nullptr && texture->View().IsValid() ? texture->Uid() : 0;
             if (uid == entry.Uid)
                 return false;
             const bool arrived = entry.Uid == 0 && uid != 0;
@@ -131,13 +131,13 @@ namespace engine::gui
                 // key is kept for the views that still hold it.
                 if (entry.Key)
                 {
-                    Tell(entry.Key.Get(), nullptr);
+                    Tell(entry.Key.Get(), {});
                     Retired.PushBack(Move(entry.Key));
                 }
                 entry.Key = MakeUnique<image::ImageDataRef>(*Allocator, texture->Width(), texture->Height());
             }
             entry.Uid = uid;
-            Tell(entry.Key.Get(), uid != 0 ? texture->View() : nullptr);
+            Tell(entry.Key.Get(), uid != 0 ? texture->View() : rhi::TextureViewHandle{});
             return arrived;
         }
 
@@ -182,7 +182,7 @@ namespace engine::gui
         for (UniquePtr<State::Image>& entry : state.Images)
             if (entry->Key)
             {
-                state.Tell(entry->Key.Get(), nullptr);
+                state.Tell(entry->Key.Get(), {});
                 state.Retired.PushBack(Move(entry->Key));
             }
         state.Images.Clear();
@@ -201,7 +201,7 @@ namespace engine::gui
         state.Sink = Move(sink);
         for (const UniquePtr<State::Image>& entry : state.Images)
             if (entry->Key && entry->Uid != 0)
-                state.Tell(entry->Key.Get(), entry->Texture.Get() != nullptr ? entry->Texture->View() : nullptr);
+                state.Tell(entry->Key.Get(), entry->Texture.Get() != nullptr ? entry->Texture->View() : rhi::TextureViewHandle{});
     }
 
     const image::ImageData* GuiResourceProvider::LoadImage(StringView path)
@@ -445,7 +445,6 @@ namespace engine::gui
         return placement;
     }
 
-
     REFLECT_ENUM(GuiCanvasRenderMode, "rtti::engine::gui")
     {
         builder.Value("ScreenOverlay", GuiCanvasRenderMode::ScreenOverlay);
@@ -603,9 +602,7 @@ namespace engine::gui
 
     struct GuiSubsystem::RenderState
     {
-
         rhi::Device* Device = nullptr;
-        render::GpuRetireQueue* RetireQueue = nullptr; // borrowed; null means waiting for the GPU
         VgShaderLibrary Shaders;
         UniquePtr<GuiPassRenderer> Renderer;
         // What PrepareOverlay recorded for the screen tier, and for which view.
@@ -624,8 +621,8 @@ namespace engine::gui
             const SceneRoot* Root = nullptr; // the root that draws into it
             scene::Scene* Scene = nullptr;
             scene::EntityHandle Entity{};
-            rhi::Texture* Texture = nullptr;
-            rhi::TextureView* View = nullptr;
+            rhi::TextureHandle Texture{};
+            rhi::TextureViewHandle View{};
             foundation::vg::renderer::VGPassTargets Pass;
             bool Multisampled = false;
             u32 Width = 0;
@@ -644,34 +641,21 @@ namespace engine::gui
             for (const UniquePtr<Target>& target : Targets)
                 Release(*target);
         }
-        // Lets go of `target`'s textures. With a retire queue they live on until the frames in
-        // flight, which may still sample or draw into them, are done; without one the caller has
-        // waited for the GPU.
-        void Retire(Target& target)
-        {
-            if (RetireQueue == nullptr)
-            {
-                Release(target);
-                return;
-            }
-            target.Pass.Retire([this](auto* resource) { RetireQueue->Retire(resource); });
-            RetireQueue->Retire(target.Texture);
-            RetireQueue->Retire(target.View);
-            target.Texture = nullptr;
-            target.View = nullptr;
-        }
+        // Lets go of `target`'s textures. Frames in flight may still sample or draw into them: the
+        // device keeps them until those frames are done.
         void Release(Target& target)
         {
             target.Pass.Destroy();
-            if (target.View != nullptr)
+            if (target.View.IsValid())
                 Device->DestroyTextureView(target.View);
-            if (target.Texture != nullptr)
+            if (target.Texture.IsValid())
                 Device->DestroyTexture(target.Texture);
-            target.View = nullptr;
-            target.Texture = nullptr;
+            target.View = {};
+            target.Texture = {};
         }
         // Returns `root`'s texture at `width` x `height`, making it, or making it again at a new
-        // size. The old texture is retired, because the scene may still sample it.
+        // size. The old texture is destroyed; the device keeps it while the scene's frames in flight
+        // sample it.
         // Returns null when the device makes no texture.
         Target* EnsureTarget(const SceneRoot& root, scene::Scene& scene, scene::EntityHandle entity, u32 width, u32 height,
                              IAllocator& allocator)
@@ -690,17 +674,13 @@ namespace engine::gui
                 Targets.PushBack(Move(made));
             }
             found->Seen = true;
-            if (found->Texture != nullptr && found->Width == width && found->Height == height)
+            if (found->Texture.IsValid() && found->Width == width && found->Height == height)
                 return found;
-            if (found->Texture != nullptr)
-            {
-                if (RetireQueue == nullptr)
-                    Device->WaitIdle();
-                Retire(*found);
-            }
+            if (found->Texture.IsValid())
+                Release(*found);
             if (!Device->CreateTexture(rhi::TextureDesc::RenderTarget(kTextureFormat, width, height, 1, u8"GUI texture"), found->Texture).IsOk())
             {
-                found->Texture = nullptr;
+                found->Texture = {};
                 return nullptr;
             }
             rhi::TextureViewDesc viewDesc{};
@@ -708,8 +688,8 @@ namespace engine::gui
             if (!Device->CreateTextureView(found->Texture, viewDesc, found->View).IsOk())
             {
                 Device->DestroyTexture(found->Texture);
-                found->Texture = nullptr;
-                found->View = nullptr;
+                found->Texture = {};
+                found->View = {};
                 return nullptr;
             }
             found->Pass.Configure(*Device);
@@ -1258,8 +1238,8 @@ namespace engine::gui
                     else
                     {
                         c.renderRoot = nullptr;
-                        c.renderTexture = nullptr;
-                        c.renderTextureView = nullptr;
+                        c.renderTexture = {};
+                        c.renderTextureView = {};
                         if (!c.host)
                         {
                             c.host = MakeRef<CanvasHost>(m_allocator);
@@ -1362,8 +1342,8 @@ namespace engine::gui
                 c.renderRoot = c.root ? TextureRootFor(*tier.Scene, entity, *c.root) : RefPtr<SceneRoot>{};
                 if (!c.root)
                 {
-                    c.renderTexture = nullptr;
-                    c.renderTextureView = nullptr;
+                    c.renderTexture = {};
+                    c.renderTextureView = {};
                     return;
                 }
                 ApplySheet(c, StringView(u8"panel"));
@@ -1701,13 +1681,12 @@ namespace engine::gui
         m_input->ForEachActionRuntime([](foundation::input::ActionRuntime& runtime) { runtime.SetConsumptionMask({}); });
     }
 
-    void GuiSubsystem::EnsureRenderReady(rhi::Device& device, i32 frameCount, render::GpuRetireQueue* retire)
+    void GuiSubsystem::EnsureRenderReady(rhi::Device& device, i32 frameCount)
     {
         if (m_render && m_render->Device != nullptr)
             return;
         m_render = MakeUnique<RenderState>(m_allocator, m_allocator, true);
         m_render->Device = &device;
-        m_render->RetireQueue = retire;
         if (!m_render->Shaders.Load(device, *m_dataFileSystem))
         {
             LOG_ERROR(u8"GUI", u8"no shader compiler and no shader pack: the GUI will not draw");
@@ -1718,9 +1697,9 @@ namespace engine::gui
         m_context->SetPictureBaker(m_render->Renderer->Baker());
         GuiPassRenderer* renderer = m_render->Renderer.Get();
         m_resources->SetTextureSink(
-            [renderer](const image::ImageData* key, rhi::TextureView* view)
+            [renderer](const image::ImageData* key, rhi::TextureViewHandle view)
             {
-                if (view != nullptr)
+                if (view.IsValid())
                     renderer->RegisterTexture(key, view);
                 else
                     renderer->UnregisterTexture(key);
@@ -2075,10 +2054,10 @@ namespace engine::gui
         return root;
     }
 
-    void GuiSubsystem::RenderPreview(SceneRoot& root, rhi::CommandEncoder& encoder, rhi::TextureView* target, rhi::TextureFormat format,
+    void GuiSubsystem::RenderPreview(SceneRoot& root, rhi::CommandEncoder& encoder, rhi::TextureViewHandle target, rhi::TextureFormat format,
                                      u32 width, u32 height, u32 frameIndex)
     {
-        if (!IsRenderReady() || target == nullptr || width == 0 || height == 0)
+        if (!IsRenderReady() || !target.IsValid() || width == 0 || height == 0)
             return;
         GuiPassRenderer& renderer = *m_render->Renderer;
         (void)renderer.RecordBakes(encoder, frameIndex); // before the pass samples them, once a frame
@@ -2166,11 +2145,11 @@ namespace engine::gui
             // The entity of a render-texture canvas shows the canvas's texture on its sprite and
             // decal, through the same override a script would set. A sprite or decal that showed
             // the old texture lets it go.
-            const auto show = [&](scene::EntityHandle entity, rhi::TextureView* was, rhi::TextureView* now)
+            const auto show = [&](scene::EntityHandle entity, rhi::TextureViewHandle was, rhi::TextureViewHandle now)
             {
-                if (auto* sprite = sprites != nullptr ? sprites->Get(entity) : nullptr; sprite != nullptr && (now != nullptr || sprite->texture == was))
+                if (auto* sprite = sprites != nullptr ? sprites->Get(entity) : nullptr; sprite != nullptr && (now.IsValid() || sprite->texture == was))
                     sprite->texture = now;
-                if (auto* decal = decals != nullptr ? decals->Get(entity) : nullptr; decal != nullptr && (now != nullptr || decal->texture == was))
+                if (auto* decal = decals != nullptr ? decals->Get(entity) : nullptr; decal != nullptr && (now.IsValid() || decal->texture == was))
                     decal->texture = now;
             };
             if (auto* canvases = tier.Scene->GetSystem<GuiCanvasComponentManager>())
@@ -2179,11 +2158,11 @@ namespace engine::gui
                     {
                         if (c.renderMode != GuiCanvasRenderMode::RenderTexture || !c.renderRoot)
                             return;
-                        rhi::TextureView* was = c.renderTextureView;
+                        rhi::TextureViewHandle was = c.renderTextureView;
                         RenderState::Target* target = m_render->EnsureTarget(*c.renderRoot, *tier.Scene, entity, Max(c.renderTextureWidth, 1u),
                                                                              Max(c.renderTextureHeight, 1u), m_allocator);
-                        c.renderTexture = target != nullptr ? target->Texture : nullptr;
-                        c.renderTextureView = target != nullptr ? target->View : nullptr;
+                        c.renderTexture = target != nullptr ? target->Texture : rhi::TextureHandle{};
+                        c.renderTextureView = target != nullptr ? target->View : rhi::TextureViewHandle{};
                         show(entity, was, c.renderTextureView);
                         if (target == nullptr || !c.visible || !tier.Scene->IsEffectivelyActive(entity))
                             return; // the texture is kept but not drawn
@@ -2206,8 +2185,8 @@ namespace engine::gui
                         const u32 width = static_cast<u32>(pixels.x) + 2 * kEdge;
                         const u32 height = static_cast<u32>(pixels.y) + 2 * kEdge;
                         RenderState::Target* target = m_render->EnsureTarget(*c.renderRoot, *tier.Scene, entity, width, height, m_allocator);
-                        c.renderTexture = target != nullptr ? target->Texture : nullptr;
-                        c.renderTextureView = target != nullptr ? target->View : nullptr;
+                        c.renderTexture = target != nullptr ? target->Texture : rhi::TextureHandle{};
+                        c.renderTextureView = target != nullptr ? target->View : rhi::TextureViewHandle{};
                         const bool shown = c.visible && tier.Scene->IsEffectivelyActive(entity);
                         if (sprites != nullptr)
                         {
@@ -2227,9 +2206,8 @@ namespace engine::gui
                     });
         }
         // Removes the textures whose canvas or panel has gone. A sprite or decal in a scene that
-        // still exists lets go of such a texture first; then the texture is retired (without a
-        // retire queue, destroyed after one wait for the GPU).
-        bool waited = false;
+        // still exists lets go of such a texture first; then the texture is destroyed (the device
+        // keeps it while a frame in flight samples it).
         for (usize i = m_render->Targets.Size(); i-- > 0;)
         {
             RenderState::Target& target = *m_render->Targets[i];
@@ -2238,21 +2216,16 @@ namespace engine::gui
             bool sceneHere = false;
             for (const SceneTier& tier : m_sceneTiers)
                 sceneHere = sceneHere || tier.Scene == target.Scene;
-            if (sceneHere && target.View != nullptr)
+            if (sceneHere && target.View.IsValid())
             {
                 if (auto* sprites = target.Scene->GetSystem<engine::render::SpriteComponentManager>())
                     if (auto* sprite = sprites->Get(target.Entity); sprite != nullptr && sprite->texture == target.View)
-                        sprite->texture = nullptr;
+                        sprite->texture = {};
                 if (auto* decals = target.Scene->GetSystem<engine::render::DecalComponentManager>())
                     if (auto* decal = decals->Get(target.Entity); decal != nullptr && decal->texture == target.View)
-                        decal->texture = nullptr;
+                        decal->texture = {};
             }
-            if (m_render->RetireQueue == nullptr && !waited)
-            {
-                m_render->Device->WaitIdle();
-                waited = true;
-            }
-            m_render->Retire(target);
+            m_render->Release(target);
             m_render->Targets.RemoveAt(i);
         }
     }

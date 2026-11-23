@@ -111,5 +111,4 @@ export namespace foundation::rhi::dx12
         D3D12_RESOURCE_STATES m_state = D3D12_RESOURCE_STATE_COMMON;
         void* m_persistentMap = nullptr;
     };
-
 } // namespace foundation::rhi::dx12

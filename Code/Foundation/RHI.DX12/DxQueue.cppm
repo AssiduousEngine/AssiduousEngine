@@ -16,6 +16,9 @@ import :conversions;
 import :command_buffer;
 import :fence;
 import :transfer_batch;
+import :queue_timeline;
+import :buffer;
+import :tables;
 
 using namespace foundation::core;
 
@@ -30,6 +33,14 @@ export namespace foundation::rhi::dx12
         explicit DxQueueImpl(IAllocator& allocator) noexcept : m_allocator(allocator) {}
 
         DeviceCounterBlock* counters = nullptr; // the device's counts; its transfer batches bump them
+        /// The device's tables, for its transfer batches.
+        const DxTables* tables = nullptr;
+        /// The device's: frees the retired resources nothing can use any more (after a submit).
+        Function<void()> collect;
+
+        /// Its own timeline, counted by the device's tracker (made by the device after init).
+        [[nodiscard]] Status initTimeline(SubmissionTracker& tracker) { return m_timeline.init(m_d3dDevice, tracker); }
+        [[nodiscard]] const DxQueueTimeline& timeline() const noexcept { return m_timeline; }
 
         Status init(ID3D12Device* device, QueueType type, DxDeviceImpl* owner)
         {
@@ -69,6 +80,21 @@ export namespace foundation::rhi::dx12
                     lists[i] = dxCb->handle();
             }
             m_queue->ExecuteCommandLists(static_cast<UINT>(lists.Size()), lists.Data());
+            // The queue's timeline after this work; its command buffers' recordings end there.
+            const u64 submission = m_timeline.signal(m_queue.Get());
+            if (SubmissionTracker* tracker = m_timeline.tracker(); tracker != nullptr && submission != 0)
+            {
+                for (CommandBuffer* cb : cmdBufs)
+                {
+                    if (auto* dxCb = static_cast<DxCommandBufferImpl*>(cb))
+                    {
+                        tracker->End(dxCb->recording, m_timeline.slot(), submission);
+                        dxCb->recording = 0;
+                    }
+                }
+            }
+            if (collect)
+                collect();
         }
 
         void Submit(Span<CommandBuffer* const> cmdBufs, Fence* signalFence,
@@ -118,6 +144,8 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             batch->counters = counters;
+            batch->tables = tables;
+            batch->timeline = &m_timeline;
             out = batch;
             return ErrorCode::Ok;
         }
@@ -164,6 +192,7 @@ export namespace foundation::rhi::dx12
 
     private:
         ComPtr<ID3D12CommandQueue> m_queue;
+        DxQueueTimeline m_timeline;
         ComPtr<ID3D12Fence> m_internalFence;
         HANDLE m_fenceEvent = nullptr;
         u64 m_fenceValue = 0;

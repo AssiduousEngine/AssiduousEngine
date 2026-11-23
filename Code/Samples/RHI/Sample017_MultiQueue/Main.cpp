@@ -41,29 +41,29 @@ private:
 
     void recreateDepth(foundation::core::u32 w, foundation::core::u32 h);
 
-    rhi::ShaderModule *m_cs = nullptr, *m_vs = nullptr, *m_ps = nullptr;
+    rhi::ShaderModuleHandle m_cs{}, m_vs{}, m_ps{};
 
     // Compute resources.
     rhi::Queue* m_computeQueue = nullptr;
     rhi::CommandPool* m_computePool = nullptr;
-    rhi::BindGroupLayout* m_compBgl = nullptr;
-    rhi::BindGroup* m_compBg = nullptr;
-    rhi::PipelineLayout* m_compPl = nullptr;
-    rhi::ComputePipeline* m_compPipe = nullptr;
-    rhi::Buffer* m_paramsBuf = nullptr;
+    rhi::BindGroupLayoutHandle m_compBgl{};
+    rhi::BindGroupHandle m_compBg{};
+    rhi::PipelineLayoutHandle m_compPl{};
+    rhi::ComputePipelineHandle m_compPipe{};
+    rhi::BufferHandle m_paramsBuf{};
     void* m_paramsMapped = nullptr;
 
     // Graphics resources.
     rhi::CommandPool* m_gfxPool = nullptr;
-    rhi::BindGroupLayout* m_renBgl = nullptr;
-    rhi::BindGroup* m_renBg = nullptr;
-    rhi::PipelineLayout* m_renPl = nullptr;
-    rhi::RenderPipeline* m_renPipe = nullptr;
-    rhi::Buffer* m_vpBuf = nullptr;
+    rhi::BindGroupLayoutHandle m_renBgl{};
+    rhi::BindGroupHandle m_renBg{};
+    rhi::PipelineLayoutHandle m_renPl{};
+    rhi::RenderPipelineHandle m_renPipe{};
+    rhi::BufferHandle m_vpBuf{};
     void* m_vpMapped = nullptr;
 
     // Shared.
-    rhi::Buffer* m_vtxBuf = nullptr;
+    rhi::BufferHandle m_vtxBuf{};
     samples::framework::DepthBuffer m_depthBuf;
 
     // Synchronization.
@@ -121,7 +121,7 @@ foundation::core::Status MultiQueueSample::OnInit()
     pbd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(pbd, m_paramsBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_paramsMapped = m_paramsBuf->Map();
+    m_paramsMapped = m_device->Map(m_paramsBuf);
 
     // View-projection UBO.
     rhi::BufferDesc vpd{};
@@ -130,7 +130,7 @@ foundation::core::Status MultiQueueSample::OnInit()
     vpd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(vpd, m_vpBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_vpMapped = m_vpBuf->Map();
+    m_vpMapped = m_device->Map(m_vpBuf);
 
     // Compute pipeline.
     rhi::BindGroupLayoutEntry cE[2] = {
@@ -147,9 +147,9 @@ foundation::core::Status MultiQueueSample::OnInit()
     cBgd.entries = Span<const rhi::BindGroupEntry>(cBgE, 2);
     if (m_device->CreateBindGroup(cBgd, m_compBg) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    rhi::BindGroupLayout* cSets[1] = {m_compBgl};
+    rhi::BindGroupLayoutHandle cSets[1] = {m_compBgl};
     rhi::PipelineLayoutDesc cPld{};
-    cPld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(cSets, 1);
+    cPld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(cSets, 1);
     if (m_device->CreatePipelineLayout(cPld, m_compPl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
     rhi::ComputePipelineDesc cpd{};
@@ -171,9 +171,9 @@ foundation::core::Status MultiQueueSample::OnInit()
     rBgd.entries = Span<const rhi::BindGroupEntry>(rBgE, 1);
     if (m_device->CreateBindGroup(rBgd, m_renBg) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    rhi::BindGroupLayout* rSets[1] = {m_renBgl};
+    rhi::BindGroupLayoutHandle rSets[1] = {m_renBgl};
     rhi::PipelineLayoutDesc rPld{};
-    rPld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(rSets, 1);
+    rPld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(rSets, 1);
     if (m_device->CreatePipelineLayout(rPld, m_renPl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
@@ -329,9 +329,9 @@ void MultiQueueSample::OnRender()
 void MultiQueueSample::OnShutdown()
 {
     if (m_paramsBuf && m_paramsMapped)
-        m_paramsBuf->Unmap();
+        m_device->Unmap(m_paramsBuf);
     if (m_vpBuf && m_vpMapped)
-        m_vpBuf->Unmap();
+        m_device->Unmap(m_vpBuf);
     m_depthBuf.Destroy(m_device);
     if (m_gfxFence)
         m_device->DestroyFence(m_gfxFence);

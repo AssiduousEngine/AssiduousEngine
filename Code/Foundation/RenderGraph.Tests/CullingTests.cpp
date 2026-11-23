@@ -84,7 +84,7 @@ TEST_CASE("rg.cull: imported with final state prevents culling")
     RenderGraph graph(DefaultAllocator(), nullptr);
     graph.BeginFrame(0);
     const RGHandle backbuffer =
-        graph.ImportTarget(u8"BB", nullptr, nullptr, rhi::ResourceState::Present);
+        graph.ImportTarget(u8"BB", rhi::TextureHandle{}, rhi::TextureViewHandle{}, rhi::ResourceState::Present);
     const RGHandle color =
         graph.CreateTransient(u8"Color", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
 

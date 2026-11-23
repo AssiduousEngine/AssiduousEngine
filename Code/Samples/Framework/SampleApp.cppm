@@ -92,13 +92,13 @@ export namespace samples::framework
         /// "Sample001_Triangle/Triangle.hlsl"), compiled as the sample starts or, where there is no
         /// shader compiler (Android), read from the pack cooked from the same files.
         Status LoadShader(StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
-                          StringView shaderModel, rhi::ShaderModule*& out)
+                          StringView shaderModel, rhi::ShaderModuleHandle& out)
         {
             return m_shaders.Load(m_device, file, stage, entryPoint, label, shaderModel, out);
         }
         /// The same at shader model 6.0.
         Status LoadShader(StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
-                          rhi::ShaderModule*& out)
+                          rhi::ShaderModuleHandle& out)
         {
             return m_shaders.Load(m_device, file, stage, entryPoint, label, u8"6_0", out);
         }
@@ -148,7 +148,7 @@ export namespace samples::framework
         void RequestScreenshot(StringView path = {});
         /// Records the armed screenshot's copy of `backbuffer` (the swapchain's current image, in
         /// RenderTarget) into `encoder`, leaving it as it found it.
-        void CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::Texture* backbuffer);
+        void CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::TextureHandle backbuffer);
         /// Whether a screenshot waits on frames being drawn: one armed, or a --screenshot run not
         /// yet done (it counts drawn frames). A sample that skips idle frames draws while it does.
         [[nodiscard]] bool ScreenshotPending() const noexcept
@@ -460,7 +460,7 @@ export namespace samples::framework
         m_screenshot.Request(file.AsView());
     }
 
-    inline void SampleApp::CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::Texture* backbuffer)
+    inline void SampleApp::CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::TextureHandle backbuffer)
     {
         ++m_renderedFrames;
         // The --screenshot run: from the due frame, one file a frame until --screenshot-count are

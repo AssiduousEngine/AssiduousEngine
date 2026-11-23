@@ -31,18 +31,18 @@ export namespace foundation::render
     // stream (joints and weights) in a second vertex buffer, bound at slot 1 by the skinned pipeline.
     struct GpuMesh
     {
-        rhi::Buffer* vertexBuffer = nullptr;
+        rhi::BufferHandle vertexBuffer{};
         u64 vertexOffset = 0;
-        rhi::Buffer* indexBuffer = nullptr;
+        rhi::BufferHandle indexBuffer{};
         u64 indexOffset = 0;
         u32 indexCount = 0;
         rhi::IndexFormat indexFormat = rhi::IndexFormat::UInt32;
-        rhi::Buffer* skinBuffer = nullptr; // skinning stream (null for a static mesh)
+        rhi::BufferHandle skinBuffer{}; // skinning stream (null for a static mesh)
         u64 skinOffset = 0;
         // The depth-only stream of a static mesh (position + uv, kDepthStreamStride bytes a vertex,
         // VertexLayoutType::DepthStream): what its shadow and depth prepass draws read, a fraction
         // of the full vertex. Null for a skinned mesh, whose depth draws take the full stream.
-        rhi::Buffer* depthBuffer = nullptr;
+        rhi::BufferHandle depthBuffer{};
         u64 depthOffset = 0;
     };
 

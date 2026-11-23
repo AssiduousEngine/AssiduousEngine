@@ -64,30 +64,30 @@ TEST_CASE("shader system: flags become defines; a failure is remembered until th
         ss.RegisterSource(u8"guarded", ShaderStage::Fragment, kNeedsNormalMap, kCorpusEntryPoint);
 
         // Without the flag, NORMAL_MAP is undefined: a compile error, so null (not cached).
-        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::None) == nullptr);
+        CHECK(!ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::None).IsValid());
 
         // NormalMap defines NORMAL_MAP, so it compiles.
-        rhi::ShaderModule* m =
+        rhi::ShaderModuleHandle m =
             ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::NormalMap);
-        CHECK(m != nullptr);
+        CHECK(m.IsValid());
 
         // Same variant is cached (same module object).
         CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::NormalMap) == m);
 
         // A different flag doesn't define NORMAL_MAP, so it still fails (specific mapping).
-        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::Emissive) == nullptr);
+        CHECK(!ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::Emissive).IsValid());
 
         // An unknown shader or wrong stage is null.
-        CHECK(ss.GetVariant(u8"missing", ShaderStage::Fragment, ShaderFlags::NormalMap) == nullptr);
-        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Vertex, ShaderFlags::NormalMap) == nullptr);
+        CHECK(!ss.GetVariant(u8"missing", ShaderStage::Fragment, ShaderFlags::NormalMap).IsValid());
+        CHECK(!ss.GetVariant(u8"guarded", ShaderStage::Vertex, ShaderFlags::NormalMap).IsValid());
 
         // A failed variant is not compiled again until its source changes; a fixed source
         // registered under the same name compiles.
-        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::None) == nullptr);
+        CHECK(!ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::None).IsValid());
         ss.RegisterSource(u8"guarded", ShaderStage::Fragment,
                           u8"float4 main() : SV_Target { return float4(0, 1, 0, 1); }",
                           kCorpusEntryPoint);
-        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::None) != nullptr);
+        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::None).IsValid());
     }
 
     compiler->Destroy();
@@ -149,30 +149,30 @@ TEST_CASE("shader system: cooked pack path - blob lookup + canonicalization, no 
         ss.SetCookedPack(&pack);
 
         // Lookup builds a module directly from the cooked blob (no compile).
-        rhi::ShaderModule* m = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None);
-        CHECK(m != nullptr);
+        rhi::ShaderModuleHandle m = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None);
+        CHECK(m.IsValid());
 
         // Canonicalization: only declared bits survive, so Skinned|Emissive is the Skinned variant.
-        rhi::ShaderModule* s = ss.GetVariant(u8"vs", ShaderStage::Vertex,
+        rhi::ShaderModuleHandle s = ss.GetVariant(u8"vs", ShaderStage::Vertex,
                                              ShaderFlags::Skinned | ShaderFlags::Emissive);
-        CHECK(s != nullptr);
+        CHECK(s.IsValid());
         CHECK(s != m);
 
         // Emissive alone is not declared, so it canonicalizes to None and dedups onto the None module.
         CHECK(ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::Emissive) == m);
 
         // A name absent from the pack is a cook-coverage miss: null (logged).
-        CHECK(ss.GetVariant(u8"nope", ShaderStage::Vertex, ShaderFlags::None) == nullptr);
+        CHECK(!ss.GetVariant(u8"nope", ShaderStage::Vertex, ShaderFlags::None).IsValid());
 
         // Dist boot: a compiler-free ShaderSystem (no DXC) serves the same pack. This is what a
         // dist player does when the DXC sidecar is absent.
         ShaderSystem packOnly(device); // no compiler
         packOnly.SetCookedPack(&pack);
-        CHECK(packOnly.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None) != nullptr);
+        CHECK(packOnly.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None).IsValid());
         CHECK(packOnly.GetVariant(u8"vs", ShaderStage::Vertex,
-                                  ShaderFlags::Skinned | ShaderFlags::Emissive) != nullptr);
+ShaderFlags::Skinned | ShaderFlags::Emissive).IsValid());
         // With no compiler and no pack entry, on-demand compilation is unavailable: null.
-        CHECK(packOnly.GetVariant(u8"nope", ShaderStage::Vertex, ShaderFlags::None) == nullptr);
+        CHECK(!packOnly.GetVariant(u8"nope", ShaderStage::Vertex, ShaderFlags::None).IsValid());
     }
 
     compiler->Destroy();
@@ -191,17 +191,17 @@ TEST_CASE("shader system: distinct variants cache separately; invalidate recompi
         ShaderSystem ss(*compiler, device);
         ss.RegisterSource(u8"vs", ShaderStage::Vertex, kTrivialVertex, kCorpusEntryPoint);
 
-        rhi::ShaderModule* a = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None);
-        rhi::ShaderModule* b = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::Skinned);
-        REQUIRE(a != nullptr);
-        REQUIRE(b != nullptr);
+        rhi::ShaderModuleHandle a = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None);
+        rhi::ShaderModuleHandle b = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::Skinned);
+        REQUIRE(a.IsValid());
+        REQUIRE(b.IsValid());
         CHECK(a != b); // different variants
         CHECK(ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None) == a); // cached
 
         // Invalidate drops the cached variants; a later request recompiles.
         CHECK(ss.InvalidateShader(u8"vs") == 2u);
-        rhi::ShaderModule* a2 = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None);
-        CHECK(a2 != nullptr);
+        rhi::ShaderModuleHandle a2 = ss.GetVariant(u8"vs", ShaderStage::Vertex, ShaderFlags::None);
+        CHECK(a2.IsValid());
     }
 
     compiler->Destroy();
@@ -230,9 +230,9 @@ TEST_CASE("shader system: an explicitly registered source beats the cooked pack"
         ss.RegisterSource(u8"user_shader", ShaderStage::Vertex, kTrivialVertex, kCorpusEntryPoint);
 
         // The registered source compiles even though the system is in pack mode.
-        rhi::ShaderModule* m =
+        rhi::ShaderModuleHandle m =
             ss.GetVariant(u8"user_shader", ShaderStage::Vertex, ShaderFlags::None);
-        CHECK(m != nullptr);
+        CHECK(m.IsValid());
     }
     compiler->Destroy();
 }
@@ -266,29 +266,28 @@ TEST_CASE("shader system: dev mode canonicalizes corpus requests like the cooked
 
         // Declared mask Skinned: a request carrying an extra undeclared flag collapses onto
         // the declared-only variant, the same module object, not a recompile.
-        rhi::ShaderModule* declared =
+        rhi::ShaderModuleHandle declared =
             ss.GetVariant(u8"declared", ShaderStage::Vertex, ShaderFlags::Skinned);
-        REQUIRE(declared != nullptr);
+        REQUIRE(declared.IsValid());
         CHECK(ss.GetVariant(u8"declared", ShaderStage::Vertex,
                             ShaderFlags::Skinned | ShaderFlags::Emissive) == declared);
         // And the undeclared-only request collapses onto the None variant.
-        rhi::ShaderModule* none =
+        rhi::ShaderModuleHandle none =
             ss.GetVariant(u8"declared", ShaderStage::Vertex, ShaderFlags::None);
-        REQUIRE(none != nullptr);
+        REQUIRE(none.IsValid());
         CHECK(ss.GetVariant(u8"declared", ShaderStage::Vertex, ShaderFlags::Emissive) == none);
         CHECK(none != declared);
 
         // No directive means single-variant: every request lands on the one variant.
-        rhi::ShaderModule* plain = ss.GetVariant(u8"plain", ShaderStage::Vertex, ShaderFlags::None);
-        REQUIRE(plain != nullptr);
+        rhi::ShaderModuleHandle plain = ss.GetVariant(u8"plain", ShaderStage::Vertex, ShaderFlags::None);
+        REQUIRE(plain.IsValid());
         CHECK(ss.GetVariant(u8"plain", ShaderStage::Vertex,
                             ShaderFlags::Skinned | ShaderFlags::Instanced) == plain);
 
         // Explicitly registered sources are outside the corpus model: raw flags still apply
         // (the NormalMap-guarded source only compiles when the define survives).
         ss.RegisterSource(u8"guarded", ShaderStage::Fragment, kNeedsNormalMap, kCorpusEntryPoint);
-        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::NormalMap) !=
-              nullptr);
+        CHECK(ss.GetVariant(u8"guarded", ShaderStage::Fragment, ShaderFlags::NormalMap).IsValid());
     }
     compiler->Destroy();
 }
@@ -327,7 +326,7 @@ TEST_CASE("shader system host: dev-first policy - a pack in the data root does n
             return;
         }
         CHECK_FALSE(host.UsingPack());
-        CHECK(host.GetVariant(u8"hosted", ShaderStage::Vertex, ShaderFlags::None) != nullptr);
+        CHECK(host.GetVariant(u8"hosted", ShaderStage::Vertex, ShaderFlags::None).IsValid());
     }
     {
         // A distribution marks itself (Engine/Shaders/.pack-first): Automatic then starts from the pack
@@ -344,7 +343,7 @@ TEST_CASE("shader system host: dev-first policy - a pack in the data root does n
                                       u8"float4 main(uint id : SV_VertexID) : SV_Position "
                                       u8"{ return float4(HostedZero(), 0, 0, 1); }\n",
                                       u8"main");
-        CHECK(host.GetVariant(u8"custom", ShaderStage::Vertex, ShaderFlags::None) != nullptr);
+        CHECK(host.GetVariant(u8"custom", ShaderStage::Vertex, ShaderFlags::None).IsValid());
         (void)FileDelete(PathJoin(root, u8"Engine/Shaders/.pack-first").AsView());
     }
     {
@@ -363,7 +362,7 @@ TEST_CASE("shader system host: dev-first policy - a pack in the data root does n
         ShaderSystemHost host{DefaultAllocator()};
         REQUIRE(host.Initialize(device, emptyFs, ShaderPackPolicy::ForceDev));
         CHECK_FALSE(host.UsingPack());
-        CHECK(host.GetVariant(u8"hosted", ShaderStage::Vertex, ShaderFlags::None) == nullptr);
+        CHECK(!host.GetVariant(u8"hosted", ShaderStage::Vertex, ShaderFlags::None).IsValid());
     }
     {
         // Pack mode with no pack present and no compiler path forced: Automatic on an empty
@@ -444,21 +443,22 @@ TEST_CASE("shader system: a stage's entry point is registered with it and record
         ShaderSystem ss(*compiler, device);
         ss.RegisterSource(u8"one", ShaderStage::Vertex, kOneFile, u8"VSMain");
         ss.RegisterSource(u8"one", ShaderStage::Fragment, kOneFile, u8"PSMain");
-        rhi::ShaderModule* vs = ss.GetVariant(u8"one", ShaderStage::Vertex, ShaderFlags::None);
-        rhi::ShaderModule* ps = ss.GetVariant(u8"one", ShaderStage::Fragment, ShaderFlags::None);
-        REQUIRE(vs != nullptr);
-        REQUIRE(ps != nullptr);
-        CHECK(vs->entryPoint.AsView() == StringView(u8"VSMain"));
-        CHECK(ps->entryPoint.AsView() == StringView(u8"PSMain"));
-        // A stage that names none runs its module's own.
-        CHECK(rhi::EntryPointOf(rhi::StageOf(vs, rhi::ShaderStage::Vertex)) ==
+        rhi::ShaderModuleHandle vs = ss.GetVariant(u8"one", ShaderStage::Vertex, ShaderFlags::None);
+        rhi::ShaderModuleHandle ps = ss.GetVariant(u8"one", ShaderStage::Fragment, ShaderFlags::None);
+        REQUIRE(vs.IsValid());
+        REQUIRE(ps.IsValid());
+        CHECK(device.EntryPointOf(vs) == StringView(u8"VSMain"));
+        CHECK(device.EntryPointOf(ps) == StringView(u8"PSMain"));
+        // A stage that names none runs its module's own (the backend's object, which the stage's
+        // handle names, carries it).
+        CHECK(rhi::EntryPointOf(rhi::StageOf(vs, rhi::ShaderStage::Vertex), device.m_shaderModules.Get(vs)) ==
               StringView(u8"VSMain"));
-        CHECK(rhi::EntryPointOf(rhi::ProgrammableStage{vs, u8"Other", rhi::ShaderStage::Vertex}) ==
-              StringView(u8"Other"));
+        CHECK(rhi::EntryPointOf(rhi::ProgrammableStage{vs, u8"Other", rhi::ShaderStage::Vertex},
+                                device.m_shaderModules.Get(vs)) == StringView(u8"Other"));
 
         // A wrong entry name is a compile failure, not a module named something it lacks.
         ss.RegisterSource(u8"wrong", ShaderStage::Vertex, kOneFile, u8"NoSuchFunction");
-        CHECK(ss.GetVariant(u8"wrong", ShaderStage::Vertex, ShaderFlags::None) == nullptr);
+        CHECK(!ss.GetVariant(u8"wrong", ShaderStage::Vertex, ShaderFlags::None).IsValid());
     }
     {
         // Compiler-free: the cooked pack supplies the entry the cook compiled the stage for.
@@ -469,9 +469,9 @@ TEST_CASE("shader system: a stage's entry point is registered with it and record
         pack.AddEntryPoint(u8"cooked", ShaderStage::Fragment, u8"PSMain");
         ShaderSystem ss(device);
         ss.SetCookedPack(&pack);
-        rhi::ShaderModule* m = ss.GetVariant(u8"cooked", ShaderStage::Fragment, ShaderFlags::None);
-        REQUIRE(m != nullptr);
-        CHECK(m->entryPoint.AsView() == StringView(u8"PSMain"));
+        rhi::ShaderModuleHandle m = ss.GetVariant(u8"cooked", ShaderStage::Fragment, ShaderFlags::None);
+        REQUIRE(m.IsValid());
+        CHECK(device.EntryPointOf(m) == StringView(u8"PSMain"));
     }
     compiler->Destroy();
 }
@@ -492,11 +492,11 @@ TEST_CASE("shader system: a registered source with a declared mask canonicalizes
         ShaderSystem ss(*compiler, device);
         ss.RegisterSource(u8"asset", ShaderStage::Vertex, kTrivialVertex, kCorpusEntryPoint,
                           ShaderFlags::Skinned);
-        rhi::ShaderModule* plain = ss.GetVariant(u8"asset", ShaderStage::Vertex, ShaderFlags::None);
-        rhi::ShaderModule* skinned =
+        rhi::ShaderModuleHandle plain = ss.GetVariant(u8"asset", ShaderStage::Vertex, ShaderFlags::None);
+        rhi::ShaderModuleHandle skinned =
             ss.GetVariant(u8"asset", ShaderStage::Vertex, ShaderFlags::Skinned);
-        REQUIRE(plain != nullptr);
-        REQUIRE(skinned != nullptr);
+        REQUIRE(plain.IsValid());
+        REQUIRE(skinned.IsValid());
         CHECK(plain != skinned);
         // Wind was never declared: the request is the declared variant it reduces to.
         CHECK(ss.GetVariant(u8"asset", ShaderStage::Vertex, ShaderFlags::Wind) == plain);
@@ -524,14 +524,14 @@ TEST_CASE("shader system: without a compiler, a registered shader is served from
     ShaderSystem ss(device);
     ss.SetCookedPack(&pack);
     ss.RegisterSource(u8"toon", ShaderStage::Fragment, u8"", u8"PSMain", ShaderFlags::GBuffer);
-    rhi::ShaderModule* plain = ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::None);
-    REQUIRE(plain != nullptr);
-    CHECK(plain->entryPoint.AsView() == StringView(u8"PSMain"));
+    rhi::ShaderModuleHandle plain = ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::None);
+    REQUIRE(plain.IsValid());
+    CHECK(device.EntryPointOf(plain) == StringView(u8"PSMain"));
     // Flags the stage never declared reduce to the cooked variant.
     CHECK(ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::Skinned) == plain);
-    CHECK(ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::GBuffer) != nullptr);
+    CHECK(ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::GBuffer).IsValid());
     // A stage the pack never cooked is a miss.
-    CHECK(ss.GetVariant(u8"toon", ShaderStage::Vertex, ShaderFlags::None) == nullptr);
+    CHECK(!ss.GetVariant(u8"toon", ShaderStage::Vertex, ShaderFlags::None).IsValid());
 }
 
 // A dist's player can carry a compiler (a dev build exported as a host template does), but the
@@ -556,9 +556,9 @@ TEST_CASE("shader system: with a compiler, a stripped registered shader is serve
         ShaderSystem ss(*compiler, device);
         ss.SetCookedPack(&pack);
         ss.RegisterSource(u8"toon", ShaderStage::Fragment, u8"", u8"PSMain", ShaderFlags::None);
-        rhi::ShaderModule* m = ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::None);
-        REQUIRE(m != nullptr);
-        CHECK(m->entryPoint.AsView() == StringView(u8"PSMain"));
+        rhi::ShaderModuleHandle m = ss.GetVariant(u8"toon", ShaderStage::Fragment, ShaderFlags::None);
+        REQUIRE(m.IsValid());
+        CHECK(device.EntryPointOf(m) == StringView(u8"PSMain"));
     }
     compiler->Destroy();
 }

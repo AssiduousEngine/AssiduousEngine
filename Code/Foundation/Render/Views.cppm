@@ -47,7 +47,7 @@ export namespace foundation::render
         // texture the graph transitions (null for a host-managed backbuffer; the graph adds no barrier).
         // `targetFinalState` is where the graph leaves it: RenderTarget for present, or ShaderRead or
         // CopySrc for an offscreen target the caller then samples or blits.
-        rhi::Texture* targetTexture = nullptr;
+        rhi::TextureHandle targetTexture{};
         rhi::ResourceState targetCurrentState = rhi::ResourceState::RenderTarget;
         rhi::ResourceState targetFinalState = rhi::ResourceState::RenderTarget;
         // Resolved per-view post-processing (exposure, bloom, AO). The RenderSubsystem fills this from
@@ -85,7 +85,7 @@ export namespace foundation::render
     public:
         // Bind this view to a scene snapshot, camera and target for the current frame.
         void Bind(const ExtractedScene& scene, const ViewCamera& camera,
-                  const ViewSettings& settings, rhi::TextureView* target,
+                  const ViewSettings& settings, rhi::TextureViewHandle target,
                   rhi::TextureFormat targetFormat, u32 width, u32 height) noexcept
         {
             m_scene = &scene;
@@ -193,7 +193,7 @@ export namespace foundation::render
             projection::ApplyJitter(m_camera.projection, jx, jy);
         }
         [[nodiscard]] const ViewSettings& Settings() const noexcept { return m_settings; }
-        [[nodiscard]] rhi::TextureView* Target() const noexcept { return m_target; }
+        [[nodiscard]] rhi::TextureViewHandle Target() const noexcept { return m_target; }
         [[nodiscard]] rhi::TextureFormat TargetFormat() const noexcept { return m_targetFormat; }
         // The size the scene chain runs at, which the transients are sized to: the full target, or
         // with a scene size of its own (IsScaled), that size.
@@ -237,7 +237,7 @@ export namespace foundation::render
         const ExtractedScene* m_scene = nullptr;
         ViewCamera m_camera;
         ViewSettings m_settings;
-        rhi::TextureView* m_target = nullptr;
+        rhi::TextureViewHandle m_target{};
         rhi::TextureFormat m_targetFormat = rhi::TextureFormat::BGRA8Unorm;
         u32 m_width = 0; // the size the scene chain runs at (the full target, or the scene size)
         u32 m_height = 0;

@@ -155,5 +155,4 @@ export namespace foundation::rhi::vk
         VkDevice m_device = VK_NULL_HANDLE;
         bool m_nonCoherent = false; // mapped memory that needs Map's invalidate and Unmap's flush
     };
-
 } // namespace foundation::rhi::vk

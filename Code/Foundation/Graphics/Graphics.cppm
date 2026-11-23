@@ -189,11 +189,11 @@ export namespace foundation::graphics
         core::u32 windowHeight = 0;
         rhi::CommandEncoder* encoder = nullptr; // primary, host-created
         rhi::CommandPool* pool = nullptr;       // this frame's pool (extra encoders)
-        rhi::Texture* backbuffer = nullptr;
-        rhi::TextureView* backbufferView = nullptr;
+        rhi::TextureHandle backbuffer{};
+        rhi::TextureViewHandle backbufferView{};
         // The backbuffer viewed in its sRGB or UNORM twin (the window's swapchain asks for it);
-        // null where the device or surface could not. VG's Encoded blend space draws through it.
-        rhi::TextureView* backbufferAlternateView = nullptr;
+        // invalid where the device or surface could not. VG's Encoded blend space draws through it.
+        rhi::TextureViewHandle backbufferAlternateView{};
 
         // Convenience for the common 2D/UI case: open a render pass that clears
         // and targets the backbuffer (the host already made the Undefined to
@@ -204,7 +204,7 @@ export namespace foundation::graphics
             return BeginBackbufferPass(clear, backbufferView);
         }
         // The same through a chosen view of the backbuffer (backbufferAlternateView).
-        rhi::RenderPassEncoder* BeginBackbufferPass(rhi::ClearColor clear, rhi::TextureView* view)
+        rhi::RenderPassEncoder* BeginBackbufferPass(rhi::ClearColor clear, rhi::TextureViewHandle view)
         {
             rhi::ColorAttachment ca{};
             ca.view = view;

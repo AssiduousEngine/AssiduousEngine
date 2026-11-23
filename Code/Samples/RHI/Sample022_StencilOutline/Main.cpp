@@ -102,13 +102,13 @@ private:
 
     void recreateDepthStencil(foundation::core::u32 w, foundation::core::u32 h);
 
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_stencilWritePipeline = nullptr;
-    rhi::RenderPipeline* m_stencilTestPipeline = nullptr;
-    rhi::Texture* m_depthStencilTex = nullptr;
-    rhi::TextureView* m_depthStencilView = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{};
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_stencilWritePipeline{};
+    rhi::RenderPipelineHandle m_stencilTestPipeline{};
+    rhi::TextureHandle m_depthStencilTex{};
+    rhi::TextureViewHandle m_depthStencilView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -119,12 +119,12 @@ void StencilOutlineSample::recreateDepthStencil(foundation::core::u32 w, foundat
     if (m_depthStencilView)
     {
         m_device->DestroyTextureView(m_depthStencilView);
-        m_depthStencilView = nullptr;
+        m_depthStencilView = {};
     }
     if (m_depthStencilTex)
     {
         m_device->DestroyTexture(m_depthStencilTex);
-        m_depthStencilTex = nullptr;
+        m_depthStencilTex = {};
     }
 
     rhi::TextureDesc td = rhi::TextureDesc::DepthBuffer(rhi::TextureFormat::Depth24PlusStencil8, w,

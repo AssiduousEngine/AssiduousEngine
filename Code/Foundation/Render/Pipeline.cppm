@@ -101,9 +101,9 @@ export namespace foundation::render
         // The actual per-scene products, bound per view into set 0 (a frame renders several
         // scenes, each with its own IBL context). `generation` is unique across contexts
         // (one system-wide counter), so bind-group caches can key on it alone.
-        rhi::Buffer* shBuffer = nullptr;
-        rhi::TextureView* prefilterView = nullptr;
-        rhi::TextureView* brdfView = nullptr;
+        rhi::BufferHandle shBuffer{};
+        rhi::TextureViewHandle prefilterView{};
+        rhi::TextureViewHandle brdfView{};
         f32 maxLod = 0.0f;
         u64 generation = 0;
 
@@ -149,7 +149,7 @@ export namespace foundation::render
         u8 sampleCount = 1;
         // The opaque scene-depth as a sampleable view (transparent pass only; null otherwise). Already in
         // DepthStencilRead from the read-only depth target, so renderers can sample it (soft particles, say).
-        rhi::TextureView* sceneDepthView = nullptr;
+        rhi::TextureViewHandle sceneDepthView{};
         bool depthPrepass =
             false; // camera depth-only prepass: no depth bias (match forward exactly)
         // A directional cascade's shadow pass: casters past its near plane are clamped onto it, so a
@@ -201,22 +201,22 @@ export namespace foundation::render
 
     struct ResolvedDraw
     {
-        rhi::RenderPipeline* pso = nullptr;
-        rhi::BindGroup* viewSet = nullptr; // set 0 (view)
+        rhi::RenderPipelineHandle pso{};
+        rhi::BindGroupHandle viewSet{}; // set 0 (view)
         u32 viewOffset = 0;
         bool viewDynamic = false;
-        rhi::BindGroup* drawSet = nullptr; // set 1 (object UBO or instance storage)
+        rhi::BindGroupHandle drawSet{}; // set 1 (object UBO or instance storage)
         u32 drawOffset = 0;
         bool drawDynamic = false;
-        rhi::BindGroup* materialSet = nullptr; // set 2 (material, inferred from properties)
-        rhi::BindGroup* clusterSet = nullptr;  // set 3 (clustered light lists; dummy when off)
-        rhi::Buffer* vertexBuffer0 = nullptr;
+        rhi::BindGroupHandle materialSet{}; // set 2 (material, inferred from properties)
+        rhi::BindGroupHandle clusterSet{};  // set 3 (clustered light lists; dummy when off)
+        rhi::BufferHandle vertexBuffer0{};
         u64 vertexOffset0 = 0;
-        rhi::Buffer* vertexBuffer1 = nullptr;
+        rhi::BufferHandle vertexBuffer1{};
         u64 vertexOffset1 = 0; // optional: skin stream (skinned) or instance offsets
-        rhi::Buffer* vertexBuffer2 = nullptr;
+        rhi::BufferHandle vertexBuffer2{};
         u64 vertexOffset2 = 0; // optional: instance offsets (skinned and instanced)
-        rhi::Buffer* indexBuffer = nullptr;
+        rhi::BufferHandle indexBuffer{};
         u64 indexOffset = 0;
         rhi::IndexFormat indexFormat = rhi::IndexFormat::UInt32;
         u32 indexCount = 0;
@@ -231,7 +231,7 @@ export namespace foundation::render
     // Defined here (not in :shadows) because the forward pass consumes it and :shadows imports :pipeline.
     struct ShadowBinding
     {
-        rhi::TextureView* sampleView = nullptr; // the cascade depth array (all views' layers)
+        rhi::TextureViewHandle sampleView{}; // the cascade depth array (all views' layers)
         rendergraph::RGHandle handle = {}; // read with ReadTexture to order the cascade writes before forward
         ShadowCascades cascades;           // this view's cascade matrices and splits
         u32 layerBase = 0;                 // this view's first array layer (viewIndex * cascades)
@@ -244,25 +244,25 @@ export namespace foundation::render
         rendergraph::RGHandle atlasHandle = {};
         bool atlasValid = false;
         u32 localShadowEntryBase = 0; // this view's scene's first entry in the flat buffer
-        [[nodiscard]] bool Valid() const noexcept { return valid && sampleView != nullptr; }
+        [[nodiscard]] bool Valid() const noexcept { return valid && sampleView.IsValid(); }
         // True whenever the cascade map exists this frame, even for a view whose scene has no
         // directional caster (valid == false). The renderers' set-0 group binds the real map
         // frame-globally and the forward shader samples it statically, so every pass must
         // declare the read (barrier and ordering) or it executes against attachment-layout layers
         // that another view's cascade writes just produced.
-        [[nodiscard]] bool MapBound() const noexcept { return sampleView != nullptr; }
+        [[nodiscard]] bool MapBound() const noexcept { return sampleView.IsValid(); }
     };
 
     // Replay one resolved draw into any command sink (a live pass or an off-thread bundle). Pure
     // command emission: it touches no shared state, so it is safe to run concurrently.
     inline void EmitDraw(rhi::RenderCommandEncoder& enc, const ResolvedDraw& d)
     {
-        if (d.pso == nullptr || d.indexBuffer == nullptr)
+        if (!d.pso.IsValid() || !d.indexBuffer.IsValid())
         {
             return;
         }
         enc.SetPipeline(d.pso);
-        if (d.viewSet != nullptr)
+        if (d.viewSet.IsValid())
         {
             if (d.viewDynamic)
             {
@@ -273,7 +273,7 @@ export namespace foundation::render
                 enc.SetBindGroup(0, d.viewSet, Span<const u32>{});
             }
         }
-        if (d.drawSet != nullptr)
+        if (d.drawSet.IsValid())
         {
             if (d.drawDynamic)
             {
@@ -284,7 +284,7 @@ export namespace foundation::render
                 enc.SetBindGroup(1, d.drawSet, Span<const u32>{});
             }
         }
-        if (d.materialSet != nullptr)
+        if (d.materialSet.IsValid())
         {
             enc.SetBindGroup(2, d.materialSet, Span<const u32>{});
         } // material
@@ -294,19 +294,19 @@ export namespace foundation::render
             push.alphaThreshold = d.alphaThreshold;
             enc.SetPushConstants(rhi::ShaderStage::Fragment, 0, sizeof(push), &push);
         }
-        if (d.clusterSet != nullptr)
+        if (d.clusterSet.IsValid())
         {
             enc.SetBindGroup(3, d.clusterSet, Span<const u32>{});
         } // cluster lists
-        if (d.vertexBuffer0 != nullptr)
+        if (d.vertexBuffer0.IsValid())
         {
             enc.SetVertexBuffer(0, d.vertexBuffer0, d.vertexOffset0);
         }
-        if (d.vertexBuffer1 != nullptr)
+        if (d.vertexBuffer1.IsValid())
         {
             enc.SetVertexBuffer(1, d.vertexBuffer1, d.vertexOffset1);
         }
-        if (d.vertexBuffer2 != nullptr)
+        if (d.vertexBuffer2.IsValid())
         {
             enc.SetVertexBuffer(2, d.vertexBuffer2, d.vertexOffset2);
         }
@@ -358,13 +358,13 @@ export namespace foundation::render
         // with the ShadowSystem's generation (bumped on texture recreation) so the renderer's bind-group
         // cache invalidates on a reused-address view. Called once per frame before PrepareFrame. Default
         // no-op (a renderer that doesn't shade ignores it).
-        virtual void SetShadowMap(rhi::TextureView* shadowMap, u64 generation);
+        virtual void SetShadowMap(rhi::TextureViewHandle shadowMap, u64 generation);
 
         // Hand this frame's local-light (spot and point) shadow atlas (null for none) and its generation,
         // with the same contract and timing as SetShadowMap. `passCount` is how many atlas depth passes
         // (one per caster tile) will re-emit this renderer's casters, so it can size its per-object
         // rings. Default no-op.
-        virtual void SetShadowAtlas(rhi::TextureView* atlas, u64 generation, u32 passCount);
+        virtual void SetShadowAtlas(rhi::TextureViewHandle atlas, u64 generation, u32 passCount);
 
         // How many reflection-probe capture faces will re-emit this renderer's draws this frame (one forward
         // pass per face). Lets it size its per-object rings for the extra draw-resolving passes. Called once
@@ -389,7 +389,7 @@ export namespace foundation::render
         // This frame's reflection probes: the prefiltered cube array (set-0 t8), the probe-metadata SRV (t9)
         // and the active probe count (the forward loops Probes[0..count]). Null means no probes. Called once per
         // frame before PrepareFrame. Default no-op.
-        virtual void SetProbes(rhi::TextureView* cubeArray, rhi::Buffer* probeBuffer, u32 count);
+        virtual void SetProbes(rhi::TextureViewHandle cubeArray, rhi::BufferHandle probeBuffer, u32 count);
 
         // Upload this frame's local-shadow entries (the atlas's per-light matrices and rects) for a renderer
         // that binds them in set 0. Called once per frame after PrepareFrame. Default no-op.
@@ -521,7 +521,7 @@ export namespace foundation::render
                             PassAffinity passAffinity, const ClusterBinding& cluster,
                             const ShadowBinding& shadow, const IblBinding& ibl,
                             Array<rhi::RenderBundle*>& out,
-                            rhi::TextureView* sceneDepthView = nullptr, bool probesEnabled = true,
+                            rhi::TextureViewHandle sceneDepthView = {}, bool probesEnabled = true,
                             u32 probeBase = 0, u32 probeCount = 0);
 
         // Split the resolved draws into <= SlotCount contiguous chunks; record each into its own
@@ -680,7 +680,7 @@ export namespace foundation::render
         // per-view list (drawn only in this view: editor chrome that must not leak into a
         // second view of the same scene, such as the camera preview).
         RenderView* AddView(const ExtractedScene& scene, const ViewCamera& camera,
-                            const ViewSettings& settings, rhi::TextureView* target,
+                            const ViewSettings& settings, rhi::TextureViewHandle target,
                             rhi::TextureFormat targetFormat, u32 width, u32 height,
                             const void* debugScene = nullptr, const void* sceneKey = nullptr,
                             const void* debugView = nullptr);

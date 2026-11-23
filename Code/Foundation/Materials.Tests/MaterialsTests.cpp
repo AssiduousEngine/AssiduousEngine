@@ -173,9 +173,9 @@ TEST_CASE("material system: infers bind-group layout from properties + builds in
     rhi::null::NullDevice device{DefaultAllocator()};
     MaterialSystem system;
     REQUIRE(system.Initialize(device).IsOk());
-    CHECK(system.DefaultSampler() != nullptr);
-    CHECK(system.WhiteTexture() != nullptr);
-    CHECK(system.NormalTexture() != nullptr);
+    CHECK(system.DefaultSampler().IsValid());
+    CHECK(system.WhiteTexture().IsValid());
+    CHECK(system.NormalTexture().IsValid());
 
     RefPtr<Material> mat = MaterialBuilder(u8"lit")
                                .Shader(u8"forward")
@@ -186,14 +186,14 @@ TEST_CASE("material system: infers bind-group layout from properties + builds in
     REQUIRE(mat);
 
     // layout is cached: same material -> same pointer
-    rhi::BindGroupLayout* l0 = system.GetOrCreateLayout(*mat);
-    rhi::BindGroupLayout* l1 = system.GetOrCreateLayout(*mat);
-    REQUIRE(l0 != nullptr);
+    rhi::BindGroupLayoutHandle l0 = system.GetOrCreateLayout(*mat);
+    rhi::BindGroupLayoutHandle l1 = system.GetOrCreateLayout(*mat);
+    REQUIRE(l0.IsValid());
     CHECK(l0 == l1);
 
     MaterialInstance inst(mat.Get());
-    rhi::BindGroup* bg = system.PrepareInstance(inst);
-    REQUIRE(bg != nullptr);
+    rhi::BindGroupHandle bg = system.PrepareInstance(inst);
+    REQUIRE(bg.IsValid());
     CHECK(inst.BindGroupLayout() == l0);
     CHECK_FALSE(inst.IsUniformDirty());
     CHECK_FALSE(inst.IsBindGroupDirty());
@@ -239,14 +239,14 @@ TEST_CASE("material instance: overrides notify the system + re-prep is driven by
     REQUIRE(mat);
 
     MaterialInstance inst(mat.Get());
-    REQUIRE(system.PrepareInstance(inst) != nullptr); // clears dirty + registers sink
+    REQUIRE(system.PrepareInstance(inst).IsValid()); // clears dirty + registers sink
 
     // overriding a uniform marks it dirty; the next prepare (a draw's) writes it
     inst.SetFloat(u8"roughness", 0.9f);
     CHECK(inst.IsUniformDirty());
     inst.SetFloat(u8"roughness", 0.8f);
 
-    REQUIRE(system.PrepareInstance(inst) != nullptr);
+    REQUIRE(system.PrepareInstance(inst).IsValid());
     CHECK_FALSE(inst.IsUniformDirty());
 
     // the override is the effective value (0.8), not the material default (0.5)
@@ -256,7 +256,7 @@ TEST_CASE("material instance: overrides notify the system + re-prep is driven by
 
     // resetting restores the default
     inst.ResetProperty(u8"roughness");
-    REQUIRE(system.PrepareInstance(inst) != nullptr);
+    REQUIRE(system.PrepareInstance(inst).IsValid());
     CHECK(*reinterpret_cast<const f32*>(inst.UniformData().Data()) == doctest::Approx(0.5f));
 }
 
@@ -345,7 +345,7 @@ namespace
         Array<rhi::BindGroupLayoutEntry> layoutEntries;
         Array<rhi::BindGroupEntry> groupEntries;
 
-        Status CreateBindGroupLayout(const rhi::BindGroupLayoutDesc& desc, rhi::BindGroupLayout*& out) override
+        Status CreateBindGroupLayout(const rhi::BindGroupLayoutDesc& desc, rhi::BindGroupLayoutHandle& out) override
         {
             layoutEntries.Clear();
             for (const rhi::BindGroupLayoutEntry& e : desc.entries)
@@ -354,7 +354,7 @@ namespace
             }
             return rhi::null::NullDevice::CreateBindGroupLayout(desc, out);
         }
-        Status CreateBindGroup(const rhi::BindGroupDesc& desc, rhi::BindGroup*& out) override
+        Status CreateBindGroup(const rhi::BindGroupDesc& desc, rhi::BindGroupHandle& out) override
         {
             groupEntries.Clear();
             for (const rhi::BindGroupEntry& e : desc.entries)
@@ -469,11 +469,11 @@ TEST_CASE("material system: an effect group takes binding 1 of the material's se
     REQUIRE(plain);
     REQUIRE(card);
 
-    rhi::BindGroupLayout* plainLayout = system.GetOrCreateLayout(*plain);
-    REQUIRE(plainLayout != nullptr);
+    rhi::BindGroupLayoutHandle plainLayout = system.GetOrCreateLayout(*plain);
+    REQUIRE(plainLayout.IsValid());
     CHECK(device.layoutEntries.Size() == 3u); // b0, t0, s0
-    rhi::BindGroupLayout* cardLayout = system.GetOrCreateLayout(*card);
-    REQUIRE(cardLayout != nullptr);
+    rhi::BindGroupLayoutHandle cardLayout = system.GetOrCreateLayout(*card);
+    REQUIRE(cardLayout.IsValid());
     CHECK(cardLayout != plainLayout); // the group makes it another layout
     REQUIRE(device.layoutEntries.Size() == 4u);
     CHECK(device.layoutEntries[0].binding == 0u);
@@ -487,15 +487,15 @@ TEST_CASE("material system: an effect group takes binding 1 of the material's se
     card->SetDefaultFloat(u8"Wind.Strength", 0.3f);
     MaterialInstance inst(card.Get());
     inst.SetFloat(u8"Wind.Speed", 4.0f);
-    REQUIRE(system.PrepareInstance(inst) != nullptr);
+    REQUIRE(system.PrepareInstance(inst).IsValid());
     REQUIRE(device.groupEntries.Size() == 4u);
-    CHECK(device.groupEntries[0].buffer != nullptr);
-    rhi::Buffer* windBuffer = device.groupEntries[1].buffer;
-    REQUIRE(windBuffer != nullptr);
+    CHECK(device.groupEntries[0].buffer.IsValid());
+    rhi::BufferHandle windBuffer = device.groupEntries[1].buffer;
+    REQUIRE(windBuffer.IsValid());
     CHECK(device.groupEntries[1].bufferSize == 16u);
     CHECK(windBuffer != device.groupEntries[0].buffer);
     // The buffer holds the instance's values, by the effect's offsets.
-    const Span<const u8> written{static_cast<const u8*>(windBuffer->Map()), 16};
+    const Span<const u8> written{static_cast<const u8*>(device.Map(windBuffer)), 16};
     CHECK(FloatAt(written, 0) == doctest::Approx(0.3f));
     CHECK(FloatAt(written, 4) == doctest::Approx(4.0f));
     CHECK(FloatAt(written, 8) == doctest::Approx(1.0f));
@@ -503,14 +503,14 @@ TEST_CASE("material system: an effect group takes binding 1 of the material's se
     // A later override rewrites it.
     inst.SetFloat(u8"Wind.Height", 0.5f);
     (void)system.PrepareInstance(inst);
-    CHECK(FloatAt(Span<const u8>{static_cast<const u8*>(windBuffer->Map()), 16}, 8) == doctest::Approx(0.5f));
+    CHECK(FloatAt(Span<const u8>{static_cast<const u8*>(device.Map(windBuffer)), 16}, 8) == doctest::Approx(0.5f));
 
     // Handed over for retirement with the uniform buffer, then gone from the system.
-    Array<rhi::Buffer*> detached;
+    Array<rhi::BufferHandle> detached;
     system.DetachEffectBuffers(&inst, detached);
     REQUIRE(detached.Size() == 1u);
     CHECK(detached[0] == windBuffer);
-    Array<rhi::Buffer*> again;
+    Array<rhi::BufferHandle> again;
     system.DetachEffectBuffers(&inst, again);
     CHECK(again.IsEmpty());
     device.DestroyBuffer(windBuffer);
@@ -528,7 +528,7 @@ TEST_CASE("material clone: a copy with its own uid and everything else the same;
                                .Texture(u8"normalMap")
                                .Build();
     REQUIRE(mat);
-    auto* albedo = reinterpret_cast<rhi::TextureView*>(static_cast<usize>(0x1000)); // a stand-in, never used as one
+    const rhi::TextureViewHandle albedo{0x1000, 1}; // a stand-in, never used as one
     mat->SetDefaultTexture(u8"albedoMap", albedo);
     mat->samplerU = rhi::AddressMode::ClampToEdge;
 
@@ -548,9 +548,9 @@ TEST_CASE("material clone: a copy with its own uid and everything else the same;
     CHECK(copy->GetDefaultTexture(static_cast<usize>(albedoIndex)) == albedo);
 
     // The copy drawn without its texture: the original keeps it.
-    copy->SetDefaultTexture(u8"albedoMap", nullptr);
+    copy->SetDefaultTexture(u8"albedoMap", {});
     copy->SetDefaultFloat(u8"roughness", 0.9f);
-    CHECK(copy->GetDefaultTexture(static_cast<usize>(albedoIndex)) == nullptr);
+    CHECK_FALSE(copy->GetDefaultTexture(static_cast<usize>(albedoIndex)).IsValid());
     CHECK(mat->GetDefaultTexture(static_cast<usize>(mat->GetPropertyIndex(u8"albedoMap"))) == albedo);
     const f32* rough = reinterpret_cast<const f32*>(mat->DefaultUniformData().Data() + mat->FindProperty(u8"roughness")->offset);
     CHECK(*rough == doctest::Approx(0.5f));
@@ -571,14 +571,14 @@ TEST_CASE("material system: an unbound cube slot binds a cube, an unbound 2D slo
                                .Build();
     REQUIRE(mat);
     MaterialInstance inst(mat.Get());
-    REQUIRE(system.PrepareInstance(inst) != nullptr);
+    REQUIRE(system.PrepareInstance(inst).IsValid());
     REQUIRE(device.groupEntries.Size() == 3u); // t0, t1, s0 (no uniforms)
-    const rhi::TextureView* albedo = device.groupEntries[0].textureView;
-    const rhi::TextureView* env = device.groupEntries[1].textureView;
-    REQUIRE(albedo != nullptr);
-    REQUIRE(env != nullptr);
-    CHECK(albedo->desc.dimension == rhi::TextureViewDimension::Texture2D);
-    CHECK(env->desc.dimension == rhi::TextureViewDimension::TextureCube);
-    CHECK(env->desc.arrayLayerCount == 6u);
-    CHECK(env->texture->desc.arrayLayerCount == 6u);
+    const rhi::TextureViewHandle albedo = device.groupEntries[0].textureView;
+    const rhi::TextureViewHandle env = device.groupEntries[1].textureView;
+    REQUIRE(albedo.IsValid());
+    REQUIRE(env.IsValid());
+    CHECK(device.Describe(albedo)->dimension == rhi::TextureViewDimension::Texture2D);
+    CHECK(device.Describe(env)->dimension == rhi::TextureViewDimension::TextureCube);
+    CHECK(device.Describe(env)->arrayLayerCount == 6u);
+    CHECK(device.Describe(device.TextureOf(env))->arrayLayerCount == 6u);
 }

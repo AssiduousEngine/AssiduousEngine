@@ -62,7 +62,6 @@ export namespace engine::particles
         ParticleRenderer(rhi::Device& device, shaders::ShaderSystem& shaders,
                          u32 framesInFlight) noexcept
             : m_device(&device), m_shaders(&shaders),
-              m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight),
               m_instanceRing(device, framesInFlight, sizeof(ParticleBillboardInstance),
                              rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst,
                              u8"particle.instances"),
@@ -78,7 +77,6 @@ export namespace engine::particles
 
         core::Status Initialize()
         {
-
             rhi::BindGroupLayoutEntry viewEntry = rhi::BindGroupLayoutEntry::UniformBuffer(
                 0, rhi::ShaderStage::Vertex | rhi::ShaderStage::Fragment);
             viewEntry.hasDynamicOffset = true;
@@ -112,9 +110,9 @@ export namespace engine::particles
                 return core::Status{core::ErrorCode::Unknown};
             }
 
-            rhi::BindGroupLayout* layouts[] = {m_viewLayout, m_texLayout, m_depthLayout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_viewLayout, m_texLayout, m_depthLayout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 3};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 3};
             if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
             {
                 return core::Status{core::ErrorCode::Unknown};
@@ -141,10 +139,10 @@ export namespace engine::particles
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* p = m_indexBuffer->Map())
+            if (void* p = m_device->Map(m_indexBuffer))
             {
                 MemCopy(p, indices, sizeof(indices));
-                m_indexBuffer->Unmap();
+                m_device->Unmap(m_indexBuffer);
             }
 
             // Default texture: a soft radial dot (white RGB, smooth alpha falloff to the edge) so
@@ -203,9 +201,9 @@ export namespace engine::particles
             // Trails: a 2-set layout (view and texture, no depth) and a large identity index buffer
             // so the ribbon triangle list draws through DrawIndexed (ResolvedDraw is always
             // indexed).
-            rhi::BindGroupLayout* trailLayouts[] = {m_viewLayout, m_texLayout};
+            rhi::BindGroupLayoutHandle trailLayouts[] = {m_viewLayout, m_texLayout};
             rhi::PipelineLayoutDesc tpld{};
-            tpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{trailLayouts, 2};
+            tpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{trailLayouts, 2};
             if (!m_device->CreatePipelineLayout(tpld, m_trailPipelineLayout).IsOk())
             {
                 return core::Status{core::ErrorCode::Unknown};
@@ -219,14 +217,14 @@ export namespace engine::particles
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* p = m_trailIndexBuffer->Map())
+            if (void* p = m_device->Map(m_trailIndexBuffer))
             {
                 u32* ix = static_cast<u32*>(p);
                 for (u32 k = 0; k < kTrailMaxIndices; ++k)
                 {
                     ix[k] = k;
                 }
-                m_trailIndexBuffer->Unmap();
+                m_device->Unmap(m_trailIndexBuffer);
             }
             return core::Status{};
         }
@@ -257,22 +255,12 @@ export namespace engine::particles
             m_frameInstances = 0; // sum of instances allocated this frame (all systems/views)
             m_frameTrailVerts = 0;
 
-            // Retire scene-depth bind groups created framesInFlight or more frames ago (no longer
-            // in flight).
-            ++m_frameCounter;
-            usize keep = 0;
-            for (usize i = 0; i < m_depthPending.Size(); ++i)
+            // Last frame's scene-depth bind groups: the device keeps them while that frame runs.
+            for (rhi::BindGroupHandle& group : m_depthGroups)
             {
-                if (m_frameCounter >= m_depthPending[i].frame + m_framesInFlight)
-                {
-                    m_device->DestroyBindGroup(m_depthPending[i].bg);
-                }
-                else
-                {
-                    m_depthPending[keep++] = m_depthPending[i];
-                }
+                m_device->DestroyBindGroup(group);
             }
-            m_depthPending.Resize(keep);
+            m_depthGroups.Clear();
         }
 
         void Resolve(const render::RenderRecordContext& ctx, Span<const render::DrawItem> items,
@@ -283,8 +271,8 @@ export namespace engine::particles
                 return;
             }
             m_depthFormat = ctx.depthFormat;
-            rhi::BindGroup* viewBg = EnsureViewBindGroup();
-            if (viewBg == nullptr)
+            rhi::BindGroupHandle viewBg = EnsureViewBindGroup();
+            if (!viewBg.IsValid())
             {
                 return;
             }
@@ -310,9 +298,9 @@ export namespace engine::particles
             // Scene-depth bind group (set 2) for soft particles. The transparent pass hands us the
             // opaque depth (already DepthStencilRead). Fresh per Resolve, retired after
             // framesInFlight frames.
-            rhi::BindGroup* depthBg = AcquireDepthBindGroup(
-                ctx.sceneDepthView != nullptr ? ctx.sceneDepthView : m_whiteView);
-            if (depthBg == nullptr)
+            rhi::BindGroupHandle depthBg = AcquireDepthBindGroup(
+                ctx.sceneDepthView.IsValid() ? ctx.sceneDepthView : m_whiteView);
+            if (!depthBg.IsValid())
             {
                 return;
             }
@@ -392,10 +380,10 @@ export namespace engine::particles
                                 off += b->count;
                             }
                         }
-                        rhi::RenderPipeline* pso = EnsurePipeline(ctx.colorFormat, head->blend);
-                        rhi::BindGroup* texBg = EnsureTextureBindGroup(
-                            head->texture != nullptr ? head->texture : m_whiteView);
-                        if (pso != nullptr && texBg != nullptr && off > 0)
+                        rhi::RenderPipelineHandle pso = EnsurePipeline(ctx.colorFormat, head->blend);
+                        rhi::BindGroupHandle texBg = EnsureTextureBindGroup(
+                            head->texture.IsValid() ? head->texture : m_whiteView);
+                        if (pso.IsValid() && texBg.IsValid() && off > 0)
                         {
                             render::ResolvedDraw d{};
                             d.pso = pso;
@@ -428,17 +416,6 @@ export namespace engine::particles
             m_viewRing.EndFrame();
         }
 
-        /// Wire the render subsystem's frames-in-flight retire queue: the rings then retire their
-        /// old buffer on growth instead of a mid-frame WaitIdle, which on the web pumps the event
-        /// loop, expires the canvas texture and drops the frame's submit.
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept
-        {
-            m_instanceRing.SetRetireQueue(retire);
-            m_trailRing.SetRetireQueue(retire);
-            m_viewRing.SetRetireQueue(retire);
-            m_retire = retire;
-        }
-
         /// View slots the ring holds per frame, and those this frame took (tests pin them).
         [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
         [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
@@ -450,21 +427,21 @@ export namespace engine::particles
         static constexpr u32 kTrailMaxIndices =
             262144u; // identity index buffer cap (largest single trail batch)
 
-        rhi::BindGroup* EnsureViewBindGroup()
+        rhi::BindGroupHandle EnsureViewBindGroup()
         {
             const u32 gen = m_viewRing.Generation();
-            if (m_viewBg != nullptr && m_viewBgGen == gen)
+            if (m_viewBg.IsValid() && m_viewBgGen == gen)
             {
                 return m_viewBg;
             }
-            if (m_viewBg != nullptr)
+            if (m_viewBg.IsValid())
             {
-                render::RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
-                m_viewBg = nullptr;
+                m_device->DestroyBindGroup(m_viewBg); // kept by the device while a frame in flight uses it
+                m_viewBg = {};
             }
-            if (m_viewRing.Buffer() == nullptr)
+            if (!m_viewRing.Buffer().IsValid())
             {
-                return nullptr;
+                return {};
             }
             rhi::BindGroupEntry e =
                 rhi::BindGroupEntry::BufferEntry(m_viewRing.Buffer(), 0, kViewSlotSize);
@@ -473,8 +450,8 @@ export namespace engine::particles
             bgd.entries = Span<const rhi::BindGroupEntry>{&e, 1};
             if (!m_device->CreateBindGroup(bgd, m_viewBg).IsOk())
             {
-                m_viewBg = nullptr;
-                return nullptr;
+                m_viewBg = {};
+                return {};
             }
             m_viewBgGen = gen;
             return m_viewBg;
@@ -482,55 +459,47 @@ export namespace engine::particles
 
         // A fresh scene-depth bind group over `depth` (set 2). Tracked for deferred destruction so an
         // in-flight frame never references a freed set. Cheap (one bind group per Resolve).
-        rhi::BindGroup* AcquireDepthBindGroup(rhi::TextureView* depth)
+        rhi::BindGroupHandle AcquireDepthBindGroup(rhi::TextureViewHandle depth)
         {
-            if (depth == nullptr)
+            if (!depth.IsValid())
             {
-                return nullptr;
+                return {};
             }
             rhi::BindGroupEntry e = rhi::BindGroupEntry::TextureEntry(depth);
             rhi::BindGroupDesc bgd{};
             bgd.layout = m_depthLayout;
             bgd.entries = Span<const rhi::BindGroupEntry>{&e, 1};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(bgd, bg).IsOk())
             {
-                return nullptr;
+                return {};
             }
-            m_depthPending.PushBack(PendingBg{bg, m_frameCounter});
+            m_depthGroups.PushBack(bg);
             return bg;
         }
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureView* tex)
+        rhi::BindGroupHandle EnsureTextureBindGroup(rhi::TextureViewHandle tex)
         {
-            if (tex == nullptr)
+            if (!tex.IsValid())
             {
-                return nullptr;
+                return {};
             }
-            if (TexBindGroup* found = m_texBindGroups.Find(tex))
+            if (rhi::BindGroupHandle* found = m_texBindGroups.Find(tex))
             {
-                if (found->viewId == tex->uniqueId)
-                {
-                    return found->bindGroup;
-                }
-                // Address reuse: the cached group references a destroyed view, so rebuild it.
-                if (found->bindGroup != nullptr)
-                {
-                    m_device->DestroyBindGroup(found->bindGroup);
-                }
-                m_texBindGroups.Remove(tex);
+                return *found;
             }
             rhi::BindGroupEntry ent[] = {rhi::BindGroupEntry::TextureEntry(tex),
                                          rhi::BindGroupEntry::SamplerEntry(m_sampler)};
             rhi::BindGroupDesc bgd{};
             bgd.layout = m_texLayout;
             bgd.entries = Span<const rhi::BindGroupEntry>{ent, 2};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(bgd, bg).IsOk())
             {
-                return nullptr;
+                return {};
             }
-            m_texBindGroups.InsertOrAssign(tex, TexBindGroup{bg, tex->uniqueId});
+            render::DropGroupsOfDestroyedViews(*m_device, m_texBindGroups);
+            m_texBindGroups.InsertOrAssign(tex, bg);
             return bg;
         }
 
@@ -571,25 +540,25 @@ export namespace engine::particles
             }
         }
 
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, ParticleBlendMode mode)
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat colorFormat, ParticleBlendMode mode)
         {
             Pipelines& p = m_billboard[static_cast<u32>(mode)];
             const u64 shaderVersion = m_shaders->Version(u8"particle"); // hot reload rebuilds
-            if (p.pso != nullptr && p.format == colorFormat && p.shaderVersion == shaderVersion)
+            if (p.pso.IsValid() && p.format == colorFormat && p.shaderVersion == shaderVersion)
             {
                 return p.pso;
             }
-            if (p.pso != nullptr)
+            if (p.pso.IsValid())
             {
                 m_device->DestroyRenderPipeline(p.pso);
-                p.pso = nullptr;
+                p.pso = {};
             }
 
-            rhi::ShaderModule* vs = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
                 u8"particle", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* ps = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
                 u8"particle", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
                 if (!m_loggedBillboardPipelineMiss)
                 {
@@ -597,7 +566,7 @@ export namespace engine::particles
                     rhi::LogErrorf("ParticleRenderer: 'particle' shaders unresolved - billboard "
                                    "particles will not draw");
                 }
-                return nullptr;
+                return {};
             }
 
             // Five float4s, each carrying four of ParticleBillboardInstance's named fields (its offset
@@ -635,10 +604,10 @@ export namespace engine::particles
             pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
             pd.primitive.cullMode = rhi::CullMode::None;
             pd.label = BlendLabel(mode);
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
             {
-                return nullptr;
+                return {};
             }
             p.pso = pso;
             p.format = colorFormat;
@@ -650,7 +619,7 @@ export namespace engine::particles
         // ring and emit a triangle-list draw through the identity index buffer. Reuses the view UBO
         // and a texture.
         void EmitTrailDraw(const render::RenderRecordContext& ctx, const ParticleTrailRenderData* b,
-                           rhi::BindGroup* viewBg, u32 viewOffset,
+                           rhi::BindGroupHandle viewBg, u32 viewOffset,
                            Array<render::ResolvedDraw>& out)
         {
             if (b->vertexCount == 0 || b->vertices == nullptr)
@@ -666,10 +635,10 @@ export namespace engine::particles
                 return;
             }
             MemCopy(tr.ptr, b->vertices, static_cast<usize>(count) * sizeof(TrailVertex));
-            rhi::RenderPipeline* pso = EnsureTrailPipeline(ctx.colorFormat, b->blend);
-            rhi::BindGroup* texBg =
-                EnsureTextureBindGroup(b->texture != nullptr ? b->texture : m_whiteView);
-            if (pso == nullptr || texBg == nullptr)
+            rhi::RenderPipelineHandle pso = EnsureTrailPipeline(ctx.colorFormat, b->blend);
+            rhi::BindGroupHandle texBg =
+                EnsureTextureBindGroup(b->texture.IsValid() ? b->texture : m_whiteView);
+            if (!pso.IsValid() || !texBg.IsValid())
             {
                 // Logged, not silent: a missing pipeline (such as a DX12 input-layout refusal over
                 // POSITION semantics) otherwise just draws nothing. Once per renderer, not per
@@ -679,7 +648,7 @@ export namespace engine::particles
                     m_loggedTrailPipelineMiss = true;
                     rhi::LogErrorf("ParticleRenderer: trail pipeline%s unavailable - trails will "
                                    "not draw (see the backend's shader/layout errors above)",
-                                   pso == nullptr ? "" : "'s texture bind group");
+                                   !pso.IsValid() ? "" : "'s texture bind group");
                 }
                 return;
             }
@@ -698,28 +667,28 @@ export namespace engine::particles
             out.PushBack(d);
         }
 
-        rhi::RenderPipeline* EnsureTrailPipeline(rhi::TextureFormat colorFormat,
+        rhi::RenderPipelineHandle EnsureTrailPipeline(rhi::TextureFormat colorFormat,
                                                  ParticleBlendMode mode)
         {
             Pipelines& p = m_trail[static_cast<u32>(mode)];
             const u64 shaderVersion = m_shaders->Version(u8"particletrail"); // hot reload rebuilds
-            if (p.pso != nullptr && p.format == colorFormat && p.shaderVersion == shaderVersion)
+            if (p.pso.IsValid() && p.format == colorFormat && p.shaderVersion == shaderVersion)
             {
                 return p.pso;
             }
-            if (p.pso != nullptr)
+            if (p.pso.IsValid())
             {
                 m_device->DestroyRenderPipeline(p.pso);
-                p.pso = nullptr;
+                p.pso = {};
             }
 
-            rhi::ShaderModule* vs = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
                 u8"particletrail", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* ps = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
                 u8"particletrail", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
-                return nullptr;
+                return {};
             }
 
             const rhi::VertexAttribute attrs[] = {
@@ -754,10 +723,10 @@ export namespace engine::particles
             pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
             pd.primitive.cullMode = rhi::CullMode::None;
             pd.label = BlendLabel(mode); // shared labels (particle.*), fine for debug naming
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
             {
-                return nullptr;
+                return {};
             }
             p.pso = pso;
             p.format = colorFormat;
@@ -769,139 +738,122 @@ export namespace engine::particles
         {
             for (auto& kv : m_texBindGroups)
             {
-                if (kv.value.bindGroup != nullptr)
+                if (kv.value.IsValid())
                 {
-                    m_device->DestroyBindGroup(kv.value.bindGroup);
+                    m_device->DestroyBindGroup(kv.value);
                 }
             }
             m_texBindGroups.Clear();
-            if (m_viewBg != nullptr)
+            if (m_viewBg.IsValid())
             {
                 m_device->DestroyBindGroup(m_viewBg);
-                m_viewBg = nullptr;
+                m_viewBg = {};
             }
             for (Pipelines& p : m_billboard)
             {
-                if (p.pso != nullptr)
+                if (p.pso.IsValid())
                 {
                     m_device->DestroyRenderPipeline(p.pso);
-                    p.pso = nullptr;
+                    p.pso = {};
                 }
             }
             for (Pipelines& p : m_trail)
             {
-                if (p.pso != nullptr)
+                if (p.pso.IsValid())
                 {
                     m_device->DestroyRenderPipeline(p.pso);
-                    p.pso = nullptr;
+                    p.pso = {};
                 }
             }
-            if (m_trailIndexBuffer != nullptr)
+            if (m_trailIndexBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_trailIndexBuffer);
-                m_trailIndexBuffer = nullptr;
+                m_trailIndexBuffer = {};
             }
-            if (m_trailPipelineLayout != nullptr)
+            if (m_trailPipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_trailPipelineLayout);
-                m_trailPipelineLayout = nullptr;
+                m_trailPipelineLayout = {};
             }
-            if (m_indexBuffer != nullptr)
+            if (m_indexBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_indexBuffer);
-                m_indexBuffer = nullptr;
+                m_indexBuffer = {};
             }
-            if (m_whiteView != nullptr)
+            if (m_whiteView.IsValid())
             {
                 m_device->DestroyTextureView(m_whiteView);
-                m_whiteView = nullptr;
+                m_whiteView = {};
             }
-            if (m_whiteTex != nullptr)
+            if (m_whiteTex.IsValid())
             {
                 m_device->DestroyTexture(m_whiteTex);
-                m_whiteTex = nullptr;
+                m_whiteTex = {};
             }
-            if (m_sampler != nullptr)
+            if (m_sampler.IsValid())
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
-            for (PendingBg& p : m_depthPending)
+            for (rhi::BindGroupHandle& group : m_depthGroups)
             {
-                if (p.bg != nullptr)
-                {
-                    m_device->DestroyBindGroup(p.bg);
-                }
+                m_device->DestroyBindGroup(group);
             }
-            m_depthPending.Clear();
-            if (m_pipelineLayout != nullptr)
+            m_depthGroups.Clear();
+            if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
-                m_pipelineLayout = nullptr;
+                m_pipelineLayout = {};
             }
-            if (m_depthLayout != nullptr)
+            if (m_depthLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_depthLayout);
-                m_depthLayout = nullptr;
+                m_depthLayout = {};
             }
-            if (m_texLayout != nullptr)
+            if (m_texLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_texLayout);
-                m_texLayout = nullptr;
+                m_texLayout = {};
             }
-            if (m_viewLayout != nullptr)
+            if (m_viewLayout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_viewLayout);
-                m_viewLayout = nullptr;
+                m_viewLayout = {};
             }
         }
 
         struct Pipelines
         {
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             u64 shaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         };
 
-        struct PendingBg
-        {
-            rhi::BindGroup* bg;
-            u32 frame;
-        };
-
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        u32 m_framesInFlight = 2;
-        u32 m_frameCounter = 0;
         render::DynamicUniformRing m_instanceRing;
         render::DynamicUniformRing m_trailRing; // trail ribbon vertices (per-frame)
         render::ViewUniformRing m_viewRing;
-        render::GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
-        rhi::BindGroupLayout* m_viewLayout = nullptr;
-        rhi::BindGroupLayout* m_texLayout = nullptr;
-        rhi::BindGroupLayout* m_depthLayout = nullptr; // set 2: scene depth (soft particles)
-        Array<PendingBg> m_depthPending; // depth bind groups awaiting deferred destroy
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
-        rhi::Buffer* m_indexBuffer = nullptr;
-        rhi::Texture* m_whiteTex = nullptr; // 1x1 white default (untextured particles)
-        rhi::TextureView* m_whiteView = nullptr;
+        rhi::BindGroupLayoutHandle m_viewLayout{};
+        rhi::BindGroupLayoutHandle m_texLayout{};
+        rhi::BindGroupLayoutHandle m_depthLayout{}; // set 2: scene depth (soft particles)
+        Array<rhi::BindGroupHandle> m_depthGroups; // this frame's scene-depth bind groups
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::SamplerHandle m_sampler{};
+        rhi::BufferHandle m_indexBuffer{};
+        rhi::TextureHandle m_whiteTex{}; // 1x1 white default (untextured particles)
+        rhi::TextureViewHandle m_whiteView{};
         bool m_loggedTrailPipelineMiss = false;     // once-per-renderer diagnostics
         bool m_loggedBillboardPipelineMiss = false;
-        rhi::BindGroup* m_viewBg = nullptr;
+        rhi::BindGroupHandle m_viewBg{};
         u32 m_viewBgGen = 0;
-        // Keyed by view pointer, validated by TextureView::uniqueId on every hit (address reuse of
-        // destroyed dynamic textures; see SpriteRenderer::TexBindGroup).
-        struct TexBindGroup
-        {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 viewId = 0;
-        };
-        HashMap<rhi::TextureView*, TexBindGroup> m_texBindGroups;
+        // Keyed by view handle, as SpriteRenderer's (a new view never takes an old one's handle).
+        // A destroyed view's group goes when the next group is made (DropGroupsOfDestroyedViews).
+        HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle> m_texBindGroups;
         Pipelines
             m_billboard[4]; // one per ParticleBlendMode (Alpha/Additive/Premultiplied/Multiply)
-        rhi::Buffer* m_trailIndexBuffer = nullptr; // identity indices [0,1,2,...] for trail draws
-        rhi::PipelineLayout* m_trailPipelineLayout = nullptr; // view + texture (no depth set)
+        rhi::BufferHandle m_trailIndexBuffer{}; // identity indices [0,1,2,...] for trail draws
+        rhi::PipelineLayoutHandle m_trailPipelineLayout{}; // view + texture (no depth set)
         Pipelines m_trail[4]; // trail ribbon PSOs, one per blend mode
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;
         u32 m_maxInstancesSeen = 0;  // sizes the instance ring (see PrepareFrame)

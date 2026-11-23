@@ -73,9 +73,9 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
             rhi::BindGroupLayoutDesc bgld{};
             bgld.entries = Span<const rhi::BindGroupLayoutEntry>(&e, 1);
             device->CreateBindGroupLayout(bgld, m_bgl);
-            rhi::BindGroupLayout* layouts[1] = {m_bgl};
+            rhi::BindGroupLayoutHandle layouts[1] = {m_bgl};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(layouts, 1);
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(layouts, 1);
             device->CreatePipelineLayout(pld, m_pl);
 
             // Per-frame uniform ring (frame N+1's CPU write mustn't clobber frame N's in-flight read).
@@ -118,20 +118,20 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
             device->CreateRenderPipeline(rpd, m_pipeline);
         }
 
-        void Render(rhi::CommandEncoder& enc, rhi::TextureView* colorView,
-                    rhi::TextureView* depthView, u32 w, u32 h, rhi::ClearColor clear,
+        void Render(rhi::CommandEncoder& enc, rhi::TextureViewHandle colorView,
+                    rhi::TextureViewHandle depthView, u32 w, u32 h, rhi::ClearColor clear,
                     const Float4x4& mvp, i32 frameIndex)
         {
-            if (m_pipeline == nullptr)
+            if (!m_pipeline.IsValid())
             {
                 return;
             }
             const usize fi = static_cast<usize>(frameIndex);
             Uniforms u{mvp};
-            if (u8* p = static_cast<u8*>(m_uniforms[fi]->Map()))
+            if (u8* p = static_cast<u8*>(m_device->Map(m_uniforms[fi])))
             {
                 MemCopy(p, &u, sizeof(u));
-                m_uniforms[fi]->Unmap();
+                m_device->Unmap(m_uniforms[fi]);
             }
 
             rhi::ColorAttachment ca{};
@@ -214,7 +214,7 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
         }
 
         void CompileOne(shaders::Compiler* compiler, shaders::ShaderStage stage, StringView entry,
-                        rhi::ShaderModule*& out)
+                        rhi::ShaderModuleHandle& out)
         {
             const bool isDX12 = (m_device->type == rhi::DeviceType::DX12);
             const shaders::ShaderTarget target =
@@ -240,14 +240,14 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
         }
 
         rhi::Device* m_device = nullptr;
-        rhi::ShaderModule* m_vs = nullptr;
-        rhi::ShaderModule* m_ps = nullptr;
-        rhi::Buffer* m_vb = nullptr;
-        rhi::Buffer* m_ib = nullptr;
-        rhi::BindGroupLayout* m_bgl = nullptr;
-        rhi::PipelineLayout* m_pl = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
-        Array<rhi::Buffer*> m_uniforms;
-        Array<rhi::BindGroup*> m_bindGroups;
+        rhi::ShaderModuleHandle m_vs{};
+        rhi::ShaderModuleHandle m_ps{};
+        rhi::BufferHandle m_vb{};
+        rhi::BufferHandle m_ib{};
+        rhi::BindGroupLayoutHandle m_bgl{};
+        rhi::PipelineLayoutHandle m_pl{};
+        rhi::RenderPipelineHandle m_pipeline{};
+        Array<rhi::BufferHandle> m_uniforms;
+        Array<rhi::BindGroupHandle> m_bindGroups;
     };
 } // namespace samples

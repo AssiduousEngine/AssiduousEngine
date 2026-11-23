@@ -15,6 +15,7 @@ import foundation.rhi;
 import :shader_module;
 import :pipeline_layout;
 import :pipeline_cache;
+import :tables;
 
 using namespace foundation::core;
 
@@ -24,19 +25,19 @@ export namespace foundation::rhi::vk
     class VkComputePipelineImpl : public ComputePipeline
     {
     public:
-        Status init(VkDevice device, const ComputePipelineDesc& desc)
+        Status init(VkDevice device, const VkTables* tables, const ComputePipelineDesc& desc)
         {
-            auto* vkLayout = static_cast<VkPipelineLayoutImpl*>(desc.layout);
+            auto* vkLayout = LookUp(tables, desc.layout);
             if (!vkLayout)
                 return ErrorCode::Unknown;
             layout = desc.layout;
             m_layout = vkLayout;
 
-            auto* vkMod = static_cast<VkShaderModuleImpl*>(desc.compute.module);
+            auto* vkMod = LookUp(tables, desc.compute.module);
             if (!vkMod)
                 return ErrorCode::Unknown;
 
-            String entry = String(EntryPointOf(desc.compute));
+            String entry = String(EntryPointOf(desc.compute, LookUp(tables, desc.compute.module)));
             if (entry.IsEmpty())
                 return ErrorCode::InvalidArgument; // no entry point named by the stage or its module
 
@@ -52,8 +53,8 @@ export namespace foundation::rhi::vk
             ci.layout = vkLayout->handle();
 
             VkPipelineCache cacheHandle = VK_NULL_HANDLE;
-            if (desc.cache)
-                cacheHandle = static_cast<VkPipelineCacheImpl*>(desc.cache)->handle();
+            if (auto* cache = LookUp(tables, desc.cache))
+                cacheHandle = cache->handle();
 
             if (vkCreateComputePipelines(device, cacheHandle, 1, &ci, nullptr, &m_pipeline) !=
                 VK_SUCCESS)

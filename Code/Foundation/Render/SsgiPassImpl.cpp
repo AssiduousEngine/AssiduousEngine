@@ -47,13 +47,13 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        rhi::BindGroupLayout* gl[] = {m_layout};
+        rhi::BindGroupLayoutHandle gl[] = {m_layout};
         rhi::PushConstantRange pcr{};
         pcr.stages = rhi::ShaderStage::Fragment;
         pcr.offset = 0;
         pcr.size = sizeof(GpuSsgiPush);
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{gl, 1};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{gl, 1};
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pcr, 1};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
@@ -101,13 +101,13 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        rhi::BindGroupLayout* dgl[] = {m_downLayout};
+        rhi::BindGroupLayoutHandle dgl[] = {m_downLayout};
         rhi::PushConstantRange dpc{};
         dpc.stages = rhi::ShaderStage::Fragment;
         dpc.offset = 0;
         dpc.size = sizeof(GpuSsgiDownPush);
         rhi::PipelineLayoutDesc dpld{};
-        dpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{dgl, 1};
+        dpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{dgl, 1};
         dpld.pushConstantRanges = Span<const rhi::PushConstantRange>{&dpc, 1};
         if (!m_device->CreatePipelineLayout(dpld, m_downPipelineLayout).IsOk())
         {
@@ -132,13 +132,13 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        rhi::BindGroupLayout* bgl[] = {m_blurLayout};
+        rhi::BindGroupLayoutHandle bgl[] = {m_blurLayout};
         rhi::PushConstantRange bpc{};
         bpc.stages = rhi::ShaderStage::Fragment;
         bpc.offset = 0;
         bpc.size = sizeof(GpuSsgiBlurPush);
         rhi::PipelineLayoutDesc bpld{};
-        bpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{bgl, 1};
+        bpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{bgl, 1};
         bpld.pushConstantRanges = Span<const rhi::PushConstantRange>{&bpc, 1};
         if (!m_device->CreatePipelineLayout(bpld, m_blurPipelineLayout).IsOk())
         {
@@ -169,13 +169,13 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        rhi::BindGroupLayout* rgl[] = {m_resolveLayout};
+        rhi::BindGroupLayoutHandle rgl[] = {m_resolveLayout};
         rhi::PushConstantRange rpc{};
         rpc.stages = rhi::ShaderStage::Fragment;
         rpc.offset = 0;
         rpc.size = sizeof(GpuSsgiResolvePush);
         rhi::PipelineLayoutDesc rpld{};
-        rpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{rgl, 1};
+        rpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{rgl, 1};
         rpld.pushConstantRanges = Span<const rhi::PushConstantRange>{&rpc, 1};
         if (!m_device->CreatePipelineLayout(rpld, m_resolvePipelineLayout).IsOk())
         {
@@ -201,11 +201,11 @@ namespace foundation::render
 
     bool SsgiPass::CreateTracePipeline()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ssgi", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ssgi", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"ssgi", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"ssgi", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
             return false;
         }
@@ -223,7 +223,7 @@ namespace foundation::render
         pd.label = u8"ssgi";
         if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
         {
-            m_pipeline = nullptr;
+            m_pipeline = {};
             return false;
         }
         return true;
@@ -231,11 +231,11 @@ namespace foundation::render
 
     bool SsgiPass::CreateDownPipeline()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ssgi_down", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ssgi_down", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"ssgi_down", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"ssgi_down", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
             return false;
         }
@@ -253,7 +253,7 @@ namespace foundation::render
         pd.label = u8"ssgi_down";
         if (!m_device->CreateRenderPipeline(pd, m_downPipeline).IsOk())
         {
-            m_downPipeline = nullptr;
+            m_downPipeline = {};
             return false;
         }
         return true;
@@ -261,11 +261,11 @@ namespace foundation::render
 
     bool SsgiPass::CreateBlurPipeline()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"ssgi_blur", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"ssgi_blur", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"ssgi_blur", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"ssgi_blur", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
             return false;
         }
@@ -283,7 +283,7 @@ namespace foundation::render
         pd.label = u8"ssgi_blur";
         if (!m_device->CreateRenderPipeline(pd, m_blurPipeline).IsOk())
         {
-            m_blurPipeline = nullptr;
+            m_blurPipeline = {};
             return false;
         }
         return true;
@@ -291,11 +291,11 @@ namespace foundation::render
 
     bool SsgiPass::CreateResolvePipeline()
     {
-        rhi::ShaderModule* rvs = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle rvs = m_shaders->GetVariant(
             u8"ssgi_resolve", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-        rhi::ShaderModule* rps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle rps = m_shaders->GetVariant(
             u8"ssgi_resolve", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (rvs == nullptr || rps == nullptr)
+        if (!rvs.IsValid() || !rps.IsValid())
         {
             return false;
         }
@@ -314,7 +314,7 @@ namespace foundation::render
         rpd.label = u8"ssgi_resolve";
         if (!m_device->CreateRenderPipeline(rpd, m_resolvePipeline).IsOk())
         {
-            m_resolvePipeline = nullptr;
+            m_resolvePipeline = {};
             return false;
         }
         return true;
@@ -339,33 +339,33 @@ namespace foundation::render
                                   m_shaders->Version(u8"ssgi_resolve");
         if (shaderVersion != m_pipelineShaderVersion)
         {
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
-            if (m_downPipeline != nullptr)
+            if (m_downPipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_downPipeline);
-                m_downPipeline = nullptr;
+                m_downPipeline = {};
             }
-            if (m_blurPipeline != nullptr)
+            if (m_blurPipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_blurPipeline);
-                m_blurPipeline = nullptr;
+                m_blurPipeline = {};
             }
-            if (m_resolvePipeline != nullptr)
+            if (m_resolvePipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_resolvePipeline);
-                m_resolvePipeline = nullptr;
+                m_resolvePipeline = {};
             }
             (void)CreateTracePipeline();
             (void)CreateDownPipeline();
             (void)CreateResolvePipeline();
             (void)CreateBlurPipeline();
             m_pipelineShaderVersion = shaderVersion;
-            if (m_pipeline == nullptr || m_downPipeline == nullptr ||
-                m_blurPipeline == nullptr || m_resolvePipeline == nullptr)
+            if (!m_pipeline.IsValid() || !m_downPipeline.IsValid() ||
+                !m_blurPipeline.IsValid() || !m_resolvePipeline.IsValid())
             {
                 // A hot-reloaded shader that no longer matches this binary (its push block
                 // grew, say) fails pipeline creation and the pass silently skips; say so
@@ -376,12 +376,11 @@ namespace foundation::render
                             u8"editor)");
             }
         }
-        if (m_pipeline == nullptr || m_downPipeline == nullptr || m_blurPipeline == nullptr ||
-            m_resolvePipeline == nullptr)
+        if (!m_pipeline.IsValid() || !m_downPipeline.IsValid() || !m_blurPipeline.IsValid() ||
+            !m_resolvePipeline.IsValid())
         {
             return hdr;
         }
-        Tick(frameIndex);
         const f32 fw = static_cast<f32>(w), fh = static_cast<f32>(h);
         const Float2 vpMin{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
         const Float2 vpSize{static_cast<f32>(vw) / fw, static_cast<f32>(vh) / fh};
@@ -407,9 +406,9 @@ namespace foundation::render
                 b.SetExecute(
                     [this, &graph, hdr, dpc2](rhi::RenderPassEncoder& rp)
                     {
-                        rhi::BindGroup* bg = EnsureDownBindGroup(
+                        rhi::BindGroupHandle bg = EnsureDownBindGroup(
                             graph.GetTextureView(hdr), graph.GetTextureGeneration(hdr));
-                        if (bg == nullptr)
+                        if (!bg.IsValid())
                         {
                             return;
                         }
@@ -451,11 +450,11 @@ namespace foundation::render
                 b.SetExecute(
                     [this, &graph, sceneQuarter, depth, normal, pc](rhi::RenderPassEncoder& rp)
                     {
-                        rhi::BindGroup* bg = EnsureBindGroup(
+                        rhi::BindGroupHandle bg = EnsureBindGroup(
                             graph.GetTextureView(sceneQuarter), graph.GetTextureView(depth),
                             graph.GetTextureView(normal),
                             Combine(graph, sceneQuarter, depth, normal));
-                        if (bg == nullptr)
+                        if (!bg.IsValid())
                         {
                             return;
                         }
@@ -493,11 +492,11 @@ namespace foundation::render
                     b.SetExecute(
                         [this, &graph, src, depth, pushed](rhi::RenderPassEncoder& rp)
                         {
-                            rhi::BindGroup* bg = EnsureBlurBindGroup(
+                            rhi::BindGroupHandle bg = EnsureBlurBindGroup(
                                 graph.GetTextureView(src), graph.GetTextureView(depth),
                                 graph.GetTextureGeneration(src) ^
                                     (graph.GetTextureGeneration(depth) * 1099511628211ull));
-                            if (bg == nullptr)
+                            if (!bg.IsValid())
                             {
                                 return;
                             }
@@ -552,10 +551,10 @@ namespace foundation::render
         {
             rpc2.viewToWorld[r] = Float4{sky.viewToWorld(r, 0), sky.viewToWorld(r, 1), sky.viewToWorld(r, 2), 0.0f};
         }
-        const bool shSky = sky.shBuffer != nullptr;
+        const bool shSky = sky.shBuffer.IsValid();
         rpc2.skyAmbient = sky.ambient;
         rpc2.shSkyDimmer = shSky ? sky.iblDiffuse : 0.0f; // 0 means no SH sky (the shader's rule)
-        rhi::Buffer* const shBuffer = shSky ? sky.shBuffer : m_dummyShBuffer;
+        rhi::BufferHandle const shBuffer = shSky ? sky.shBuffer : m_dummyShBuffer;
         const u64 shGeneration = shSky ? sky.generation : 0;
         const rendergraph::RGHandle shHandle = shSky ? sky.shHandle : rendergraph::RGHandle{};
 
@@ -569,7 +568,7 @@ namespace foundation::render
                 ? graph.CreateTransient(u8"ssgi.accum", rendergraph::RGTextureDesc(kHdrFormat, w, h))
                 : out;
         rpc2.outputAccum = denoisePasses > 0 ? 1 : 0;
-        rhi::TextureView* histPrevView = hist.view[prev];
+        rhi::TextureViewHandle histPrevView = hist.view[prev];
         graph.AddRenderPass(
             u8"ssgi.resolve",
             [this, &graph, filtered, histPrev, velocity, hdr, albedo, normal, accumOut, histCur,
@@ -601,8 +600,8 @@ namespace foundation::render
                         inputs.Set(3, graph.GetTextureView(albedo), graph.GetTextureGeneration(albedo));
                         inputs.Set(4, graph.GetTextureView(normal), graph.GetTextureGeneration(normal));
                         inputs.SetBuffer(shBuffer, shGeneration);
-                        rhi::BindGroup* bg = EnsureResolveBindGroup(m_resolveBindGroups, histPrevView, inputs);
-                        if (bg == nullptr)
+                        rhi::BindGroupHandle bg = EnsureResolveBindGroup(m_resolveBindGroups, histPrevView, inputs);
+                        if (!bg.IsValid())
                         {
                             return;
                         }
@@ -634,7 +633,7 @@ namespace foundation::render
             cpc.outputAccum = 0;
             const rendergraph::RGHandle scratch =
                 graph.CreateTransient(u8"ssgi.compositeScratch", rendergraph::RGTextureDesc(kHdrFormat, w, h));
-            rhi::TextureView* histCurView = hist.view[cur];
+            rhi::TextureViewHandle histCurView = hist.view[cur];
             const rendergraph::RGHandle smoothed = src;
             graph.AddRenderPass(
                 u8"ssgi.composite",
@@ -667,8 +666,8 @@ namespace foundation::render
                             inputs.Set(3, graph.GetTextureView(albedo), graph.GetTextureGeneration(albedo));
                             inputs.Set(4, graph.GetTextureView(normal), graph.GetTextureGeneration(normal));
                             inputs.SetBuffer(shBuffer, shGeneration);
-                            rhi::BindGroup* bg = EnsureResolveBindGroup(m_compositeBindGroups, histCurView, inputs);
-                            if (bg == nullptr)
+                            rhi::BindGroupHandle bg = EnsureResolveBindGroup(m_compositeBindGroups, histCurView, inputs);
+                            if (!bg.IsValid())
                             {
                                 return;
                             }
@@ -687,7 +686,7 @@ namespace foundation::render
 
     bool SsgiPass::EnsureHistory(ViewHistory& hist, u32 w, u32 h)
     {
-        if (hist.tex[0] != nullptr && hist.w == w && hist.h == h)
+        if (hist.tex[0].IsValid() && hist.w == w && hist.h == h)
         {
             return true;
         }
@@ -702,7 +701,7 @@ namespace foundation::render
             td.label = u8"ssgi.history";
             if (!m_device->CreateTexture(td, hist.tex[i]).IsOk())
             {
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -711,7 +710,7 @@ namespace foundation::render
             vd.dimension = rhi::TextureViewDimension::Texture2D;
             if (!m_device->CreateTextureView(hist.tex[i], vd, hist.view[i]).IsOk())
             {
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -731,12 +730,12 @@ namespace foundation::render
             if (hist.view[i])
             {
                 m_device->DestroyTextureView(hist.view[i]);
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
             }
             if (hist.tex[i])
             {
                 m_device->DestroyTexture(hist.tex[i]);
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
             }
         }
         hist.w = hist.h = 0;
@@ -752,47 +751,24 @@ namespace foundation::render
         return k;
     }
 
-    void SsgiPass::Tick(u32 frameIndex)
+    rhi::BindGroupHandle SsgiPass::EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                              rhi::TextureViewHandle normal, u64 generation)
     {
-        if (frameIndex == m_lastFrame)
+        if (!scene.IsValid() || !depth.IsValid() || !normal.IsValid())
         {
-            return;
-        }
-        m_lastFrame = frameIndex;
-        usize w = 0;
-        for (usize i = 0; i < m_retired.Size(); ++i)
-        {
-            if (m_retired[i].left <= 1)
-            {
-                m_device->DestroyBindGroup(m_retired[i].bg);
-            }
-            else
-            {
-                m_retired[i].left -= 1;
-                m_retired[w++] = m_retired[i];
-            }
-        }
-        m_retired.Resize(w);
-    }
-
-    rhi::BindGroup* SsgiPass::EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                              rhi::TextureView* normal, u64 generation)
-    {
-        if (scene == nullptr || depth == nullptr || normal == nullptr)
-        {
-            return nullptr;
+            return {};
         }
         if (Entry* e = m_bindGroups.Find(scene))
         {
             if (e->gen == generation && e->depth == depth && e->normal == normal &&
-                e->bg != nullptr)
+                e->bg.IsValid())
             {
                 return e->bg;
             }
-            if (e->bg != nullptr)
+            if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
-                e->bg = nullptr;
+                m_device->DestroyBindGroup(e->bg);
+                e->bg = {};
             }
         }
         rhi::BindGroupEntry ent[] = {
@@ -805,32 +781,32 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_layout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 5};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         ++m_bindGroupsBuilt;
         m_bindGroups.InsertOrAssign(scene, Entry{bg, depth, normal, generation});
         return bg;
     }
 
-    rhi::BindGroup* SsgiPass::EnsureDownBindGroup(rhi::TextureView* hdr, u64 generation)
+    rhi::BindGroupHandle SsgiPass::EnsureDownBindGroup(rhi::TextureViewHandle hdr, u64 generation)
     {
-        if (hdr == nullptr)
+        if (!hdr.IsValid())
         {
-            return nullptr;
+            return {};
         }
         if (DownEntry* e = m_downBindGroups.Find(hdr))
         {
-            if (e->gen == generation && e->bg != nullptr)
+            if (e->gen == generation && e->bg.IsValid())
             {
                 return e->bg;
             }
-            if (e->bg != nullptr)
+            if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
-                e->bg = nullptr;
+                m_device->DestroyBindGroup(e->bg);
+                e->bg = {};
             }
         }
         rhi::BindGroupEntry ent[] = {
@@ -840,33 +816,33 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_downLayout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 2};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         ++m_bindGroupsBuilt;
         m_downBindGroups.InsertOrAssign(hdr, DownEntry{bg, generation});
         return bg;
     }
 
-    rhi::BindGroup* SsgiPass::EnsureBlurBindGroup(rhi::TextureView* gi, rhi::TextureView* depth,
+    rhi::BindGroupHandle SsgiPass::EnsureBlurBindGroup(rhi::TextureViewHandle gi, rhi::TextureViewHandle depth,
                                                   u64 generation)
     {
-        if (gi == nullptr || depth == nullptr)
+        if (!gi.IsValid() || !depth.IsValid())
         {
-            return nullptr;
+            return {};
         }
         if (BlurEntry* e = m_blurBindGroups.Find(gi))
         {
-            if (e->gen == generation && e->depth == depth && e->bg != nullptr)
+            if (e->gen == generation && e->depth == depth && e->bg.IsValid())
             {
                 return e->bg;
             }
-            if (e->bg != nullptr)
+            if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
-                e->bg = nullptr;
+                m_device->DestroyBindGroup(e->bg);
+                e->bg = {};
             }
         }
         rhi::BindGroupEntry ent[] = {
@@ -877,31 +853,31 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_blurLayout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 3};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         ++m_bindGroupsBuilt;
         m_blurBindGroups.InsertOrAssign(gi, BlurEntry{bg, depth, generation});
         return bg;
     }
 
-    rhi::BindGroup* SsgiPass::EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureView* histPrev,
+    rhi::BindGroupHandle SsgiPass::EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureViewHandle histPrev,
                                                      const ResolveInputs& inputs)
     {
-        if (histPrev == nullptr || !inputs.Complete())
+        if (!histPrev.IsValid() || !inputs.Complete())
         {
-            return nullptr;
+            return {};
         }
-        rhi::BindGroup* stale = nullptr;
-        if (rhi::BindGroup* cached = cache.Find(histPrev, inputs, stale))
+        rhi::BindGroupHandle stale{};
+        if (rhi::BindGroupHandle cached = cache.Find(histPrev, inputs, stale))
         {
             return cached;
         }
-        if (stale != nullptr)
+        if (stale.IsValid())
         {
-            m_retired.PushBack(Retired{stale, kRetireFrames}); // a frame in flight may still use it
+            m_device->DestroyBindGroup(stale); // kept by the device while a frame in flight uses it
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
@@ -917,10 +893,10 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_resolveLayout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 9};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         ++m_bindGroupsBuilt;
         cache.Store(histPrev, inputs, bg);
@@ -931,7 +907,7 @@ namespace foundation::render
     {
         for (auto& kv : m_bindGroups)
         {
-            if (kv.value.bg != nullptr)
+            if (kv.value.bg.IsValid())
             {
                 m_device->DestroyBindGroup(kv.value.bg);
             }
@@ -939,7 +915,7 @@ namespace foundation::render
         m_bindGroups.Clear();
         for (auto& kv : m_downBindGroups)
         {
-            if (kv.value.bg != nullptr)
+            if (kv.value.bg.IsValid())
             {
                 m_device->DestroyBindGroup(kv.value.bg);
             }
@@ -947,98 +923,93 @@ namespace foundation::render
         m_downBindGroups.Clear();
         for (auto& kv : m_blurBindGroups)
         {
-            if (kv.value.bg != nullptr)
+            if (kv.value.bg.IsValid())
             {
                 m_device->DestroyBindGroup(kv.value.bg);
             }
         }
         m_blurBindGroups.Clear();
-        m_resolveBindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
-        m_compositeBindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
-        if (m_dummyShBuffer != nullptr)
+        m_resolveBindGroups.Release([this](rhi::BindGroupHandle bg) { m_device->DestroyBindGroup(bg); });
+        m_compositeBindGroups.Release([this](rhi::BindGroupHandle bg) { m_device->DestroyBindGroup(bg); });
+        if (m_dummyShBuffer.IsValid())
         {
             m_device->DestroyBuffer(m_dummyShBuffer);
-            m_dummyShBuffer = nullptr;
+            m_dummyShBuffer = {};
         }
-        for (auto& r : m_retired)
-        {
-            m_device->DestroyBindGroup(r.bg);
-        }
-        m_retired.Clear();
         for (ViewHistory& hist : m_views)
         {
             DestroyHistory(hist);
         }
         m_views.Clear();
-        if (m_pipeline != nullptr)
+        if (m_pipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = nullptr;
+            m_pipeline = {};
         }
-        if (m_downPipeline != nullptr)
+        if (m_downPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_downPipeline);
-            m_downPipeline = nullptr;
+            m_downPipeline = {};
         }
-        if (m_blurPipeline != nullptr)
+        if (m_blurPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_blurPipeline);
-            m_blurPipeline = nullptr;
+            m_blurPipeline = {};
         }
-        if (m_resolvePipeline != nullptr)
+        if (m_resolvePipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_resolvePipeline);
-            m_resolvePipeline = nullptr;
+            m_resolvePipeline = {};
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
-        if (m_linearSampler != nullptr)
+        if (m_linearSampler.IsValid())
         {
             m_device->DestroySampler(m_linearSampler);
-            m_linearSampler = nullptr;
+            m_linearSampler = {};
         }
-        if (m_pipelineLayout != nullptr)
+        if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
-        if (m_downPipelineLayout != nullptr)
+        if (m_downPipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_downPipelineLayout);
-            m_downPipelineLayout = nullptr;
+            m_downPipelineLayout = {};
         }
-        if (m_blurPipelineLayout != nullptr)
+        if (m_blurPipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_blurPipelineLayout);
-            m_blurPipelineLayout = nullptr;
+            m_blurPipelineLayout = {};
         }
-        if (m_resolvePipelineLayout != nullptr)
+        if (m_resolvePipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_resolvePipelineLayout);
-            m_resolvePipelineLayout = nullptr;
+            m_resolvePipelineLayout = {};
         }
-        if (m_layout != nullptr)
+        if (m_layout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_layout);
-            m_layout = nullptr;
+            m_layout = {};
         }
-        if (m_downLayout != nullptr)
+        if (m_downLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_downLayout);
-            m_downLayout = nullptr;
+            m_downLayout = {};
         }
-        if (m_blurLayout != nullptr)
+        if (m_blurLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_blurLayout);
-            m_blurLayout = nullptr;
+            m_blurLayout = {};
         }
-        if (m_resolveLayout != nullptr)
+        if (m_resolveLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_resolveLayout);
-            m_resolveLayout = nullptr;
+            m_resolveLayout = {};
         }
     }
 }

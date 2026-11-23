@@ -28,7 +28,7 @@ import foundation.fonts;          // IFontService
 import foundation.fonts.resource; // Font products (the project's fonts)
 import foundation.texture.resource;
 import foundation.render.api;
-import foundation.render; // GpuRetireQueue
+import foundation.render;
 import foundation.shell;
 import foundation.input;
 import engine.input;
@@ -331,7 +331,7 @@ TEST_CASE("engine.gui: the provider answers documents, sheets, vector images and
     CHECK_FALSE(provider.LoadText(Braced(menu).AsView(), text)); // no resource manager yet
     provider.SetResourceManager(project.resources.Get());
     Array<const foundation::image::ImageData*> told;
-    provider.SetTextureSink([&](const foundation::image::ImageData* key, rhi::TextureView* view) { told.PushBack(view != nullptr ? key : nullptr); });
+    provider.SetTextureSink([&](const foundation::image::ImageData* key, rhi::TextureViewHandle view) { told.PushBack(view.IsValid() ? key : nullptr); });
 
     REQUIRE(provider.LoadText(Braced(menu).AsView(), text));
     CHECK(text.AsView() == StringView(u8"<Panel id=\"menu\"/>"));
@@ -1035,7 +1035,7 @@ TEST_CASE("engine.gui: a render-texture canvas draws into a texture of its own, 
     rhi::null::NullCommandEncoder encoder;
     engine.gui->RenderTextures(encoder, 0);
     CHECK(engine.gui->TextureCount() == 1u);
-    REQUIRE(c->renderTextureView != nullptr);
+    REQUIRE(c->renderTextureView.IsValid());
     CHECK(sprite.texture == c->renderTextureView);
     CHECK(c->renderRoot->GetViewportSize().x == doctest::Approx(128.0f));
     const u64 passes = encoder.counters->Snapshot().renderPasses;
@@ -1050,7 +1050,7 @@ TEST_CASE("engine.gui: a render-texture canvas draws into a texture of its own, 
     CHECK(FindById(*root, u8"monitor") != nullptr);
     engine.gui->RenderTextures(encoder, 1);
     CHECK(engine.gui->TextureCount() == 0u);
-    CHECK(sprite.texture == nullptr);
+    CHECK(!sprite.texture.IsValid());
 
     // Drawn into a texture again, then despawned: the texture is removed.
     c->renderMode = engine::gui::GuiCanvasRenderMode::RenderTexture;
@@ -1076,14 +1076,12 @@ namespace
     };
 }
 
-TEST_CASE("engine.gui: removed and resized textures are retired for the frames in flight, never waited for")
+TEST_CASE("engine.gui: removed and resized textures are destroyed through the device, never waited for")
 {
     WaitCountingDevice device{DefaultAllocator()}; // outlives the GUI that draws on it
-    foundation::render::GpuRetireQueue retire;
-    retire.Initialize(&device, 2);
     {
         Engine engine;
-        engine.gui->EnsureRenderReady(device, 2, &retire);
+        engine.gui->EnsureRenderReady(device, 2);
         REQUIRE(engine.gui->IsRenderReady());
         scene::Scene* level = engine.scenes.CreateScene(u8"level");
         level->AddSystem<engine::render::SpriteComponentManager>();
@@ -1104,31 +1102,26 @@ TEST_CASE("engine.gui: removed and resized textures are retired for the frames i
         engine.gui->RenderTextures(encoder, 0);
         REQUIRE(engine.gui->TextureCount() == 3u);
         const u32 waitsBefore = device.waits;
+        const u32 texturesBefore = device.m_textures.Size();
 
-        // A resize remakes the texture and retires the old one.
+        // A resize remakes the texture and destroys the old one (the device keeps it while the
+        // frames in flight sample it).
         canvases->Get(screens[0])->renderTextureWidth = 128;
         engine.Frame();
         engine.gui->RenderTextures(encoder, 1);
         CHECK(engine.gui->TextureCount() == 3u);
-        const usize afterResize = retire.PendingCount();
-        CHECK(afterResize >= 2u); // the texture and its view, and the pass's own targets if any
+        CHECK(device.m_textures.Size() == texturesBefore); // the old one left the device's table
 
-        // Two removed in one frame: both retired.
+        // Two removed in one frame: both destroyed.
         level->DestroyEntity(screens[1]);
         level->DestroyEntity(screens[2]);
         engine.Frame();
         engine.gui->RenderTextures(encoder, 0);
         CHECK(engine.gui->TextureCount() == 1u);
-        CHECK(retire.PendingCount() == 3u * afterResize);
-        CHECK(device.waits == waitsBefore);
-
-        // Freed once the frames in flight have passed.
-        for (int frame = 0; frame < 3; ++frame)
-            retire.Tick();
-        CHECK(retire.PendingCount() == 0u);
+        CHECK(device.m_textures.Size() + 2u <= texturesBefore);
+        CHECK(device.waits == waitsBefore); // and never a wait for the GPU
         engine.scenes.DestroyScene(level);
     }
-    retire.Flush();
 }
 
 TEST_CASE("engine.gui: a world panel drives its sprite, and the pointer reaches it by a ray: hovered, clicked, the game told")
@@ -1552,8 +1545,8 @@ TEST_CASE("engine.gui: an editor's preview builds in the GUI's context, a sheet 
     REQUIRE(preview);
     CHECK(engine.gui->ScreenRoot()->ChildCount() == 3u); // the preview is not in a tier; the root holds only the guide, the stack and the overlays
 
-    rhi::Texture* texture = nullptr;
-    rhi::TextureView* target = nullptr;
+    rhi::TextureHandle texture{};
+    rhi::TextureViewHandle target{};
     REQUIRE(device.CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8UnormSrgb, 320, 200), texture).IsOk());
     REQUIRE(device.CreateTextureView(texture, rhi::TextureViewDesc{}, target).IsOk());
     rhi::null::NullCommandEncoder encoder;

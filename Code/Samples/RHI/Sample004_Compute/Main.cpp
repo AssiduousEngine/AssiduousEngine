@@ -39,14 +39,14 @@ private:
     static constexpr foundation::core::u32 kGrid = 64, kNumPts = kGrid * kGrid, kVertSz = 24,
                                          kBufSz = kNumPts * kVertSz;
 
-    rhi::ShaderModule *m_cs = nullptr, *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vtxBuf = nullptr, *m_paramsBuf = nullptr, *m_vpBuf = nullptr;
+    rhi::ShaderModuleHandle m_cs{}, m_vs{}, m_ps{};
+    rhi::BufferHandle m_vtxBuf{}, m_paramsBuf{}, m_vpBuf{};
     void *m_paramsMapped = nullptr, *m_vpMapped = nullptr;
-    rhi::BindGroupLayout *m_compBgl = nullptr, *m_renBgl = nullptr;
-    rhi::BindGroup *m_compBg = nullptr, *m_renBg = nullptr;
-    rhi::PipelineLayout *m_compPl = nullptr, *m_renPl = nullptr;
-    rhi::ComputePipeline* m_compPipe = nullptr;
-    rhi::RenderPipeline* m_renPipe = nullptr;
+    rhi::BindGroupLayoutHandle m_compBgl{}, m_renBgl{};
+    rhi::BindGroupHandle m_compBg{}, m_renBg{};
+    rhi::PipelineLayoutHandle m_compPl{}, m_renPl{};
+    rhi::ComputePipelineHandle m_compPipe{};
+    rhi::RenderPipelineHandle m_renPipe{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -79,14 +79,14 @@ foundation::core::Status ComputeSample::OnInit()
     pbd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(pbd, m_paramsBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_paramsMapped = m_paramsBuf->Map();
+    m_paramsMapped = m_device->Map(m_paramsBuf);
     rhi::BufferDesc vpd{};
     vpd.size = 64;
     vpd.usage = rhi::BufferUsage::Uniform;
     vpd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(vpd, m_vpBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_vpMapped = m_vpBuf->Map();
+    m_vpMapped = m_device->Map(m_vpBuf);
 
     // Compute bind group layout, bind group, pipeline layout and pipeline.
     rhi::BindGroupLayoutEntry cE[2] = {
@@ -103,9 +103,9 @@ foundation::core::Status ComputeSample::OnInit()
     cBgd.entries = Span<const rhi::BindGroupEntry>(cBgE, 2);
     if (m_device->CreateBindGroup(cBgd, m_compBg) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    rhi::BindGroupLayout* cSets[1] = {m_compBgl};
+    rhi::BindGroupLayoutHandle cSets[1] = {m_compBgl};
     rhi::PipelineLayoutDesc cPld{};
-    cPld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(cSets, 1);
+    cPld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(cSets, 1);
     if (m_device->CreatePipelineLayout(cPld, m_compPl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
     rhi::ComputePipelineDesc cpd{};
@@ -127,9 +127,9 @@ foundation::core::Status ComputeSample::OnInit()
     rBgd.entries = Span<const rhi::BindGroupEntry>(rBgE, 1);
     if (m_device->CreateBindGroup(rBgd, m_renBg) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    rhi::BindGroupLayout* rSets[1] = {m_renBgl};
+    rhi::BindGroupLayoutHandle rSets[1] = {m_renBgl};
     rhi::PipelineLayoutDesc rPld{};
-    rPld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(rSets, 1);
+    rPld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(rSets, 1);
     if (m_device->CreatePipelineLayout(rPld, m_renPl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 

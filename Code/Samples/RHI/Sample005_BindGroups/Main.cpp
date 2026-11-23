@@ -59,13 +59,13 @@ private:
         0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
         12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_globalUbo = nullptr, *m_objUbo = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{}, m_globalUbo{}, m_objUbo{};
     void *m_globalMapped = nullptr, *m_objMapped = nullptr;
-    rhi::BindGroupLayout *m_globalBgl = nullptr, *m_objBgl = nullptr;
-    rhi::BindGroup *m_globalBg = nullptr, *m_objBg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::BindGroupLayoutHandle m_globalBgl{}, m_objBgl{};
+    rhi::BindGroupHandle m_globalBg{}, m_objBg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -110,14 +110,14 @@ foundation::core::Status BindGroupSample::OnInit()
     gbd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(gbd, m_globalUbo) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_globalMapped = m_globalUbo->Map();
+    m_globalMapped = m_device->Map(m_globalUbo);
     rhi::BufferDesc obd{};
     obd.size = kObjCount * kObjStride;
     obd.usage = rhi::BufferUsage::Uniform;
     obd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(obd, m_objUbo) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_objMapped = m_objUbo->Map();
+    m_objMapped = m_device->Map(m_objUbo);
 
     // Set 0: global VP.
     rhi::BindGroupLayoutEntry gE[1] = {
@@ -149,9 +149,9 @@ foundation::core::Status BindGroupSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Pipeline layout with 2 sets.
-    rhi::BindGroupLayout* sets[2] = {m_globalBgl, m_objBgl};
+    rhi::BindGroupLayoutHandle sets[2] = {m_globalBgl, m_objBgl};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 2);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 2);
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 

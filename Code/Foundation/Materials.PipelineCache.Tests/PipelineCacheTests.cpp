@@ -54,46 +54,43 @@ TEST_CASE("pso cache: builds + caches a pipeline; shader reload rebuilds via ver
     shaders::ShaderSystem shaderSystem(device);
     shaderSystem.SetCookedPack(&pack);
 
-    rhi::PipelineLayout* layout = nullptr;
+    rhi::PipelineLayoutHandle layout{};
     REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
 
     PipelineStateCache cache(shaderSystem, device);
     const PipelineConfig config = PipelineConfig::ForOpaqueMesh(u8"forward");
 
-    rhi::RenderPipeline* p0 = cache.GetPipeline(config, layout);
-    REQUIRE(p0 != nullptr);
+    rhi::RenderPipelineHandle p0 = cache.GetPipeline(config, layout);
+    REQUIRE(p0.IsValid());
     CHECK(cache.Size() == 1);
 
     // the same request gives the same pipeline (cache hit, no rebuild)
-    rhi::RenderPipeline* p1 = cache.GetPipeline(config, layout);
+    rhi::RenderPipelineHandle p1 = cache.GetPipeline(config, layout);
     CHECK(p1 == p0);
     CHECK(cache.Size() == 1);
-    CHECK(cache.RetiredCount() == 0);
+    const u32 live = device.m_renderPipelines.Size();
 
-    // reload the shader: the version bumps, so the next GetPipeline rebuilds and retires the old PSO
+    // reload the shader: the version bumps, so the next GetPipeline rebuilds and destroys the old
+    // PSO (the device keeps it while a frame in flight draws with it)
     shaderSystem.InvalidateShader(u8"forward");
-    rhi::RenderPipeline* p2 = cache.GetPipeline(config, layout);
-    REQUIRE(p2 != nullptr);
-    CHECK(p2 != p0);                  // rebuilt against the new shader
-    CHECK(cache.Size() == 1);         // same key, replaced in place
-    CHECK(cache.RetiredCount() == 1); // stale pipeline retired, awaiting GPU-safe free
-
-    cache.ReleaseRetired();
-    CHECK(cache.RetiredCount() == 0);
+    rhi::RenderPipelineHandle p2 = cache.GetPipeline(config, layout);
+    REQUIRE(p2.IsValid());
+    CHECK(p2 != p0);          // rebuilt against the new shader
+    CHECK(cache.Size() == 1); // same key, replaced in place
+    CHECK(device.m_renderPipelines.Size() == live); // the stale one left the device's table
 
     // versions are per shader: invalidating another shader rebuilds nothing here
-    rhi::RenderPipeline* pOther =
+    rhi::RenderPipelineHandle pOther =
         cache.GetPipeline(PipelineConfig::ForOpaqueMesh(u8"other"), layout);
-    REQUIRE(pOther != nullptr);
+    REQUIRE(pOther.IsValid());
     shaderSystem.InvalidateShader(u8"other");
     CHECK(cache.GetPipeline(config, layout) == p2);
     CHECK(cache.GetPipeline(PipelineConfig::ForOpaqueMesh(u8"other"), layout) != pOther);
-    cache.ReleaseRetired();
 
     // a distinct render state is a distinct cache entry
-    rhi::RenderPipeline* pT =
+    rhi::RenderPipelineHandle pT =
         cache.GetPipeline(PipelineConfig::ForTransparentMesh(u8"forward"), layout);
-    REQUIRE(pT != nullptr);
+    REQUIRE(pT.IsValid());
     CHECK(cache.Size() == 3);
 
     cache.Clear();
@@ -111,7 +108,7 @@ TEST_CASE("pso cache: depth-only config builds without a fragment shader")
     shaders::ShaderSystem shaderSystem(device);
     shaderSystem.SetCookedPack(&pack);
 
-    rhi::PipelineLayout* layout = nullptr;
+    rhi::PipelineLayoutHandle layout{};
     REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
 
     PipelineStateCache cache(shaderSystem, device);
@@ -119,8 +116,8 @@ TEST_CASE("pso cache: depth-only config builds without a fragment shader")
     config.depthOnly = true;
     config.vertexLayout = VertexLayoutType::PositionOnly;
 
-    rhi::RenderPipeline* p = cache.GetPipeline(config, layout);
-    CHECK(p != nullptr); // vertex-only pipeline, no fragment fetched
+    rhi::RenderPipelineHandle p = cache.GetPipeline(config, layout);
+    CHECK(p.IsValid()); // vertex-only pipeline, no fragment fetched
 
     cache.Clear();
     device.DestroyPipelineLayout(layout);
@@ -134,9 +131,9 @@ TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits
     AddPlaceholder(pack, u8"shadow", shaders::ShaderStage::Fragment);
     shaders::ShaderSystem shaderSystem(device);
     shaderSystem.SetCookedPack(&pack);
-    rhi::PipelineLayout* layout = nullptr;
+    rhi::PipelineLayoutHandle layout{};
     REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
-    PipelineStateCache cache(shaderSystem, device, /*framesInFlight*/ 2);
+    PipelineStateCache cache(shaderSystem, device);
 
     // Two depth passes apart only in their slope bias are two pipelines (the hash left it out, so
     // they were one).
@@ -144,10 +141,10 @@ TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits
     caster.depthBiasSlopeScale = 1.5f;
     PipelineConfig prepass = caster;
     prepass.depthBiasSlopeScale = 0.0f;
-    rhi::RenderPipeline* a = cache.GetPipeline(caster, layout);
-    rhi::RenderPipeline* b = cache.GetPipeline(prepass, layout);
-    REQUIRE(a != nullptr);
-    REQUIRE(b != nullptr);
+    rhi::RenderPipelineHandle a = cache.GetPipeline(caster, layout);
+    rhi::RenderPipelineHandle b = cache.GetPipeline(prepass, layout);
+    REQUIRE(a.IsValid());
+    REQUIRE(b.IsValid());
     CHECK(a != b);
     CHECK(cache.Size() == 2u);
 
@@ -159,25 +156,22 @@ TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits
 
     // A shader with no variants fails once, and is not built again on every draw after.
     const PipelineConfig broken = PipelineConfig::ForOpaqueMesh(u8"missing");
-    CHECK(cache.GetPipeline(broken, layout) == nullptr);
+    CHECK(!cache.GetPipeline(broken, layout).IsValid());
     const u64 tried = cache.BuildAttempts();
     for (int draw = 0; draw < 10; ++draw)
     {
-        CHECK(cache.GetPipeline(broken, layout) == nullptr);
+        CHECK(!cache.GetPipeline(broken, layout).IsValid());
     }
     CHECK(cache.BuildAttempts() == tried);
     shaderSystem.InvalidateShader(u8"missing"); // an edit: worth trying again
     (void)cache.GetPipeline(broken, layout);
     CHECK(cache.BuildAttempts() == tried + 1u);
 
-    // A pipeline a reload superseded lives through the frames in flight, then goes.
+    // A pipeline a reload superseded is destroyed as its replacement is made.
+    const u32 before = device.m_renderPipelines.Size();
     shaderSystem.InvalidateShader(u8"shadow");
     REQUIRE(cache.GetPipeline(caster, layout) != a);
-    CHECK(cache.RetiredCount() == 1u);
-    cache.TickRetired();
-    CHECK(cache.RetiredCount() == 1u); // one frame in flight may still draw with it
-    cache.TickRetired();
-    CHECK(cache.RetiredCount() == 0u);
+    CHECK(device.m_renderPipelines.Size() == before);
 
     cache.Clear();
     device.DestroyPipelineLayout(layout);
@@ -191,7 +185,7 @@ namespace
     public:
         using rhi::null::NullDevice::NullDevice;
         bool lastDepthClip = true;
-        Status CreateRenderPipeline(const rhi::RenderPipelineDesc& desc, rhi::RenderPipeline*& out) override
+        Status CreateRenderPipeline(const rhi::RenderPipelineDesc& desc, rhi::RenderPipelineHandle& out) override
         {
             lastDepthClip = desc.primitive.depthClipEnabled;
             return rhi::null::NullDevice::CreateRenderPipeline(desc, out);
@@ -206,7 +200,7 @@ TEST_CASE("pso cache: a depth-clamp config clamps where the device can, and clip
     AddPlaceholder(pack, u8"shadow", shaders::ShaderStage::Vertex);
     shaders::ShaderSystem shaderSystem(device);
     shaderSystem.SetCookedPack(&pack);
-    rhi::PipelineLayout* layout = nullptr;
+    rhi::PipelineLayoutHandle layout{};
     REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
 
     PipelineConfig clipped = PipelineConfig::ForOpaqueMesh(u8"shadow");
@@ -220,16 +214,16 @@ TEST_CASE("pso cache: a depth-clamp config clamps where the device can, and clip
     {
         device.features.depthClamp = true;
         PipelineStateCache cache(shaderSystem, device);
-        REQUIRE(cache.GetPipeline(clamped, layout) != nullptr);
+        REQUIRE(cache.GetPipeline(clamped, layout).IsValid());
         CHECK_FALSE(device.lastDepthClip);
-        REQUIRE(cache.GetPipeline(clipped, layout) != nullptr);
+        REQUIRE(cache.GetPipeline(clipped, layout).IsValid());
         CHECK(device.lastDepthClip);
         cache.Clear();
     }
     {
         device.features.depthClamp = false; // asking for it without the feature is invalid
         PipelineStateCache cache(shaderSystem, device);
-        REQUIRE(cache.GetPipeline(clamped, layout) != nullptr);
+        REQUIRE(cache.GetPipeline(clamped, layout).IsValid());
         CHECK(device.lastDepthClip);
         cache.Clear();
     }

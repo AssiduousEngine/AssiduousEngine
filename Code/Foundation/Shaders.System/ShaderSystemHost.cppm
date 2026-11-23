@@ -175,10 +175,10 @@ export namespace foundation::shaders
 
         /// Resolve a shader variant to a GPU module (null if not ready or unknown). Delegates to the
         /// owned ShaderSystem: a pack lookup or a dev compile-and-cache.
-        [[nodiscard]] rhi::ShaderModule* GetVariant(StringView name, ShaderStage stage,
+        [[nodiscard]] rhi::ShaderModuleHandle GetVariant(StringView name, ShaderStage stage,
                                                     ShaderFlags flags)
         {
-            return m_shaders.Get() != nullptr ? m_shaders->GetVariant(name, stage, flags) : nullptr;
+            return m_shaders.Get() != nullptr ? m_shaders->GetVariant(name, stage, flags) : rhi::ShaderModuleHandle{};
         }
 
         void Shutdown()

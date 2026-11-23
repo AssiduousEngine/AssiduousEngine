@@ -39,7 +39,7 @@ export namespace foundation::rhi::validation
         }
         ~ValidatedRenderBundleEncoder() override { m_allocator.Delete(m_bundle); }
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
             if (m_finished)
             {
@@ -55,7 +55,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPipeline(pipeline);
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
             if (m_finished)
             {
@@ -89,7 +89,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPushConstants(stages, offset, size, data);
         }
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
             if (m_finished)
             {
@@ -104,7 +104,7 @@ export namespace foundation::rhi::validation
             m_inner->SetVertexBuffer(slot, buffer, offset);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
             if (m_finished)
             {
@@ -138,7 +138,7 @@ export namespace foundation::rhi::validation
             m_inner->DrawIndexed(indexCount, instanceCount, firstIndex, baseVertex, firstInstance);
         }
 
-        void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (!checkDrawReady("bundle drawIndirect"))
                 return;
@@ -150,7 +150,7 @@ export namespace foundation::rhi::validation
             m_inner->DrawIndirect(buffer, offset, drawCount, stride);
         }
 
-        void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (!checkDrawReady("bundle drawIndexedIndirect"))
                 return;

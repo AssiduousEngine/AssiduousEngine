@@ -34,7 +34,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :data;        // SkySnapshot, SkyMode, ExtractedScene (context identity)
-import :resources;   // GpuRetireQueue (a resized prefilter's old cube)
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -91,11 +91,11 @@ export namespace foundation::render
         {
         public:
             // Products bound into the forward set 0 (per-view downstream).
-            [[nodiscard]] rhi::TextureView* PrefilterView() const noexcept
+            [[nodiscard]] rhi::TextureViewHandle PrefilterView() const noexcept
             {
                 return m_prefilterView;
             }
-            [[nodiscard]] rhi::Buffer* ShBuffer() const noexcept { return m_shBuffer; }
+            [[nodiscard]] rhi::BufferHandle ShBuffer() const noexcept { return m_shBuffer; }
             // Unique across contexts (one system-wide counter), so safe as a sole cache key.
             [[nodiscard]] u64 Generation() const noexcept { return m_generation; }
             // Stable per-context identity (stamped at creation, never reused). Downstream caches
@@ -112,7 +112,7 @@ export namespace foundation::render
             [[nodiscard]] rendergraph::RGHandle ShHandle() const noexcept { return m_shH; }
             // The full-radiance environment cube, sampled by the sky pass (background) at full detail.
             [[nodiscard]] rendergraph::RGHandle EnvHandle() const noexcept { return m_envH; }
-            [[nodiscard]] rhi::TextureView* EnvView() const noexcept { return m_envSampleView; }
+            [[nodiscard]] rhi::TextureViewHandle EnvView() const noexcept { return m_envSampleView; }
             [[nodiscard]] f32 SkyIntensity() const noexcept { return m_sky.intensity; }
             // Display-only backdrop dimmer for the visible sky (not baked into the cube).
             [[nodiscard]] f32 SkyBackgroundIntensity() const noexcept
@@ -136,19 +136,19 @@ export namespace foundation::render
             u64 m_uid = 0;
             u64 m_lastUsedFrame = 0;
 
-            rhi::Texture* m_envCube = nullptr;
-            rhi::TextureView* m_envSampleView = nullptr;
-            rhi::TextureView* m_envMipView[kEnvMips] = {};
-            rhi::Texture* m_prefilterCube = nullptr;
-            rhi::TextureView* m_prefilterView = nullptr;
+            rhi::TextureHandle m_envCube{};
+            rhi::TextureViewHandle m_envSampleView{};
+            rhi::TextureViewHandle m_envMipView[kEnvMips] = {};
+            rhi::TextureHandle m_prefilterCube{};
+            rhi::TextureViewHandle m_prefilterView{};
             u32 m_prefilterRes = 0; // the size the prefilter cube was made at
-            rhi::Buffer* m_shBuffer = nullptr;
-            rhi::BindGroup* m_envBindGroup = nullptr;  // env full-chain sample (prefilter input)
-            rhi::BindGroup* m_envMipBG[kEnvMips] = {}; // mip m as the downsample source
-            rhi::BindGroup* m_shBindGroup = nullptr;   // env and SH output buffer (compute)
+            rhi::BufferHandle m_shBuffer{};
+            rhi::BindGroupHandle m_envBindGroup{};  // env full-chain sample (prefilter input)
+            rhi::BindGroupHandle m_envMipBG[kEnvMips] = {}; // mip m as the downsample source
+            rhi::BindGroupHandle m_shBindGroup{};   // env and SH output buffer (compute)
             // Asset-driven sky texture (an external product view, not owned): bind groups only.
-            rhi::BindGroup* m_externalEquirectBG = nullptr;
-            rhi::BindGroup* m_externalCubeBG = nullptr;
+            rhi::BindGroupHandle m_externalEquirectBG{};
+            rhi::BindGroupHandle m_externalCubeBG{};
             u64 m_externalUid = 0;
 
             rhi::ResourceState m_envState = rhi::ResourceState::Undefined;
@@ -175,17 +175,13 @@ export namespace foundation::render
 
         Status Initialize();
 
-        /// Wire the frames-in-flight retire queue: a resized prefilter's old cube is retired, not
-        /// freed while a frame in flight may still sample it. Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         /// The prefiltered specular cube's face resolution from now on (a quality level's environment
         /// tier). A context made at another size remakes its cube when next prepared and bakes once.
         void SetPrefilterResolution(u32 resolution) noexcept { m_prefilterRes = Clamp(resolution, 32u, 1024u); }
         [[nodiscard]] u32 PrefilterResolution() const noexcept { return m_prefilterRes; }
 
         // Shared products (sky-independent).
-        [[nodiscard]] rhi::TextureView* BrdfView() const noexcept { return m_brdfView; }
+        [[nodiscard]] rhi::TextureViewHandle BrdfView() const noexcept { return m_brdfView; }
         [[nodiscard]] rendergraph::RGHandle BrdfHandle() const noexcept { return m_brdfH; }
         [[nodiscard]] u64 ShBytes() const noexcept { return sizeof(f32) * 4 * kShCoeffCount; }
         [[nodiscard]] f32 MaxLod() const noexcept { return static_cast<f32>(kPrefilterMips - 1); }
@@ -250,10 +246,9 @@ export namespace foundation::render
         // One scene's products and the bind groups referencing them.
         bool CreateContextResources(Context& ctx);
         // The context's prefiltered cube and its view, at the system's current resolution; and their
-        // release (retired through the queue when wired, else after draining the device).
+        // release (the device keeps them while frames in flight sample them).
         bool CreatePrefilter(Context& ctx);
         void ReleasePrefilter(Context& ctx);
-        GpuRetireQueue* m_retire = nullptr; // borrowed
         u32 m_prefilterRes = 256;
 
         void DestroyContext(Context& ctx);
@@ -263,8 +258,8 @@ export namespace foundation::render
         // (layouts survive). False when a shader no longer compiles.
         bool RebuildPipelinesForReload();
 
-        rhi::RenderPipeline* MakeFullscreenPipeline(rhi::ShaderModule* vs, StringView psName,
-                                                    rhi::PipelineLayout* layout,
+        rhi::RenderPipelineHandle MakeFullscreenPipeline(rhi::ShaderModuleHandle vs, StringView psName,
+                                                    rhi::PipelineLayoutHandle layout,
                                                     rhi::TextureFormat fmt);
 
         // Lazily create the equirect-to-cube pipeline (2D source texture, sampler and push), only when an
@@ -295,51 +290,49 @@ export namespace foundation::render
             1; // programmatic SetEquirect/SetCubemap change tick (contexts start at 0)
 
         // Shared programmatic HDR equirect source: an uploaded 2D texture sampled by the equirect pass.
-        rhi::Texture* m_equirectTex = nullptr;
-        rhi::TextureView* m_equirectView = nullptr;
-        rhi::Buffer* m_equirectStaging = nullptr;
-        rhi::Sampler* m_equirectSampler = nullptr;
-        rhi::BindGroupLayout* m_equirectLayout = nullptr;
-        rhi::PipelineLayout* m_equirectPipelineLayout = nullptr;
-        rhi::RenderPipeline* m_equirectPipeline = nullptr;
-        rhi::BindGroup* m_equirectBindGroup = nullptr;
+        rhi::TextureHandle m_equirectTex{};
+        rhi::TextureViewHandle m_equirectView{};
+        rhi::BufferHandle m_equirectStaging{};
+        rhi::SamplerHandle m_equirectSampler{};
+        rhi::BindGroupLayoutHandle m_equirectLayout{};
+        rhi::PipelineLayoutHandle m_equirectPipelineLayout{};
+        rhi::RenderPipelineHandle m_equirectPipeline{};
+        rhi::BindGroupHandle m_equirectBindGroup{};
         u32 m_equirectW = 0, m_equirectH = 0;
         bool m_equirectPending = false;
 
         // Shared programmatic cubemap source.
-        rhi::Texture* m_srcCube = nullptr;
-        rhi::TextureView* m_srcCubeView = nullptr;
-        rhi::Buffer* m_cubemapStaging = nullptr;
-        rhi::RenderPipeline* m_cubemapPipeline = nullptr; // reuses m_prefilterLayout and m_envLayout
-        rhi::BindGroup* m_cubemapBindGroup = nullptr;
+        rhi::TextureHandle m_srcCube{};
+        rhi::TextureViewHandle m_srcCubeView{};
+        rhi::BufferHandle m_cubemapStaging{};
+        rhi::RenderPipelineHandle m_cubemapPipeline{}; // reuses m_prefilterLayout and m_envLayout
+        rhi::BindGroupHandle m_cubemapBindGroup{};
         u32 m_cubemapFaceSize = 0;
         bool m_cubemapPending = false;
 
         // Shared products and machinery.
-        rhi::Texture* m_brdfLut = nullptr;
-        rhi::TextureView* m_brdfView = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::TextureHandle m_brdfLut{};
+        rhi::TextureViewHandle m_brdfView{};
+        rhi::SamplerHandle m_sampler{};
 
-        rhi::BindGroupLayout* m_envLayout = nullptr;
+        rhi::BindGroupLayoutHandle m_envLayout{};
         // A 1x1 cube and sampler bound when a pipeline's layout declares the env group
         // but the mode has no env source (procedural, analytic): WebGPU requires every
         // declared group bound; Vulkan and DX12 simply never sample it.
-        rhi::Texture* m_dummyEnvCube = nullptr;
-        rhi::TextureView* m_dummyEnvView = nullptr;
-        rhi::BindGroup* m_dummyEnvBindGroup = nullptr;
-        rhi::BindGroupLayout* m_shLayout = nullptr;
-        rhi::PipelineLayout* m_envOnlyLayout = nullptr;
-        rhi::PipelineLayout* m_prefilterLayout = nullptr;
-        rhi::PipelineLayout* m_brdfPipelineLayout = nullptr;
-        rhi::PipelineLayout* m_shPipelineLayout = nullptr;
-        rhi::RenderPipeline* m_envPipeline = nullptr;
-        rhi::RenderPipeline* m_analyticPipeline =
-            nullptr; // Preetham; reuses m_envOnlyLayout (push only)
-        rhi::RenderPipeline* m_downsamplePipeline =
-            nullptr; // env mip pyramid; reuses m_prefilterLayout
-        rhi::RenderPipeline* m_prefilterPipeline = nullptr;
-        rhi::RenderPipeline* m_brdfPipeline = nullptr;
-        rhi::ComputePipeline* m_shPipeline = nullptr;
+        rhi::TextureHandle m_dummyEnvCube{};
+        rhi::TextureViewHandle m_dummyEnvView{};
+        rhi::BindGroupHandle m_dummyEnvBindGroup{};
+        rhi::BindGroupLayoutHandle m_shLayout{};
+        rhi::PipelineLayoutHandle m_envOnlyLayout{};
+        rhi::PipelineLayoutHandle m_prefilterLayout{};
+        rhi::PipelineLayoutHandle m_brdfPipelineLayout{};
+        rhi::PipelineLayoutHandle m_shPipelineLayout{};
+        rhi::RenderPipelineHandle m_envPipeline{};
+        rhi::RenderPipelineHandle m_analyticPipeline{}; // Preetham; reuses m_envOnlyLayout (push only)
+        rhi::RenderPipelineHandle m_downsamplePipeline{}; // env mip pyramid; reuses m_prefilterLayout
+        rhi::RenderPipelineHandle m_prefilterPipeline{};
+        rhi::RenderPipelineHandle m_brdfPipeline{};
+        rhi::ComputePipelineHandle m_shPipeline{};
 
         rhi::ResourceState m_brdfState = rhi::ResourceState::Undefined;
         rendergraph::RGHandle m_brdfH = {};

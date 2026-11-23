@@ -58,8 +58,7 @@ export namespace engine::particles
     {
         ParticleEffect* effect = nullptr; // borrowed
         UniquePtr<ParticleEffectInstance> instance;
-        rhi::TextureView* texture =
-            nullptr; // billboard atlas (borrowed); null = untextured (soft dot)
+        rhi::TextureViewHandle texture{}; // billboard atlas (borrowed); null = untextured (soft dot)
         // Mesh-mode systems (ParticleRenderMode::Mesh) draw this mesh per particle through the instanced-
         // mesh path. Held while attached; per-particle transform = position * axis/rotation * (size*meshScale).
         foundation::resource::Ref<geometry::StaticMesh> mesh;
@@ -576,7 +575,7 @@ export namespace engine::particles
         // Resolve a system's billboard or trail texture: the cooked resource's per-system
         // Proxy<Texture> (which follows hot reloads) when this component is resource-driven, else
         // the code-set c.texture.
-        [[nodiscard]] static rhi::TextureView* SystemTextureView(const ParticleEffectComponent& c,
+        [[nodiscard]] static rhi::TextureViewHandle SystemTextureView(const ParticleEffectComponent& c,
                                                                  i32 systemIndex)
         {
             if (ParticleEffectResource* res = c.effectAsset.Get())

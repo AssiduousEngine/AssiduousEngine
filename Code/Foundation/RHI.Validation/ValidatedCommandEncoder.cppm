@@ -31,8 +31,9 @@ export namespace foundation::rhi::validation
     {
     public:
         RayTracingEncoderExt* AsRayTracingExt() noexcept override { return this; }
-        explicit ValidatedCommandEncoder(CommandEncoder* inner, IAllocator& allocator)
-            : m_inner(inner), m_allocator(allocator)
+        /// `device` is the inner device, which validation asks what a handle names.
+        ValidatedCommandEncoder(CommandEncoder* inner, IAllocator& allocator, const Device* device)
+            : m_inner(inner), m_allocator(allocator), m_device(device)
         {
         }
 
@@ -96,7 +97,7 @@ export namespace foundation::rhi::validation
             m_inner->Barrier(group);
         }
 
-        void CopyBufferToBuffer(Buffer* src, u64 srcOff, Buffer* dst, u64 dstOff, u64 size) override
+        void CopyBufferToBuffer(BufferHandle src, u64 srcOff, BufferHandle dst, u64 dstOff, u64 size) override
         {
             if (!checkState("copyBufferToBuffer", EncoderState::Recording))
                 return;
@@ -115,7 +116,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyBufferToBuffer(src, srcOff, dst, dstOff, size);
         }
 
-        void CopyBufferToTexture(Buffer* src, Texture* dst,
+        void CopyBufferToTexture(BufferHandle src, TextureHandle dst,
                                  const BufferTextureCopyRegion& r) override
         {
             if (!checkState("copyBufferToTexture", EncoderState::Recording))
@@ -133,7 +134,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyBufferToTexture(src, dst, r);
         }
 
-        void CopyTextureToBuffer(Texture* src, Buffer* dst,
+        void CopyTextureToBuffer(TextureHandle src, BufferHandle dst,
                                  const BufferTextureCopyRegion& r) override
         {
             if (!checkState("copyTextureToBuffer", EncoderState::Recording))
@@ -151,7 +152,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyTextureToBuffer(src, dst, r);
         }
 
-        void CopyTextureToTexture(Texture* src, Texture* dst, const TextureCopyRegion& r) override
+        void CopyTextureToTexture(TextureHandle src, TextureHandle dst, const TextureCopyRegion& r) override
         {
             if (!checkState("copyTextureToTexture", EncoderState::Recording))
                 return;
@@ -168,7 +169,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyTextureToTexture(src, dst, r);
         }
 
-        void Blit(Texture* src, Texture* dst) override
+        void Blit(TextureHandle src, TextureHandle dst) override
         {
             if (!checkState("blit", EncoderState::Recording))
                 return;
@@ -180,7 +181,7 @@ export namespace foundation::rhi::validation
             m_inner->Blit(src, dst);
         }
 
-        void GenerateMipmaps(Texture* tex) override
+        void GenerateMipmaps(TextureHandle tex) override
         {
             if (!checkState("generateMipmaps", EncoderState::Recording))
                 return;
@@ -192,7 +193,7 @@ export namespace foundation::rhi::validation
             m_inner->GenerateMipmaps(tex);
         }
 
-        void ResolveTexture(Texture* src, Texture* dst) override
+        void ResolveTexture(TextureHandle src, TextureHandle dst) override
         {
             if (!checkState("resolveTexture", EncoderState::Recording))
                 return;
@@ -204,7 +205,7 @@ export namespace foundation::rhi::validation
             m_inner->ResolveTexture(src, dst);
         }
 
-        void ResetQuerySet(QuerySet* qs, u32 first, u32 count) override
+        void ResetQuerySet(QuerySetHandle qs, u32 first, u32 count) override
         {
             if (!checkState("resetQuerySet", EncoderState::Recording))
                 return;
@@ -216,7 +217,7 @@ export namespace foundation::rhi::validation
             m_inner->ResetQuerySet(qs, first, count);
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
             if (!checkState("writeTimestamp", EncoderState::Recording))
                 return;
@@ -228,16 +229,17 @@ export namespace foundation::rhi::validation
             m_inner->WriteTimestamp(qs, index);
         }
 
-        void BeginPipelineStatisticsQuery(QuerySet* qs, u32 index) override
+        void BeginPipelineStatisticsQuery(QuerySetHandle qs, u32 index) override
         {
             if (!checkState("beginPipelineStatisticsQuery", EncoderState::Recording))
                 return;
-            if (!qs || qs->type != QueryType::PipelineStatistics)
+            const QuerySetDesc* queries = m_device != nullptr ? m_device->Describe(qs) : nullptr;
+            if (queries == nullptr || queries->type != QueryType::PipelineStatistics)
             {
                 LogError("[Validation] beginPipelineStatisticsQuery: needs a PipelineStatistics query set");
                 return;
             }
-            if (m_statisticsQuery != nullptr)
+            if (m_statisticsQuery.IsValid())
             {
                 LogError("[Validation] beginPipelineStatisticsQuery: one is already open (they do not nest)");
                 return;
@@ -247,20 +249,20 @@ export namespace foundation::rhi::validation
             m_inner->BeginPipelineStatisticsQuery(qs, index);
         }
 
-        void EndPipelineStatisticsQuery(QuerySet* qs, u32 index) override
+        void EndPipelineStatisticsQuery(QuerySetHandle qs, u32 index) override
         {
             if (!checkState("endPipelineStatisticsQuery", EncoderState::Recording))
                 return;
-            if (qs == nullptr || qs != m_statisticsQuery || index != m_statisticsIndex)
+            if (!qs.IsValid() || qs != m_statisticsQuery || index != m_statisticsIndex)
             {
                 LogError("[Validation] endPipelineStatisticsQuery: does not match the open query");
                 return;
             }
-            m_statisticsQuery = nullptr;
+            m_statisticsQuery = {};
             m_inner->EndPipelineStatisticsQuery(qs, index);
         }
 
-        void ResolveQuerySet(QuerySet* qs, u32 first, u32 count, Buffer* dst, u64 dstOff) override
+        void ResolveQuerySet(QuerySetHandle qs, u32 first, u32 count, BufferHandle dst, u64 dstOff) override
         {
             if (!checkState("resolveQuerySet", EncoderState::Recording))
                 return;
@@ -324,7 +326,7 @@ export namespace foundation::rhi::validation
                 LogError("[Validation] finish: compute pass still open");
             if (m_debugLabelDepth > 0)
                 LogWarningf("[Validation] finish: %d debug label(s) not closed", m_debugLabelDepth);
-            if (m_statisticsQuery != nullptr)
+            if (m_statisticsQuery.IsValid())
                 LogError("[Validation] finish: a pipeline statistics query is still open");
             m_state = EncoderState::Finished;
             return m_inner->Finish();
@@ -332,7 +334,7 @@ export namespace foundation::rhi::validation
 
         // ---- RayTracingEncoderExt ----
 
-        void BuildBottomLevelAccelStruct(AccelStruct* dst, Buffer* scratch, u64 scratchOff,
+        void BuildBottomLevelAccelStruct(AccelStructHandle dst, BufferHandle scratch, u64 scratchOff,
                                          Span<const AccelStructGeometryTriangles> tris,
                                          Span<const AccelStructGeometryAABBs> aabbs) override
         {
@@ -355,8 +357,8 @@ export namespace foundation::rhi::validation
                 LogError("[Validation] buildBLAS: inner encoder does not support ray tracing");
         }
 
-        void BuildTopLevelAccelStruct(AccelStruct* dst, Buffer* scratch, u64 scratchOff,
-                                      Buffer* instanceBuf, u64 instanceOff,
+        void BuildTopLevelAccelStruct(AccelStructHandle dst, BufferHandle scratch, u64 scratchOff,
+                                      BufferHandle instanceBuf, u64 instanceOff,
                                       u32 instanceCount) override
         {
             if (!checkState("buildTLAS", EncoderState::Recording))
@@ -374,7 +376,7 @@ export namespace foundation::rhi::validation
                 LogError("[Validation] buildTLAS: inner encoder does not support ray tracing");
         }
 
-        void SetRayTracingPipeline(RayTracingPipeline* pipeline) override
+        void SetRayTracingPipeline(RayTracingPipelineHandle pipeline) override
         {
             if (!checkState("setRayTracingPipeline", EncoderState::Recording))
                 return;
@@ -389,7 +391,7 @@ export namespace foundation::rhi::validation
                 rt->SetRayTracingPipeline(pipeline);
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
             if (!checkState("RT setBindGroup", EncoderState::Recording))
                 return;
@@ -421,8 +423,8 @@ export namespace foundation::rhi::validation
                 rt->SetPushConstants(stages, offset, size, data);
         }
 
-        void TraceRays(Buffer* raygenSBT, u64 raygenOff, u64 raygenStride, Buffer* missSBT,
-                       u64 missOff, u64 missStride, Buffer* hitSBT, u64 hitOff, u64 hitStride,
+        void TraceRays(BufferHandle raygenSBT, u64 raygenOff, u64 raygenStride, BufferHandle missSBT,
+                       u64 missOff, u64 missStride, BufferHandle hitSBT, u64 hitOff, u64 hitStride,
                        u32 width, u32 height, u32 depth) override
         {
             if (!checkState("traceRays", EncoderState::Recording))
@@ -466,10 +468,11 @@ export namespace foundation::rhi::validation
 
         CommandEncoder* m_inner;
         IAllocator& m_allocator;
+        const Device* m_device;
         EncoderState m_state = EncoderState::Recording;
         i32 m_debugLabelDepth = 0;
         bool m_rtPipelineBound = false;
-        QuerySet* m_statisticsQuery = nullptr; // the open pipeline statistics query, if any
+        QuerySetHandle m_statisticsQuery{}; // the open pipeline statistics query, if any
         u32 m_statisticsIndex = 0;
 
         ValidatedRenderPassEncoder m_rpe;

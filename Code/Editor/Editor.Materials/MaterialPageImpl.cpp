@@ -244,7 +244,7 @@ namespace editor
         // view no longer matches what the material captured.
         for (usize i = 0; i < m_previewTextures.Size(); ++i)
         {
-            rhi::TextureView* live = m_previewTextures[i] ? m_previewTextures[i]->View() : nullptr;
+            rhi::TextureViewHandle live = m_previewTextures[i] ? m_previewTextures[i]->View() : rhi::TextureViewHandle{};
             if (live != m_previewTextureViews[i])
             {
                 RebuildPreviewMaterial();
@@ -906,8 +906,8 @@ namespace editor
                 // bind group set 2 keeps a dangling descriptor and validation reports a null
                 // imageView).
                 m_previewTextures.PushBack(tex);
-                m_previewTextureViews.PushBack(tex ? tex->View() : nullptr);
-                if (tex && tex->View() != nullptr)
+                m_previewTextureViews.PushBack(tex ? tex->View() : rhi::TextureViewHandle{});
+                if (tex && tex->View().IsValid())
                 {
                     material->SetDefaultTexture(src.textureSlots[i].AsView(), tex->View());
                 }

@@ -11,7 +11,7 @@
 // What it provides:
 //   * pitch resamples (ma_sound_set_pitch) and doppler shifts (velocities feed ma_spatializer);
 //   * streamed clips route through the same bus graph as everything else;
-//   * a fixed voice pool with {slot, generation} handles, priority stealing and recent-play
+//   * a fixed voice pool with Core handles, priority stealing and recent-play
 //     dedupe instead of unbounded voices;
 //   * stop and pause always fade (about 10 ms, so nothing clicks); voices are reaped on the game
 //     thread after the fade completes.
@@ -54,17 +54,10 @@ export namespace foundation::audio
         Exponential,
     };
 
-    // Generation-checked voice handle over the fixed pool.
-    struct VoiceHandle
-    {
-        u32 slot = 0xFFFFFFFFu;
-        u32 generation = 0;
-        [[nodiscard]] bool IsValid() const noexcept { return slot != 0xFFFFFFFFu; }
-        friend bool operator==(VoiceHandle a, VoiceHandle b) noexcept
-        {
-            return a.slot == b.slot && a.generation == b.generation;
-        }
-    };
+    // A voice the engine plays: stale once it stops or is stolen, so a kept copy never reaches the
+    // voice that took its place in the fixed pool.
+    struct VoiceTag;
+    using VoiceHandle = Handle<VoiceTag>;
 
     struct AudioPlayParams
     {

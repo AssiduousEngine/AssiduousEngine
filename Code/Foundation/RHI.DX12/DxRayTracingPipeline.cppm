@@ -17,6 +17,7 @@ import foundation.core;
 import foundation.rhi;
 import :shader_module;
 import :pipeline_layout;
+import :tables;
 
 using namespace foundation::core;
 
@@ -26,9 +27,9 @@ export namespace foundation::rhi::dx12
     class DxRayTracingPipelineImpl : public RayTracingPipeline
     {
     public:
-        Status init(ID3D12Device* device, const RayTracingPipelineDesc& desc)
+        Status init(ID3D12Device* device, const DxTables* tables, const RayTracingPipelineDesc& desc)
         {
-            m_layout = static_cast<DxPipelineLayoutImpl*>(desc.layout);
+            m_layout = LookUp(tables, desc.layout);
             if (!m_layout)
             {
                 LogErrorf("DxRayTracingPipeline: pipeline layout is null");
@@ -56,7 +57,7 @@ export namespace foundation::rhi::dx12
             for (usize i = 0; i < desc.stages.Size(); ++i)
             {
                 const auto& stage = desc.stages[i];
-                auto* dxMod = static_cast<DxShaderModuleImpl*>(stage.module);
+                auto* dxMod = LookUp(tables, stage.module);
                 if (!dxMod)
                     continue;
 
@@ -75,7 +76,7 @@ export namespace foundation::rhi::dx12
             Array<D3D12_DXIL_LIBRARY_DESC> libraries;
             for (usize i = 0; i < desc.stages.Size(); ++i)
             {
-                auto* dxMod = static_cast<DxShaderModuleImpl*>(desc.stages[i].module);
+                auto* dxMod = LookUp(tables, desc.stages[i].module);
                 if (!dxMod)
                     continue;
 

@@ -77,7 +77,7 @@ export namespace foundation::render
         // inverse of this view's view*proj; `camPos` and `intensity` scale the result.
         void DeclareSky(rendergraph::RenderGraph& graph, rendergraph::RGHandle color,
                         rendergraph::RGHandle velocity, rendergraph::RGHandle depth,
-                        rendergraph::RGHandle envH, rhi::TextureView* envView,
+                        rendergraph::RGHandle envH, rhi::TextureViewHandle envView,
                         rhi::TextureFormat colorFormat, rhi::TextureFormat depthFormat,
                         const Float4x4& invViewProj, const Float4x4& prevViewProj, Float2 jitter,
                         Float2 prevJitter, const Float3& camPos, f32 backgroundIntensity,
@@ -87,45 +87,44 @@ export namespace foundation::render
                         rendergraph::RGSubresourceRange colorSub = {});
 
     private:
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFmt,
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat colorFmt,
                                             rhi::TextureFormat depthFmt, u32 samples);
 
-        // Env identity is (view pointer, context uid): the uid catches pointer reuse after an IBL
-        // context eviction.
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* envView, u64 envUid,
+        // Env identity is (view handle, context uid): the uid changes when an IBL context is evicted
+        // and made again.
+        rhi::BindGroupHandle EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView, u64 envUid,
                                         const GpuSky& u);
 
+        void DestroyPipelines();
         void Shutdown();
 
         struct Slot
         {
-            rhi::Buffer* ubo = nullptr;
-            rhi::BindGroup* bindGroup = nullptr;
-            rhi::TextureView* env = nullptr;
+            rhi::BufferHandle ubo{};
+            rhi::BindGroupHandle bindGroup{};
+            rhi::TextureViewHandle env{};
             u64 envUid = 0;
         };
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         u32 m_fif = 2;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
-        rhi::TextureFormat m_colorFormat = rhi::TextureFormat::Undefined;
-        rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;
-        u32 m_pipelineSampleCount = 1; // scene-pass MSAA count the cached pipeline was built for
-        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        // Deferred pipeline free: a rebuild (shader reload or MSAA-count toggle) retires the old pipeline
-        // here and DeclareSky drains it after kRetireFrames, never freeing one still in-flight.
-        struct RetiredPipe
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        // One pipeline per target layout. Views of one frame can draw the sky into different
+        // layouts (an MSAA viewport beside a Game tab without), and a pass declared earlier in the
+        // frame holds its pipeline until the graph runs: replacing one per view would destroy a
+        // pipeline a declared pass still draws with.
+        struct Pipeline
         {
-            rhi::RenderPipeline* p = nullptr;
-            u32 left = 0;
+            rhi::TextureFormat color = rhi::TextureFormat::Undefined;
+            rhi::TextureFormat depth = rhi::TextureFormat::Undefined;
+            u32 samples = 1;
+            rhi::RenderPipelineHandle pipeline{};
         };
-        static constexpr u32 kRetireFrames = 3;
-        Array<RetiredPipe> m_retiredPipes;
-        u32 m_lastRetireFrame = 0xFFFFFFFFu;
-        rhi::Sampler* m_sampler = nullptr;
+        Array<Pipeline> m_pipelines;
+        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version they were built at (hot reload)
+        rhi::SamplerHandle m_sampler{};
         ViewSlots<Slot> m_slots; // per (view, frame in flight), however many views a frame has
     };
 

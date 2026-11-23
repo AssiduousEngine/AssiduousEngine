@@ -5,8 +5,42 @@
 
 export module foundation.rhi:forward;
 
+import foundation.core;
+
 export namespace foundation::rhi
 {
+    // The handles that name a device's resources (Specs/rhi-handles.md): a slot and a generation,
+    // stale once the resource is destroyed, and failing on another device.
+    struct BufferTag;
+    using BufferHandle = foundation::core::Handle<BufferTag>;
+    struct TextureTag;
+    using TextureHandle = foundation::core::Handle<TextureTag>;
+    struct TextureViewTag;
+    using TextureViewHandle = foundation::core::Handle<TextureViewTag>;
+    struct SamplerTag;
+    using SamplerHandle = foundation::core::Handle<SamplerTag>;
+    struct ShaderModuleTag;
+    using ShaderModuleHandle = foundation::core::Handle<ShaderModuleTag>;
+    struct BindGroupLayoutTag;
+    using BindGroupLayoutHandle = foundation::core::Handle<BindGroupLayoutTag>;
+    struct BindGroupTag;
+    using BindGroupHandle = foundation::core::Handle<BindGroupTag>;
+    struct PipelineLayoutTag;
+    using PipelineLayoutHandle = foundation::core::Handle<PipelineLayoutTag>;
+    struct PipelineCacheTag;
+    using PipelineCacheHandle = foundation::core::Handle<PipelineCacheTag>;
+    struct RenderPipelineTag;
+    using RenderPipelineHandle = foundation::core::Handle<RenderPipelineTag>;
+    struct ComputePipelineTag;
+    using ComputePipelineHandle = foundation::core::Handle<ComputePipelineTag>;
+    struct MeshPipelineTag;
+    using MeshPipelineHandle = foundation::core::Handle<MeshPipelineTag>;
+    struct QuerySetTag;
+    using QuerySetHandle = foundation::core::Handle<QuerySetTag>;
+    struct AccelStructTag;
+    using AccelStructHandle = foundation::core::Handle<AccelStructTag>;
+    struct RayTracingPipelineTag;
+    using RayTracingPipelineHandle = foundation::core::Handle<RayTracingPipelineTag>;
 
     class Backend;
     class Adapter;

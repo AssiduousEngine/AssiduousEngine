@@ -837,6 +837,8 @@ namespace foundation::physics
 
     struct PhysicsWorld::Impl
     {
+        explicit Impl(core::IAllocator& allocator) : joints(allocator), characters(allocator) {}
+
         BroadPhaseLayers broadPhaseLayers;
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairFilter pairFilter;
@@ -848,7 +850,7 @@ namespace foundation::physics
         u32 saidUpdateErrors = 0;
         u32 maxBodies = 0;
         UniquePtr<JPH::PhysicsSystem> system;
-        // JointId = slot index; null joint = freed. The two body IDs are kept in the slot so
+        // A joint's slot. The two body IDs are kept in the slot so
         // DestroyJoint can wake the surviving bodies by ID through the body manager: the
         // constraint's raw Body pointers dangle if a connected body was destroyed first (as when
         // deactivating an entity destroys a joint target's body before the joint is torn down).
@@ -858,13 +860,17 @@ namespace foundation::physics
             JPH::BodyID bodyA;
             JPH::BodyID bodyB; // invalid = world attachment
         };
-        Array<JointSlot> joints;
-        Array<JPH::Ref<JPH::CharacterVirtual>> characters; // CharacterId = slot; null = freed
-        Array<Float2> characterSteps;                      // (stepUp, stepDown) per slot
-        // The triggers each character stood inside after its last sweep (per slot): a character
-        // is a swept capsule, not a body in the solver, so the contact listener never sees it
-        // enter one; UpdateCharacter compares these and raises TriggerEnter/TriggerExit itself.
-        Array<Array<JPH::BodyID>> characterSensors;
+        HandlePool<JointTag, JointSlot> joints;
+        struct CharacterSlot
+        {
+            JPH::Ref<JPH::CharacterVirtual> character;
+            Float2 steps; // (stepUp, stepDown)
+            // The triggers it stood inside after its last sweep: a character is a swept capsule,
+            // not a body in the solver, so the contact listener never sees it enter one;
+            // UpdateCharacter compares these and raises TriggerEnter/TriggerExit itself.
+            Array<JPH::BodyID> sensors;
+        };
+        HandlePool<CharacterTag, CharacterSlot> characters;
         // Characters block each other: each is checked against the rest as it moves.
         JPH::CharacterVsCharacterCollisionSimple characterCollision;
     };
@@ -872,7 +878,7 @@ namespace foundation::physics
     PhysicsWorld::PhysicsWorld(core::IAllocator& allocator, const PhysicsWorldSettings& settings)
     {
         AcquireJolt();
-        m_impl = MakeUnique<Impl>(allocator);
+        m_impl = MakeUnique<Impl>(allocator, allocator);
         m_impl->tempAllocator =
             MakeUnique<JPH::TempAllocatorImpl>(allocator, 10 * 1024 * 1024);
         m_impl->jobSystem = AcquireJobPool(allocator);
@@ -1326,75 +1332,65 @@ namespace foundation::physics
         // but they are authored per character).
         character->SetUserData(desc.userData);
 
-        for (usize i = 0; i < m_impl->characters.Size(); ++i)
+        const CharacterId id =
+            m_impl->characters.Allocate(Impl::CharacterSlot{character, Float2{desc.stepUp, desc.stepDown}, {}});
+        if (!id.IsValid())
         {
-            if (m_impl->characters[i] == nullptr)
-            {
-                m_impl->characters[i] = character;
-                m_impl->characterSteps[i] = Float2{desc.stepUp, desc.stepDown};
-                m_impl->characterSensors[i].Clear();
-                return CharacterId{static_cast<u32>(i)};
-            }
+            m_impl->characterCollision.Remove(character.GetPtr());
         }
-        m_impl->characters.PushBack(character);
-        m_impl->characterSteps.PushBack(Float2{desc.stepUp, desc.stepDown});
-        m_impl->characterSensors.PushBack(Array<JPH::BodyID>{});
-        return CharacterId{static_cast<u32>(m_impl->characters.Size() - 1)};
+        return id;
     }
 
     void PhysicsWorld::DestroyCharacter(CharacterId id)
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size())
+        Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return;
         }
-        if (m_impl->characters[id.value] != nullptr)
-        {
-            m_impl->characterCollision.Remove(m_impl->characters[id.value].GetPtr());
-        }
-        m_impl->characters[id.value] = nullptr; // the CharacterVirtual removes its inner body
-        m_impl->characterSensors[id.value].Clear();
+        m_impl->characterCollision.Remove(slot->character.GetPtr());
+        (void)m_impl->characters.Free(id); // the CharacterVirtual removes its inner body
     }
 
     void PhysicsWorld::SetCharacterVelocity(CharacterId id, Float3 velocity)
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return;
         }
-        m_impl->characters[id.value]->SetLinearVelocity(ToJph(velocity));
+        slot->character->SetLinearVelocity(ToJph(velocity));
     }
 
     Float3 PhysicsWorld::CharacterVelocity(CharacterId id) const
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return Float3{0, 0, 0};
         }
-        return FromJph(m_impl->characters[id.value]->GetLinearVelocity());
+        return FromJph(slot->character->GetLinearVelocity());
     }
 
     void PhysicsWorld::SetCharacterStrength(CharacterId id, f32 strength)
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return;
         }
-        m_impl->characters[id.value]->SetMaxStrength(strength);
+        slot->character->SetMaxStrength(strength);
     }
 
     void PhysicsWorld::UpdateCharacter(CharacterId id, f32 deltaTime)
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return;
         }
-        JPH::CharacterVirtual& character = *m_impl->characters[id.value];
-        const Float2 steps = m_impl->characterSteps[id.value];
+        JPH::CharacterVirtual& character = *slot->character;
+        const Float2 steps = slot->steps;
         JPH::CharacterVirtual::ExtendedUpdateSettings update;
         update.mWalkStairsStepUp = JPH::Vec3(0.0f, steps.x, 0.0f);
         update.mStickToFloorStepDown = JPH::Vec3(0.0f, -steps.y, 0.0f);
@@ -1412,7 +1408,8 @@ namespace foundation::physics
 
     void PhysicsWorld::SenseTriggers(CharacterId id)
     {
-        JPH::CharacterVirtual& character = *m_impl->characters[id.value];
+        Impl::CharacterSlot& slot = *m_impl->characters.Get(id); // UpdateCharacter checked it
+        JPH::CharacterVirtual& character = *slot.character;
         // The triggers the capsule overlaps where the sweep left it (each body once).
         const JPH::CollideShapeSettings settings;
         JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
@@ -1430,7 +1427,7 @@ namespace foundation::physics
         }
         // Entered and left since the last sweep, as the listener reports a body's: the trigger on
         // side A, the character (its user word; it has no body) on side B, at the character.
-        Array<JPH::BodyID>& before = m_impl->characterSensors[id.value];
+        Array<JPH::BodyID>& before = slot.sensors;
         const Float3 at = FromJph(JPH::Vec3(character.GetPosition()));
         const auto raise = [&](ContactKind kind, JPH::BodyID sensor)
         {
@@ -1462,33 +1459,33 @@ namespace foundation::physics
 
     Float3 PhysicsWorld::CharacterPosition(CharacterId id) const
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return Float3{0, 0, 0};
         }
-        return FromJph(m_impl->characters[id.value]->GetPosition());
+        return FromJph(slot->character->GetPosition());
     }
 
     void PhysicsWorld::SetCharacterPosition(CharacterId id, Float3 position)
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return;
         }
-        m_impl->characters[id.value]->SetPosition(ToJph(position));
+        slot->character->SetPosition(ToJph(position));
     }
 
     Float3 PhysicsWorld::CharacterGroundNormal(CharacterId id) const
     {
         const Float3 up{0.0f, 1.0f, 0.0f};
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return up;
         }
-        const JPH::CharacterVirtual& character = *m_impl->characters[id.value];
+        const JPH::CharacterVirtual& character = *slot->character;
         if (character.GetGroundState() == JPH::CharacterBase::EGroundState::InAir)
         {
             return up;
@@ -1500,12 +1497,12 @@ namespace foundation::physics
 
     CharacterGround PhysicsWorld::GetCharacterGround(CharacterId id) const
     {
-        if (!id.IsValid() || id.value >= m_impl->characters.Size() ||
-            m_impl->characters[id.value] == nullptr)
+        const Impl::CharacterSlot* slot = m_impl->characters.Get(id);
+        if (slot == nullptr)
         {
             return CharacterGround::InAir;
         }
-        switch (m_impl->characters[id.value]->GetGroundState())
+        switch (slot->character->GetGroundState())
         {
         case JPH::CharacterBase::EGroundState::OnGround:
             return CharacterGround::OnGround;
@@ -1624,26 +1621,22 @@ namespace foundation::physics
 
         const JPH::BodyID idA(desc.bodyA.value);
         const JPH::BodyID idB = desc.bodyB.IsValid() ? JPH::BodyID(desc.bodyB.value) : JPH::BodyID();
-        for (usize i = 0; i < m_impl->joints.Size(); ++i)
+        const JointId id = m_impl->joints.Allocate(Impl::JointSlot{joint, idA, idB});
+        if (!id.IsValid())
         {
-            if (m_impl->joints[i].joint == nullptr)
-            {
-                m_impl->joints[i] = Impl::JointSlot{joint, idA, idB};
-                return JointId{static_cast<u32>(i)};
-            }
+            m_impl->system->RemoveConstraint(joint.GetPtr());
         }
-        m_impl->joints.PushBack(Impl::JointSlot{joint, idA, idB});
-        return JointId{static_cast<u32>(m_impl->joints.Size() - 1)};
+        return id;
     }
 
     void PhysicsWorld::DestroyJoint(JointId id)
     {
-        if (!id.IsValid() || id.value >= m_impl->joints.Size() ||
-            m_impl->joints[id.value].joint == nullptr)
+        Impl::JointSlot* held = m_impl->joints.Get(id);
+        if (held == nullptr)
         {
             return;
         }
-        Impl::JointSlot& slot = m_impl->joints[id.value];
+        Impl::JointSlot& slot = *held;
         // Wake the connected bodies: a body held asleep by the joint must respond to gravity
         // again once released (RemoveConstraint alone leaves it sleeping). Wake them by ID through
         // the body manager, never through the constraint's Body pointers, which dangle if a
@@ -1659,32 +1652,28 @@ namespace foundation::physics
             }
         }
         m_impl->system->RemoveConstraint(slot.joint.GetPtr());
-        slot = Impl::JointSlot{};
+        (void)m_impl->joints.Free(id);
     }
 
     bool PhysicsWorld::JointHolds(JointId id, BodyId body) const
     {
-        if (!id.IsValid() || !body.IsValid() || id.value >= m_impl->joints.Size() ||
-            m_impl->joints[id.value].joint == nullptr)
+        const Impl::JointSlot* slot = m_impl->joints.Get(id);
+        if (slot == nullptr || !body.IsValid())
         {
             return false;
         }
-        const Impl::JointSlot& slot = m_impl->joints[id.value];
         const JPH::BodyID held(body.value);
-        return slot.bodyA == held || slot.bodyB == held;
+        return slot->bodyA == held || slot->bodyB == held;
     }
 
     void PhysicsWorld::SetJointMotor(JointId id, bool enabled, f32 targetVelocity)
     {
-        if (!id.IsValid() || id.value >= m_impl->joints.Size())
+        const Impl::JointSlot* held = m_impl->joints.Get(id);
+        if (held == nullptr)
         {
             return;
         }
-        JPH::Constraint* joint = m_impl->joints[id.value].joint.GetPtr();
-        if (joint == nullptr)
-        {
-            return;
-        }
+        JPH::Constraint* joint = held->joint.GetPtr();
         if (joint->GetSubType() == JPH::EConstraintSubType::Hinge)
         {
             auto* hinge = static_cast<JPH::HingeConstraint*>(joint);
@@ -1711,7 +1700,7 @@ namespace foundation::physics
         // DestroyJoint guards against).
         if (enabled && targetVelocity != 0.0f)
         {
-            const Impl::JointSlot& slot = m_impl->joints[id.value];
+            const Impl::JointSlot& slot = *held;
             JPH::BodyInterface& bodies = m_impl->system->GetBodyInterface();
             for (const JPH::BodyID bodyId : {slot.bodyA, slot.bodyB})
             {

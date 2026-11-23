@@ -96,7 +96,7 @@ namespace
             ShadowSystem shadows(device, 2u);
             REQUIRE(shadows.Initialize().IsOk());
             shadows.SetShaderSystem(tileClear ? &shaderSystem : nullptr);
-            CHECK((shadows.TileClearPipeline() != nullptr) == tileClear); // the mode under test
+            CHECK((shadows.TileClearPipeline().IsValid()) == tileClear); // the mode under test
             RenderFrame frame(DefaultAllocator(), device, registry, 2, nullptr, nullptr, &shadows);
 
             RefPtr<geometry::StaticMesh> planeMesh = geometry::Primitives::Plane(DefaultAllocator(), 24.0f, 8.0f);
@@ -111,11 +111,11 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"statictileprobe.target";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
             rhi::CommandPool* pool = nullptr;
             REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());

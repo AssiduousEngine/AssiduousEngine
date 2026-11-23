@@ -5,7 +5,7 @@
 // sample block holds a cut sample cannot draw the shared grid, so it gets its own index buffer
 // per LOD, built by foundation.terrain's BuildHoledChunkIndices and rebuilt in place when the
 // heightfield's version moves (a cut, a fill, a sculpt). Keyed by the heightfield's uid, never a
-// pointer; buffers retire through the frame-aged queue like the height texture's.
+// pointer; buffers are destroyed through the device, which keeps them for frames in flight.
 
 module;
 #include "Core/Prelude.h"
@@ -14,7 +14,7 @@ export module engine.terrain:holedmesh;
 
 import foundation.core;
 import foundation.rhi;
-import foundation.render; // GpuRetireQueue
+import foundation.render;
 import foundation.heightfield;
 import foundation.terrain;
 import :renderdata; // HoledChunkMesh
@@ -28,7 +28,6 @@ export namespace engine::terrain
     class TerrainHoledMeshCache
     {
     public:
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
         /// The holed chunks' meshes for `hf` at `version` (empty when it has no holes): built on a
         /// miss or a stale version, else the cached set. The span is the cache's own storage;
@@ -65,7 +64,7 @@ export namespace engine::terrain
             return Span<const HoledChunkMesh>{stored.meshes.Data(), stored.meshes.Size()};
         }
 
-        /// Drop every entry (scene destroy, shutdown): buffers retire when a queue is wired.
+        /// Drop every entry (scene destroy, shutdown): the device keeps the buffers for frames in flight.
         void Clear(rhi::Device& device)
         {
             for (Entry& entry : m_entries)
@@ -129,16 +128,16 @@ export namespace engine::terrain
                     ibd.usage = rhi::BufferUsage::Index | rhi::BufferUsage::CopyDst;
                     ibd.memory = rhi::MemoryLocation::CpuToGpu;
                     ibd.label = u8"terrain.holed.indices";
-                    rhi::Buffer* buffer = nullptr;
+                    rhi::BufferHandle buffer{};
                     if (!device.CreateBuffer(ibd, buffer).IsOk())
                     {
                         mesh.indexCounts[lod] = 0;
                         continue;
                     }
-                    if (void* p = buffer->Map())
+                    if (void* p = device.Map(buffer))
                     {
                         MemCopy(p, indices.Data(), indices.Size() * sizeof(u32));
-                        buffer->Unmap();
+                        device.Unmap(buffer);
                     }
                     mesh.indexBuffers[lod] = buffer;
                 }
@@ -152,38 +151,31 @@ export namespace engine::terrain
             {
                 for (u32 lod = 0; lod <= tmodel::kMaxChunkLod; ++lod)
                 {
-                    if (mesh.indexBuffers[lod] == nullptr)
+                    if (!mesh.indexBuffers[lod].IsValid())
                     {
                         continue;
                     }
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(mesh.indexBuffers[lod]);
-                    }
-                    else
-                    {
-                        device.DestroyBuffer(mesh.indexBuffers[lod]);
-                    }
-                    mesh.indexBuffers[lod] = nullptr;
+                    device.DestroyBuffer(mesh.indexBuffers[lod]);
+                    
+                    mesh.indexBuffers[lod] = {};
                 }
             }
             entry.meshes.Clear();
         }
 
         Array<Entry> m_entries;
-        render::GpuRetireQueue* m_retire = nullptr;
     };
 
     /// The R8Unorm hole mask texture per heightfield (one texel per sample, 0 solid / 1 cut),
     /// sampled bilinearly by the HOLES pixel shaders to shape a holed chunk's rim. The height
-    /// texture cache's twin: keyed by uid, rebuilt in place on a version change, retired through
-    /// the queue. Only a heightfield with holes gets one (the extract asks HasHoles first).
+    /// texture cache's twin: keyed by uid, rebuilt in place on a version change, the old one
+    /// destroyed through the device. Only a heightfield with holes gets one (the extract asks
+    /// HasHoles first).
     class TerrainHoleTextureCache
     {
     public:
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
-        [[nodiscard]] rhi::TextureView* GetOrCreate(rhi::Device& device,
+        [[nodiscard]] rhi::TextureViewHandle GetOrCreate(rhi::Device& device,
                                                     const foundation::heightfield::Heightfield& hf,
                                                     u64 version)
         {
@@ -197,10 +189,10 @@ export namespace engine::terrain
                 {
                     return entry.view;
                 }
-                RetireOrDestroy(device, entry);
+                Destroy(device, entry);
                 if (!Build(device, hf, entry))
                 {
-                    return nullptr;
+                    return {};
                 }
                 entry.version = version;
                 return entry.view;
@@ -210,7 +202,7 @@ export namespace engine::terrain
             fresh.version = version;
             if (!Build(device, hf, fresh))
             {
-                return nullptr;
+                return {};
             }
             m_entries.PushBack(fresh);
             return m_entries[m_entries.Size() - 1].view;
@@ -220,7 +212,7 @@ export namespace engine::terrain
         {
             for (Entry& entry : m_entries)
             {
-                RetireOrDestroy(device, entry);
+                Destroy(device, entry);
             }
             m_entries.Clear();
         }
@@ -232,8 +224,8 @@ export namespace engine::terrain
         {
             u64 key = 0;
             u64 version = 0;
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureHandle texture{};
+            rhi::TextureViewHandle view{};
         };
 
         [[nodiscard]] static bool Build(rhi::Device& device,
@@ -246,17 +238,17 @@ export namespace engine::terrain
             td.height = n;
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
             td.label = u8"terrain.holes";
-            if (!device.CreateTexture(td, out.texture).IsOk() || out.texture == nullptr)
+            if (!device.CreateTexture(td, out.texture).IsOk() || !out.texture.IsValid())
             {
                 return false;
             }
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::R8Unorm;
             vd.dimension = rhi::TextureViewDimension::Texture2D;
-            if (!device.CreateTextureView(out.texture, vd, out.view).IsOk() || out.view == nullptr)
+            if (!device.CreateTextureView(out.texture, vd, out.view).IsOk() || !out.view.IsValid())
             {
                 device.DestroyTexture(out.texture);
-                out.texture = nullptr;
+                out.texture = {};
                 return false;
             }
             if (rhi::Queue* queue = device.GetQueue(rhi::QueueType::Graphics))
@@ -276,35 +268,20 @@ export namespace engine::terrain
             return true;
         }
 
-        void RetireOrDestroy(rhi::Device& device, Entry& entry)
+        void Destroy(rhi::Device& device, Entry& entry)
         {
-            if (m_retire != nullptr)
+            if (entry.view.IsValid())
             {
-                if (entry.view != nullptr)
-                {
-                    m_retire->Retire(entry.view);
-                }
-                if (entry.texture != nullptr)
-                {
-                    m_retire->Retire(entry.texture);
-                }
+                device.DestroyTextureView(entry.view);
             }
-            else
+            if (entry.texture.IsValid())
             {
-                if (entry.view != nullptr)
-                {
-                    device.DestroyTextureView(entry.view);
-                }
-                if (entry.texture != nullptr)
-                {
-                    device.DestroyTexture(entry.texture);
-                }
+                device.DestroyTexture(entry.texture);
             }
-            entry.view = nullptr;
-            entry.texture = nullptr;
+            entry.view = {};
+            entry.texture = {};
         }
 
         Array<Entry> m_entries;
-        render::GpuRetireQueue* m_retire = nullptr;
     };
 }

@@ -18,10 +18,10 @@ namespace rhi = foundation::rhi;
 
 TEST_CASE("rg.persistent: ping-pong swap")
 {
-    auto* a = reinterpret_cast<rhi::Texture*>(0x10);
-    auto* b = reinterpret_cast<rhi::Texture*>(0x20);
-    auto* va = reinterpret_cast<rhi::TextureView*>(0x30);
-    auto* vb = reinterpret_cast<rhi::TextureView*>(0x40);
+    const rhi::TextureHandle a{0x10, 1};
+    const rhi::TextureHandle b{0x20, 1};
+    const rhi::TextureViewHandle va{0x30, 1};
+    const rhi::TextureViewHandle vb{0x40, 1};
 
     PersistentResource single(a, va);
     CHECK_FALSE(single.IsPingPong());

@@ -44,10 +44,10 @@ protected:
     void OnShutdown() override;
 
 private:
-    rhi::ShaderModule* m_meshModule = nullptr;
-    rhi::ShaderModule* m_fragModule = nullptr;
-    rhi::PipelineLayout* m_pipelineLayout = nullptr;
-    rhi::MeshPipeline* m_meshPipeline = nullptr;
+    rhi::ShaderModuleHandle m_meshModule{};
+    rhi::ShaderModuleHandle m_fragModule{};
+    rhi::PipelineLayoutHandle m_pipelineLayout{};
+    rhi::MeshPipelineHandle m_meshPipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;

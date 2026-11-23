@@ -39,7 +39,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The SSGI passes' push blocks (ssgi, ssgi_down, ssgi_blur and ssgi_resolve .ps.hlsl);
     // Integration.ShaderBlocks checks each against the compiled shader, member by member.
     // Laid out byte for byte as the HLSL SsgiPush.
@@ -169,7 +168,7 @@ export namespace foundation::render
         // and the camera's world matrix to take the G-buffer's view-space normal to world space.
         struct Sky
         {
-            rhi::Buffer* shBuffer = nullptr;   // the scene's SH9 irradiance (null for none)
+            rhi::BufferHandle shBuffer{};   // the scene's SH9 irradiance (null for none)
             rendergraph::RGHandle shHandle{};  // read by the composite (orders the SH bake first)
             u64 generation = 0;                // the IBL context's (bind group key)
             f32 iblDiffuse = 1.0f;             // EnvironmentSettings' sky-lighting dimmer
@@ -207,8 +206,8 @@ export namespace foundation::render
 
         struct ViewHistory
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 w = 0, h = 0, cur = 0;
@@ -225,19 +224,15 @@ export namespace foundation::render
         static u64 Combine(rendergraph::RenderGraph& g, rendergraph::RGHandle a,
                            rendergraph::RGHandle b, rendergraph::RGHandle c);
 
-        // Advance the deferred-free list once per frame (replaced sets must outlive
-        // in-flight frames, as in :ssr).
-        void Tick(u32 frameIndex);
-
         // Downsample bind group (full-res hdr and linear sampler), cached by (hdr view, gen).
-        rhi::BindGroup* EnsureDownBindGroup(rhi::TextureView* hdr, u64 generation);
+        rhi::BindGroupHandle EnsureDownBindGroup(rhi::TextureViewHandle hdr, u64 generation);
 
         // Trace bind group (scene, depth, normal and 2 samplers), cached by (scene view, gen).
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                        rhi::TextureView* normal, u64 generation);
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                        rhi::TextureViewHandle normal, u64 generation);
 
         // Blur bind group (raw gi, depth and point sampler), cached by (gi view, gen).
-        rhi::BindGroup* EnsureBlurBindGroup(rhi::TextureView* gi, rhi::TextureView* depth,
+        rhi::BindGroupHandle EnsureBlurBindGroup(rhi::TextureViewHandle gi, rhi::TextureViewHandle depth,
                                             u64 generation);
 
         // Resolve bind group (gi, history, velocity, hdr, albedo, normal, sky SH and 2 samplers), one
@@ -247,63 +242,55 @@ export namespace foundation::render
         // own: the composite binds this frame's history view, which the next frame's accumulate
         // binds with other inputs, so in one cache each would throw the other's group away every frame.
         using ResolveInputs = BindGroupInputs<5>;
-        rhi::BindGroup* EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureView* histPrev,
+        rhi::BindGroupHandle EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureViewHandle histPrev,
                                                const ResolveInputs& inputs);
 
         void Shutdown();
 
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* depth = nullptr;
-            rhi::TextureView* normal = nullptr;
+            rhi::BindGroupHandle bg{};
+            rhi::TextureViewHandle depth{};
+            rhi::TextureViewHandle normal{};
             u64 gen = 0;
         };
         struct DownEntry
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             u64 gen = 0;
         };
         struct BlurEntry
         {
-            rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* depth = nullptr;
+            rhi::BindGroupHandle bg{};
+            rhi::TextureViewHandle depth{};
             u64 gen = 0;
         };
-        struct Retired
-        {
-            rhi::BindGroup* bg = nullptr;
-            u32 left = 0;
-        };
-        static constexpr u32 kRetireFrames = 4;
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr; // trace
-        rhi::BindGroupLayout* m_downLayout = nullptr;
-        rhi::PipelineLayout* m_downPipelineLayout = nullptr;
-        rhi::RenderPipeline* m_downPipeline = nullptr; // radiance prefilter (quarter-res)
-        rhi::BindGroupLayout* m_blurLayout = nullptr;
-        rhi::PipelineLayout* m_blurPipelineLayout = nullptr;
-        rhi::RenderPipeline* m_blurPipeline = nullptr; // spatial denoise (between trace and resolve)
-        rhi::BindGroupLayout* m_resolveLayout = nullptr;
-        rhi::PipelineLayout* m_resolvePipelineLayout = nullptr;
-        rhi::RenderPipeline* m_resolvePipeline = nullptr; // temporal resolve and composite
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{}; // trace
+        rhi::BindGroupLayoutHandle m_downLayout{};
+        rhi::PipelineLayoutHandle m_downPipelineLayout{};
+        rhi::RenderPipelineHandle m_downPipeline{}; // radiance prefilter (quarter-res)
+        rhi::BindGroupLayoutHandle m_blurLayout{};
+        rhi::PipelineLayoutHandle m_blurPipelineLayout{};
+        rhi::RenderPipelineHandle m_blurPipeline{}; // spatial denoise (between trace and resolve)
+        rhi::BindGroupLayoutHandle m_resolveLayout{};
+        rhi::PipelineLayoutHandle m_resolvePipelineLayout{};
+        rhi::RenderPipelineHandle m_resolvePipeline{}; // temporal resolve and composite
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_sampler = nullptr;       // point: depth and reconstruction
-        rhi::Sampler* m_linearSampler = nullptr; // linear: radiance gather
+        rhi::SamplerHandle m_sampler{};       // point: depth and reconstruction
+        rhi::SamplerHandle m_linearSampler{}; // linear: radiance gather
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
-        HashMap<rhi::TextureView*, Entry> m_bindGroups;
-        HashMap<rhi::TextureView*, DownEntry> m_downBindGroups;
-        HashMap<rhi::TextureView*, BlurEntry> m_blurBindGroups;
+        HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
+        HashMap<rhi::TextureViewHandle, DownEntry> m_downBindGroups;
+        HashMap<rhi::TextureViewHandle, BlurEntry> m_blurBindGroups;
         BindGroupCache<5> m_resolveBindGroups;
         BindGroupCache<5> m_compositeBindGroups;
         u64 m_bindGroupsBuilt = 0;
-        rhi::Buffer* m_dummyShBuffer = nullptr; // bound when the scene has no SH sky (never read)
-        Array<Retired> m_retired;
-        u32 m_lastFrame = 0xFFFFFFFFu;
+        rhi::BufferHandle m_dummyShBuffer{}; // bound when the scene has no SH sky (never read)
     };
 
 } // namespace foundation::render

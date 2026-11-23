@@ -72,13 +72,13 @@ export namespace foundation::render
             {
                 return Status{ErrorCode::Unknown};
             }
-            rhi::BindGroupLayout* layouts[] = {m_layout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_layout};
             rhi::PushConstantRange pc{};
             pc.stages = rhi::ShaderStage::Fragment;
             pc.offset = 0;
             pc.size = sizeof(GpuExposurePush);
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pc, 1};
             if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
             {
@@ -106,7 +106,7 @@ export namespace foundation::render
         struct Result
         {
             rendergraph::RGHandle handle{};
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             u64 generation = 0; // bumps when the underlying texture changes (bind-group key)
         };
         [[nodiscard]] Result DeclareExposure(rendergraph::RenderGraph& graph,
@@ -116,8 +116,8 @@ export namespace foundation::render
                                              u64 sceneSerial = 0)
         {
             Result out;
-            rhi::RenderPipeline* pipeline = EnsurePipeline();
-            if (pipeline == nullptr)
+            rhi::RenderPipelineHandle pipeline = EnsurePipeline();
+            if (!pipeline.IsValid())
             {
                 return out;
             }
@@ -152,7 +152,7 @@ export namespace foundation::render
             push.historyValid = state.valid ? 1.0f : 0.0f;
             push.pad0 = 0.0f;
             push.pad1 = 0.0f;
-            rhi::TextureView* prevView = state.view[prev];
+            rhi::TextureViewHandle prevView = state.view[prev];
             // Per-(view, frame) slots (as in FxaaPass): prevView ping-pongs every frame, so
             // a per-view-only slot mismatches every frame and EnsureBindGroup would free a
             // set the previous frame's in-flight command buffer still references
@@ -173,10 +173,10 @@ export namespace foundation::render
                         [this, &graph, hdr, prevView, pipeline, push, viewIndex,
                          frameIndex](rhi::RenderPassEncoder& rp)
                         {
-                            rhi::BindGroup* bg =
+                            rhi::BindGroupHandle bg =
                                 EnsureBindGroup(viewIndex, frameIndex, graph.GetTextureView(hdr), prevView,
                                                 graph.GetTextureGeneration(hdr));
-                            if (bg == nullptr)
+                            if (!bg.IsValid())
                             {
                                 return;
                             }
@@ -217,8 +217,8 @@ export namespace foundation::render
     private:
         struct ViewState
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 cur = 0;
@@ -239,7 +239,7 @@ export namespace foundation::render
 
         bool EnsureState(ViewState& state)
         {
-            if (state.tex[0] != nullptr)
+            if (state.tex[0].IsValid())
             {
                 return true;
             }
@@ -253,7 +253,7 @@ export namespace foundation::render
                 td.label = u8"exposure.adapted";
                 if (!m_device->CreateTexture(td, state.tex[i]).IsOk())
                 {
-                    state.tex[i] = nullptr;
+                    state.tex[i] = {};
                     DestroyState(state);
                     return false;
                 }
@@ -262,7 +262,7 @@ export namespace foundation::render
                 vd.dimension = rhi::TextureViewDimension::Texture2D;
                 if (!m_device->CreateTextureView(state.tex[i], vd, state.view[i]).IsOk())
                 {
-                    state.view[i] = nullptr;
+                    state.view[i] = {};
                     DestroyState(state);
                     return false;
                 }
@@ -278,39 +278,39 @@ export namespace foundation::render
         {
             for (u32 i = 0; i < 2; ++i)
             {
-                if (state.view[i] != nullptr)
+                if (state.view[i].IsValid())
                 {
                     m_device->DestroyTextureView(state.view[i]);
-                    state.view[i] = nullptr;
+                    state.view[i] = {};
                 }
-                if (state.tex[i] != nullptr)
+                if (state.tex[i].IsValid())
                 {
                     m_device->DestroyTexture(state.tex[i]);
-                    state.tex[i] = nullptr;
+                    state.tex[i] = {};
                 }
             }
             state.valid = false;
         }
 
-        rhi::RenderPipeline* EnsurePipeline()
+        rhi::RenderPipelineHandle EnsurePipeline()
         {
             const u64 shaderVersion = m_shaders->Version(u8"exposure_measure");
-            if (m_pipeline != nullptr && m_pipelineShaderVersion == shaderVersion)
+            if (m_pipeline.IsValid() && m_pipelineShaderVersion == shaderVersion)
             {
                 return m_pipeline;
             }
-            rhi::ShaderModule* vs = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
                 u8"exposure_measure", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* ps = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
                 u8"exposure_measure", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
-                return nullptr;
+                return {};
             }
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
             rhi::ColorTargetState color{};
             color.format = kFormat;
@@ -326,30 +326,30 @@ export namespace foundation::render
             pd.label = u8"exposure.measure";
             if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
             {
-                m_pipeline = nullptr;
-                return nullptr;
+                m_pipeline = {};
+                return {};
             }
             m_pipelineShaderVersion = shaderVersion;
             return m_pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* hdrView,
-                                        rhi::TextureView* prevView, u64 generation)
+        rhi::BindGroupHandle EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle hdrView,
+                                        rhi::TextureViewHandle prevView, u64 generation)
         {
-            if (hdrView == nullptr || prevView == nullptr)
+            if (!hdrView.IsValid() || !prevView.IsValid())
             {
-                return nullptr;
+                return {};
             }
             Entry& entry = m_bindGroups.At(viewIndex, frameIndex);
-            if (entry.bg != nullptr && entry.hdr == hdrView && entry.prev == prevView &&
+            if (entry.bg.IsValid() && entry.hdr == hdrView && entry.prev == prevView &&
                 entry.gen == generation)
             {
                 return entry.bg;
             }
-            if (entry.bg != nullptr)
+            if (entry.bg.IsValid())
             {
                 m_device->DestroyBindGroup(entry.bg);
-                entry.bg = nullptr;
+                entry.bg = {};
             }
             rhi::BindGroupEntry entries[] = {
                 rhi::BindGroupEntry::TextureEntry(hdrView),
@@ -361,8 +361,8 @@ export namespace foundation::render
             bd.entries = Span<const rhi::BindGroupEntry>{entries, 3};
             if (!m_device->CreateBindGroup(bd, entry.bg).IsOk())
             {
-                entry.bg = nullptr;
-                return nullptr;
+                entry.bg = {};
+                return {};
             }
             entry.hdr = hdrView;
             entry.prev = prevView;
@@ -374,54 +374,54 @@ export namespace foundation::render
         {
             for (Entry& entry : m_bindGroups.All())
             {
-                if (entry.bg != nullptr)
+                if (entry.bg.IsValid())
                 {
                     m_device->DestroyBindGroup(entry.bg);
-                    entry.bg = nullptr;
+                    entry.bg = {};
                 }
             }
             for (ViewState& state : m_views)
             {
                 DestroyState(state);
             }
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
-            if (m_sampler != nullptr)
+            if (m_sampler.IsValid())
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
-            if (m_pipelineLayout != nullptr)
+            if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
-                m_pipelineLayout = nullptr;
+                m_pipelineLayout = {};
             }
-            if (m_layout != nullptr)
+            if (m_layout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_layout);
-                m_layout = nullptr;
+                m_layout = {};
             }
         }
 
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* hdr = nullptr;
-            rhi::TextureView* prev = nullptr;
+            rhi::BindGroupHandle bg{};
+            rhi::TextureViewHandle hdr{};
+            rhi::TextureViewHandle prev{};
             u64 gen = 0;
         };
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         u32 m_framesInFlight = 2;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         u64 m_pipelineShaderVersion = 0;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         Array<ViewState> m_views;   // per history slot
         ViewSlots<Entry> m_bindGroups; // per (history slot, frame in flight)
     };

@@ -39,7 +39,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The SSR passes' push blocks (ssr and ssr_resolve .ps.hlsl); Integration.ShaderBlocks checks
     // each against the compiled shader, member by member.
     // Laid out byte for byte as the HLSL SsrPush (128 bytes, the portable push-constant limit).
@@ -127,7 +126,7 @@ export namespace foundation::render
                    rendergraph::RGHandle depth, rendergraph::RGHandle normal,
                    rendergraph::RGHandle material, rendergraph::RGHandle velocity, u32 w, u32 h,
                    i32 vx, i32 vy, u32 vw, u32 vh, const Float4x4& invProj, const Float4x4& proj,
-                   const Params& p, u32 viewIndex, u32 frameIndex);
+                   const Params& p, u32 viewIndex);
 
         /// Forget history slot `slot`'s accumulated state (the frame handed the slot to another
         /// view, RenderFrame::HistorySlotFor): its next frame starts fresh instead of blending in
@@ -145,8 +144,8 @@ export namespace foundation::render
             rhi::TextureFormat::RGBA16Float; // matches the scene HDR
         struct ViewHistory
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 w = 0, h = 0, cur = 0;
@@ -163,54 +162,42 @@ export namespace foundation::render
                            rendergraph::RGHandle b, rendergraph::RGHandle c,
                            rendergraph::RGHandle d);
 
-        // Advance the deferred-free list once per frame (the graph aliases transients, so replaced sets must
-        // outlive in-flight frames before being freed; a raw-pointer cache would be replaced mid-frame).
-        void Tick(u32 frameIndex);
-
         // Four-texture bind group (t0..t3) and sampler, cached by (scene view, combined generation).
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                        rhi::TextureView* normal, rhi::TextureView* material,
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                        rhi::TextureViewHandle normal, rhi::TextureViewHandle material,
                                         u64 generation);
 
         // Resolve bind group (reflection, history, velocity, hdr and 2 samplers), one per history view, kept only while
         // its three transient inputs (refl, velocity, hdr: views and generations) are the ones it was
         // built from (BindGroupCache).
         using ResolveInputs = BindGroupInputs<3>;
-        rhi::BindGroup* EnsureResolveBindGroup(rhi::TextureView* histPrev, const ResolveInputs& inputs);
+        rhi::BindGroupHandle EnsureResolveBindGroup(rhi::TextureViewHandle histPrev, const ResolveInputs& inputs);
 
         void Shutdown();
 
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* depth = nullptr;
-            rhi::TextureView* normal = nullptr;
-            rhi::TextureView* material = nullptr;
+            rhi::BindGroupHandle bg{};
+            rhi::TextureViewHandle depth{};
+            rhi::TextureViewHandle normal{};
+            rhi::TextureViewHandle material{};
             u64 gen = 0;
         };
-        struct Retired
-        {
-            rhi::BindGroup* bg = nullptr;
-            u32 left = 0;
-        };
-        static constexpr u32 kRetireFrames = 4;
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr; // trace
-        rhi::BindGroupLayout* m_resolveLayout = nullptr;
-        rhi::PipelineLayout* m_resolvePipelineLayout = nullptr;
-        rhi::RenderPipeline* m_resolvePipeline = nullptr; // temporal resolve and composite
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{}; // trace
+        rhi::BindGroupLayoutHandle m_resolveLayout{};
+        rhi::PipelineLayoutHandle m_resolvePipelineLayout{};
+        rhi::RenderPipelineHandle m_resolvePipeline{}; // temporal resolve and composite
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_sampler = nullptr;                // point: depth and reconstruction
-        rhi::Sampler* m_linearSampler = nullptr;          // linear: glossy color gather
+        rhi::SamplerHandle m_sampler{};                // point: depth and reconstruction
+        rhi::SamplerHandle m_linearSampler{};          // linear: glossy color gather
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
-        HashMap<rhi::TextureView*, Entry> m_bindGroups;
+        HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
         BindGroupCache<3> m_resolveBindGroups;
-        Array<Retired> m_retired;
-        u32 m_lastFrame = 0xFFFFFFFFu;
     };
 
 } // namespace foundation::render

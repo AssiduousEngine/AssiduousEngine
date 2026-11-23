@@ -328,7 +328,7 @@ export namespace foundation::model
                 {
                     Proxy<texture::Texture> albedo =
                         manager.Bind<texture::Texture>(src->materialAlbedo[i]);
-                    if (albedo && albedo->View() != nullptr)
+                    if (albedo && albedo->View().IsValid())
                     {
                         material->SetDefaultTexture(u8"AlbedoMap", albedo->View(), RefPtr<Object>(albedo.Get()));
                     }

@@ -382,8 +382,7 @@ export namespace engine::render
 
     struct SpriteComponent
     {
-        rhi::TextureView* texture =
-            nullptr; // runtime override (samples, procedural content); wins over textureAsset
+        rhi::TextureViewHandle texture{}; // runtime override (samples, procedural content); wins over textureAsset
         foundation::resource::Ref<texture::Texture>
             textureAsset;                 // cooked texture (editor picker, serialized)
         Float2 size = Float2{1.0f, 1.0f}; // world-unit width and height
@@ -402,8 +401,7 @@ export namespace engine::render
     // into the surface (e.g. rotate so +Z points down to project onto a floor). `texture` is borrowed.
     struct DecalComponent
     {
-        rhi::TextureView* texture =
-            nullptr; // runtime override (samples, procedural content); wins over textureAsset
+        rhi::TextureViewHandle texture{}; // runtime override (samples, procedural content); wins over textureAsset
         foundation::resource::Ref<texture::Texture>
             textureAsset; // cooked texture (editor picker, serialized)
         Float3 size = Float3{1.0f, 1.0f, 1.0f};
@@ -1397,7 +1395,7 @@ export namespace engine::render
         {
             // Strip layout: the height is the LUT size (a 256x16 strip is 16 slices). A texture
             // that is not wider than tall is not a strip: ignore it rather than garble.
-            if (lut->View() != nullptr && lut->Height() >= 2 &&
+            if (lut->View().IsValid() && lut->Height() >= 2 &&
                 lut->Width() == lut->Height() * lut->Height())
             {
                 vp.gradingLut = lut->View();

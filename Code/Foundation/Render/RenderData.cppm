@@ -463,7 +463,7 @@ export namespace foundation::render
         bool postTonemap = false; // WorldUI category: after tonemap, authored colors intact
         Float3 axisRight = Float3{1.0f, 0.0f, 0.0f}; // EntityOriented: world right axis
         Float3 axisUp = Float3{0.0f, 1.0f, 0.0f};    // EntityOriented: world up axis
-        rhi::TextureView* texture = nullptr;
+        rhi::TextureViewHandle texture{};
     };
     static_assert(std::is_trivially_destructible_v<SpriteRenderData>);
 
@@ -479,7 +479,7 @@ export namespace foundation::render
             0.0f; // angle-fade start (radians): full opacity until the surface tilts past this
         f32 fadeEnd =
             1.30f; // angle-fade end (radians ~75deg): fully faded once the surface tilts past this
-        rhi::TextureView* texture = nullptr;
+        rhi::TextureViewHandle texture{};
     };
 
     // One light, packed for a GPU storage buffer (std430, 64 bytes, 4x float4). A shading input,
@@ -872,7 +872,7 @@ export namespace foundation::render
         f32 autoExposureMax = 16.0f;
         // Display-referred color grading via a strip LUT (applied after the tonemap operator).
         // Resolved product view and uid (change detection is never by pointer); null means no grading.
-        rhi::TextureView* gradingLut = nullptr;
+        rhi::TextureViewHandle gradingLut{};
         u64 gradingLutUid = 0;
         f32 gradingLutSize = 0.0f; // slice count (16 for a 256x16 strip); 0 is off
         f32 gradingIntensity = 1.0f;
@@ -911,7 +911,7 @@ export namespace foundation::render
         // Resolved sky-texture product (HDREquirect and Cubemap modes; null for the programmatic
         // pixel path or none). Change detection keys on `textureUid`, never the pointer
         // (reloads reuse freed addresses); `textureIsCube` routes it to the right env build.
-        rhi::TextureView* texture = nullptr;
+        rhi::TextureViewHandle texture{};
         u64 textureUid = 0;
         bool textureIsCube = false;
         Float3 horizon = Float3{0.60f, 0.70f, 0.85f};

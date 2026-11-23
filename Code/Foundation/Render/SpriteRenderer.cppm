@@ -34,7 +34,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The sprite pass's view (cbuffer SpriteView, sprite.vs.hlsl); Integration.ShaderBlocks checks it
     // against the compiled shader, member by member.
     struct GpuSpriteView
@@ -99,14 +98,6 @@ export namespace foundation::render
 
         void FinishFrame() override;
 
-        /// Wire the frames-in-flight retire queue (web-safe ring grows). Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept
-        {
-            m_instanceRing.SetRetireQueue(retire);
-            m_viewRing.SetRetireQueue(retire);
-            m_retire = retire;
-        }
-
         /// View slots the ring holds per frame, and those this frame took (tests pin them).
         [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
         [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
@@ -116,13 +107,13 @@ export namespace foundation::render
         static constexpr u64 kViewSlotSize = 256; // GpuSpriteView padded to the dynamic-uniform alignment
 
         // One bind group over the whole view ring (a per-draw dynamic offset selects the slot). Rebuilt
-        // when the ring grows (generation bump); the old one is retired through the queue when wired,
-        // since a frame in flight may still use it.
-        rhi::BindGroup* EnsureViewBindGroup();
+        // when the ring grows (generation bump); the old one is destroyed, the device keeping it
+        // while a frame in flight uses it.
+        rhi::BindGroupHandle EnsureViewBindGroup();
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureView* tex);
+        rhi::BindGroupHandle EnsureTextureBindGroup(rhi::TextureViewHandle tex);
 
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, bool additive);
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat colorFormat, bool additive);
 
         void Shutdown();
 
@@ -132,7 +123,7 @@ export namespace foundation::render
         // pipeline the frame's command buffer already bound.
         struct Pipelines
         {
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             bool additive = false;
             u64 shaderVersion = 0; // ShaderSystem::Version at build (hot reload)
@@ -142,25 +133,19 @@ export namespace foundation::render
         shaders::ShaderSystem* m_shaders;
         DynamicUniformRing m_instanceRing;
         ViewUniformRing m_viewRing;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
-        rhi::BindGroupLayout* m_viewLayout = nullptr;
-        rhi::BindGroupLayout* m_texLayout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
-        rhi::Buffer* m_indexBuffer = nullptr;
-        rhi::BindGroup* m_viewBg = nullptr;
+        rhi::BindGroupLayoutHandle m_viewLayout{};
+        rhi::BindGroupLayoutHandle m_texLayout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::SamplerHandle m_sampler{};
+        rhi::BufferHandle m_indexBuffer{};
+        rhi::BindGroupHandle m_viewBg{};
         u32 m_viewBgGen = 0xFFFFFFFFu; // generation the view bind group was built for
         Array<Pipelines> m_pipelines; // one entry per (format, additive) seen
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Depth32Float;
-        // Cached per-texture bind groups. Keyed by view pointer for lookup speed, but every hit
-        // validates the view's uniqueId: dynamic textures (UI render targets) are destroyed and
-        // their address reused, and a stale descriptor samples a dead image view (device lost).
-        struct TexBindGroup
-        {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 viewId = 0; // TextureView::uniqueId the group was built for
-        };
-        HashMap<rhi::TextureView*, TexBindGroup> m_texBindGroups;
+        // Cached per-texture bind groups, keyed by view handle: a view made where a destroyed one
+        // was has another handle, so a group built for the old view is never handed back.
+        // A destroyed view's group goes when the next group is made (DropGroupsOfDestroyedViews).
+        HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle> m_texBindGroups;
     };
 
 } // namespace foundation::render

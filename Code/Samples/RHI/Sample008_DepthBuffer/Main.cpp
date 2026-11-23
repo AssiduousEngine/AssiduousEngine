@@ -128,12 +128,12 @@ private:
 
     void recreateDepth(foundation::core::u32 w, foundation::core::u32 h);
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::Texture* m_depthTex = nullptr;
-    rhi::TextureView* m_depthView = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
+    rhi::TextureHandle m_depthTex{};
+    rhi::TextureViewHandle m_depthView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -144,12 +144,12 @@ void DepthBufferSample::recreateDepth(foundation::core::u32 w, foundation::core:
     if (m_depthView)
     {
         m_device->DestroyTextureView(m_depthView);
-        m_depthView = nullptr;
+        m_depthView = {};
     }
     if (m_depthTex)
     {
         m_device->DestroyTexture(m_depthTex);
-        m_depthTex = nullptr;
+        m_depthTex = {};
     }
 
     rhi::TextureDesc td = rhi::TextureDesc::DepthBuffer(rhi::TextureFormat::Depth24PlusStencil8, w,

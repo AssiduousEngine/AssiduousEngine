@@ -20,7 +20,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi::validation
 {
-
     class ValidatedDevice : public Device
     {
     public:
@@ -87,76 +86,92 @@ export namespace foundation::rhi::validation
 
         // ---- Create methods (with validation and tracking) ----
 
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
-            if (!checkAlive("CreateBuffer", out)) return ErrorCode::Unknown;
-            if (d.size == 0) { LogError("[Validation] CreateBuffer: size is 0"); out = nullptr; return ErrorCode::InvalidArgument; }
+            if (m_destroyed)
+            {
+                LogError("[Validation] CreateBuffer: device destroyed");
+                out = BufferHandle::Invalid();
+                return ErrorCode::Unknown;
+            }
+            if (d.size == 0) { LogError("[Validation] CreateBuffer: size is 0"); out = BufferHandle::Invalid(); return ErrorCode::InvalidArgument; }
             if (d.memory == MemoryLocation::CpuToGpu && (static_cast<u32>(d.usage) & static_cast<u32>(BufferUsage::Storage)))
             {
                 LogError("[Validation] CreateBuffer: Storage usage is not compatible with CpuToGpu memory. "
                          "DX12 UPLOAD heaps cannot have ALLOW_UNORDERED_ACCESS. "
                          "Use StorageRead for read-only structured buffers, or GpuOnly memory with a staging copy pattern.");
-                out = nullptr; return ErrorCode::InvalidArgument;
+                out = {}; return ErrorCode::InvalidArgument;
             }
             if (d.memory == MemoryLocation::GpuToCpu && (static_cast<u32>(d.usage) & static_cast<u32>(BufferUsage::Storage)))
             {
                 LogError("[Validation] CreateBuffer: Storage usage is not compatible with GpuToCpu memory. "
                          "DX12 READBACK heaps cannot have ALLOW_UNORDERED_ACCESS.");
-                out = nullptr; return ErrorCode::InvalidArgument;
+                out = {}; return ErrorCode::InvalidArgument;
             }
             Status r = m_inner->CreateBuffer(d, out);
-            if (r == ErrorCode::Ok && out) { m_liveBuffers.PushBack(out); Remember(out, d.label); }
+            if (r == ErrorCode::Ok && out)
+                m_buffers.Made(out, d.label);
             return r;
         }
 
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
         {
-            if (!checkAlive("CreateTexture", out)) return ErrorCode::Unknown;
-            if (d.width == 0 || d.height == 0) { LogError("[Validation] CreateTexture: width or height is 0"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = TextureHandle::Invalid();
+            if (!checkAlive("CreateTexture")) return ErrorCode::Unknown;
+            if (d.width == 0 || d.height == 0) { LogError("[Validation] CreateTexture: width or height is 0"); return ErrorCode::InvalidArgument; }
             // The one alternate view format a backend can honour is the format's sRGB or UNORM twin.
             if (d.alternateViewFormat != TextureFormat::Undefined && d.alternateViewFormat != SrgbTwin(d.format))
             {
                 LogError("[Validation] CreateTexture: alternateViewFormat must be the format's sRGB or UNORM twin");
-                out = nullptr;
                 return ErrorCode::InvalidArgument;
             }
             Status r = m_inner->CreateTexture(d, out);
-            if (r == ErrorCode::Ok && out) { m_liveTextures.PushBack(out); Remember(out, d.label); }
+            if (r == ErrorCode::Ok && out)
+                m_textures.Made(out, d.label);
             return r;
         }
 
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
-            if (!checkAlive("CreateSampler", out)) return ErrorCode::Unknown;
+            out = SamplerHandle::Invalid();
+            if (!checkAlive("CreateSampler")) return ErrorCode::Unknown;
             Status r = m_inner->CreateSampler(d, out);
-            if (r == ErrorCode::Ok && out) m_liveSamplers.PushBack(out);
+            if (r == ErrorCode::Ok && out)
+                m_samplers.Made(out, d.label);
             return r;
         }
 
-        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
+        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModuleHandle& out) override
         {
-            if (!checkAlive("CreateShaderModule", out)) return ErrorCode::Unknown;
-            if (d.code.Size() == 0) { LogError("[Validation] CreateShaderModule: code is empty"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = {};
+            if (!checkAlive("CreateShaderModule")) return ErrorCode::Unknown;
+            if (d.code.Size() == 0) { LogError("[Validation] CreateShaderModule: code is empty"); return ErrorCode::InvalidArgument; }
             Status r = m_inner->CreateShaderModule(d, out);
-            if (r == ErrorCode::Ok && out) m_liveShaderModules.PushBack(out);
+            if (r == ErrorCode::Ok && out)
+            {
+                m_shaderModules.Made(out, d.label);
+                m_moduleEntries.InsertOrAssign(KeyOf(out), String(d.entryPoint));
+            }
             return r;
         }
 
-        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayout*& out) override
+        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayoutHandle& out) override
         {
-            if (!checkAlive("CreateBindGroupLayout", out)) return ErrorCode::Unknown;
+            out = {};
+            if (!checkAlive("CreateBindGroupLayout")) return ErrorCode::Unknown;
             Status r = m_inner->CreateBindGroupLayout(d, out);
-            if (r == ErrorCode::Ok && out) m_liveBindGroupLayouts.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_bindGroupLayouts.Made(out, d.label);
             return r;
         }
 
-        Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
+        Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
         {
-            if (!checkAlive("CreateBindGroup", out)) return ErrorCode::Unknown;
-            if (d.layout == nullptr) { LogError("[Validation] CreateBindGroup: layout is null"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = {};
+            if (!checkAlive("CreateBindGroup")) return ErrorCode::Unknown;
+            if (!Live(m_bindGroupLayouts, d.layout, "CreateBindGroup")) return ErrorCode::InvalidArgument;
             // Count non-bindless layout entries; positional entries must match.
             {
-                auto layoutEntries = d.layout->Entries();
+                auto layoutEntries = m_inner->LayoutEntries(d.layout);
                 u32 regularCount = 0;
                 for (usize i = 0; i < layoutEntries.Size(); ++i)
                 {
@@ -169,7 +184,7 @@ export namespace foundation::rhi::validation
                 {
                     LogErrorf("[Validation] CreateBindGroup: entry count (%u) does not match non-bindless layout entry count (%u)",
                               static_cast<unsigned>(d.entries.Size()), static_cast<unsigned>(regularCount));
-                    out = nullptr; return ErrorCode::InvalidArgument;
+                    return ErrorCode::InvalidArgument;
                 }
                 // Per-entry resource type validation.
                 u32 entryIdx = 0;
@@ -185,13 +200,13 @@ export namespace foundation::rhi::validation
                     case BindingType::UniformBuffer:
                     case BindingType::StorageBufferReadOnly:
                     case BindingType::StorageBufferReadWrite:
-                        if (entry.buffer == nullptr)
+                        if (!entry.buffer.IsValid())
                             LogErrorf("[Validation] CreateBindGroup: entry [%u] expects a buffer but Buffer is null", entryIdx);
                         break;
                     case BindingType::SampledTexture:
                     case BindingType::StorageTextureReadOnly:
                     case BindingType::StorageTextureReadWrite:
-                        if (entry.textureView == nullptr)
+                        if (!entry.textureView)
                             {
                                 const String label8 = String(d.label);
                                 LogErrorf("[Validation] CreateBindGroup('%s'): entry [%u] "
@@ -199,14 +214,18 @@ export namespace foundation::rhi::validation
                                           reinterpret_cast<const char*>(label8.CStr()),
                                           entryIdx);
                             }
+                        else if (!Live(m_views, entry.textureView, "CreateBindGroup"))
+                            LogErrorf("[Validation] CreateBindGroup: entry [%u] names a destroyed texture view", entryIdx);
                         break;
                     case BindingType::Sampler:
                     case BindingType::ComparisonSampler:
-                        if (entry.sampler == nullptr)
+                        if (!entry.sampler)
                             LogErrorf("[Validation] CreateBindGroup: entry [%u] expects a sampler but Sampler is null", entryIdx);
+                        else if (!Live(m_samplers, entry.sampler, "CreateBindGroup"))
+                            LogErrorf("[Validation] CreateBindGroup: entry [%u] names a destroyed sampler", entryIdx);
                         break;
                     case BindingType::AccelerationStructure:
-                        if (entry.accelStruct == nullptr)
+                        if (!entry.accelStruct.IsValid())
                             LogErrorf("[Validation] CreateBindGroup: entry [%u] expects an acceleration structure but AccelStruct is null", entryIdx);
                         break;
                     default: break;
@@ -215,86 +234,83 @@ export namespace foundation::rhi::validation
                 }
             }
             Status r = m_inner->CreateBindGroup(d, out);
-            if (r == ErrorCode::Ok && out) m_liveBindGroups.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_bindGroups.Made(out, d.label);
             return r;
         }
 
-        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayout*& out) override
+        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayoutHandle& out) override
         {
-            if (!checkAlive("CreatePipelineLayout", out)) return ErrorCode::Unknown;
+            out = {};
+            if (!checkAlive("CreatePipelineLayout")) return ErrorCode::Unknown;
             Status r = m_inner->CreatePipelineLayout(d, out);
-            if (r == ErrorCode::Ok && out) m_livePipelineLayouts.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_pipelineLayouts.Made(out, d.label);
             return r;
         }
 
-        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCache*& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCacheHandle& out) override
         {
-            if (!checkAlive("CreatePipelineCache", out)) return ErrorCode::Unknown;
+            out = {};
+            if (!checkAlive("CreatePipelineCache")) return ErrorCode::Unknown;
             Status r = m_inner->CreatePipelineCache(d, out);
-            if (r == ErrorCode::Ok && out) m_livePipelineCaches.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_pipelineCaches.Made(out, d.label);
             return r;
         }
 
-        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipeline*& out) override
+        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipelineHandle& out) override
         {
-            if (!checkAlive("CreateRenderPipeline", out)) return ErrorCode::Unknown;
-            if (d.layout == nullptr) { LogError("[Validation] CreateRenderPipeline: layout is null"); out = nullptr; return ErrorCode::InvalidArgument; }
-            if (d.vertex.shader.module == nullptr) { LogError("[Validation] CreateRenderPipeline: vertex shader module is null"); out = nullptr; return ErrorCode::InvalidArgument; }
-            if (EntryPointOf(d.vertex.shader).IsEmpty() || (d.fragment.HasValue() && d.fragment->shader.module != nullptr && EntryPointOf(d.fragment->shader).IsEmpty())) { LogError("[Validation] CreateRenderPipeline: a stage names no entry point and its module declares none"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = {};
+            if (!checkAlive("CreateRenderPipeline")) return ErrorCode::Unknown;
+            if (!Live(m_pipelineLayouts, d.layout, "CreateRenderPipeline")) return ErrorCode::InvalidArgument;
+            if (!Live(m_shaderModules, d.vertex.shader.module, "CreateRenderPipeline")) return ErrorCode::InvalidArgument;
+            if (d.fragment.HasValue() && d.fragment->shader.module && !Live(m_shaderModules, d.fragment->shader.module, "CreateRenderPipeline")) return ErrorCode::InvalidArgument;
+            if (StageEntry(d.vertex.shader).IsEmpty() || (d.fragment.HasValue() && d.fragment->shader.module && StageEntry(d.fragment->shader).IsEmpty())) { LogError("[Validation] CreateRenderPipeline: a stage names no entry point and its module declares none"); return ErrorCode::InvalidArgument; }
             Status r = m_inner->CreateRenderPipeline(d, out);
-            if (r == ErrorCode::Ok && out) m_liveRenderPipelines.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_renderPipelines.Made(out, d.label);
             return r;
         }
 
-        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipeline*& out) override
+        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipelineHandle& out) override
         {
-            if (!checkAlive("CreateComputePipeline", out)) return ErrorCode::Unknown;
-            if (d.layout == nullptr) { LogError("[Validation] CreateComputePipeline: layout is null"); out = nullptr; return ErrorCode::InvalidArgument; }
-            if (d.compute.module == nullptr) { LogError("[Validation] CreateComputePipeline: compute shader module is null"); out = nullptr; return ErrorCode::InvalidArgument; }
-            if (EntryPointOf(d.compute).IsEmpty()) { LogError("[Validation] CreateComputePipeline: the stage names no entry point and its module declares none"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = {};
+            if (!checkAlive("CreateComputePipeline")) return ErrorCode::Unknown;
+            if (!Live(m_pipelineLayouts, d.layout, "CreateComputePipeline")) return ErrorCode::InvalidArgument;
+            if (!Live(m_shaderModules, d.compute.module, "CreateComputePipeline")) return ErrorCode::InvalidArgument;
+            if (StageEntry(d.compute).IsEmpty()) { LogError("[Validation] CreateComputePipeline: the stage names no entry point and its module declares none"); return ErrorCode::InvalidArgument; }
             Status r = m_inner->CreateComputePipeline(d, out);
-            if (r == ErrorCode::Ok && out) m_liveComputePipelines.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_computePipelines.Made(out, d.label);
             return r;
         }
 
-        Status CreateQuerySet(const QuerySetDesc& d, QuerySet*& out) override
+        Status CreateQuerySet(const QuerySetDesc& d, QuerySetHandle& out) override
         {
-            if (!checkAlive("CreateQuerySet", out)) return ErrorCode::Unknown;
-            if (d.count == 0) { LogError("[Validation] CreateQuerySet: count is 0"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = {};
+            if (!checkAlive("CreateQuerySet")) return ErrorCode::Unknown;
+            if (d.count == 0) { LogError("[Validation] CreateQuerySet: count is 0"); return ErrorCode::InvalidArgument; }
             Status r = m_inner->CreateQuerySet(d, out);
-            if (r == ErrorCode::Ok && out) m_liveQuerySets.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_querySets.Made(out, d.label);
             return r;
         }
 
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
-            if (!checkAlive("CreateTextureView", out)) return ErrorCode::Unknown;
-            if (!tex)
-            {
-                LogError("[Validation] CreateTextureView: texture is null");
-                out = nullptr;
+            out = TextureViewHandle::Invalid();
+            if (!checkAlive("CreateTextureView")) return ErrorCode::Unknown;
+            if (!Live(m_textures, tex, "CreateTextureView"))
                 return ErrorCode::InvalidArgument;
-            }
-            // Use-after-destroy detection.
-            bool tracked = false;
-            for (usize i = 0; i < m_liveTextures.Size(); ++i) { if (m_liveTextures[i] == tex) { tracked = true; break; } }
-            if (!tracked) LogError("[Validation] CreateTextureView: texture has been destroyed or was not created by this device");
-            // A view in the texture's sRGB or UNORM twin needs the texture to have declared it. Only
-            // a texture this device tracks is read: a destroyed one's desc is freed memory.
-            if (tracked && d.format != TextureFormat::Undefined && d.format != tex->desc.format &&
-                d.format == SrgbTwin(tex->desc.format) && tex->desc.alternateViewFormat != d.format)
+            // A view in the texture's sRGB or UNORM twin needs the texture to have declared it.
+            const TextureDesc* texDesc = m_inner->Describe(tex);
+            if (d.format != TextureFormat::Undefined && d.format != texDesc->format &&
+                d.format == SrgbTwin(texDesc->format) && texDesc->alternateViewFormat != d.format)
             {
                 LogError("[Validation] CreateTextureView: a view in the texture's sRGB or UNORM twin needs "
                          "TextureDesc::alternateViewFormat");
-                out = nullptr;
                 return ErrorCode::InvalidArgument;
             }
             Status r = m_inner->CreateTextureView(tex, d, out);
             if (r == ErrorCode::Ok && out)
             {
-                m_liveTextureViews.PushBack(out);
                 // A view is named after its texture: a leaked view then says whose it is.
-                Remember(out, Format(u8"{}/view", LabelOf(tex)).AsView());
+                m_views.Made(out, Format(u8"{}/view", m_textures.LabelOf(tex)).AsView());
             }
             return r;
         }
@@ -314,7 +330,7 @@ export namespace foundation::rhi::validation
                 out = nullptr;
                 return r;
             }
-            out = m_allocator.New<ValidatedCommandPool>(innerPool, m_allocator);
+            out = m_allocator.New<ValidatedCommandPool>(innerPool, m_allocator, m_inner);
             m_liveCommandPools.PushBack(out);
             return ErrorCode::Ok;
         }
@@ -362,101 +378,181 @@ export namespace foundation::rhi::validation
         }
 
         // ---- Mesh and RT (forwarded, validated for destroyed state) ----
-        Status CreateMeshPipeline(const MeshPipelineDesc& d, MeshPipeline*& out) override
+        Status CreateMeshPipeline(const MeshPipelineDesc& d, MeshPipelineHandle& out) override
         {
-            if (m_destroyed)
-            {
-                out = nullptr;
-                return ErrorCode::Unknown;
-            }
+            out = {};
+            if (!checkAlive("CreateMeshPipeline")) return ErrorCode::Unknown;
             Status r = m_inner->CreateMeshPipeline(d, out);
-            if (r == ErrorCode::Ok && out)
-                m_liveMeshPipelines.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_meshPipelines.Made(out, d.label);
             return r;
         }
-        void DestroyMeshPipeline(MeshPipeline*& p) override
-        {
-            if (!p) return;
-            if (!removeFromList(m_liveMeshPipelines, p))
-                LogWarning("[Validation] DestroyMeshPipeline: resource was not tracked (double-destroy or wrong device?)");
-            m_inner->DestroyMeshPipeline(p);
-            p = nullptr;
-        }
+        void DestroyMeshPipeline(MeshPipelineHandle& p) override { Destroy(m_meshPipelines, p, "DestroyMeshPipeline", &Device::DestroyMeshPipeline); }
 
-        Status CreateAccelStruct(const AccelStructDesc& d, AccelStruct*& out) override
+        Status CreateAccelStruct(const AccelStructDesc& d, AccelStructHandle& out) override
         {
-            if (m_destroyed)
-            {
-                out = nullptr;
-                return ErrorCode::Unknown;
-            }
+            out = {};
+            if (!checkAlive("CreateAccelStruct")) return ErrorCode::Unknown;
             Status r = m_inner->CreateAccelStruct(d, out);
-            if (r == ErrorCode::Ok && out)
-                m_liveAccelStructs.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_accelStructs.Made(out, d.label);
             return r;
         }
-        void DestroyAccelStruct(AccelStruct*& a) override
-        {
-            if (!a) return;
-            if (!removeFromList(m_liveAccelStructs, a))
-                LogWarning("[Validation] DestroyAccelStruct: resource was not tracked (double-destroy or wrong device?)");
-            m_inner->DestroyAccelStruct(a);
-            a = nullptr;
-        }
+        void DestroyAccelStruct(AccelStructHandle& a) override { Destroy(m_accelStructs, a, "DestroyAccelStruct", &Device::DestroyAccelStruct); }
 
-        Status CreateRayTracingPipeline(const RayTracingPipelineDesc& d,
-                                        RayTracingPipeline*& out) override
+        Status CreateRayTracingPipeline(const RayTracingPipelineDesc& d, RayTracingPipelineHandle& out) override
         {
-            if (m_destroyed)
-            {
-                out = nullptr;
-                return ErrorCode::Unknown;
-            }
+            out = {};
+            if (!checkAlive("CreateRayTracingPipeline")) return ErrorCode::Unknown;
             Status r = m_inner->CreateRayTracingPipeline(d, out);
-            if (r == ErrorCode::Ok && out)
-                m_liveRtPipelines.PushBack(out);
+            if (r == ErrorCode::Ok && out) m_rayTracingPipelines.Made(out, d.label);
             return r;
         }
-        void DestroyRayTracingPipeline(RayTracingPipeline*& p) override
-        {
-            if (!p) return;
-            if (!removeFromList(m_liveRtPipelines, p))
-                LogWarning("[Validation] DestroyRayTracingPipeline: resource was not tracked (double-destroy or wrong device?)");
-            m_inner->DestroyRayTracingPipeline(p);
-            p = nullptr;
-        }
+        void DestroyRayTracingPipeline(RayTracingPipelineHandle& p) override { Destroy(m_rayTracingPipelines, p, "DestroyRayTracingPipeline", &Device::DestroyRayTracingPipeline); }
 
-        Status GetShaderGroupHandles(RayTracingPipeline* p, u32 first, u32 count,
+        Status GetShaderGroupHandles(RayTracingPipelineHandle p, u32 first, u32 count,
                                      Span<u8> out) override
         {
             return m_inner->GetShaderGroupHandles(p, first, count, out);
         }
 
         // ---- Destroy methods (with tracking removal and a not-tracked warning) ----
-#define V_DESTROY(Type, method, list)                                                              \
-    void method(Type*& x) override                                                                 \
-    {                                                                                              \
-        if (!x) return;                                                                            \
-        if (!removeFromList(list, x))                                                              \
-            LogWarning("[Validation] " #method ": resource was not tracked (double-destroy or wrong device?)"); \
-        (void)m_labels.Remove(static_cast<const void*>(x));                                        \
-        m_inner->method(x);                                                                        \
-        x = nullptr;                                                                               \
-    }
 
-        V_DESTROY(Buffer, DestroyBuffer, m_liveBuffers)
-        V_DESTROY(Texture, DestroyTexture, m_liveTextures)
-        V_DESTROY(TextureView, DestroyTextureView, m_liveTextureViews)
-        V_DESTROY(Sampler, DestroySampler, m_liveSamplers)
-        V_DESTROY(ShaderModule, DestroyShaderModule, m_liveShaderModules)
-        V_DESTROY(BindGroupLayout, DestroyBindGroupLayout, m_liveBindGroupLayouts)
-        V_DESTROY(BindGroup, DestroyBindGroup, m_liveBindGroups)
-        V_DESTROY(PipelineLayout, DestroyPipelineLayout, m_livePipelineLayouts)
-        V_DESTROY(PipelineCache, DestroyPipelineCache, m_livePipelineCaches)
-        V_DESTROY(RenderPipeline, DestroyRenderPipeline, m_liveRenderPipelines)
-        V_DESTROY(ComputePipeline, DestroyComputePipeline, m_liveComputePipelines)
-        V_DESTROY(QuerySet, DestroyQuerySet, m_liveQuerySets)
-#undef V_DESTROY
+        void DestroyBuffer(BufferHandle& x) override { Destroy(m_buffers, x, "DestroyBuffer", &Device::DestroyBuffer); }
+        void DestroyTexture(TextureHandle& x) override { Destroy(m_textures, x, "DestroyTexture", &Device::DestroyTexture); }
+        void DestroyTextureView(TextureViewHandle& x) override
+        {
+            Destroy(m_views, x, "DestroyTextureView", &Device::DestroyTextureView);
+        }
+        void DestroySampler(SamplerHandle& x) override { Destroy(m_samplers, x, "DestroySampler", &Device::DestroySampler); }
+        const BufferDesc* Describe(BufferHandle b) const override
+        {
+            const BufferDesc* desc = m_inner->Describe(b);
+            if (desc == nullptr && b)
+                m_buffers.ReportStale("Describe", b);
+            return desc;
+        }
+        const TextureDesc* Describe(TextureHandle t) const override
+        {
+            const TextureDesc* desc = m_inner->Describe(t);
+            if (desc == nullptr && t)
+                m_textures.ReportStale("Describe", t);
+            return desc;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle v) const override
+        {
+            const TextureViewDesc* desc = m_inner->Describe(v);
+            if (desc == nullptr && v)
+                m_views.ReportStale("Describe", v);
+            return desc;
+        }
+        StringView Label(BufferHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(MeshPipelineHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(QuerySetHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(AccelStructHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(RayTracingPipelineHandle handle) const override { return m_inner->Label(handle); }
+        bool IsLive(TextureViewHandle v) const override { return m_inner->IsLive(v); }
+        TextureHandle TextureOf(TextureViewHandle v) const override
+        {
+            const TextureHandle texture = m_inner->TextureOf(v);
+            if (!texture && v)
+                m_views.ReportStale("TextureOf", v);
+            return texture;
+        }
+        const SamplerDesc* Describe(SamplerHandle s) const override
+        {
+            const SamplerDesc* desc = m_inner->Describe(s);
+            if (desc == nullptr && s)
+                m_samplers.ReportStale("Describe", s);
+            return desc;
+        }
+        StringView EntryPointOf(ShaderModuleHandle module) const override
+        {
+            if (module && !m_shaderModules.IsLive(module))
+                m_shaderModules.ReportStale("EntryPointOf", module);
+            return m_inner->EntryPointOf(module);
+        }
+        Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const override
+        {
+            const Span<const BindGroupLayoutEntry> entries = m_inner->LayoutEntries(layout);
+            if (entries.IsEmpty() && layout && !m_bindGroupLayouts.IsLive(layout))
+                m_bindGroupLayouts.ReportStale("LayoutEntries", layout);
+            return entries;
+        }
+        BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
+        {
+            if (group && !m_bindGroups.IsLive(group))
+                m_bindGroups.ReportStale("LayoutOf", group);
+            return m_inner->LayoutOf(group);
+        }
+        void UpdateBindless(BindGroupHandle group, Span<const BindlessUpdateEntry> entries) override
+        {
+            if (Live(m_bindGroups, group, "UpdateBindless"))
+                m_inner->UpdateBindless(group, entries);
+        }
+        u32 PipelineCacheDataSize(PipelineCacheHandle cache) override
+        {
+            return Live(m_pipelineCaches, cache, "PipelineCacheDataSize") ? m_inner->PipelineCacheDataSize(cache) : 0;
+        }
+        Status PipelineCacheData(PipelineCacheHandle cache, Span<u8> outData) override
+        {
+            if (!Live(m_pipelineCaches, cache, "PipelineCacheData"))
+                return ErrorCode::InvalidArgument;
+            return m_inner->PipelineCacheData(cache, outData);
+        }
+        const QuerySetDesc* Describe(QuerySetHandle querySet) const override
+        {
+            const QuerySetDesc* desc = m_inner->Describe(querySet);
+            if (desc == nullptr && querySet)
+                m_querySets.ReportStale("Describe", querySet);
+            return desc;
+        }
+        u64 DeviceAddress(AccelStructHandle accelStruct) const override
+        {
+            return Live(m_accelStructs, accelStruct, "DeviceAddress") ? m_inner->DeviceAddress(accelStruct) : 0;
+        }
+        void* Map(BufferHandle b) override
+        {
+            if (!Live(m_buffers, b, "Map"))
+                return nullptr;
+            return m_inner->Map(b);
+        }
+        void Unmap(BufferHandle b) override
+        {
+            if (Live(m_buffers, b, "Unmap"))
+                m_inner->Unmap(b);
+        }
+        void FlushRange(BufferHandle b, u64 offset, u64 size) override
+        {
+            if (!Live(m_buffers, b, "FlushRange"))
+                return;
+            const BufferDesc* desc = m_inner->Describe(b);
+            if (offset + size > desc->size)
+                LogErrorf("[Validation] FlushRange: [%llu, %llu) is past the buffer's %llu bytes",
+                          static_cast<unsigned long long>(offset), static_cast<unsigned long long>(offset + size),
+                          static_cast<unsigned long long>(desc->size));
+            m_inner->FlushRange(b, offset, size);
+        }
+        void DestroyShaderModule(ShaderModuleHandle& x) override
+        {
+            (void)m_moduleEntries.Remove(KeyOf(x));
+            Destroy(m_shaderModules, x, "DestroyShaderModule", &Device::DestroyShaderModule);
+        }
+        void DestroyBindGroupLayout(BindGroupLayoutHandle& x) override { Destroy(m_bindGroupLayouts, x, "DestroyBindGroupLayout", &Device::DestroyBindGroupLayout); }
+        void DestroyBindGroup(BindGroupHandle& x) override { Destroy(m_bindGroups, x, "DestroyBindGroup", &Device::DestroyBindGroup); }
+        void DestroyPipelineLayout(PipelineLayoutHandle& x) override { Destroy(m_pipelineLayouts, x, "DestroyPipelineLayout", &Device::DestroyPipelineLayout); }
+        void DestroyPipelineCache(PipelineCacheHandle& x) override { Destroy(m_pipelineCaches, x, "DestroyPipelineCache", &Device::DestroyPipelineCache); }
+        void DestroyRenderPipeline(RenderPipelineHandle& x) override { Destroy(m_renderPipelines, x, "DestroyRenderPipeline", &Device::DestroyRenderPipeline); }
+        void DestroyComputePipeline(ComputePipelineHandle& x) override { Destroy(m_computePipelines, x, "DestroyComputePipeline", &Device::DestroyComputePipeline); }
+        void DestroyQuerySet(QuerySetHandle& x) override { Destroy(m_querySets, x, "DestroyQuerySet", &Device::DestroyQuerySet); }
 
         void DestroyCommandPool(CommandPool*& pool) override
         {
@@ -545,9 +641,15 @@ export namespace foundation::rhi::validation
             }
             return true;
         }
+        bool checkAlive(const char* method)
+        {
+            if (m_destroyed)
+                LogErrorf("[Validation] %s: device destroyed", method);
+            return !m_destroyed;
+        }
 
         template <typename T>
-        bool removeFromList(Array<T*>& list, T* item)
+        bool removeFromList(Array<T>& list, const T& item)
         {
             for (usize i = 0; i < list.Size(); ++i)
             {
@@ -560,16 +662,126 @@ export namespace foundation::rhi::validation
             return false;
         }
 
-        // The creation label of a tracked resource (buffers, textures, views), so a leak report
-        // names what leaked instead of a handle nobody can chase.
-        void Remember(const void* resource, StringView label)
+        // A handle's key in the label maps: its slot and generation.
+        template <typename Tag>
+        [[nodiscard]] static u64 KeyOf(Handle<Tag> h) noexcept
         {
-            m_labels.InsertOrAssign(resource, label.IsEmpty() ? String(u8"(unlabelled)") : String(label));
+            return (u64{h.index} << 32) | h.generation;
         }
-        [[nodiscard]] StringView LabelOf(const void* resource) const
+
+        // The entry point a stage runs: its own, else its module's (as the module was created).
+        [[nodiscard]] StringView StageEntry(const ProgrammableStage& stage) const
         {
-            const String* label = m_labels.Find(resource);
-            return label != nullptr ? label->AsView() : StringView(u8"(unlabelled)");
+            if (!stage.entryPoint.IsEmpty())
+                return stage.entryPoint;
+            const String* entry = m_moduleEntries.Find(KeyOf(stage.module));
+            return entry != nullptr ? entry->AsView() : StringView{};
+        }
+
+        // What a device's handles of one type name: the live ones with their creation labels, for
+        // leak reports, and the labels of the last ones destroyed, so a stale use soon after is
+        // reported by name.
+        template <typename Tag>
+        class HandleRecords
+        {
+        public:
+            using HandleType = Handle<Tag>;
+            explicit HandleRecords(const char* noun) noexcept : m_noun(noun) {}
+
+            void Made(HandleType handle, StringView label)
+            {
+                m_live.PushBack(handle);
+                m_labels.InsertOrAssign(KeyOf(handle), label.IsEmpty() ? String(u8"(unlabelled)") : String(label));
+            }
+            /// False when `handle` was not live here (destroyed already, or another device's).
+            bool Destroyed(HandleType handle)
+            {
+                bool found = false;
+                for (usize i = 0; i < m_live.Size(); ++i)
+                {
+                    if (m_live[i] == handle)
+                    {
+                        m_live.RemoveAt(i);
+                        found = true;
+                        break;
+                    }
+                }
+                if (const String* label = m_labels.Find(KeyOf(handle)))
+                {
+                    DestroyedLabel& slot = m_destroyed[m_destroyedCursor++ % kDestroyedLabelCount];
+                    slot.key = KeyOf(handle);
+                    slot.label = *label;
+                }
+                (void)m_labels.Remove(KeyOf(handle));
+                return found;
+            }
+            [[nodiscard]] StringView LabelOf(HandleType handle) const
+            {
+                if (const String* label = m_labels.Find(KeyOf(handle)))
+                    return label->AsView();
+                for (const DestroyedLabel& destroyed : m_destroyed)
+                    if (destroyed.key == KeyOf(handle) && !destroyed.label.IsEmpty())
+                        return destroyed.label.AsView();
+                return StringView(u8"(destroyed long ago, or another device's)");
+            }
+            void ReportStale(const char* method, HandleType handle) const
+            {
+                LogErrorf("[Validation] %s: stale %s handle (slot %u, count %u), last created as '%s'", method, m_noun,
+                          handle.index, handle.Count(), reinterpret_cast<const char*>(LabelOf(handle).Data()));
+            }
+            void ReportLeaks() const
+            {
+                if (m_live.IsEmpty())
+                    return;
+                LogWarningf("[Validation] Device destroyed with %zu live %s(s)", m_live.Size(), m_noun);
+                for (HandleType handle : m_live)
+                    LogWarningf("[Validation]   live %s: %s", m_noun, reinterpret_cast<const char*>(LabelOf(handle).Data()));
+            }
+            [[nodiscard]] const char* Noun() const noexcept { return m_noun; }
+            [[nodiscard]] bool IsLive(HandleType handle) const { return m_labels.Find(KeyOf(handle)) != nullptr; }
+
+        private:
+            static constexpr u32 kDestroyedLabelCount = 1024;
+            struct DestroyedLabel
+            {
+                u64 key = 0;
+                String label;
+            };
+            const char* m_noun;
+            Array<HandleType> m_live;
+            HashMap<u64, String> m_labels; // a live handle's creation label, by KeyOf
+            DestroyedLabel m_destroyed[kDestroyedLabelCount];
+            u32 m_destroyedCursor = 0;
+        };
+
+        // Whether `handle` names a live resource; reported when it does not.
+        template <typename Tag>
+        [[nodiscard]] bool Live(const HandleRecords<Tag>& records, Handle<Tag> handle, const char* method) const
+        {
+            if (!handle)
+            {
+                LogErrorf("[Validation] %s: %s handle is null", method, records.Noun());
+                return false;
+            }
+            if (!records.IsLive(handle))
+            {
+                records.ReportStale(method, handle);
+                return false;
+            }
+            return true;
+        }
+
+        template <typename Tag>
+        void Destroy(HandleRecords<Tag>& records, Handle<Tag>& handle, const char* method,
+                     void (Device::*destroy)(Handle<Tag>&))
+        {
+            if (!handle)
+                return;
+            if (!records.Destroyed(handle))
+                LogErrorf("[Validation] %s: stale or foreign %s handle (slot %u, count %u)", method, records.Noun(),
+                          handle.index, handle.Count());
+            (m_inner->*destroy)(handle);
+            handle = Handle<Tag>::Invalid();
         }
 
         void reportLeaks()
@@ -579,34 +791,25 @@ export namespace foundation::rhi::validation
                 if (count > 0)
                     LogWarningf("[Validation] Device destroyed with %zu live %s(s)", count, name);
             };
-            // Name every leaked buffer, texture and view: the label is what a reader can grep.
-            auto names = [this](const char* name, const auto& list)
-            {
-                for (usize i = 0; i < list.Size(); ++i)
-                    LogWarningf("[Validation]   live %s: %s", name,
-                                reinterpret_cast<const char*>(LabelOf(list[i]).Data()));
-            };
-            report("Buffer", m_liveBuffers.Size());
-            names("Buffer", m_liveBuffers);
-            report("Texture", m_liveTextures.Size());
-            names("Texture", m_liveTextures);
-            report("TextureView", m_liveTextureViews.Size());
-            names("TextureView", m_liveTextureViews);
-            report("Sampler", m_liveSamplers.Size());
-            report("ShaderModule", m_liveShaderModules.Size());
-            report("BindGroupLayout", m_liveBindGroupLayouts.Size());
-            report("BindGroup", m_liveBindGroups.Size());
-            report("PipelineLayout", m_livePipelineLayouts.Size());
-            report("PipelineCache", m_livePipelineCaches.Size());
-            report("RenderPipeline", m_liveRenderPipelines.Size());
-            report("ComputePipeline", m_liveComputePipelines.Size());
-            report("MeshPipeline", m_liveMeshPipelines.Size());
-            report("AccelStruct", m_liveAccelStructs.Size());
-            report("RayTracingPipeline", m_liveRtPipelines.Size());
+            // Every leaked handle by name: the label is what a reader can grep.
+            m_buffers.ReportLeaks();
+            m_textures.ReportLeaks();
+            m_views.ReportLeaks();
+            m_samplers.ReportLeaks();
+            m_shaderModules.ReportLeaks();
+            m_bindGroupLayouts.ReportLeaks();
+            m_bindGroups.ReportLeaks();
+            m_pipelineLayouts.ReportLeaks();
+            m_pipelineCaches.ReportLeaks();
+            m_renderPipelines.ReportLeaks();
+            m_computePipelines.ReportLeaks();
+            m_meshPipelines.ReportLeaks();
+            m_accelStructs.ReportLeaks();
+            m_rayTracingPipelines.ReportLeaks();
             report("CommandPool", m_liveCommandPools.Size());
             report("Fence", m_liveFences.Size());
             report("SwapChain", m_liveSwapChains.Size());
-            report("QuerySet", m_liveQuerySets.Size());
+            m_querySets.ReportLeaks();
         }
 
         Device* m_inner;
@@ -620,25 +823,25 @@ export namespace foundation::rhi::validation
         };
         Array<QueueWrap> m_queueWrappers;
 
-        Array<Buffer*> m_liveBuffers;
-        Array<Texture*> m_liveTextures;
-        Array<TextureView*> m_liveTextureViews;
-        HashMap<const void*, String> m_labels; // creation labels of the three above (leak reports)
-        Array<Sampler*> m_liveSamplers;
-        Array<ShaderModule*> m_liveShaderModules;
-        Array<BindGroupLayout*> m_liveBindGroupLayouts;
-        Array<BindGroup*> m_liveBindGroups;
-        Array<PipelineLayout*> m_livePipelineLayouts;
-        Array<PipelineCache*> m_livePipelineCaches;
-        Array<RenderPipeline*> m_liveRenderPipelines;
-        Array<ComputePipeline*> m_liveComputePipelines;
-        Array<MeshPipeline*> m_liveMeshPipelines;
-        Array<AccelStruct*> m_liveAccelStructs;
-        Array<RayTracingPipeline*> m_liveRtPipelines;
+        HandleRecords<BufferTag> m_buffers{"Buffer"};
+        HandleRecords<TextureTag> m_textures{"Texture"};
+        HandleRecords<TextureViewTag> m_views{"TextureView"};
+        HandleRecords<SamplerTag> m_samplers{"Sampler"};
+        HandleRecords<ShaderModuleTag> m_shaderModules{"ShaderModule"};
+        HandleRecords<BindGroupLayoutTag> m_bindGroupLayouts{"BindGroupLayout"};
+        HandleRecords<BindGroupTag> m_bindGroups{"BindGroup"};
+        HandleRecords<PipelineLayoutTag> m_pipelineLayouts{"PipelineLayout"};
+        HandleRecords<PipelineCacheTag> m_pipelineCaches{"PipelineCache"};
+        HandleRecords<RenderPipelineTag> m_renderPipelines{"RenderPipeline"};
+        HandleRecords<ComputePipelineTag> m_computePipelines{"ComputePipeline"};
+        HandleRecords<MeshPipelineTag> m_meshPipelines{"MeshPipeline"};
+        HandleRecords<QuerySetTag> m_querySets{"QuerySet"};
+        HandleRecords<AccelStructTag> m_accelStructs{"AccelStruct"};
+        HandleRecords<RayTracingPipelineTag> m_rayTracingPipelines{"RayTracingPipeline"};
+        HashMap<u64, String> m_moduleEntries; // a live module's own entry point, by KeyOf (StageEntry)
         Array<CommandPool*> m_liveCommandPools;
         Array<Fence*> m_liveFences;
         Array<SwapChain*> m_liveSwapChains;
-        Array<QuerySet*> m_liveQuerySets;
     };
 
 } // namespace foundation::rhi::validation

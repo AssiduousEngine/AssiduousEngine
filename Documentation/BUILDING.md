@@ -93,3 +93,20 @@ Bin/Debug/Linux64-Clang/Tools.Editor <projectDir>  # open a project
 ```
 
 Add `--mcp` to serve the open project to an agent over MCP while you work in the editor.
+
+## Debugging handles
+
+GPU resources (and the engine's other pooled ids) are generational handles: in a debugger a handle
+is a slot, a count and a pool, not the object. The printers show those, and in a live process the
+label the resource was made with and whether it is still live:
+
+```
+(gdb)  source scripts/debug/handles_gdb.py
+(lldb) command script import scripts/debug/handles_lldb.py
+```
+
+`$1 = Buffer handle slot 0 count 1 pool 1 'mesh.vertices'`, or `stale (was 'mesh.vertices')` once it
+is destroyed. Visual Studio shows the slot, count and pool through `Core.natvis`, linked into every
+binary that uses Core; the label is a call in the Immediate window,
+`DebugHandleLabel("Buffer", h.index, h.generation)`. A stale handle used at run time is logged
+once, with its label: `[rhi] stale Buffer handle used (...), last created as 'mesh.vertices'`.

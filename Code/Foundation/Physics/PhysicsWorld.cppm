@@ -211,12 +211,10 @@ export namespace foundation::physics
         f32 motorLimit = 3.4e38f;
     };
 
-    struct JointId
-    {
-        u32 value = 0xFFFFFFFFu;
-        [[nodiscard]] bool IsValid() const noexcept { return value != 0xFFFFFFFFu; }
-        friend bool operator==(JointId a, JointId b) noexcept { return a.value == b.value; }
-    };
+    /// A joint the world made: stale once destroyed, so a kept copy never names the next joint in
+    /// its slot.
+    struct JointTag;
+    using JointId = core::Handle<JointTag>;
 
     // ---- character controller: Jolt CharacterVirtual ----
     // Not a rigid body: a kinematic capsule swept by UpdateCharacter with slope and step
@@ -237,12 +235,9 @@ export namespace foundation::physics
         u64 userData = 0;
     };
 
-    struct CharacterId
-    {
-        u32 value = 0xFFFFFFFFu;
-        [[nodiscard]] bool IsValid() const noexcept { return value != 0xFFFFFFFFu; }
-        friend bool operator==(CharacterId a, CharacterId b) noexcept { return a.value == b.value; }
-    };
+    /// A character the world made: stale once destroyed, as a joint's.
+    struct CharacterTag;
+    using CharacterId = core::Handle<CharacterTag>;
 
     enum class CharacterGround : u8
     {

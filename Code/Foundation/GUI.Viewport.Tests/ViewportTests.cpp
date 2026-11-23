@@ -29,13 +29,13 @@ namespace graphics = foundation::graphics;
 
 namespace
 {
-    rhi::ShaderModule* MakeModule(rhi::Device& d)
+    rhi::ShaderModuleHandle MakeModule(rhi::Device& d)
     {
         const u8 dummy[4] = {0, 0, 0, 0};
         rhi::ShaderModuleDesc desc{};
         desc.code = Span<const u8>(dummy, 4);
         desc.entryPoint = u8"main";
-        rhi::ShaderModule* m = nullptr;
+        rhi::ShaderModuleHandle m{};
         (void)d.CreateShaderModule(desc, m);
         return m;
     }
@@ -44,8 +44,8 @@ namespace
     {
         shell::NullShell shell;
         UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
-        rhi::ShaderModule* vs = MakeModule(*device->Raw());
-        rhi::ShaderModule* fs = MakeModule(*device->Raw());
+        rhi::ShaderModuleHandle vs = MakeModule(*device->Raw());
+        rhi::ShaderModuleHandle fs = MakeModule(*device->Raw());
         UniquePtr<graphics::RenderWindow> main = device->CreateRenderWindow(*shell.MainWindow(), graphics::RenderWindowDesc{}).Value();
         UniquePtr<GuiHost> host;
         RefPtr<SceneRoot> root;
@@ -203,10 +203,10 @@ TEST_CASE("gui.viewport: an sRGB target has its twin view; a float one has none"
 {
     Bed bed;
     bed.Frame(bed.main.Get());
-    CHECK(bed.viewport->ColorAlternateView() == nullptr); // RGBA16Float has no twin
+    CHECK(!bed.viewport->ColorAlternateView().IsValid()); // RGBA16Float has no twin
     bed.viewport->SetFormats(rhi::TextureFormat::RGBA8UnormSrgb, bed.viewport->DepthFormat());
     bed.Frame(bed.main.Get());
-    CHECK(bed.viewport->ColorAlternateView() != nullptr);
+    CHECK(bed.viewport->ColorAlternateView().IsValid());
 }
 
 TEST_CASE("gui.viewport: the hosted content's text input is the node's; the pointer maps into the content's own resolution")

@@ -41,16 +41,15 @@ private:
 
     void createRenderTargets();
 
-    rhi::ShaderModule *m_gbVs = nullptr, *m_gbPs = nullptr, *m_compVs = nullptr,
-                      *m_compPs = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
-    rhi::Sampler* m_sampler = nullptr;
-    rhi::PipelineLayout *m_gbPl = nullptr, *m_compPl = nullptr;
-    rhi::RenderPipeline *m_gbPipe = nullptr, *m_compPipe = nullptr;
-    rhi::BindGroupLayout* m_compBgl = nullptr;
-    rhi::BindGroup* m_compBg = nullptr;
-    rhi::Texture *m_colorRT = nullptr, *m_brightRT = nullptr;
-    rhi::TextureView *m_colorRTView = nullptr, *m_brightRTView = nullptr;
+    rhi::ShaderModuleHandle m_gbVs{}, m_gbPs{}, m_compVs{}, m_compPs{};
+    rhi::BufferHandle m_vb{}, m_ib{};
+    rhi::SamplerHandle m_sampler{};
+    rhi::PipelineLayoutHandle m_gbPl{}, m_compPl{};
+    rhi::RenderPipelineHandle m_gbPipe{}, m_compPipe{};
+    rhi::BindGroupLayoutHandle m_compBgl{};
+    rhi::BindGroupHandle m_compBg{};
+    rhi::TextureHandle m_colorRT{}, m_brightRT{};
+    rhi::TextureViewHandle m_colorRTView{}, m_brightRTView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -61,27 +60,27 @@ void MRTSample::createRenderTargets()
     if (m_compBg)
     {
         m_device->DestroyBindGroup(m_compBg);
-        m_compBg = nullptr;
+        m_compBg = {};
     }
     if (m_colorRTView)
     {
         m_device->DestroyTextureView(m_colorRTView);
-        m_colorRTView = nullptr;
+        m_colorRTView = {};
     }
     if (m_colorRT)
     {
         m_device->DestroyTexture(m_colorRT);
-        m_colorRT = nullptr;
+        m_colorRT = {};
     }
     if (m_brightRTView)
     {
         m_device->DestroyTextureView(m_brightRTView);
-        m_brightRTView = nullptr;
+        m_brightRTView = {};
     }
     if (m_brightRT)
     {
         m_device->DestroyTexture(m_brightRT);
-        m_brightRT = nullptr;
+        m_brightRT = {};
     }
 
     rhi::TextureDesc td{};
@@ -186,9 +185,9 @@ foundation::core::Status MRTSample::OnInit()
     cBgld.entries = Span<const rhi::BindGroupLayoutEntry>(cE, 3);
     if (m_device->CreateBindGroupLayout(cBgld, m_compBgl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    rhi::BindGroupLayout* cSets[1] = {m_compBgl};
+    rhi::BindGroupLayoutHandle cSets[1] = {m_compBgl};
     rhi::PipelineLayoutDesc cpld{};
-    cpld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(cSets, 1);
+    cpld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(cSets, 1);
     if (m_device->CreatePipelineLayout(cpld, m_compPl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
     rhi::ColorTargetState compCt{};

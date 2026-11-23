@@ -40,16 +40,16 @@ private:
                                        4,  0, -20, 8, 10, -4, 0, -20, 0, 10};
     static constexpr foundation::core::u16 kIdx[] = {0, 1, 2, 0, 2, 3};
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
-    rhi::Texture* m_tex = nullptr;
-    rhi::TextureView* m_texView = nullptr;
-    rhi::Sampler* m_sampler = nullptr;
-    rhi::BindGroupLayout *m_texBgl = nullptr, *m_uboBgl = nullptr;
-    rhi::BindGroup *m_texBg = nullptr, *m_uboBg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::TextureHandle m_tex{};
+    rhi::TextureViewHandle m_texView{};
+    rhi::SamplerHandle m_sampler{};
+    rhi::BindGroupLayoutHandle m_texBgl{}, m_uboBgl{};
+    rhi::BindGroupHandle m_texBg{}, m_uboBg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -85,7 +85,7 @@ foundation::core::Status MipmapSample::OnInit()
     ubd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(ubd, m_ub) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_ubMapped = m_ub->Map();
+    m_ubMapped = m_device->Map(m_ub);
 
     // Checkerboard base texture 256x256 with 9 mip levels.
     constexpr u32 tw = 256, th = 256, mipCount = 9;
@@ -193,9 +193,9 @@ foundation::core::Status MipmapSample::OnInit()
     if (m_device->CreateBindGroup(uBgd, m_uboBg) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
-    rhi::BindGroupLayout* sets[2] = {m_texBgl, m_uboBgl};
+    rhi::BindGroupLayoutHandle sets[2] = {m_texBgl, m_uboBgl};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 2);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 2);
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
     m_depthBuf.Recreate(m_device, m_width, m_height);

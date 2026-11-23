@@ -42,13 +42,13 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        rhi::BindGroupLayout* layouts[] = {m_layout};
+        rhi::BindGroupLayoutHandle layouts[] = {m_layout};
         rhi::PushConstantRange pc{};
         pc.stages = rhi::ShaderStage::Fragment;
         pc.offset = 0;
         pc.size = sizeof(GpuBloomPush);
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pc, 1};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
@@ -69,7 +69,7 @@ namespace foundation::render
 
         m_downPipeline = MakePipeline(u8"bloom_ds", /*additive*/ false);
         m_upPipeline = MakePipeline(u8"bloom_us", /*additive*/ true);
-        if (m_downPipeline == nullptr || m_upPipeline == nullptr)
+        if (!m_downPipeline.IsValid() || !m_upPipeline.IsValid())
         {
             return Status{ErrorCode::Unknown};
         }
@@ -90,11 +90,11 @@ namespace foundation::render
             m_shaders->Version(u8"bloom_ds") + m_shaders->Version(u8"bloom_us");
         if (shaderVersion != m_pipelineShaderVersion)
         {
-            if (m_downPipeline != nullptr)
+            if (m_downPipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_downPipeline);
             }
-            if (m_upPipeline != nullptr)
+            if (m_upPipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_upPipeline);
             }
@@ -102,7 +102,7 @@ namespace foundation::render
             m_upPipeline = MakePipeline(u8"bloom_us", /*additive*/ true);
             m_pipelineShaderVersion = shaderVersion;
         }
-        if (m_downPipeline == nullptr || m_upPipeline == nullptr)
+        if (!m_downPipeline.IsValid() || !m_upPipeline.IsValid())
         {
             return {};
         }
@@ -151,10 +151,10 @@ namespace foundation::render
                                     b.SetExecute(
                                         [this, &graph, src, push](rhi::RenderPassEncoder& rp)
                                         {
-                                            rhi::BindGroup* bg =
+                                            rhi::BindGroupHandle bg =
                                                 EnsureBindGroup(graph.GetTextureView(src),
                                                                 graph.GetTextureGeneration(src));
-                                            if (bg == nullptr)
+                                            if (!bg.IsValid())
                                             {
                                                 return;
                                             }
@@ -187,10 +187,10 @@ namespace foundation::render
                                     b.SetExecute(
                                         [this, &graph, src, push](rhi::RenderPassEncoder& rp)
                                         {
-                                            rhi::BindGroup* bg =
+                                            rhi::BindGroupHandle bg =
                                                 EnsureBindGroup(graph.GetTextureView(src),
                                                                 graph.GetTextureGeneration(src));
-                                            if (bg == nullptr)
+                                            if (!bg.IsValid())
                                             {
                                                 return;
                                             }
@@ -205,15 +205,15 @@ namespace foundation::render
         return chain[0];
     }
 
-    rhi::RenderPipeline* BloomPass::MakePipeline(StringView name, bool additive)
+    rhi::RenderPipelineHandle BloomPass::MakePipeline(StringView name, bool additive)
     {
-        rhi::ShaderModule* vs =
+        rhi::ShaderModuleHandle vs =
             m_shaders->GetVariant(name, shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps =
+        rhi::ShaderModuleHandle ps =
             m_shaders->GetVariant(name, shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::ColorTargetState color{};
         color.format = kBloomFormat;
@@ -231,30 +231,30 @@ namespace foundation::render
         pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.label = name;
-        rhi::RenderPipeline* p = nullptr;
+        rhi::RenderPipelineHandle p{};
         if (!m_device->CreateRenderPipeline(pd, p).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return p;
     }
 
-    rhi::BindGroup* BloomPass::EnsureBindGroup(rhi::TextureView* view, u64 generation)
+    rhi::BindGroupHandle BloomPass::EnsureBindGroup(rhi::TextureViewHandle view, u64 generation)
     {
-        if (view == nullptr)
+        if (!view.IsValid())
         {
-            return nullptr;
+            return {};
         }
         if (Entry* e = m_bindGroups.Find(view))
         {
-            if (e->gen == generation && e->bg != nullptr)
+            if (e->gen == generation && e->bg.IsValid())
             {
                 return e->bg;
             }
-            if (e->bg != nullptr)
+            if (e->bg.IsValid())
             {
                 m_device->DestroyBindGroup(e->bg);
-                e->bg = nullptr;
+                e->bg = {};
             }
         }
         rhi::BindGroupEntry ent[] = {rhi::BindGroupEntry::TextureEntry(view),
@@ -262,10 +262,10 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_layout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 2};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         m_bindGroups.InsertOrAssign(view, Entry{bg, generation});
         return bg;
@@ -275,36 +275,36 @@ namespace foundation::render
     {
         for (auto& kv : m_bindGroups)
         {
-            if (kv.value.bg != nullptr)
+            if (kv.value.bg.IsValid())
             {
                 m_device->DestroyBindGroup(kv.value.bg);
             }
         }
         m_bindGroups.Clear();
-        if (m_downPipeline != nullptr)
+        if (m_downPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_downPipeline);
-            m_downPipeline = nullptr;
+            m_downPipeline = {};
         }
-        if (m_upPipeline != nullptr)
+        if (m_upPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_upPipeline);
-            m_upPipeline = nullptr;
+            m_upPipeline = {};
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
-        if (m_pipelineLayout != nullptr)
+        if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
-        if (m_layout != nullptr)
+        if (m_layout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_layout);
-            m_layout = nullptr;
+            m_layout = {};
         }
     }
 }

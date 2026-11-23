@@ -22,6 +22,7 @@ import :pipeline_layout;
 import :query_set;
 import :descriptor_staging;
 import :gpu_descriptor_heap;
+import :tables;
 
 using namespace foundation::core;
 
@@ -32,6 +33,7 @@ export namespace foundation::rhi::dx12
     struct DxComputePassContext
     {
         ID3D12GraphicsCommandList* cmdList = nullptr;
+        const DxTables* tables = nullptr; // the device's tables, its handles looked up in
         DxDescriptorStaging* srvStaging = nullptr;
         DxGpuDescriptorHeap* gpuSrvHeap = nullptr;
         DxGpuDescriptorHeap* gpuSamplerHeap = nullptr;
@@ -49,10 +51,10 @@ export namespace foundation::rhi::dx12
 
         // ---- Pipeline & Binding ----
 
-        void SetPipeline(ComputePipeline* pipeline) override
+        void SetPipeline(ComputePipelineHandle pipeline) override
         {
             if (m_ctx.counters) m_ctx.counters->PipelineBinds();
-            auto* dxPipeline = static_cast<DxComputePipelineImpl*>(pipeline);
+            auto* dxPipeline = LookUp(m_ctx.tables, pipeline);
             if (!dxPipeline)
                 return;
             m_currentPipeline = dxPipeline;
@@ -62,10 +64,10 @@ export namespace foundation::rhi::dx12
             cmdList->SetComputeRootSignature(dxPipeline->pipelineLayout()->handle());
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
             if (m_ctx.counters) m_ctx.counters->BindGroupBinds();
-            auto* dxGroup = static_cast<DxBindGroupImpl*>(group);
+            auto* dxGroup = LookUp(m_ctx.tables, group);
             if (!dxGroup || !m_currentPipeline)
                 return;
 
@@ -164,10 +166,10 @@ export namespace foundation::rhi::dx12
             m_ctx.cmdList->Dispatch(x, y, z);
         }
 
-        void DispatchIndirect(Buffer* buffer, u64 offset) override
+        void DispatchIndirect(BufferHandle buffer, u64 offset) override
         {
             if (m_ctx.counters) m_ctx.counters->Dispatches();
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -191,9 +193,9 @@ export namespace foundation::rhi::dx12
 
         // ---- Queries ----
 
-        void WriteTimestamp(QuerySet* querySet, u32 index) override
+        void WriteTimestamp(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP, index);
         }

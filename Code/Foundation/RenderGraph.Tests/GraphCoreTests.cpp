@@ -76,7 +76,7 @@ TEST_CASE("rg.graph: import target with final state")
     RenderGraph graph(DefaultAllocator(), nullptr);
     graph.BeginFrame(0);
     const RGHandle handle =
-        graph.ImportTarget(u8"Backbuffer", nullptr, nullptr, rhi::ResourceState::Present);
+        graph.ImportTarget(u8"Backbuffer", rhi::TextureHandle{}, rhi::TextureViewHandle{}, rhi::ResourceState::Present);
     CHECK(handle.IsValid());
 }
 
@@ -84,7 +84,7 @@ TEST_CASE("rg.graph: reset keeps persistent, drops transient")
 {
     RenderGraph graph(DefaultAllocator(), nullptr);
     graph.BeginFrame(0);
-    graph.RegisterPersistent(u8"Shadow", nullptr, nullptr);
+    graph.RegisterPersistent(u8"Shadow", {}, {});
     graph.CreateTransient(u8"Temp", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
 
     graph.Reset();
@@ -148,4 +148,25 @@ TEST_CASE("rg.graph: a slot reused after Reset gives its new resource a new gene
     REQUIRE(second.index == first.index); // the slot was reused
     CHECK(second != first);               // and the old handle does not name the new resource
     CHECK(graph.GetResource(u8"Second") == second);
+}
+
+TEST_CASE("rg.graph: a handle reaches nothing once its resource is recycled, nor in another graph")
+{
+    RenderGraph graph(DefaultAllocator(), nullptr);
+    RenderGraph other(DefaultAllocator(), nullptr);
+    const rhi::BufferHandle bufferA{3, 1};
+    const rhi::BufferHandle bufferB{5, 1};
+    graph.BeginFrame(0);
+    other.BeginFrame(0);
+    const RGHandle mine = graph.ImportBuffer(u8"Mine", bufferA);
+    const RGHandle theirs = other.ImportBuffer(u8"Theirs", bufferB);
+    REQUIRE(mine.index == theirs.index); // the same slot in each graph
+    CHECK(graph.GetBuffer(mine) == bufferA);
+    CHECK_FALSE(graph.GetBuffer(theirs).IsValid()); // another graph's handle: its pool differs
+    graph.Reset();
+    graph.BeginFrame(1);
+    const RGHandle next = graph.ImportBuffer(u8"Next", bufferB);
+    REQUIRE(next.index == mine.index);
+    CHECK_FALSE(graph.GetBuffer(mine).IsValid()); // kept past the recycle: names nothing
+    CHECK(graph.GetBuffer(next) == bufferB);
 }

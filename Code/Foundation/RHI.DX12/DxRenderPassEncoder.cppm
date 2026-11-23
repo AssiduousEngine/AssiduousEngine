@@ -25,6 +25,7 @@ import :texture_view;
 import :descriptor_staging;
 import :gpu_descriptor_heap;
 import :mesh_pipeline;
+import :tables;
 
 using namespace foundation::core;
 
@@ -62,6 +63,7 @@ export namespace foundation::rhi::dx12
     struct DxRenderPassContext
     {
         ID3D12GraphicsCommandList* cmdList = nullptr;
+        const DxTables* tables = nullptr; // the device's tables, its handles looked up in
         DxDescriptorStaging* srvStaging = nullptr;
         DxGpuDescriptorHeap* gpuSrvHeap = nullptr;
         DxGpuDescriptorHeap* gpuSamplerHeap = nullptr;
@@ -89,10 +91,10 @@ export namespace foundation::rhi::dx12
 
         // ---- RenderPassEncoder: pipeline and binding ----
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
             if (m_ctx.counters) m_ctx.counters->PipelineBinds();
-            auto* dxPipeline = static_cast<DxRenderPipelineImpl*>(pipeline);
+            auto* dxPipeline = LookUp(m_ctx.tables, pipeline);
             if (!dxPipeline)
                 return;
             m_currentPipeline = dxPipeline;
@@ -116,10 +118,10 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
             if (m_ctx.counters) m_ctx.counters->BindGroupBinds();
-            auto* dxGroup = static_cast<DxBindGroupImpl*>(group);
+            auto* dxGroup = LookUp(m_ctx.tables, group);
             if (!dxGroup)
                 return;
 
@@ -214,9 +216,9 @@ export namespace foundation::rhi::dx12
 
         // ---- Vertex and index buffers ----
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf || slot >= 8)
                 return;
 
@@ -235,9 +237,9 @@ export namespace foundation::rhi::dx12
             m_ctx.cmdList->IASetVertexBuffers(slot, 1, &view);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -302,10 +304,10 @@ export namespace foundation::rhi::dx12
                                                 firstInstance);
         }
 
-        void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -322,10 +324,10 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -344,33 +346,33 @@ export namespace foundation::rhi::dx12
 
         // ---- Queries ----
 
-        void WriteTimestamp(QuerySet* querySet, u32 index) override
+        void WriteTimestamp(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP, index);
         }
 
-        void BeginOcclusionQuery(QuerySet* querySet, u32 index) override
+        void BeginOcclusionQuery(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->BeginQuery(qs->handle(), D3D12_QUERY_TYPE_OCCLUSION, index);
         }
 
-        void EndOcclusionQuery(QuerySet* querySet, u32 index) override
+        void EndOcclusionQuery(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_OCCLUSION, index);
         }
 
         // ---- MeshShaderPassExt ----
 
-        void SetMeshPipeline(MeshPipeline* pipeline) override
+        void SetMeshPipeline(MeshPipelineHandle pipeline) override
         {
             if (m_ctx.counters) m_ctx.counters->PipelineBinds();
-            auto* dxPipeline = static_cast<DxMeshPipelineImpl*>(pipeline);
+            auto* dxPipeline = LookUp(m_ctx.tables, pipeline);
             if (!dxPipeline)
                 return;
             m_currentMeshPipeline = dxPipeline;
@@ -394,10 +396,10 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void DrawMeshTasksIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawMeshTasksIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -415,12 +417,12 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void DrawMeshTasksIndirectCount(Buffer* buffer, u64 offset, Buffer* countBuffer,
+        void DrawMeshTasksIndirectCount(BufferHandle buffer, u64 offset, BufferHandle countBuffer,
                                         u64 countOffset, u32 maxDrawCount, u32 /*stride*/) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(maxDrawCount); // the count is on the GPU: at most this many
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
-            auto* dxCountBuf = static_cast<DxBufferImpl*>(countBuffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
+            auto* dxCountBuf = LookUp(m_ctx.tables, countBuffer);
             if (!dxBuf || !dxCountBuf)
                 return;
 
@@ -458,7 +460,7 @@ export namespace foundation::rhi::dx12
             // Timestamp at pass end.
             if (m_desc.timestampQuerySet)
             {
-                auto* qs = static_cast<DxQuerySetImpl*>(m_desc.timestampQuerySet);
+                auto* qs = LookUp(m_ctx.tables, m_desc.timestampQuerySet);
                 if (qs)
                     m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP,
                                             m_desc.endTimestampIndex);
@@ -469,20 +471,22 @@ export namespace foundation::rhi::dx12
             for (usize i = 0; i < colorAtts.Size(); ++i)
             {
                 const auto& ca = colorAtts[i];
-                if (!ca.resolveTarget)
+                if (!ca.resolveTarget.IsValid())
                     continue;
 
-                auto* srcView = static_cast<DxTextureViewImpl*>(ca.view);
-                auto* dstView = static_cast<DxTextureViewImpl*>(ca.resolveTarget);
+                auto* srcView = LookUp(m_ctx.tables, ca.view);
+                auto* dstView = LookUp(m_ctx.tables, ca.resolveTarget);
                 if (!srcView || !dstView)
                     continue;
 
-                auto* srcTex = srcView->dxTexture();
-                auto* dstTex = dstView->dxTexture();
+                auto* srcTex = LookUp(m_ctx.tables, srcView->texture);
+                auto* dstTex = LookUp(m_ctx.tables, dstView->texture);
+                if (!srcTex || !dstTex)
+                    continue;
 
                 TextureFormat format = srcView->Format();
                 if (format == TextureFormat::Undefined)
-                    format = srcView->dxTexture()->desc.format;
+                    format = srcTex->desc.format;
                 DXGI_FORMAT dxgiFormat = toDxgiFormat(format);
 
                 // Transition src to resolve source, dst to resolve dest.

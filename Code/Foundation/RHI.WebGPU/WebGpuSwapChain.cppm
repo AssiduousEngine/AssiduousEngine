@@ -23,6 +23,7 @@ import :queue;
 import :surface;
 import :texture;
 import :texture_view;
+import :tables;
 
 using namespace foundation::core;
 
@@ -125,9 +126,10 @@ export namespace foundation::rhi::webgpu
     public:
         Status Initialize(const WebGpuApi& api, WGPUAdapter adapter, WGPUDevice device,
                           WebGpuQueue* queue, WebGpuSurface* surface,
-                          const SwapChainDesc& swapDesc)
+                          const SwapChainDesc& swapDesc, WebGpuTables& tables)
         {
             m_api = &api;
+            m_tables = &tables;
             m_adapter = adapter;
             m_device = device;
             m_queue = queue;
@@ -191,7 +193,7 @@ export namespace foundation::rhi::webgpu
             TextureViewDesc viewDesc;
             viewDesc.format = m_format;
             const Status viewStatus =
-                m_currentView.Initialize(*m_api, &m_currentTexture, viewDesc);
+                m_currentView.Initialize(*m_api, &m_currentTexture, TextureHandle::Invalid(), viewDesc);
             if (!viewStatus.IsOk())
             {
                 DropCurrent();
@@ -201,7 +203,8 @@ export namespace foundation::rhi::webgpu
             {
                 TextureViewDesc alternateDesc;
                 alternateDesc.format = AlternateViewFormat();
-                if (!m_currentAlternateView.Initialize(*m_api, &m_currentTexture, alternateDesc).IsOk())
+                if (!m_currentAlternateView.Initialize(*m_api, &m_currentTexture, TextureHandle::Invalid(), alternateDesc)
+                         .IsOk())
                 {
                     m_haveImage = true; // so DropCurrent releases the view made above, and the image
                     DropCurrent();
@@ -209,6 +212,16 @@ export namespace foundation::rhi::webgpu
                 }
             }
             m_haveImage = true;
+            // Handles to this image alone: the next acquire takes them back, so nothing keyed on
+            // them (a cached bind group) is handed the next image's view.
+            m_textureHandle = m_tables->textures.Add(&m_currentTexture, u8"swap chain image");
+            m_currentView.texture = m_textureHandle;
+            m_currentAlternateView.texture = m_textureHandle;
+            m_viewHandle = m_tables->textureViews.Add(&m_currentView, u8"swap chain image/view");
+            if (AlternateViewFormat() != TextureFormat::Undefined)
+            {
+                m_alternateHandle = m_tables->textureViews.Add(&m_currentAlternateView, u8"swap chain image/alternate view");
+            }
             ++m_frameIndex;
 #if PLATFORM_WEB
             m_api->NoteFrameOpen(); // mid-frame-yield diagnostic (see WebGpuApi)
@@ -216,11 +229,8 @@ export namespace foundation::rhi::webgpu
             return ErrorCode::Ok;
         }
 
-        Texture* CurrentTexture() override { return m_haveImage ? &m_currentTexture : nullptr; }
-        TextureView* CurrentTextureView() override
-        {
-            return m_haveImage ? &m_currentView : nullptr;
-        }
+        TextureHandle CurrentTexture() override { return m_textureHandle; }
+        TextureViewHandle CurrentTextureView() override { return m_viewHandle; }
         // On the web the canvas is configured in its UNORM base format with the sRGB format as a
         // view (Configure), so a UNORM view of it is always allowed: an asked-for twin is
         // honoured. Desktop wgpu-native would need surface view formats, which webgpu.h gives no
@@ -238,11 +248,7 @@ export namespace foundation::rhi::webgpu
             return TextureFormat::Undefined;
 #endif
         }
-        TextureView* CurrentAlternateTextureView() override
-        {
-            return m_haveImage && AlternateViewFormat() != TextureFormat::Undefined ? &m_currentAlternateView
-                                                                                     : nullptr;
-        }
+        TextureViewHandle CurrentAlternateTextureView() override { return m_alternateHandle; }
 
         Status Present(Queue*) override
         {
@@ -527,6 +533,12 @@ export namespace foundation::rhi::webgpu
         // when the view fails to build.
         void DropCurrent()
         {
+            if (m_tables != nullptr)
+            {
+                (void)m_tables->textureViews.Remove(m_alternateHandle);
+                (void)m_tables->textureViews.Remove(m_viewHandle);
+                (void)m_tables->textures.Remove(m_textureHandle);
+            }
             if (m_haveImage)
             {
                 m_currentView.Release();
@@ -558,5 +570,11 @@ export namespace foundation::rhi::webgpu
         WebGpuTextureView m_currentView;
         WebGpuTextureView m_currentAlternateView; // in AlternateViewFormat, when it is honoured
         WGPUTexture m_ownedHandle = nullptr;
+        // The device's handles to the current image, taken back out of its tables (not retired:
+        // the objects are the swap chain's) when it is dropped.
+        WebGpuTables* m_tables = nullptr;
+        TextureHandle m_textureHandle{};
+        TextureViewHandle m_viewHandle{};
+        TextureViewHandle m_alternateHandle{};
     };
 }

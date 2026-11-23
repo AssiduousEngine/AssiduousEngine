@@ -69,7 +69,7 @@ TEST_CASE("device counters: a frame's counters are what it recorded, memory what
     DrawFrame(device, 3);
     rhi::BufferDesc bd{};
     bd.size = 2048;
-    rhi::Buffer* buffer = nullptr;
+    rhi::BufferHandle buffer{};
     REQUIRE(device.CreateBuffer(bd, buffer).IsOk());
     publisher.Publish(device, p);
     p.EndFrame();

@@ -68,15 +68,15 @@ export namespace foundation::gui
             config.blendSpace = space;
             const VgShaderSet& shaders = host.m_shaders;
             if (!m_renderer
-                     .Initialize(*device, *shaders.Vertex, *shaders.Fragment, format, 1, shaders.DistanceField, shaders.GradientRadial,
+                     .Initialize(*device, shaders.Vertex, shaders.Fragment, format, 1, shaders.DistanceField, shaders.GradientRadial,
                                  shaders.GradientConic, config, shaders.BoxShadow, shaders.BoxVertex, shaders.BoxFragment, shaders.Layer,
                                  shaders.BlurVertex, shaders.BlurFragment)
                      .IsOk())
                 return;
             m_canvas = MakeUnique<vg::VGContext>(allocator, host.m_fonts);
-            m_canvas->SetPerPixelGradients(shaders.GradientRadial != nullptr && shaders.GradientConic != nullptr);
-            m_canvas->SetAnalyticBoxes(shaders.BoxVertex != nullptr && shaders.BoxFragment != nullptr);
-            m_canvas->SetLayers(shaders.Layer != nullptr);
+            m_canvas->SetPerPixelGradients(shaders.GradientRadial.IsValid() && shaders.GradientConic.IsValid());
+            m_canvas->SetAnalyticBoxes(shaders.BoxVertex.IsValid() && shaders.BoxFragment.IsValid());
+            m_canvas->SetLayers(shaders.Layer.IsValid());
             m_canvas->SetStencilFills(m_renderer.StencilFillsSupported());
             if (host.EnsureBaker(format, space))
                 host.m_baker->AddTarget(m_renderer);
@@ -98,9 +98,9 @@ export namespace foundation::gui
                 device->DestroyFence(m_fence);
             if (m_pool != nullptr)
                 device->DestroyCommandPool(m_pool);
-            if (m_view != nullptr)
+            if (m_view.IsValid())
                 device->DestroyTextureView(m_view);
-            if (m_texture != nullptr)
+            if (m_texture.IsValid())
                 device->DestroyTexture(m_texture);
         }
         GuiOffscreen(const GuiOffscreen&) = delete;
@@ -110,7 +110,7 @@ export namespace foundation::gui
         [[nodiscard]] u32 Width() const noexcept { return m_width; }
         [[nodiscard]] u32 Height() const noexcept { return m_height; }
         /// The colour target the last draw went into (left in ShaderRead).
-        [[nodiscard]] rhi::Texture* Texture() const noexcept { return m_texture; }
+        [[nodiscard]] rhi::TextureHandle Texture() const noexcept { return m_texture; }
 
         /// Styles `root`, lays it out at this target's size (at its own display scale) and draws it,
         /// then waits for the GPU's work. The stages are timed into `times`. Returns false when the
@@ -200,8 +200,8 @@ export namespace foundation::gui
         vg::renderer::VGRenderer m_renderer;
         vg::renderer::VGPassTargets m_targets;
         UniquePtr<vg::VGContext> m_canvas;
-        rhi::Texture* m_texture = nullptr;
-        rhi::TextureView* m_view = nullptr;
+        rhi::TextureHandle m_texture{};
+        rhi::TextureViewHandle m_view{};
         rhi::CommandPool* m_pool = nullptr;
         rhi::Fence* m_fence = nullptr;
         u64 m_fenceValue = 0;

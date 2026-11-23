@@ -438,15 +438,15 @@ namespace engine::render
                     return;
                 }
                 // Runtime view override wins; otherwise the cooked texture product behind the ref.
-                rhi::TextureView* view = sc.texture;
-                if (view == nullptr)
+                rhi::TextureViewHandle view = sc.texture;
+                if (!view.IsValid())
                 {
                     if (texture::Texture* t = sc.textureAsset.Get())
                     {
                         view = t->View();
                     }
                 }
-                if (view == nullptr)
+                if (!view.IsValid())
                 {
                     return;
                 }
@@ -494,15 +494,15 @@ namespace engine::render
                 {
                     return;
                 }
-                rhi::TextureView* view = dc.texture;
-                if (view == nullptr)
+                rhi::TextureViewHandle view = dc.texture;
+                if (!view.IsValid())
                 {
                     if (texture::Texture* t = dc.textureAsset.Get())
                     {
                         view = t->View();
                     }
                 }
-                if (view == nullptr)
+                if (!view.IsValid())
                 {
                     return;
                 }
@@ -571,11 +571,11 @@ namespace engine::render
     {
         // A camera draws into its target as a colour attachment: an imported image (sampled only) or
         // a depth texture is refused, as every backend would refuse the pass.
-        [[nodiscard]] bool CanRenderInto(const rhi::Texture& texture) noexcept
+        [[nodiscard]] bool CanRenderInto(const rhi::TextureDesc* desc) noexcept
         {
-            return (texture.desc.usage & rhi::TextureUsage::RenderTarget) ==
-                       rhi::TextureUsage::RenderTarget &&
-                   !rhi::IsDepthFormat(texture.desc.format);
+            return desc != nullptr &&
+                   (desc->usage & rhi::TextureUsage::RenderTarget) == rhi::TextureUsage::RenderTarget &&
+                   !rhi::IsDepthFormat(desc->format);
         }
         bool s_unrenderableTargetLogged = false; // the first refusal is logged
     }
@@ -593,12 +593,12 @@ namespace engine::render
             [&](CameraComponent& cam, scene::EntityHandle e)
             {
                 texture::Texture* target = cam.target.Get();
-                if (target == nullptr || target->GpuTexture() == nullptr ||
+                if (target == nullptr || !target->GpuTexture().IsValid() ||
                     !scene.IsEffectivelyActive(e))
                 {
                     return;
                 }
-                if (!CanRenderInto(*target->GpuTexture()))
+                if (!CanRenderInto(target->GpuDesc()))
                 {
                     if (!s_unrenderableTargetLogged)
                     {

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Visual Studio's view of Core's generational handles (foundation::core::Handle<Tag>): the slot,
+     the count and the pool a handle carries. A natvis cannot call into the process, so the label
+     an owner gave a handle is a call away in the Immediate window instead:
+         DebugHandleLabel("Buffer", buffer.index, buffer.generation)
+     (the noun is the tag's name without "Tag"). -->
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="foundation::core::Handle&lt;*&gt;">
+    <DisplayString Condition="index == 0xFFFFFFFF">{"$T1",sb} handle (none)</DisplayString>
+    <DisplayString>{"$T1",sb} handle slot {index} count {generation &amp; 0xFFFFFF} pool {generation &gt;&gt; 24}</DisplayString>
+    <Expand>
+      <Item Name="slot">index</Item>
+      <Item Name="count">generation &amp; 0xFFFFFF</Item>
+      <Item Name="pool">generation &gt;&gt; 24</Item>
+    </Expand>
+  </Type>
+</AutoVisualizer>

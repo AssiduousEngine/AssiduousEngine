@@ -100,18 +100,18 @@ private:
     [[nodiscard]] bool HasFonts() const { return FileExists(DataPath(kFontAsset).AsView()); }
 
     shaders::ShaderSystemHost m_shaderHost{AppRoot()}; // owns the ShaderSystem and the VG modules
-    rhi::ShaderModule* m_vs = nullptr;      // borrowed from m_shaderHost
-    rhi::ShaderModule* m_fs = nullptr;
-    rhi::ShaderModule* m_distanceFieldFragmentShader = nullptr;         // MSDF distance-field fragment shader
-    rhi::ShaderModule* m_gradRadialFs = nullptr; // per-pixel radial gradient fragment shader
-    rhi::ShaderModule* m_gradConicFs = nullptr; // per-pixel conic gradient fragment shader
-    rhi::ShaderModule* m_boxShadowFs = nullptr; // blurred rounded rect fragment shader
+    rhi::ShaderModuleHandle m_vs{};      // borrowed from m_shaderHost
+    rhi::ShaderModuleHandle m_fs{};
+    rhi::ShaderModuleHandle m_distanceFieldFragmentShader{};         // MSDF distance-field fragment shader
+    rhi::ShaderModuleHandle m_gradRadialFs{}; // per-pixel radial gradient fragment shader
+    rhi::ShaderModuleHandle m_gradConicFs{}; // per-pixel conic gradient fragment shader
+    rhi::ShaderModuleHandle m_boxShadowFs{}; // blurred rounded rect fragment shader
     // VG quality targets: 4x MSAA color (resolved into the swapchain) and stencil
     // (for stencil-then-cover fills). Created in OnInit and recreated by OnResize.
-    rhi::Texture* m_msaaColor = nullptr;
-    rhi::TextureView* m_msaaColorView = nullptr;
-    rhi::Texture* m_depthStencil = nullptr;
-    rhi::TextureView* m_depthStencilView = nullptr;
+    rhi::TextureHandle m_msaaColor{};
+    rhi::TextureViewHandle m_msaaColorView{};
+    rhi::TextureHandle m_depthStencil{};
+    rhi::TextureViewHandle m_depthStencilView{};
     bool m_quality = false; // renderer initialized with 4x MSAA and stencil (see OnInit)
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
@@ -152,8 +152,8 @@ Status VGSandbox::OnInit()
                                             shaders::ShaderFlags::None);
     m_boxShadowFs = m_shaderHost.GetVariant(u8"vg_shadow", shaders::ShaderStage::Fragment,
                                             shaders::ShaderFlags::None);
-    if (m_vs == nullptr || m_fs == nullptr || m_distanceFieldFragmentShader == nullptr || m_gradRadialFs == nullptr ||
-        m_gradConicFs == nullptr)
+    if (!m_vs.IsValid() || !m_fs.IsValid() || !m_distanceFieldFragmentShader.IsValid() || !m_gradRadialFs.IsValid() ||
+        !m_gradConicFs.IsValid())
         return ErrorCode::Unknown;
 
     // Quality targets: 4x MSAA and stencil. On failure (unlikely on desktop) this falls
@@ -169,7 +169,7 @@ Status VGSandbox::OnInit()
     }
 
     if (!m_renderer
-             .Initialize(*m_device, *m_vs, *m_fs, m_swapChain->Format(), static_cast<i32>(kFrames),
+             .Initialize(*m_device, m_vs, m_fs, m_swapChain->Format(), static_cast<i32>(kFrames),
                          m_distanceFieldFragmentShader, m_gradRadialFs, m_gradConicFs, targetConfig,
                          m_boxShadowFs)
              .IsOk())
@@ -974,7 +974,7 @@ void VGSandbox::OnRender()
 {
     if (m_fenceVal > 0)
         m_fence->Wait(m_fenceVal, ~0ull);
-    if (m_quality && m_msaaColorView == nullptr)
+    if (m_quality && !m_msaaColorView.IsValid())
         return; // recreating at the new size failed, and the 4x pipelines cannot draw a 1x pass
     if (m_swapChain->AcquireNextImage() != ErrorCode::Ok)
         return;
@@ -997,7 +997,7 @@ void VGSandbox::OnRender()
     // The offscreen attachments need the same explicit transitions the swapchain gets,
     // because the backend does not transition pass attachments itself. They start from
     // Undefined every frame: both are fully cleared, so the previous contents can go.
-    if (m_msaaColor != nullptr)
+    if (m_msaaColor.IsValid())
     {
         enc->TransitionTexture(m_msaaColor, rhi::ResourceState::Undefined,
                                rhi::ResourceState::RenderTarget);
@@ -1010,7 +1010,7 @@ void VGSandbox::OnRender()
     ca.storeOp = rhi::StoreOp::Store;
     ca.clearValue = rhi::ClearColor(0.19f, 0.19f, 0.21f, 1.0f);
     rhi::RenderPassDesc rpd{};
-    if (m_msaaColorView != nullptr)
+    if (m_msaaColorView.IsValid())
     {
         ca.view = m_msaaColorView;
         ca.resolveTarget = m_swapChain->CurrentTextureView();
@@ -1084,10 +1084,10 @@ void VGSandbox::DestroyQualityTargets()
         m_device->DestroyTextureView(m_depthStencilView);
     if (m_depthStencil)
         m_device->DestroyTexture(m_depthStencil);
-    m_msaaColor = nullptr;
-    m_msaaColorView = nullptr;
-    m_depthStencil = nullptr;
-    m_depthStencilView = nullptr;
+    m_msaaColor = {};
+    m_msaaColorView = {};
+    m_depthStencil = {};
+    m_depthStencilView = {};
 }
 
 void VGSandbox::OnResize(u32 /*width*/, u32 /*height*/)

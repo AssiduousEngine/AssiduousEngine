@@ -602,7 +602,7 @@ export namespace foundation::materials
                                          src->name, src->textureSlots[i]);
                     continue;
                 }
-                if (tex->View() == nullptr)
+                if (!tex->View().IsValid())
                 {
                     LOG_WARNING(u8"Materials",
                                          u8"material '{}': texture for slot '{}' has no GPU view",

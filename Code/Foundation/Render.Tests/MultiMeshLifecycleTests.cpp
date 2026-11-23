@@ -3,7 +3,8 @@
 
 // MultiMesh set lifecycle and the per-item shadow opt-out, the two renderer contracts
 // vegetation stands on: a set unseen for kMultiMeshEvictFrames leaves the renderer's pool
-// (its buffers and bind groups through the retire queue when one is wired), and a RenderData
+// (its buffers and bind groups destroyed through the device, which keeps them while frames in flight
+// use them), and a RenderData
 // with castShadows = false is absent from the shadow caster list.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
@@ -74,7 +75,7 @@ namespace
     }
 }
 
-TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, retired when a queue is wired")
+TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, its GPU objects destroyed")
 {
     Systems s;
     if (!s.Init())
@@ -88,9 +89,6 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     REQUIRE(materialSystem.Initialize(s.device).IsOk());
     MeshRenderer renderer(DefaultAllocator(), s.device, shaderSystem, psoCache, materialSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
-    GpuRetireQueue retire;
-    retire.Initialize(&s.device, 2);
-    renderer.SetRetireQueue(&retire);
 
     RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
     RefPtr<materials::Material> material =
@@ -106,7 +104,8 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     renderer.PrepareFrame(2, 0);
     UploadOne(renderer, seen);
     CHECK(renderer.MultiMeshSetCount() == 2u);
-    const usize pendingAfterUpload = retire.PendingCount();
+    const u32 buffersAfterUpload = s.device.m_buffers.Size();
+    const u32 groupsAfterUpload = s.device.m_bindGroups.Size();
 
     // Set 0x22 keeps being extracted; 0x11 vanishes (its chunk left the camera's range).
     ExtractedScene partial{DefaultAllocator()};
@@ -121,8 +120,9 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     renderer.PrepareFrame(2, 0);
     UploadOne(renderer, partial); // one past the window
     CHECK(renderer.MultiMeshSetCount() == 1u);
-    // Its buffer and the two region bind groups went through the queue, not vkDestroy in place.
-    CHECK(retire.PendingCount() >= pendingAfterUpload + 3u);
+    // Its buffer and the two region bind groups left the device's tables (destroyed, not leaked).
+    CHECK(s.device.m_buffers.Size() < buffersAfterUpload);
+    CHECK(s.device.m_bindGroups.Size() + 2u <= groupsAfterUpload);
 
     // An empty frame still ages: the survivor goes too once unseen long enough.
     ExtractedScene empty{DefaultAllocator()};
@@ -137,8 +137,6 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     renderer.PrepareFrame(2, 0);
     UploadOne(renderer, seen);
     CHECK(renderer.MultiMeshSetCount() == 2u);
-    retire.Flush();
-    renderer.SetRetireQueue(nullptr);
 }
 
 TEST_CASE("shadows: castShadows = false keeps an Opaque item out of the caster list")
@@ -185,12 +183,12 @@ TEST_CASE("shadows: castShadows = false keeps an Opaque item out of the caster l
     REQUIRE(s.device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
     rhi::CommandEncoder* encoder = nullptr;
     REQUIRE(pool->CreateEncoder(encoder).IsOk());
-    rhi::Texture* color = nullptr;
+    rhi::TextureHandle color{};
     REQUIRE(s.device
                 .CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::BGRA8Unorm, 64, 64),
                                color)
                 .IsOk());
-    rhi::TextureView* colorView = nullptr;
+    rhi::TextureViewHandle colorView{};
     REQUIRE(s.device.CreateTextureView(color, rhi::TextureViewDesc{}, colorView).IsOk());
 
     ViewCamera camera;
@@ -409,3 +407,64 @@ TEST_CASE("multimesh: a faded set's InstanceSet carries its window, the whole li
     CHECK(block.fadeEnd == doctest::Approx(0.0f)); // unfaded
 }
 
+
+TEST_CASE("multimesh: a skinned set gets its per-instance draw offsets, an unskinned one none")
+{
+    // A skinned crowd picks each instance's pose through its draw offsets; a set that never got the
+    // buffer drew every guest without a pose, standing still.
+    Systems s;
+    if (!s.Init())
+    {
+        MESSAGE("no shader compiler; skipping");
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*s.compiler, s.device);
+    materials::PipelineStateCache psoCache(shaderSystem, s.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(s.device).IsOk());
+    MeshRenderer renderer(DefaultAllocator(), s.device, shaderSystem, psoCache, materialSystem, /*framesInFlight*/ 2);
+    REQUIRE(renderer.Initialize().IsOk());
+
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> material =
+        materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+    Array<Float4x4> transforms;
+    transforms.Resize(4, Float4x4::Identity());
+    Array<Float4x4> poses; // 2 palettes of 3 bones
+    poses.Resize(6, Float4x4::Identity());
+
+    // A first frame makes what the renderer makes once; the sets after it are measured alone.
+    renderer.PrepareFrame(2, 0);
+    ExtractedScene warm{DefaultAllocator()};
+    AddSet(warm, 0x30u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    UploadOne(renderer, warm);
+
+    renderer.PrepareFrame(2, 1);
+    ExtractedScene plain{DefaultAllocator()};
+    AddSet(plain, 0x30u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    AddSet(plain, 0x31u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    const u32 before = s.device.m_buffers.Size();
+    UploadOne(renderer, plain);
+    const u32 plainBuffers = s.device.m_buffers.Size() - before;
+
+    renderer.PrepareFrame(2, 0);
+    ExtractedScene crowd{DefaultAllocator()};
+    AddSet(crowd, 0x30u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    AddSet(crowd, 0x31u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    AddSet(crowd, 0x32u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    auto* skinned = static_cast<MultiMeshRenderData*>(crowd.Items()[2]);
+    skinned->posePool = poses.Data();
+    skinned->prevPosePool = poses.Data();
+    skinned->poseCount = 2;
+    skinned->boneCount = 3;
+    const u32 beforeCrowd = s.device.m_buffers.Size();
+    UploadOne(renderer, crowd);
+    // The skinned set: its instances, plus its draw offsets and its pick offsets.
+    CHECK(s.device.m_buffers.Size() - beforeCrowd == plainBuffers + 2u);
+}

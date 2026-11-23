@@ -35,7 +35,7 @@ export namespace foundation::render
     {
         bool enabled = false;
         rendergraph::RGHandle handle{};
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         u64 generation = 0;
         f32 key = 0.18f;
         f32 minExposure = 0.0625f;
@@ -45,7 +45,7 @@ export namespace foundation::render
     /// the bind-group cache, never the pointer). lutSize < 2 (or a null view) disables.
     struct TonemapGrading
     {
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         u64 uid = 0;
         f32 lutSize = 0.0f;
         f32 intensity = 1.0f;
@@ -122,7 +122,7 @@ export namespace foundation::render
         static constexpr rhi::TextureFormat kHdrFormat = rhi::TextureFormat::RGBA16Float;
 
         // Build the fullscreen pipeline for `fmt` (rebuilt if the LDR target format changes; usually one).
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt);
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat fmt);
 
         // One bind group per (view, frame) slot, kept while every input is the same view of the
         // same texture (BindGroupInputs: the HDR, bloom and AO transients, the adapted exposure,
@@ -133,12 +133,12 @@ export namespace foundation::render
         using BindInputs = BindGroupInputs<5>;
         struct Slot
         {
-            rhi::BindGroup* group = nullptr;
+            rhi::BindGroupHandle group{};
             BindInputs inputs; // what the group was built from
         };
         // `use` is 0 for the scene's tone map and 1 for a scaled view's present copy: each view has
         // both in a frame, so they key apart (view * 2 + use).
-        rhi::BindGroup* EnsureBindGroup(u32 viewUse, u32 frameIndex, const BindInputs& inputs);
+        rhi::BindGroupHandle EnsureBindGroup(u32 viewUse, u32 frameIndex, const BindInputs& inputs);
 
         void Shutdown();
 
@@ -146,8 +146,8 @@ export namespace foundation::render
         shaders::ShaderSystem* m_shaders;
         u32 m_framesInFlight = 2;
 
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
         // Per-format pipeline cache: one frame can hold views with different target formats
         // (the HDR viewports and the thumbnail stage's readback target), and a single slot that
         // is destroyed on a format mismatch would destroy a pipeline the same encoder's earlier
@@ -155,13 +155,13 @@ export namespace foundation::render
         static constexpr usize kMaxPipelineFormats = 4;
         struct PipelineEntry
         {
-            rhi::RenderPipeline* pipeline = nullptr;
+            rhi::RenderPipelineHandle pipeline{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             u64 shaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         };
         PipelineEntry m_pipelines[kMaxPipelineFormats] = {};
 
-        rhi::Sampler* m_sampler = nullptr; // linear-clamp, for the bloom composite
+        rhi::SamplerHandle m_sampler{}; // linear-clamp, for the bloom composite
         ViewSlots<Slot> m_slots; // per (view and use, frame in flight), however many views a frame has
     };
 

@@ -23,6 +23,7 @@ import foundation.rhi;
 import :api;
 import :conversions;
 import :bind_group_layout;
+import :tables;
 
 using namespace foundation::core;
 
@@ -41,19 +42,20 @@ export namespace foundation::rhi::webgpu
     class WebGpuPipelineLayout final : public PipelineLayout
     {
     public:
-        Status Initialize(const WebGpuApi& api, WGPUDevice device,
+        Status Initialize(const WebGpuApi& api, WGPUDevice device, const WebGpuTables* tables,
                           const PipelineLayoutDesc& layoutDesc, bool emulatePushConstants)
         {
             m_api = &api;
 
             Array<WGPUBindGroupLayout> layouts;
-            for (BindGroupLayout* layout : layoutDesc.bindGroupLayouts)
+            for (BindGroupLayoutHandle layout : layoutDesc.bindGroupLayouts)
             {
-                if (layout == nullptr)
+                const WebGpuBindGroupLayout* bindGroupLayout = LookUp(tables, layout);
+                if (bindGroupLayout == nullptr)
                 {
                     return ErrorCode::InvalidArgument;
                 }
-                layouts.PushBack(static_cast<WebGpuBindGroupLayout*>(layout)->Handle());
+                layouts.PushBack(bindGroupLayout->Handle());
             }
 
             // Aggregate the push-constant block: its byte size (max range end), the union of

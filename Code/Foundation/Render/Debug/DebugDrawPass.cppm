@@ -98,11 +98,11 @@ export namespace foundation::render
         {
             rhi::TextureFormat color = rhi::TextureFormat::Undefined;
             rhi::TextureFormat depth = rhi::TextureFormat::Undefined;
-            rhi::RenderPipeline* lineDepth = nullptr;
-            rhi::RenderPipeline* lineOverlay = nullptr;
-            rhi::RenderPipeline* triDepth = nullptr;
-            rhi::RenderPipeline* triOverlay = nullptr;
-            rhi::RenderPipeline* grid = nullptr; // the shader grid; null when it did not build
+            rhi::RenderPipelineHandle lineDepth{};
+            rhi::RenderPipelineHandle lineOverlay{};
+            rhi::RenderPipelineHandle triDepth{};
+            rhi::RenderPipelineHandle triOverlay{};
+            rhi::RenderPipelineHandle grid{}; // the shader grid; null when it did not build
             u64 shaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         };
 
@@ -118,19 +118,19 @@ export namespace foundation::render
         static void EmitQuad(Array<debug::DebugTextVertex>& out, f32 x, f32 y, f32 w, f32 h, f32 u0,
                              f32 v0, f32 u1, f32 v1, u32 col);
 
-        rhi::Buffer* UploadGeom(u32 viewIndex, u32 frameIndex, const Array<debug::DebugVertex>& verts);
-        rhi::Buffer* UploadScreen(u32 viewIndex, u32 frameIndex, const Array<debug::DebugTextVertex>& verts);
-        bool EnsureBuffer(rhi::Buffer*& buf, u64& cap, u64 bytes);
+        rhi::BufferHandle UploadGeom(u32 viewIndex, u32 frameIndex, const Array<debug::DebugVertex>& verts);
+        rhi::BufferHandle UploadScreen(u32 viewIndex, u32 frameIndex, const Array<debug::DebugTextVertex>& verts);
+        bool EnsureBuffer(rhi::BufferHandle& buf, u64& cap, u64 bytes);
 
         Pipelines* EnsurePipelines(rhi::TextureFormat colorFmt, rhi::TextureFormat depthFmt);
 
-        rhi::RenderPipeline* MakeGeomPipeline(rhi::TextureFormat colorFmt,
+        rhi::RenderPipelineHandle MakeGeomPipeline(rhi::TextureFormat colorFmt,
                                               rhi::TextureFormat depthFmt,
                                               rhi::PrimitiveTopology topo,
                                               rhi::CompareFunction cmp);
 
-        rhi::RenderPipeline* EnsureScreenPipeline(rhi::TextureFormat colorFmt);
-        rhi::RenderPipeline* MakeGridPipeline(rhi::TextureFormat colorFmt, rhi::TextureFormat depthFmt);
+        rhi::RenderPipelineHandle EnsureScreenPipeline(rhi::TextureFormat colorFmt);
+        rhi::RenderPipelineHandle MakeGridPipeline(rhi::TextureFormat colorFmt, rhi::TextureFormat depthFmt);
 
         Status CreateFontAtlas();
 
@@ -141,29 +141,29 @@ export namespace foundation::render
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         u32 m_framesInFlight = 2;
-        rhi::PipelineLayout* m_geomLayout = nullptr;
-        rhi::PipelineLayout* m_gridLayout = nullptr; // the grid's push block (both stages)
-        rhi::PipelineLayout* m_screenLayout = nullptr;
-        rhi::BindGroupLayout* m_screenBgLayout = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
-        rhi::Texture* m_fontTex = nullptr;
-        rhi::TextureView* m_fontView = nullptr;
-        rhi::BindGroup* m_fontBg = nullptr;
+        rhi::PipelineLayoutHandle m_geomLayout{};
+        rhi::PipelineLayoutHandle m_gridLayout{}; // the grid's push block (both stages)
+        rhi::PipelineLayoutHandle m_screenLayout{};
+        rhi::BindGroupLayoutHandle m_screenBgLayout{};
+        rhi::SamplerHandle m_sampler{};
+        rhi::TextureHandle m_fontTex{};
+        rhi::TextureViewHandle m_fontView{};
+        rhi::BindGroupHandle m_fontBg{};
         // Per-(color, depth) entries: a frame can hold views with different target formats,
         // and destroying on mismatch would free pipelines an earlier view's recorded commands
         // still reference.
         static constexpr usize kMaxGeomFormats = 4;
         Pipelines m_geom[kMaxGeomFormats] = {};
-        rhi::RenderPipeline* m_screenPipe = nullptr;
+        rhi::RenderPipelineHandle m_screenPipe{};
         rhi::TextureFormat m_screenFmt = rhi::TextureFormat::Undefined;
         u64 m_screenShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         // Per (view, frame in flight), however many views a frame has: its geometry and its
         // screen text, each a buffer grown to fit.
         struct Slot
         {
-            rhi::Buffer* geom = nullptr;
+            rhi::BufferHandle geom{};
             u64 geomCap = 0;
-            rhi::Buffer* screen = nullptr;
+            rhi::BufferHandle screen{};
             u64 screenCap = 0;
         };
         ViewSlots<Slot> m_slots;

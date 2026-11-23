@@ -131,8 +131,7 @@ foundation.render (SCENE-AGNOSTIC renderer core)
  snapshot) + DrawItem sort keys + the radix sort + ViewPostConfig
  :views - RenderView (the isolation boundary) + ViewSettings + RenderViewPool
  :extract_ctx - RenderContext: the per-worker FrameArenas extraction allocates from
- :resources - GpuRetireQueue (frames-in-flight deferred destroy), GpuBufferPool,
- DynamicUniformRing (ring UBOs / instance storage), ViewUniformRing
+ :resources - GpuBufferPool, DynamicUniformRing (ring UBOs / instance storage), ViewUniformRing
  :pipeline - Renderer (per-category drawer) + RendererRegistry + ForwardPass + the per-frame
  RenderFrame (one RenderGraph, all views)
  :gpu_mesh - GpuMeshCache (mesh upload cache)
@@ -297,8 +296,9 @@ deques, `ParallelFor`, counter dependencies, a waiting caller runs jobs). The fo
 through render bundles: `ForwardPass` resolves a view's draws single-threaded (PSO build, mesh upload,
 ring allocation), then above `kParallelEmitThreshold` (256) resolved draws splits them into chunks,
 each recorded into its own bundle on a worker with its own per-frame command pool; below it, one
-bundle on the calling thread. Retired GPU objects go through `GpuRetireQueue` (`:resources`), freed
-once every frame in flight that could reference them has passed.
+bundle on the calling thread. A pass that replaces a GPU object destroys the old one at once: the RHI
+device keeps it until no recording or submission that could use it is outstanding
+(Specs/rhi-handles.md), so nothing in the renderer waits for the GPU or keeps a retire list.
 
 ---
 
@@ -608,7 +608,7 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
   per scene); distance gates the build, the renderer culls the sets per view.
 - **Renderer prerequisites (this phase).** `RenderData::castShadows` (default true) gates the
   sun-cascade caster list, so grass casts nothing unless asked; `MeshRenderer` evicts a
-  MultiMesh set unseen for `kMultiMeshEvictFrames` (120) through the retire queue (before
+  MultiMesh set unseen for `kMultiMeshEvictFrames` (120), its GPU objects destroyed (before
   this nothing was ever freed); a set's per-frame region capacity is rounded to 16 instances
   (`MultiMeshRegionCapacity`) so region offsets meet every backend's storage-buffer offset
   alignment (an odd count - 941 tufts - bound region 1 at an unaligned byte and WebGPU refused

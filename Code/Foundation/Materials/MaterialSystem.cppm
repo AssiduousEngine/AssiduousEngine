@@ -27,7 +27,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::materials
 {
-
     class MaterialSystem final : public IMaterialInstanceSink
     {
     public:
@@ -51,39 +50,39 @@ export namespace foundation::materials
         }
 
         [[nodiscard]] rhi::Device* Device() const noexcept { return m_device; }
-        [[nodiscard]] rhi::Sampler* DefaultSampler() const noexcept { return m_defaultSampler; }
-        [[nodiscard]] rhi::TextureView* WhiteTexture() const noexcept { return m_whiteView; }
-        [[nodiscard]] rhi::TextureView* NormalTexture() const noexcept { return m_normalView; }
-        [[nodiscard]] rhi::TextureView* BlackTexture() const noexcept { return m_blackView; }
+        [[nodiscard]] rhi::SamplerHandle DefaultSampler() const noexcept { return m_defaultSampler; }
+        [[nodiscard]] rhi::TextureViewHandle WhiteTexture() const noexcept { return m_whiteView; }
+        [[nodiscard]] rhi::TextureViewHandle NormalTexture() const noexcept { return m_normalView; }
+        [[nodiscard]] rhi::TextureViewHandle BlackTexture() const noexcept { return m_blackView; }
 
         // Ensures the instance's uniform buffer is up to date and returns it (null if the material
         // declares no uniforms). Lets a renderer assemble its own fixed set-2 layout (UBO and textures)
         // while still sourcing the packed uniform data from the material system.
-        [[nodiscard]] rhi::Buffer* EnsureUniformBuffer(MaterialInstance& instance)
+        [[nodiscard]] rhi::BufferHandle EnsureUniformBuffer(MaterialInstance& instance)
         {
             Material* material = instance.GetMaterial();
             if (material == nullptr || material->UniformDataSize() == 0)
             {
-                return nullptr;
+                return {};
             }
             instance.SetSink(this);
             if (instance.IsUniformDirty())
             {
                 if (!UpdateUniformBuffer(instance))
                 {
-                    return nullptr;
+                    return {};
                 }
                 instance.ClearUniformDirty();
             }
-            rhi::Buffer** buf = m_uniformBuffers.Find(&instance);
-            return (buf != nullptr) ? *buf : nullptr;
+            rhi::BufferHandle* buf = m_uniformBuffers.Find(&instance);
+            return buf != nullptr ? *buf : rhi::BufferHandle{};
         }
 
         // Bind-group layout inferred from the material's property definitions, cached.
-        [[nodiscard]] rhi::BindGroupLayout* GetOrCreateLayout(Material& material)
+        [[nodiscard]] rhi::BindGroupLayoutHandle GetOrCreateLayout(Material& material)
         {
             const u64 hash = ComputeLayoutHash(material);
-            if (rhi::BindGroupLayout** cached = m_layoutCache.Find(hash))
+            if (rhi::BindGroupLayoutHandle* cached = m_layoutCache.Find(hash))
             {
                 return *cached;
             }
@@ -145,15 +144,15 @@ export namespace foundation::materials
             }
             if (entries.IsEmpty())
             {
-                return nullptr;
+                return {};
             }
 
             rhi::BindGroupLayoutDesc desc{};
             desc.entries = Span<const rhi::BindGroupLayoutEntry>{entries.Data(), entries.Size()};
-            rhi::BindGroupLayout* layout = nullptr;
+            rhi::BindGroupLayoutHandle layout{};
             if (!m_device->CreateBindGroupLayout(desc, layout).IsOk())
             {
-                return nullptr;
+                return {};
             }
             m_layoutCache.InsertOrAssign(hash, layout);
             return layout;
@@ -161,31 +160,31 @@ export namespace foundation::materials
 
         // (Re)builds an instance's uniform buffer and bind group if dirty. Returns its
         // bind group, ready to bind for rendering.
-        [[nodiscard]] rhi::BindGroup* PrepareInstance(MaterialInstance& instance,
-                                                      rhi::BindGroupLayout* layout = nullptr)
+        [[nodiscard]] rhi::BindGroupHandle PrepareInstance(MaterialInstance& instance,
+                                                      rhi::BindGroupLayoutHandle layout = {})
         {
             Material* material = instance.GetMaterial();
             if (material == nullptr)
             {
-                return nullptr;
+                return {};
             }
             instance.SetSink(this);
 
-            rhi::BindGroupLayout* bgLayout = layout;
-            if (bgLayout == nullptr)
+            rhi::BindGroupLayoutHandle bgLayout = layout;
+            if (!bgLayout.IsValid())
             {
                 bgLayout = GetOrCreateLayout(*material);
             }
-            if (bgLayout == nullptr)
+            if (!bgLayout.IsValid())
             {
-                return nullptr;
+                return {};
             }
 
             if (instance.IsUniformDirty() && HasUniformBuffers(*material))
             {
                 if (!UpdateUniformBuffer(instance))
                 {
-                    return nullptr;
+                    return {};
                 }
                 instance.ClearUniformDirty();
             }
@@ -195,39 +194,18 @@ export namespace foundation::materials
             {
                 if (!UpdateBindGroup(instance, bgLayout))
                 {
-                    return nullptr;
+                    return {};
                 }
                 instance.ClearBindGroupDirty();
             }
-            rhi::BindGroup** bg = m_bindGroups.Find(&instance);
-            return (bg != nullptr) ? *bg : nullptr;
+            rhi::BindGroupHandle* bg = m_bindGroups.Find(&instance);
+            return (bg != nullptr) ? *bg : rhi::BindGroupHandle{};
         }
 
-        [[nodiscard]] rhi::BindGroup* GetBindGroup(MaterialInstance& instance)
+        [[nodiscard]] rhi::BindGroupHandle GetBindGroup(MaterialInstance& instance)
         {
-            rhi::BindGroup** bg = m_bindGroups.Find(&instance);
-            return (bg != nullptr) ? *bg : nullptr;
-        }
-
-        /// Per-frame: frees retired bind groups once the frame ring has cycled past them.
-        /// The renderer calls this once per frame alongside its own retirement ticks.
-        void TickRetired()
-        {
-            usize w = 0;
-            for (usize i = 0; i < m_retiredBindGroups.Size(); ++i)
-            {
-                RetiredBindGroup r = m_retiredBindGroups[i];
-                if (r.framesLeft <= 1)
-                {
-                    m_device->DestroyBindGroup(r.bg);
-                }
-                else
-                {
-                    r.framesLeft -= 1;
-                    m_retiredBindGroups[w++] = r;
-                }
-            }
-            m_retiredBindGroups.Resize(w);
+            rhi::BindGroupHandle* bg = m_bindGroups.Find(&instance);
+            return (bg != nullptr) ? *bg : rhi::BindGroupHandle{};
         }
 
         // Hands the instance's uniform buffer to the caller (removed from the system) without
@@ -235,25 +213,25 @@ export namespace foundation::materials
         // that in-flight frames may still reference must have both its bind group and its
         // uniform buffer detached for deferred retirement before it dies; detaching only the
         // bind group frees memory the GPU is still using.
-        [[nodiscard]] rhi::Buffer* DetachUniformBuffer(MaterialInstance* instance)
+        [[nodiscard]] rhi::BufferHandle DetachUniformBuffer(MaterialInstance* instance)
         {
             if (instance == nullptr)
             {
-                return nullptr;
+                return {};
             }
-            if (rhi::Buffer** buf = m_uniformBuffers.Find(instance))
+            if (rhi::BufferHandle* buf = m_uniformBuffers.Find(instance))
             {
-                rhi::Buffer* b = *buf;
+                rhi::BufferHandle b = *buf;
                 m_uniformBuffers.Remove(instance);
                 return b;
             }
-            return nullptr;
+            return {};
         }
 
         // Hands the instance's effect buffers to the caller (removed from the system) without
         // destroying them, appended to `out`: DetachUniformBuffer for the effect groups'
         // buffers, retired the same way.
-        void DetachEffectBuffers(MaterialInstance* instance, Array<rhi::Buffer*>& out)
+        void DetachEffectBuffers(MaterialInstance* instance, Array<rhi::BufferHandle>& out)
         {
             if (instance == nullptr)
             {
@@ -261,9 +239,9 @@ export namespace foundation::materials
             }
             if (EffectBuffers* buffers = m_effectBuffers.Find(instance))
             {
-                for (rhi::Buffer* b : buffers->buffers)
+                for (rhi::BufferHandle b : buffers->buffers)
                 {
-                    if (b != nullptr)
+                    if (b.IsValid())
                     {
                         out.PushBack(b);
                     }
@@ -274,19 +252,19 @@ export namespace foundation::materials
 
         // Hands the instance's bind group to the caller (removed from the system) without
         // destroying it, for deferred retirement while in-flight frames may still bind it.
-        [[nodiscard]] rhi::BindGroup* DetachBindGroup(MaterialInstance* instance)
+        [[nodiscard]] rhi::BindGroupHandle DetachBindGroup(MaterialInstance* instance)
         {
             if (instance == nullptr)
             {
-                return nullptr;
+                return {};
             }
-            if (rhi::BindGroup** bg = m_bindGroups.Find(instance))
+            if (rhi::BindGroupHandle* bg = m_bindGroups.Find(instance))
             {
-                rhi::BindGroup* g = *bg;
+                rhi::BindGroupHandle g = *bg;
                 m_bindGroups.Remove(instance);
                 return g;
             }
-            return nullptr;
+            return {};
         }
 
         void ReleaseInstance(MaterialInstance* instance) override
@@ -295,23 +273,23 @@ export namespace foundation::materials
             {
                 return;
             }
-            if (rhi::BindGroup** bg = m_bindGroups.Find(instance))
+            if (rhi::BindGroupHandle* bg = m_bindGroups.Find(instance))
             {
-                rhi::BindGroup* g = *bg;
+                rhi::BindGroupHandle g = *bg;
                 m_device->DestroyBindGroup(g);
                 m_bindGroups.Remove(instance);
             }
-            if (rhi::Buffer** buf = m_uniformBuffers.Find(instance))
+            if (rhi::BufferHandle* buf = m_uniformBuffers.Find(instance))
             {
-                rhi::Buffer* b = *buf;
+                rhi::BufferHandle b = *buf;
                 m_device->DestroyBuffer(b);
                 m_uniformBuffers.Remove(instance);
             }
             if (EffectBuffers* buffers = m_effectBuffers.Find(instance))
             {
-                for (rhi::Buffer* b : buffers->buffers)
+                for (rhi::BufferHandle b : buffers->buffers)
                 {
-                    if (b != nullptr)
+                    if (b.IsValid())
                     {
                         m_device->DestroyBuffer(b);
                     }
@@ -321,7 +299,7 @@ export namespace foundation::materials
         }
 
         // Sampler cache keyed by address/filter combination.
-        [[nodiscard]] rhi::Sampler*
+        [[nodiscard]] rhi::SamplerHandle 
         GetOrCreateSampler(rhi::AddressMode u, rhi::AddressMode v,
                            rhi::FilterMode minF = rhi::FilterMode::Linear,
                            rhi::FilterMode magF = rhi::FilterMode::Linear,
@@ -330,7 +308,7 @@ export namespace foundation::materials
             const u64 key = static_cast<u64>(u) | (static_cast<u64>(v) << 4) |
                             (static_cast<u64>(minF) << 8) | (static_cast<u64>(magF) << 12) |
                             (static_cast<u64>(mip) << 16);
-            if (rhi::Sampler** cached = m_samplerCache.Find(key))
+            if (rhi::SamplerHandle* cached = m_samplerCache.Find(key))
             {
                 return *cached;
             }
@@ -342,7 +320,7 @@ export namespace foundation::materials
             desc.minFilter = minF;
             desc.magFilter = magF;
             desc.mipmapFilter = mip;
-            rhi::Sampler* sampler = nullptr;
+            rhi::SamplerHandle sampler{};
             if (!m_device->CreateSampler(desc, sampler).IsOk())
             {
                 return m_defaultSampler;
@@ -388,7 +366,7 @@ export namespace foundation::materials
         }
 
         // A 1x1 texture of one colour; `cube` makes it six layers seen as a cube.
-        bool CreateTexture1x1(Color32 color, rhi::Texture*& outTex, rhi::TextureView*& outView,
+        bool CreateTexture1x1(Color32 color, rhi::TextureHandle& outTex, rhi::TextureViewHandle& outView,
                               bool cube = false)
         {
             const u32 layers = cube ? 6u : 1u;
@@ -461,7 +439,7 @@ export namespace foundation::materials
             }
             while (buffers->buffers.Size() < material->EffectGroupCount())
             {
-                buffers->buffers.PushBack(nullptr);
+                buffers->buffers.PushBack(rhi::BufferHandle{});
             }
             for (usize g = 0; g < material->EffectGroupCount(); ++g)
             {
@@ -470,8 +448,8 @@ export namespace foundation::materials
                 {
                     continue;
                 }
-                rhi::Buffer*& buffer = buffers->buffers[g];
-                if (buffer == nullptr)
+                rhi::BufferHandle& buffer = buffers->buffers[g];
+                if (!buffer.IsValid())
                 {
                     rhi::BufferDesc bd{};
                     bd.size = group.uniformSize; // a whole row already (Material::SetEffectGroup)
@@ -479,19 +457,19 @@ export namespace foundation::materials
                     bd.memory = rhi::MemoryLocation::CpuToGpu;
                     if (!m_device->CreateBuffer(bd, buffer).IsOk())
                     {
-                        buffer = nullptr;
+                        buffer = {};
                         return false;
                     }
                 }
                 const Span<const u8> data = instance.EffectData(g);
                 if (data.Size() > 0 && data.Size() <= group.uniformSize)
                 {
-                    if (void* ptr = buffer->Map())
+                    if (void* ptr = m_device->Map(buffer))
                     {
                         EncodeUniformsForGpu(Span<const MaterialPropertyDef>{group.properties.Data(),
                                                                              group.properties.Size()},
                                              data, static_cast<u8*>(ptr));
-                        buffer->Unmap();
+                        m_device->Unmap(buffer);
                     }
                 }
             }
@@ -510,8 +488,8 @@ export namespace foundation::materials
                 return true;
             }
 
-            rhi::Buffer* buffer = nullptr;
-            if (rhi::Buffer** existing = m_uniformBuffers.Find(&instance))
+            rhi::BufferHandle buffer{};
+            if (rhi::BufferHandle* existing = m_uniformBuffers.Find(&instance))
             {
                 buffer = *existing;
             }
@@ -534,21 +512,21 @@ export namespace foundation::materials
             const Span<const u8> data = instance.UniformData();
             if (data.Size() > 0)
             {
-                if (void* ptr = buffer->Map())
+                if (void* ptr = m_device->Map(buffer))
                 {
                     EncodeUniformsForGpu(*material, data, static_cast<u8*>(ptr));
-                    buffer->Unmap();
+                    m_device->Unmap(buffer);
                 }
             }
             return true;
         }
 
-        bool UpdateBindGroup(MaterialInstance& instance, rhi::BindGroupLayout* layout)
+        bool UpdateBindGroup(MaterialInstance& instance, rhi::BindGroupLayoutHandle layout)
         {
             Material* material = instance.GetMaterial();
             Array<rhi::BindGroupEntry> entries;
 
-            if (rhi::Buffer** buf = m_uniformBuffers.Find(&instance))
+            if (rhi::BufferHandle* buf = m_uniformBuffers.Find(&instance))
             {
                 entries.PushBack(
                     rhi::BindGroupEntry::BufferEntry(*buf, 0, material->UniformDataSize()));
@@ -564,7 +542,7 @@ export namespace foundation::materials
                     {
                         continue;
                     }
-                    if (buffers == nullptr || g >= buffers->buffers.Size() || buffers->buffers[g] == nullptr)
+                    if (buffers == nullptr || g >= buffers->buffers.Size() || !buffers->buffers[g].IsValid())
                     {
                         return false; // never written: the layout's entry would go unfilled
                     }
@@ -577,8 +555,8 @@ export namespace foundation::materials
             {
                 if (p.IsTexture())
                 {
-                    rhi::TextureView* view = instance.GetTexture(propIndex);
-                    if (view == nullptr)
+                    rhi::TextureViewHandle view = instance.GetTexture(propIndex);
+                    if (!view.IsValid())
                     {
                         // Neutral textures for unbound slots: a normal map decodes to (0,0,1), the
                         // geometric normal; every other map (albedo, metallic-roughness, occlusion,
@@ -591,23 +569,23 @@ export namespace foundation::materials
                                : Contains(p.name, u8"ormal")               ? m_normalView
                                                                           : m_whiteView;
                     }
-                    if (view != nullptr)
+                    if (view.IsValid())
                     {
                         entries.PushBack(rhi::BindGroupEntry::TextureEntry(view));
                     }
                 }
                 else if (p.IsSampler())
                 {
-                    rhi::Sampler* s = instance.GetSampler(propIndex);
-                    if (s == nullptr)
+                    rhi::SamplerHandle s = instance.GetSampler(propIndex);
+                    if (!s.IsValid())
                     {
                         s = GetOrCreateSampler(material->samplerU, material->samplerV);
                     }
-                    if (s == nullptr)
+                    if (!s.IsValid())
                     {
                         s = m_defaultSampler;
                     }
-                    if (s != nullptr)
+                    if (s.IsValid())
                     {
                         entries.PushBack(rhi::BindGroupEntry::SamplerEntry(s));
                     }
@@ -619,18 +597,18 @@ export namespace foundation::materials
                 return false;
             }
 
-            if (rhi::BindGroup** old = m_bindGroups.Find(&instance))
+            if (rhi::BindGroupHandle* old = m_bindGroups.Find(&instance))
             {
-                // Deferred free: the replaced group may still be bound by an in-flight frame,
-                // and destroying it now would leave that frame drawing with invalid descriptors.
-                m_retiredBindGroups.PushBack(RetiredBindGroup{*old, kRetireFrames});
+                // The replaced group may still be bound by an in-flight frame: the device keeps it
+                // until that frame has run.
+                m_device->DestroyBindGroup(*old);
                 m_bindGroups.Remove(&instance);
             }
 
             rhi::BindGroupDesc desc{};
             desc.layout = layout;
             desc.entries = Span<const rhi::BindGroupEntry>{entries.Data(), entries.Size()};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(desc, bg).IsOk())
             {
                 return false;
@@ -695,20 +673,15 @@ export namespace foundation::materials
             {
                 m_device->DestroyBindGroup(e.value);
             }
-            for (RetiredBindGroup& r : m_retiredBindGroups)
-            {
-                m_device->DestroyBindGroup(r.bg);
-            }
-            m_retiredBindGroups.Clear();
             for (auto& e : m_uniformBuffers)
             {
                 m_device->DestroyBuffer(e.value);
             }
             for (auto& e : m_effectBuffers)
             {
-                for (rhi::Buffer* b : e.value.buffers)
+                for (rhi::BufferHandle b : e.value.buffers)
                 {
-                    if (b != nullptr)
+                    if (b.IsValid())
                     {
                         m_device->DestroyBuffer(b);
                     }
@@ -773,34 +746,27 @@ export namespace foundation::materials
 
         rhi::Device* m_device = nullptr;
         rhi::Queue* m_queue = nullptr;
-        rhi::Sampler* m_defaultSampler = nullptr;
-        static constexpr u32 kRetireFrames = 3;
-        struct RetiredBindGroup
-        {
-            rhi::BindGroup* bg;
-            u32 framesLeft;
-        };
-        Array<RetiredBindGroup> m_retiredBindGroups;
+        rhi::SamplerHandle m_defaultSampler{};
 
-        rhi::Texture* m_whiteTex = nullptr;
-        rhi::TextureView* m_whiteView = nullptr;
-        rhi::Texture* m_normalTex = nullptr;
-        rhi::TextureView* m_normalView = nullptr;
-        rhi::Texture* m_blackTex = nullptr;
-        rhi::TextureView* m_blackView = nullptr;
-        rhi::Texture* m_whiteCubeTex = nullptr;
-        rhi::TextureView* m_whiteCubeView = nullptr;
+        rhi::TextureHandle m_whiteTex{};
+        rhi::TextureViewHandle m_whiteView{};
+        rhi::TextureHandle m_normalTex{};
+        rhi::TextureViewHandle m_normalView{};
+        rhi::TextureHandle m_blackTex{};
+        rhi::TextureViewHandle m_blackView{};
+        rhi::TextureHandle m_whiteCubeTex{};
+        rhi::TextureViewHandle m_whiteCubeView{};
 
-        HashMap<u64, rhi::BindGroupLayout*> m_layoutCache;
-        HashMap<u64, rhi::Sampler*> m_samplerCache;
-        HashMap<MaterialInstance*, rhi::Buffer*> m_uniformBuffers;
+        HashMap<u64, rhi::BindGroupLayoutHandle> m_layoutCache;
+        HashMap<u64, rhi::SamplerHandle> m_samplerCache;
+        HashMap<MaterialInstance*, rhi::BufferHandle> m_uniformBuffers;
         // Each instance's effect group buffers, by group index (null for a group without uniforms).
         struct EffectBuffers
         {
-            Array<rhi::Buffer*> buffers;
+            Array<rhi::BufferHandle> buffers;
         };
         HashMap<MaterialInstance*, EffectBuffers> m_effectBuffers;
-        HashMap<MaterialInstance*, rhi::BindGroup*> m_bindGroups;
+        HashMap<MaterialInstance*, rhi::BindGroupHandle> m_bindGroups;
     };
 
 } // namespace foundation::materials

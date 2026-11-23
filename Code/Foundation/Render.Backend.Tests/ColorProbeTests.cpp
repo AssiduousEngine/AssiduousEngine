@@ -62,7 +62,7 @@ namespace
     };
 
     // An sRGB 2x2 texture of one grey byte value.
-    rhi::Texture* MakeGreyTexture(rhi::Device& device, u8 value, rhi::TextureView*& view)
+    rhi::TextureHandle MakeGreyTexture(rhi::Device& device, u8 value, rhi::TextureViewHandle& view)
     {
         rhi::TextureDesc td{};
         td.format = rhi::TextureFormat::RGBA8UnormSrgb;
@@ -70,7 +70,7 @@ namespace
         td.height = 2;
         td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
         td.label = u8"probe.grey";
-        rhi::Texture* texture = nullptr;
+        rhi::TextureHandle texture{};
         REQUIRE(device.CreateTexture(td, texture).IsOk());
         u8 pixels[2 * 2 * 4];
         for (u32 i = 0; i < 4; ++i)
@@ -108,11 +108,11 @@ namespace
         td.height = kSize;
         td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
         td.label = u8"probe.target";
-        rhi::Texture* target = nullptr;
+        rhi::TextureHandle target{};
         REQUIRE(device.CreateTexture(td, target).IsOk());
         rhi::TextureViewDesc vd{};
         vd.format = rhi::TextureFormat::RGBA8UnormSrgb;
-        rhi::TextureView* targetView = nullptr;
+        rhi::TextureViewHandle targetView{};
         REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
         rhi::CommandPool* pool = nullptr;
         REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
@@ -224,10 +224,10 @@ TEST_CASE("colour probe: a material colour renders like a texture of the same va
         REQUIRE(tonemap.Initialize().IsOk());
         RenderFrame frame(DefaultAllocator(), device, registry, /*framesInFlight*/ 2, nullptr, &tonemap);
 
-        rhi::TextureView* greyView = nullptr;
-        rhi::Texture* grey = MakeGreyTexture(device, 128, greyView);
-        rhi::TextureView* whiteView = nullptr;
-        rhi::Texture* white = MakeGreyTexture(device, 255, whiteView);
+        rhi::TextureViewHandle greyView{};
+        rhi::TextureHandle grey = MakeGreyTexture(device, 128, greyView);
+        rhi::TextureViewHandle whiteView{};
+        rhi::TextureHandle white = MakeGreyTexture(device, 255, whiteView);
 
         // Left: the colour entered in the material (sRGB 0.5), over white. Right: white, over a
         // texture of byte 128 (sRGB 0.502). Unlit, so nothing but the colour reaches the pixel.

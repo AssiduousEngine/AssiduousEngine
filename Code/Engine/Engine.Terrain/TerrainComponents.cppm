@@ -93,19 +93,13 @@ export namespace engine::terrain
         [[nodiscard]] bool IsSimulationOnly() const noexcept override { return false; }
 
         /// Wired by the TerrainSubsystem after it creates and registers the TerrainRenderer: the
-        /// device for the height-texture uploads, the renderer's dispatch id stamped on each render
-        /// item, and the frame-aged retire queue so a regenerate or version bump never destroys a
-        /// texture an in-flight frame still samples.
-        void SetRenderContext(rhi::Device* device, u16 rendererId,
-                              render::GpuRetireQueue* retire = nullptr) noexcept
+        /// device for the height-texture uploads and the renderer's dispatch id stamped on each render
+        /// item. A regenerate or version bump destroys the old textures through the device, which
+        /// keeps them while a frame in flight still samples them.
+        void SetRenderContext(rhi::Device* device, u16 rendererId) noexcept
         {
             m_device = device;
             m_rendererId = rendererId;
-            m_heightTextures.SetRetireQueue(retire);
-            m_splatTextures.SetRetireQueue(retire);
-            m_paletteTextures.SetRetireQueue(retire);
-            m_holedMeshes.SetRetireQueue(retire);
-            m_holeTextures.SetRetireQueue(retire);
         }
 
         /// Tears down this manager's GPU-side state through the wired device. Called by the
@@ -172,9 +166,9 @@ export namespace engine::terrain
                         return;
                     }
                     // The GPU height texture (keyed by the heightfield; re-uploads on a version bump).
-                    rhi::TextureView* heightView =
+                    rhi::TextureViewHandle heightView =
                         m_heightTextures.GetOrCreate(*m_device, *hf, hf->Version());
-                    if (heightView == nullptr)
+                    if (!heightView.IsValid())
                     {
                         return;
                     }
@@ -197,9 +191,9 @@ export namespace engine::terrain
                         hf->Version());
                     const Span<const HoledChunkMesh> holedCopy =
                         holed.IsEmpty() ? Span<const HoledChunkMesh>{} : snapshot.AddArray(holed);
-                    rhi::TextureView* holeView =
+                    rhi::TextureViewHandle holeView =
                         hf->HasHoles() ? m_holeTextures.GetOrCreate(*m_device, *hf, hf->Version())
-                                       : nullptr;
+                                       : rhi::TextureViewHandle{};
 
                     TerrainRenderData* rd = snapshot.Add<TerrainRenderData>();
                     if (rd == nullptr)
@@ -263,7 +257,7 @@ export namespace engine::terrain
                     rd->heightBlendContrast = res->heightBlendContrast;
                     // The palette Texture2DArray and tileScale buffer (cook-built texels, cached by
                     // TerrainPaletteData::uid and the tile-scale hash; a palette edit re-cooks to a
-                    // new uid, which rebuilds and retires the old array).
+                    // new uid, which rebuilds and destroys the old array).
                     if (res->paletteData.Get() != nullptr && res->paletteData->IsValid())
                     {
                         Array<f32> scales;

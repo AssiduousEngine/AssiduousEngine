@@ -65,9 +65,9 @@ export namespace imgui
             {
                 return Status{ErrorCode::Unknown};
             }
-            rhi::BindGroupLayout* layouts[] = {m_layout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_layout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
             {
                 return Status{ErrorCode::Unknown};
@@ -160,8 +160,8 @@ export namespace imgui
                 return false;
             }
             EnsureFontUploaded(enc);
-            rhi::RenderPipeline* pipeline = EnsurePipeline(targetFormat, depthStencilFormat);
-            if (pipeline == nullptr)
+            rhi::RenderPipelineHandle pipeline = EnsurePipeline(targetFormat, depthStencilFormat);
+            if (!pipeline.IsValid())
             {
                 return false;
             }
@@ -171,10 +171,10 @@ export namespace imgui
                 return false;
             }
             const Float4x4 proj = Projection(target, windowToTarget);
-            if (void* p = slot.ubo->Map())
+            if (void* p = m_device->Map(slot.ubo))
             {
                 MemCopy(p, &proj, sizeof(Float4x4));
-                slot.ubo->Unmap();
+                m_device->Unmap(slot.ubo);
             }
             m_prepared = &slot;
             return true;
@@ -226,10 +226,10 @@ export namespace imgui
         // Records ImDrawData in a render pass of its own on `target`, loaded and drawn on top of the
         // scene, for an application with no render subsystem whose overlays would draw it. `enc` is
         // the frame's primary encoder; the font upload and buffer fills happen on it before the pass.
-        void Render(rhi::CommandEncoder& enc, rhi::TextureView* target, rhi::TextureFormat targetFormat, u32 width, u32 height,
+        void Render(rhi::CommandEncoder& enc, rhi::TextureViewHandle target, rhi::TextureFormat targetFormat, u32 width, u32 height,
                     const ImDrawData* drawData, u32 frameIndex)
         {
-            if (target == nullptr || width == 0 || height == 0)
+            if (!target.IsValid() || width == 0 || height == 0)
             {
                 return;
             }
@@ -264,12 +264,12 @@ export namespace imgui
         static constexpr u32 kMaxFIF = 4;
         struct FrameSlot
         {
-            rhi::Buffer* vtx = nullptr;
+            rhi::BufferHandle vtx{};
             u64 vtxCap = 0;
-            rhi::Buffer* idx = nullptr;
+            rhi::BufferHandle idx{};
             u64 idxCap = 0;
-            rhi::Buffer* ubo = nullptr;
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BufferHandle ubo{};
+            rhi::BindGroupHandle bindGroup{};
         };
 
         bool CreateFontAtlas()
@@ -311,10 +311,10 @@ export namespace imgui
             {
                 return false;
             }
-            if (void* p = m_fontStaging->Map())
+            if (void* p = m_device->Map(m_fontStaging))
             {
                 MemCopy(p, pixels, bytes);
-                m_fontStaging->Unmap();
+                m_device->Unmap(m_fontStaging);
             }
             m_fontW = static_cast<u32>(w);
             m_fontH = static_cast<u32>(h);
@@ -339,7 +339,7 @@ export namespace imgui
 
         void EnsureFontUploaded(rhi::CommandEncoder& enc)
         {
-            if (m_fontUploaded || m_fontTex == nullptr || m_fontStaging == nullptr)
+            if (m_fontUploaded || !m_fontTex.IsValid() || !m_fontStaging.IsValid())
             {
                 return;
             }
@@ -381,14 +381,14 @@ export namespace imgui
                 return false;
             }
 
-            auto* vdst = static_cast<u8*>(slot.vtx->Map());
-            auto* idst = static_cast<u8*>(slot.idx->Map());
+            auto* vdst = static_cast<u8*>(m_device->Map(slot.vtx));
+            auto* idst = static_cast<u8*>(m_device->Map(slot.idx));
             if (vdst == nullptr || idst == nullptr)
             {
                 if (vdst)
-                    slot.vtx->Unmap();
+                    m_device->Unmap(slot.vtx);
                 if (idst)
-                    slot.idx->Unmap();
+                    m_device->Unmap(slot.idx);
                 return false;
             }
             u64 vo = 0, io_ = 0;
@@ -402,22 +402,22 @@ export namespace imgui
                 MemCopy(idst + io_, cl->IdxBuffer.Data, ib);
                 io_ += ib;
             }
-            slot.vtx->Unmap();
-            slot.idx->Unmap();
+            m_device->Unmap(slot.vtx);
+            m_device->Unmap(slot.idx);
             return true;
         }
 
         // Grow a per-slot dynamic buffer to at least `bytes`, with 1.5x headroom, rounded to 64 KiB.
-        bool EnsureBuffer(rhi::Buffer*& buf, u64& cap, u64 bytes, rhi::BufferUsage usage)
+        bool EnsureBuffer(rhi::BufferHandle& buf, u64& cap, u64 bytes, rhi::BufferUsage usage)
         {
-            if (buf != nullptr && cap >= bytes)
+            if (buf.IsValid() && cap >= bytes)
             {
                 return true;
             }
-            if (buf != nullptr)
+            if (buf.IsValid())
             {
                 m_device->DestroyBuffer(buf);
-                buf = nullptr;
+                buf = {};
             }
             u64 want = (bytes + bytes / 2u + 0xFFFFu) & ~static_cast<u64>(0xFFFFu);
             rhi::BufferDesc bd{};
@@ -427,7 +427,7 @@ export namespace imgui
             bd.label = u8"imgui.geom";
             if (!m_device->CreateBuffer(bd, buf).IsOk())
             {
-                buf = nullptr;
+                buf = {};
                 cap = 0;
                 return false;
             }
@@ -437,24 +437,24 @@ export namespace imgui
 
         // The pipeline for a pass on a `fmt` target with `depthStencilFormat`'s attachment (Undefined
         // for none: a pass of its own); ImGui neither tests nor writes it.
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt, rhi::TextureFormat depthStencilFormat)
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat fmt, rhi::TextureFormat depthStencilFormat)
         {
-            if (m_pipeline != nullptr && m_pipelineFormat == fmt && m_pipelineDepthStencil == depthStencilFormat)
+            if (m_pipeline.IsValid() && m_pipelineFormat == fmt && m_pipelineDepthStencil == depthStencilFormat)
             {
                 return m_pipeline;
             }
-            rhi::ShaderModule* vs = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Vertex,
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Vertex,
                                                           shaders::ShaderFlags::None);
-            rhi::ShaderModule* ps = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Fragment,
+            rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Fragment,
                                                           shaders::ShaderFlags::None);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
-                return nullptr;
+                return {};
             }
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
 
             // ImDrawVert is { ImVec2 pos; ImVec2 uv; ImU32 col }: byte offsets 0, 8 and 16, stride 20.
@@ -494,8 +494,8 @@ export namespace imgui
             pd.label = u8"imgui";
             if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
             {
-                m_pipeline = nullptr;
-                return nullptr;
+                m_pipeline = {};
+                return {};
             }
             m_pipelineFormat = fmt;
             m_pipelineDepthStencil = depthStencilFormat;
@@ -509,58 +509,58 @@ export namespace imgui
                 if (m_frames[i].bindGroup)
                 {
                     m_device->DestroyBindGroup(m_frames[i].bindGroup);
-                    m_frames[i].bindGroup = nullptr;
+                    m_frames[i].bindGroup = {};
                 }
                 if (m_frames[i].ubo)
                 {
                     m_device->DestroyBuffer(m_frames[i].ubo);
-                    m_frames[i].ubo = nullptr;
+                    m_frames[i].ubo = {};
                 }
                 if (m_frames[i].vtx)
                 {
                     m_device->DestroyBuffer(m_frames[i].vtx);
-                    m_frames[i].vtx = nullptr;
+                    m_frames[i].vtx = {};
                 }
                 if (m_frames[i].idx)
                 {
                     m_device->DestroyBuffer(m_frames[i].idx);
-                    m_frames[i].idx = nullptr;
+                    m_frames[i].idx = {};
                 }
             }
             if (m_pipeline)
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
             if (m_sampler)
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
             if (m_fontStaging)
             {
                 m_device->DestroyBuffer(m_fontStaging);
-                m_fontStaging = nullptr;
+                m_fontStaging = {};
             }
             if (m_fontView)
             {
                 m_device->DestroyTextureView(m_fontView);
-                m_fontView = nullptr;
+                m_fontView = {};
             }
             if (m_fontTex)
             {
                 m_device->DestroyTexture(m_fontTex);
-                m_fontTex = nullptr;
+                m_fontTex = {};
             }
             if (m_pipelineLayout)
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
-                m_pipelineLayout = nullptr;
+                m_pipelineLayout = {};
             }
             if (m_layout)
             {
                 m_device->DestroyBindGroupLayout(m_layout);
-                m_layout = nullptr;
+                m_layout = {};
             }
         }
 
@@ -568,16 +568,16 @@ export namespace imgui
         shaders::ShaderSystem* m_shaders;
         u32 m_fif = 2;
 
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         rhi::TextureFormat m_pipelineFormat = rhi::TextureFormat::Undefined;
         rhi::TextureFormat m_pipelineDepthStencil = rhi::TextureFormat::Undefined;
 
-        rhi::Texture* m_fontTex = nullptr;
-        rhi::TextureView* m_fontView = nullptr;
-        rhi::Buffer* m_fontStaging = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::TextureHandle m_fontTex{};
+        rhi::TextureViewHandle m_fontView{};
+        rhi::BufferHandle m_fontStaging{};
+        rhi::SamplerHandle m_sampler{};
         u32 m_fontW = 0, m_fontH = 0;
         bool m_fontUploaded = false;
 #if PLATFORM_WEB

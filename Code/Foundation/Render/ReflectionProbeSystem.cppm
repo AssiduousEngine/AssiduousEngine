@@ -25,7 +25,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :data; // ReflectionProbe, kMaxReflectionProbes, ProbeUpdateMode
-import :resources; // GpuRetireQueue (a resize's old arrays)
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -34,7 +34,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // GPU-side probe record (set-0 t9 StructuredBuffer), 64 bytes. Packed so the forward can, per fragment,
     // pick the probe, box-project the reflection ray, and index its cube-array slice.
     // As lighting.hlsli declares it; Integration.ShaderBlocks checks the two agree.
@@ -80,10 +79,6 @@ export namespace foundation::render
         ~ReflectionProbeSystem() { DestroyResources(); }
 
         Status Initialize();
-
-        /// Wire the frames-in-flight retire queue: a resize retires the old arrays and their views,
-        /// rather than freeing them while a frame in flight may still sample them. Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
         /// Every probe's face resolution from now on (a quality level's environment tier). At the next
         /// BeginFrame the arrays are remade at it, and every probe is captured once more.
@@ -165,10 +160,10 @@ export namespace foundation::render
         // Resources (consumed by the forward, and by capture and prefilter).
         // The captured cube array as a sample view: the whole-array view used for the render-target import, a
         // stable single-allocation view. The forward samples PrefilterArrayView (set-0 t8).
-        [[nodiscard]] rhi::TextureView* CapturedSampleView() const noexcept;
-        [[nodiscard]] rhi::TextureView* PrefilterArrayView() const noexcept;
-        [[nodiscard]] rhi::Buffer* ProbeBuffer() const noexcept { return m_probeBuffer; }
-        [[nodiscard]] rhi::Sampler* Sampler() const noexcept { return m_sampler; }
+        [[nodiscard]] rhi::TextureViewHandle CapturedSampleView() const noexcept;
+        [[nodiscard]] rhi::TextureViewHandle PrefilterArrayView() const noexcept;
+        [[nodiscard]] rhi::BufferHandle ProbeBuffer() const noexcept { return m_probeBuffer; }
+        [[nodiscard]] rhi::SamplerHandle Sampler() const noexcept { return m_sampler; }
 
     private:
         static constexpr u32 kInvalidSlot = 0xFFFFFFFFu;
@@ -195,11 +190,10 @@ export namespace foundation::render
 
         bool CreateResources();
         // The captured and prefiltered cube arrays and their array views, at m_resolution; and their
-        // release with every slot's face views and bind groups over them (retired through the queue
-        // when wired, else after draining the device).
+        // release with every slot's face views and bind groups over them (the device keeps them while
+        // frames in flight sample them).
         bool CreateArrays();
         void ReleaseArrays();
-        GpuRetireQueue* m_retire = nullptr; // borrowed
         u32 m_resolution = 128;      // the arrays' size from now on (SetResolution)
         u32 m_arraysResolution = 0;  // the size the arrays were made at
 
@@ -208,12 +202,12 @@ export namespace foundation::render
         // Lazily create (and cache) a probe slot and face's captured 2D-layer SRV and its blit bind group.
         // Sampling the single face layer as a Texture2D (not the cube) keeps filtering inside the face, so
         // there are no seams.
-        rhi::BindGroup* EnsureFaceBlit(u32 slot, u32 face);
+        rhi::BindGroupHandle EnsureFaceBlit(u32 slot, u32 face);
 
         bool CreatePrefilterPipeline();
 
         // Per-slot source cube view (prefiltered mip 0 as a TextureCube) and its prefilter bind group.
-        rhi::BindGroup* EnsurePrefilterSource(u32 slot);
+        rhi::BindGroupHandle EnsurePrefilterSource(u32 slot);
 
         void DestroyResources();
 
@@ -222,32 +216,32 @@ export namespace foundation::render
 
         // Captured-to-prefiltered flip blit (corrects the RH-LookAt mirror). Per-face 2D SRVs and bind groups so
         // filtering stays within a face (no cross-face seams in smooth gradients like the sky).
-        rhi::BindGroupLayout* m_blitLayout = nullptr;
-        rhi::PipelineLayout* m_blitPipeLayout = nullptr;
-        rhi::RenderPipeline* m_blitPipeline = nullptr;
-        rhi::TextureView* m_capturedFaceView[kMaxProbes * 6] = {};
-        rhi::BindGroup* m_blitFaceBG[kMaxProbes * 6] = {};
+        rhi::BindGroupLayoutHandle m_blitLayout{};
+        rhi::PipelineLayoutHandle m_blitPipeLayout{};
+        rhi::RenderPipelineHandle m_blitPipeline{};
+        rhi::TextureViewHandle m_capturedFaceView[kMaxProbes * 6] = {};
+        rhi::BindGroupHandle m_blitFaceBG[kMaxProbes * 6] = {};
 
         // GGX roughness prefilter (prefiltered mip 0 into mips 1..N-1).
-        rhi::BindGroupLayout* m_prefilterLayout = nullptr;
-        rhi::PipelineLayout* m_prefilterPipeLayout = nullptr;
+        rhi::BindGroupLayoutHandle m_prefilterLayout{};
+        rhi::PipelineLayoutHandle m_prefilterPipeLayout{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::RenderPipeline* m_prefilterPipeline = nullptr;
-        rhi::TextureView* m_prefilterSrcView[kMaxProbes] =
+        rhi::RenderPipelineHandle m_prefilterPipeline{};
+        rhi::TextureViewHandle m_prefilterSrcView[kMaxProbes] =
             {}; // per-slot mip-0 cube view (convolution source)
-        rhi::BindGroup* m_prefilterSrcBG[kMaxProbes] = {};
+        rhi::BindGroupHandle m_prefilterSrcBG[kMaxProbes] = {};
 
-        rhi::Texture* m_capturedCube = nullptr;
-        rhi::TextureView* m_capturedArrayView = nullptr;
+        rhi::TextureHandle m_capturedCube{};
+        rhi::TextureViewHandle m_capturedArrayView{};
         rhi::ResourceState m_capturedState =
             rhi::ResourceState::Undefined; // persists across frames (import)
         bool m_layoutsInit = false;        // one-time whole-array ShaderRead init
-        rhi::Texture* m_prefilterCube = nullptr;
-        rhi::TextureView* m_prefilterArrayView = nullptr;
+        rhi::TextureHandle m_prefilterCube{};
+        rhi::TextureViewHandle m_prefilterArrayView{};
         rhi::ResourceState m_prefilterState =
             rhi::ResourceState::Undefined; // persists across frames (import)
-        rhi::Buffer* m_probeBuffer = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::BufferHandle m_probeBuffer{};
+        rhi::SamplerHandle m_sampler{};
 
         Array<CaptureTask> m_captures; // dirty probes to (re)capture this frame
 

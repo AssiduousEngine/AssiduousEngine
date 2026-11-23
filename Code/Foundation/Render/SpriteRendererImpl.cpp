@@ -26,7 +26,7 @@ import foundation.shaders.system;
 import :data;
 import :pipeline;
 import :resources;
-import :bind_group_cache; // RetireBindGroup
+import :bind_group_cache;
 
 using namespace foundation::core;
 namespace shaders = foundation::shaders;
@@ -36,7 +36,6 @@ namespace foundation::render
 {
     Status SpriteRenderer::Initialize()
     {
-
         // set 0: view UBO (dynamic offset, VS). set 1: sprite texture and sampler (FS).
         rhi::BindGroupLayoutEntry viewEntry =
             rhi::BindGroupLayoutEntry::UniformBuffer(0, rhi::ShaderStage::Vertex);
@@ -59,9 +58,9 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        rhi::BindGroupLayout* layouts[] = {m_viewLayout, m_texLayout};
+        rhi::BindGroupLayoutHandle layouts[] = {m_viewLayout, m_texLayout};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 2};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 2};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
             return Status{ErrorCode::Unknown};
@@ -89,10 +88,10 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        if (void* p = m_indexBuffer->Map())
+        if (void* p = m_device->Map(m_indexBuffer))
         {
             MemCopy(p, indices, sizeof(indices));
-            m_indexBuffer->Unmap();
+            m_device->Unmap(m_indexBuffer);
         }
 
         return Status{};
@@ -121,8 +120,8 @@ namespace foundation::render
             return;
         }
         m_depthFormat = ctx.depthFormat; // match the blended pass's depth attachment (for the PSO)
-        rhi::BindGroup* viewBg = EnsureViewBindGroup();
-        if (viewBg == nullptr)
+        rhi::BindGroupHandle viewBg = EnsureViewBindGroup();
+        if (!viewBg.IsValid())
         {
             return;
         }
@@ -173,9 +172,9 @@ namespace foundation::render
                     si.axisUp = s->axisUp;
                     si._pad3 = 0.0f;
                 }
-                rhi::RenderPipeline* pso = EnsurePipeline(ctx.colorFormat, head->additive);
-                rhi::BindGroup* texBg = EnsureTextureBindGroup(head->texture);
-                if (pso != nullptr && texBg != nullptr)
+                rhi::RenderPipelineHandle pso = EnsurePipeline(ctx.colorFormat, head->additive);
+                rhi::BindGroupHandle texBg = EnsureTextureBindGroup(head->texture);
+                if (pso.IsValid() && texBg.IsValid())
                 {
                     ResolvedDraw d{};
                     d.pso = pso;
@@ -202,21 +201,21 @@ namespace foundation::render
         m_viewRing.EndFrame();
     }
 
-    rhi::BindGroup* SpriteRenderer::EnsureViewBindGroup()
+    rhi::BindGroupHandle SpriteRenderer::EnsureViewBindGroup()
     {
         const u32 gen = m_viewRing.Generation();
-        if (m_viewBg != nullptr && m_viewBgGen == gen)
+        if (m_viewBg.IsValid() && m_viewBgGen == gen)
         {
             return m_viewBg;
         }
-        if (m_viewBg != nullptr)
+        if (m_viewBg.IsValid())
         {
-            RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
-            m_viewBg = nullptr;
+            m_device->DestroyBindGroup(m_viewBg); // kept by the device while a frame in flight uses it
+            m_viewBg = {};
         }
-        if (m_viewRing.Buffer() == nullptr)
+        if (!m_viewRing.Buffer().IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::BindGroupEntry e =
             rhi::BindGroupEntry::BufferEntry(m_viewRing.Buffer(), 0, kViewSlotSize);
@@ -225,31 +224,22 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{&e, 1};
         if (!m_device->CreateBindGroup(bgd, m_viewBg).IsOk())
         {
-            m_viewBg = nullptr;
-            return nullptr;
+            m_viewBg = {};
+            return {};
         }
         m_viewBgGen = gen;
         return m_viewBg;
     }
 
-    rhi::BindGroup* SpriteRenderer::EnsureTextureBindGroup(rhi::TextureView* tex)
+    rhi::BindGroupHandle SpriteRenderer::EnsureTextureBindGroup(rhi::TextureViewHandle tex)
     {
-        if (tex == nullptr)
+        if (!tex.IsValid())
         {
-            return nullptr;
+            return {};
         }
-        if (TexBindGroup* found = m_texBindGroups.Find(tex))
+        if (rhi::BindGroupHandle* found = m_texBindGroups.Find(tex))
         {
-            if (found->viewId == tex->uniqueId)
-            {
-                return found->bindGroup;
-            }
-            // Address reuse: the cached group references a destroyed view, so rebuild.
-            if (found->bindGroup != nullptr)
-            {
-                m_device->DestroyBindGroup(found->bindGroup);
-            }
-            m_texBindGroups.Remove(tex);
+            return *found;
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(tex),
@@ -258,16 +248,17 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_texLayout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 2};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
-        m_texBindGroups.InsertOrAssign(tex, TexBindGroup{bg, tex->uniqueId});
+        DropGroupsOfDestroyedViews(*m_device, m_texBindGroups);
+        m_texBindGroups.InsertOrAssign(tex, bg);
         return bg;
     }
 
-    rhi::RenderPipeline* SpriteRenderer::EnsurePipeline(rhi::TextureFormat colorFormat,
+    rhi::RenderPipelineHandle SpriteRenderer::EnsurePipeline(rhi::TextureFormat colorFormat,
                                                         bool additive)
     {
         const u64 shaderVersion = m_shaders->Version(u8"sprite"); // hot reload rebuilds
@@ -289,23 +280,23 @@ namespace foundation::render
             entry = &m_pipelines[m_pipelines.Size() - 1];
         }
         Pipelines& p = *entry;
-        if (p.pso != nullptr && p.shaderVersion == shaderVersion)
+        if (p.pso.IsValid() && p.shaderVersion == shaderVersion)
         {
             return p.pso;
         }
-        if (p.pso != nullptr)
+        if (p.pso.IsValid())
         {
             m_device->DestroyRenderPipeline(p.pso);
-            p.pso = nullptr;
+            p.pso = {};
         }
 
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"sprite", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"sprite", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"sprite", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"sprite", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
 
         // Six float4s, each carrying SpriteInstance's named fields at its offset asserts.
@@ -348,10 +339,10 @@ namespace foundation::render
         pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.label = additive ? u8"sprite.additive" : u8"sprite.alpha";
-        rhi::RenderPipeline* pso = nullptr;
+        rhi::RenderPipelineHandle pso{};
         if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
         {
-            return nullptr;
+            return {};
         }
         p.pso = pso;
         p.shaderVersion = shaderVersion;
@@ -362,50 +353,50 @@ namespace foundation::render
     {
         for (auto& kv : m_texBindGroups)
         {
-            if (kv.value.bindGroup != nullptr)
+            if (kv.value.IsValid())
             {
-                m_device->DestroyBindGroup(kv.value.bindGroup);
+                m_device->DestroyBindGroup(kv.value);
             }
         }
         m_texBindGroups.Clear();
-        if (m_viewBg != nullptr)
+        if (m_viewBg.IsValid())
         {
             m_device->DestroyBindGroup(m_viewBg);
-            m_viewBg = nullptr;
+            m_viewBg = {};
         }
         for (Pipelines& p : m_pipelines)
         {
-            if (p.pso != nullptr)
+            if (p.pso.IsValid())
             {
                 m_device->DestroyRenderPipeline(p.pso);
-                p.pso = nullptr;
+                p.pso = {};
             }
         }
         m_pipelines.Clear();
-        if (m_indexBuffer != nullptr)
+        if (m_indexBuffer.IsValid())
         {
             m_device->DestroyBuffer(m_indexBuffer);
-            m_indexBuffer = nullptr;
+            m_indexBuffer = {};
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
-        if (m_pipelineLayout != nullptr)
+        if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
-        if (m_texLayout != nullptr)
+        if (m_texLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_texLayout);
-            m_texLayout = nullptr;
+            m_texLayout = {};
         }
-        if (m_viewLayout != nullptr)
+        if (m_viewLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_viewLayout);
-            m_viewLayout = nullptr;
+            m_viewLayout = {};
         }
     }
 }

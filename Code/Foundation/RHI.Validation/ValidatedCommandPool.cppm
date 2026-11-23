@@ -21,8 +21,9 @@ export namespace foundation::rhi::validation
     class ValidatedCommandPool : public CommandPool
     {
     public:
-        explicit ValidatedCommandPool(CommandPool* inner, IAllocator& allocator)
-            : m_inner(inner), m_allocator(allocator)
+        /// `device` is the inner device, which validation asks what a handle names.
+        ValidatedCommandPool(CommandPool* inner, IAllocator& allocator, const Device* device)
+            : m_inner(inner), m_allocator(allocator), m_device(device)
         {
         }
 
@@ -37,7 +38,7 @@ export namespace foundation::rhi::validation
                 out = nullptr;
                 return r;
             }
-            out = m_allocator.New<ValidatedCommandEncoder>(innerEnc, m_allocator);
+            out = m_allocator.New<ValidatedCommandEncoder>(innerEnc, m_allocator, m_device);
             return ErrorCode::Ok;
         }
 
@@ -89,6 +90,7 @@ export namespace foundation::rhi::validation
 
         CommandPool* m_inner;
         IAllocator& m_allocator;
+        const Device* m_device;
         Array<ValidatedRenderBundleEncoder*> m_bundleEncoders; // wrappers freed on Reset
     };
 

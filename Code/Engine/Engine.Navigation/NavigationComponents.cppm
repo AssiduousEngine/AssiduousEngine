@@ -21,6 +21,7 @@ export module engine.navigation:components;
 import foundation.core;
 import foundation.scene;
 import foundation.resource;
+import foundation.navigation;
 import foundation.navigation.resource;
 
 using namespace foundation::core;
@@ -71,7 +72,7 @@ export namespace engine::navigation
         bool avoidOthers = true;
 
         // Runtime (transient):
-        i32 agentId = -1;   // crowd agent handle within its zone, -1 = not registered
+        foundation::navigation::NavigationAgentId agentId; // in its zone's crowd; invalid = not registered
         bool registered = false; // tried for a crowd (at the start, or on the first update after it was added)
         i32 zoneIndex = -1; // subsystem live-zone index, -1 = outside every zone
         Float3 target{0, 0, 0};
@@ -257,7 +258,7 @@ export namespace engine::navigation
         struct ReleasedAgent
         {
             i32 zoneIndex = -1;
-            i32 agentId = -1;
+            foundation::navigation::NavigationAgentId agentId;
         };
         [[nodiscard]] Array<ReleasedAgent> TakeReleased()
         {
@@ -269,7 +270,7 @@ export namespace engine::navigation
     protected:
         void OnComponentDestroyed(NavAgentComponent& c, foundation::scene::EntityHandle) override
         {
-            if (c.agentId >= 0)
+            if (c.agentId.IsValid())
             {
                 m_released.PushBack(ReleasedAgent{c.zoneIndex, c.agentId});
             }

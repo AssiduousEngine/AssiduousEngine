@@ -30,20 +30,20 @@ export namespace foundation::gui
 {
     struct VgShaderSet
     {
-        rhi::ShaderModule* Vertex = nullptr;
-        rhi::ShaderModule* Fragment = nullptr;
-        rhi::ShaderModule* GradientRadial = nullptr;
-        rhi::ShaderModule* GradientConic = nullptr;
-        rhi::ShaderModule* DistanceField = nullptr;
-        rhi::ShaderModule* BoxShadow = nullptr;
-        rhi::ShaderModule* BoxVertex = nullptr;
-        rhi::ShaderModule* BoxFragment = nullptr;
-        rhi::ShaderModule* Layer = nullptr;
-        rhi::ShaderModule* BlurVertex = nullptr;
-        rhi::ShaderModule* BlurFragment = nullptr;
+        rhi::ShaderModuleHandle Vertex{};
+        rhi::ShaderModuleHandle Fragment{};
+        rhi::ShaderModuleHandle GradientRadial{};
+        rhi::ShaderModuleHandle GradientConic{};
+        rhi::ShaderModuleHandle DistanceField{};
+        rhi::ShaderModuleHandle BoxShadow{};
+        rhi::ShaderModuleHandle BoxVertex{};
+        rhi::ShaderModuleHandle BoxFragment{};
+        rhi::ShaderModuleHandle Layer{};
+        rhi::ShaderModuleHandle BlurVertex{};
+        rhi::ShaderModuleHandle BlurFragment{};
 
         /// Whether anything can be drawn: the two shaders every draw needs are present.
-        [[nodiscard]] bool IsUsable() const noexcept { return Vertex != nullptr && Fragment != nullptr; }
+        [[nodiscard]] bool IsUsable() const noexcept { return Vertex.IsValid() && Fragment.IsValid(); }
     };
 
     /// The VG shaders from an application's data mount. It owns them, and must outlive the hosts

@@ -51,10 +51,10 @@ private:
     foundation::core::Status createIndirectBuffer();
     foundation::core::Status createLineGeometry();
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_indirectBuf = nullptr, *m_lineVb = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline *m_fillPipeline = nullptr, *m_linePipeline = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::BufferHandle m_vb{}, m_ib{}, m_indirectBuf{}, m_lineVb{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_fillPipeline{}, m_linePipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;

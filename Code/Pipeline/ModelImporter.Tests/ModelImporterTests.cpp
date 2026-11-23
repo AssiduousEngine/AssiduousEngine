@@ -475,7 +475,7 @@ TEST_CASE("model-import: a bound material carries its albedo texture")
         }
     }
     REQUIRE(albedoIndex >= 0);
-    CHECK(material->GetDefaultTexture(static_cast<usize>(albedoIndex)) != nullptr);
+    CHECK(material->GetDefaultTexture(static_cast<usize>(albedoIndex)).IsValid());
 
     cleanTree();
 }

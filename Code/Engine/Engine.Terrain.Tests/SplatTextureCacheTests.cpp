@@ -3,7 +3,8 @@
 
 // The GPU splat caches (engine.terrain :splattexture, top-K model): the weight and index texture
 // pair per SplatWeights, keyed by uid (two rasters at the same address must not alias); a paint's
-// version bump retires the old pair through the queue (never a direct in-flight destroy); the
+// version bump destroys the old pair through the device (which keeps it while frames in flight
+// sample it); the
 // palette Texture2DArray and tileScale-buffer cache keyed by TerrainPaletteData::uid and the scale
 // hash; Clear frees at shutdown; and the manager's extract derives both from a weights-bearing
 // terrain.
@@ -40,21 +41,18 @@ namespace
     }
 }
 
-TEST_CASE("splat cache: GetOrCreate caches the PAIR by uid+version; a bump retires + rebuilds")
+TEST_CASE("splat cache: GetOrCreate caches the PAIR by uid+version; a bump destroys and rebuilds")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    render::GpuRetireQueue retire;
-    retire.Initialize(&device, 2);
 
     engine::terrain::TerrainSplatTextureCache cache;
-    cache.SetRetireQueue(&retire);
 
     RefPtr<terrain::SplatWeights> sw = MakeRef<terrain::SplatWeights>(DefaultAllocator(), 8, 8);
     (void)terrain::PaintTopK(*sw, 0.5f, 0.5f, 0.5f, 0.5f, 3u, 1.0f);
 
     const engine::terrain::SplatTextureViews v1 = cache.GetOrCreate(device, *sw, sw->Version());
-    REQUIRE(v1.weightView != nullptr);
-    REQUIRE(v1.indexView != nullptr);
+    REQUIRE(v1.weightView.IsValid());
+    REQUIRE(v1.indexView.IsValid());
     CHECK(v1.weightView != v1.indexView);
     CHECK(cache.Size() == 1u);
     // The same uid and version return the same views (no rebuild).
@@ -62,24 +60,23 @@ TEST_CASE("splat cache: GetOrCreate caches the PAIR by uid+version; a bump retir
     CHECK(again.weightView == v1.weightView);
     CHECK(again.indexView == v1.indexView);
     CHECK(cache.Size() == 1u);
-    CHECK(retire.PendingCount() == 0u);
 
     // A paint bumps the version: the entry rebuilds in place and both old textures and views are
-    // retired (not destroyed), since a submitted frame still samples them through the set-3 group.
+    // destroyed (the device keeps them while a submitted frame samples them through the set-3 group).
     sw->BumpVersion();
     const engine::terrain::SplatTextureViews v2 = cache.GetOrCreate(device, *sw, sw->Version());
-    REQUIRE(v2.weightView != nullptr);
+    REQUIRE(v2.weightView.IsValid());
     CHECK(v2.weightView != v1.weightView);
     CHECK(v2.indexView != v1.indexView);
-    CHECK(cache.Size() == 1u);          // still one entry (rebuilt in place)
-    CHECK(retire.PendingCount() == 4u); // 2 textures + 2 views queued, not freed
+    CHECK(cache.Size() == 1u); // still one entry (rebuilt in place)
+    CHECK_FALSE(device.IsLive(v1.weightView));
+    CHECK_FALSE(device.IsLive(v1.indexView));
 
-    // Clear with the queue wired retires the live pair too (a scene destroy mid frame is the same
-    // in-flight hazard as the rebuild); the drain frees everything (ASAN).
+    // Clear destroys the live pair too (a scene destroy mid frame is the same in-flight case as
+    // the rebuild).
     cache.Clear(device);
-    CHECK(retire.PendingCount() == 8u); // the rebuilt pair joins the retired pair
-    retire.Flush();
-    retire.Flush();
+    CHECK_FALSE(device.IsLive(v2.weightView));
+    CHECK_FALSE(device.IsLive(v2.indexView));
 }
 
 TEST_CASE("splat cache: keyed by uid, so two distinct rasters never alias")
@@ -93,8 +90,8 @@ TEST_CASE("splat cache: keyed by uid, so two distinct rasters never alias")
 
     const engine::terrain::SplatTextureViews va = cache.GetOrCreate(device, *a, a->Version());
     const engine::terrain::SplatTextureViews vb = cache.GetOrCreate(device, *b, b->Version());
-    REQUIRE(va.weightView != nullptr);
-    REQUIRE(vb.weightView != nullptr);
+    REQUIRE(va.weightView.IsValid());
+    REQUIRE(vb.weightView.IsValid());
     CHECK(va.weightView != vb.weightView);
     CHECK(va.indexView != vb.indexView);
     CHECK(cache.Size() == 2u);
@@ -110,19 +107,16 @@ TEST_CASE("splat cache: an empty raster yields no textures")
     terrain::SplatWeights empty; // default = 0x0
     const engine::terrain::SplatTextureViews views =
         cache.GetOrCreate(device, empty, empty.Version());
-    CHECK(views.weightView == nullptr);
-    CHECK(views.indexView == nullptr);
+    CHECK(!views.weightView.IsValid());
+    CHECK(!views.indexView.IsValid());
     CHECK(cache.Size() == 0u);
 }
 
 TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit rebuilds")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    render::GpuRetireQueue retire;
-    retire.Initialize(&device, 2);
 
     engine::terrain::TerrainPaletteTextureCache cache;
-    cache.SetRetireQueue(&retire);
 
     RefPtr<terrain::TerrainPaletteData> data = MakePalette(3);
     Array<f32> scales;
@@ -132,8 +126,8 @@ TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit 
 
     const engine::terrain::PaletteGpu p1 =
         cache.GetOrCreate(device, *data, Span<const f32>{scales.Data(), scales.Size()});
-    REQUIRE(p1.arrayView != nullptr);
-    REQUIRE(p1.tileScaleBuffer != nullptr);
+    REQUIRE(p1.arrayView.IsValid());
+    REQUIRE(p1.tileScaleBuffer.IsValid());
     CHECK(p1.generation == 1u);
     CHECK(cache.Size() == 1u);
     // The same uid and scales: the same objects (no rebuild).
@@ -142,33 +136,32 @@ TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit 
     CHECK(same.arrayView == p1.arrayView);
     CHECK(same.tileScaleBuffer == p1.tileScaleBuffer);
     CHECK(same.generation == p1.generation);
-    CHECK(retire.PendingCount() == 0u);
 
-    // A per-layer tile-scale edit (no re-cook: same uid) rebuilds with the old set retired and a
+    // A per-layer tile-scale edit (no re-cook: same uid) rebuilds with the old set destroyed and a
     // bumped generation, which the set-3 bind cache keys on.
     scales[1] = 16.0f;
     const engine::terrain::PaletteGpu p2 =
         cache.GetOrCreate(device, *data, Span<const f32>{scales.Data(), scales.Size()});
-    REQUIRE(p2.arrayView != nullptr);
+    REQUIRE(p2.arrayView.IsValid());
     CHECK(p2.generation == 2u);
     CHECK(cache.Size() == 1u);
-    CHECK(retire.PendingCount() == 3u); // old array texture, view and tileScale buffer
+    CHECK_FALSE(device.IsLive(p1.arrayView)); // the old array texture and view went with it
 
     // A palette re-cook makes a new TerrainPaletteData (a new uid), so a second entry.
     RefPtr<terrain::TerrainPaletteData> recooked = MakePalette(3);
     CHECK(recooked->uid != data->uid);
     const engine::terrain::PaletteGpu p3 =
         cache.GetOrCreate(device, *recooked, Span<const f32>{scales.Data(), scales.Size()});
-    REQUIRE(p3.arrayView != nullptr);
+    REQUIRE(p3.arrayView.IsValid());
     CHECK(p3.arrayView != p2.arrayView);
     CHECK(cache.Size() == 2u);
 
-    // Clear with the queue wired retires both live entries (3 objects each) behind the 3 already
-    // aging: a scene destroy mid frame never frees a bound array texture.
+    // Clear destroys both live entries; the device keeps a bound array texture until the frames in
+    // flight are done with it.
     cache.Clear(device);
     CHECK(cache.Size() == 0u);
-    CHECK(retire.PendingCount() == 9u);
-    retire.Flush();
+    CHECK_FALSE(device.IsLive(p2.arrayView));
+    CHECK_FALSE(device.IsLive(p3.arrayView));
 }
 
 TEST_CASE("palette cache: invalid palette data yields nothing")
@@ -177,8 +170,8 @@ TEST_CASE("palette cache: invalid palette data yields nothing")
     engine::terrain::TerrainPaletteTextureCache cache;
     terrain::TerrainPaletteData bad; // zero-sized = invalid
     const engine::terrain::PaletteGpu p = cache.GetOrCreate(device, bad, Span<const f32>{});
-    CHECK(p.arrayView == nullptr);
-    CHECK(p.tileScaleBuffer == nullptr);
+    CHECK(!p.arrayView.IsValid());
+    CHECK(!p.tileScaleBuffer.IsValid());
     CHECK(cache.Size() == 0u);
 }
 
@@ -190,7 +183,7 @@ TEST_CASE("engine.terrain: a weights-bearing terrain derives the splat pair + pa
     engine::terrain::AddTerrainSceneManagers(sceneObj);
     auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
     REQUIRE(mgr != nullptr);
-    mgr->SetRenderContext(&device, 7, nullptr);
+    mgr->SetRenderContext(&device, 7);
 
     // In-memory terrain: heightfield (for the draw), CPU weights and a cook-shaped palette.
     RefPtr<foundation::heightfield::Heightfield> grid =

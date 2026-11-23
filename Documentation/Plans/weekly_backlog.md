@@ -22,6 +22,16 @@ Proposed and still wanted; each spec holds its design:
 - `Specs/script-run-modules.md`: one script module per run, hot reload that migrates live state, P0
   to P2. Its origin was a fault seen on the Sedulous side; whether it is wanted here is the user's.
 
+## Left over from the RHI handles spec (archived 2026-11-23)
+
+- The Validation layer's encoders check a bound pipeline only for null, not that it is live
+  (`ValidatedRenderPassEncoder::SetPipeline`); a GPU backend's lookup reports a stale one, the
+  layer does not. Bind groups and buffers bound through the encoders: the same check, to see.
+- `EntityHandle` stays the scene's own (user, 2026-11-22); whether it moves onto Core handles is
+  in `backlog-0.2.md`.
+- Millbrook's ending warns that its camera track has no entity: the script binds `EndingCamera`
+  after `play` has begun the tracks. Found on the handles branch's sample tour, older than it.
+
 ## Left over from the specs archived 2026-11-02
 
 The specs were checked against the code and the history and moved to `Documentation/Archive/`;

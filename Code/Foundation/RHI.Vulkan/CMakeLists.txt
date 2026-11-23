@@ -23,6 +23,7 @@ target_sources(RHI.Vulkan
             VkTexture.cppm
             VkTextureView.cppm
             VkSampler.cppm
+            VkTables.cppm
             VkShaderModule.cppm
             VkFence.cppm
             VkQuerySet.cppm
@@ -38,6 +39,7 @@ target_sources(RHI.Vulkan
             VkBindGroup.cppm
             VkSwapChain.cppm
             VkQueue.cppm
+            VkQueueTimeline.cppm
             VkCommandPool.cppm
             VkRenderBundleEncoder.cppm
             VkRenderPassEncoder.cppm

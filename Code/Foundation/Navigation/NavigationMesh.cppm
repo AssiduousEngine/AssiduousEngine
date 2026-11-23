@@ -138,6 +138,11 @@ export namespace foundation::navigation
         UniquePtr<Impl> m_impl;
     };
 
+    /// An agent in a NavigationCrowd: stale once removed, so a kept copy never names the agent the
+    /// crowd puts in its place next.
+    struct NavigationAgentTag;
+    using NavigationAgentId = Handle<NavigationAgentTag>;
+
     // A Detour crowd bound to one NavigationMesh: agents steer toward per-agent targets and
     // avoid each other. Move-only. The mesh must outlive the crowd. One crowd per navmesh
     // (Detour builds its internal query against a single mesh).
@@ -154,32 +159,32 @@ export namespace foundation::navigation
 
         [[nodiscard]] bool IsValid() const noexcept;
 
-        // Add an agent at `position` (snapped to the nearest polygon). Returns an agent id
-        // (>= 0) or -1 on failure (crowd full, off-mesh spawn, invalid crowd).
-        [[nodiscard]] i32 AddAgent(Float3 position, const NavigationAgentParams& params);
-        void RemoveAgent(i32 agentId);
+        // Add an agent at `position` (snapped to the nearest polygon). Returns its id, or an
+        // invalid one on failure (crowd full, off-mesh spawn, invalid crowd).
+        [[nodiscard]] NavigationAgentId AddAgent(Float3 position, const NavigationAgentParams& params);
+        void RemoveAgent(NavigationAgentId agentId);
 
         // Update a live agent's steering profile (speed, acceleration, radius, height): per-call
         // speed control without removing and re-adding it. No-op for invalid agents.
-        void SetAgentParams(i32 agentId, const NavigationAgentParams& params);
+        void SetAgentParams(NavigationAgentId agentId, const NavigationAgentParams& params);
 
         // Steer the agent toward `target` (snapped to the nearest polygon). False if the agent
         // is invalid or the target has no polygon within the search box.
-        [[nodiscard]] bool SetTarget(i32 agentId, Float3 target);
+        [[nodiscard]] bool SetTarget(NavigationAgentId agentId, Float3 target);
         // Drive the agent at `velocity` (m/s, the crowd's space) instead of to a point: no path, the
         // crowd keeps it on the navmesh and avoiding others (a player's stick). False if invalid.
-        [[nodiscard]] bool SetVelocity(i32 agentId, Float3 velocity);
-        void ClearTarget(i32 agentId);
+        [[nodiscard]] bool SetVelocity(NavigationAgentId agentId, Float3 velocity);
+        void ClearTarget(NavigationAgentId agentId);
 
         void Update(f32 deltaTime);
 
-        [[nodiscard]] Float3 AgentPosition(i32 agentId) const;
-        [[nodiscard]] Float3 AgentVelocity(i32 agentId) const;
-        [[nodiscard]] bool IsAgentValid(i32 agentId) const;
+        [[nodiscard]] Float3 AgentPosition(NavigationAgentId agentId) const;
+        [[nodiscard]] Float3 AgentVelocity(NavigationAgentId agentId) const;
+        [[nodiscard]] bool IsAgentValid(NavigationAgentId agentId) const;
 
         // The live agent's internals (state machine, move-request stage, speed intent, path
         // progress), for debugging why an agent is or is not moving.
-        [[nodiscard]] NavigationAgentState AgentState(i32 agentId) const;
+        [[nodiscard]] NavigationAgentState AgentState(NavigationAgentId agentId) const;
 
     private:
         struct Impl;
