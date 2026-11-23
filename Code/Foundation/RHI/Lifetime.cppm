@@ -351,9 +351,9 @@ export namespace foundation::rhi
         {
             for (const Destroyed& d : m_destroyed)
             {
-                if (d.key == handle.Key() && !d.label.IsEmpty())
+                if (d.key == handle.Key() && d.key != 0)
                 {
-                    return &d.label;
+                    return &d.label; // empty when it was made without one
                 }
             }
             return nullptr;
@@ -362,6 +362,7 @@ export namespace foundation::rhi
         void ReportStale(Handle<Tag> handle) const noexcept
         {
             String label(*m_allocator);
+            bool remembered = false;
             {
                 ScopedLock lock(m_mutex);
                 for (u64 key : m_reported)
@@ -382,12 +383,20 @@ export namespace foundation::rhi
                 if (const String* destroyed = DestroyedLabel(handle))
                 {
                     label = *destroyed;
+                    remembered = true;
                 }
             }
-            LogErrorf("[rhi] stale %s handle used (slot %u, count %u, pool %u), last created as '%s'", m_noun,
-                      handle.index, handle.Count(), handle.PoolId(),
-                      label.IsEmpty() ? "(destroyed long ago, or another device's)"
-                                      : reinterpret_cast<const char*>(label.CStr()));
+            if (!remembered)
+            {
+                LogErrorf("[rhi] stale %s handle used (slot %u, count %u, pool %u): destroyed long ago, or "
+                          "another device's", m_noun, handle.index, handle.Count(), handle.PoolId());
+            }
+            else
+            {
+                LogErrorf("[rhi] stale %s handle used (slot %u, count %u, pool %u), last created as '%s'", m_noun,
+                          handle.index, handle.Count(), handle.PoolId(),
+                          label.IsEmpty() ? "(no label)" : reinterpret_cast<const char*>(label.CStr()));
+            }
         }
 
         static void DescribeForDebugger(void* context, u32 index, u32 generation, char* out, usize size)
@@ -400,7 +409,7 @@ export namespace foundation::rhi
             const char* text = label != nullptr ? reinterpret_cast<const char*>(label->CStr()) : "";
             if (entry != nullptr)
                 std::snprintf(out, size, "'%s'", text);
-            else if (label != nullptr)
+            else if (label != nullptr && *text != 0)
                 std::snprintf(out, size, "stale (was '%s')", text);
             else
                 std::snprintf(out, size, "stale");

@@ -278,6 +278,19 @@ TEST_CASE("buffer lifetime: a resource's label is the device's to tell, and a st
     transient = String(u8"something else");
     CHECK(f.device->Label(copied) == StringView(u8"label.probe.copied"));
     f.device->DestroyBuffer(copied);
+
+    // One made without a label is reported as that, not as long gone.
+    desc.label = {};
+    BufferHandle unlabelled{};
+    REQUIRE(f.device->CreateBuffer(desc, unlabelled).IsOk());
+    const BufferHandle unlabelledKept = unlabelled;
+    f.device->DestroyBuffer(unlabelled);
+    StaleLines noLabel;
+    noLabel.needle = "last created as '(no label)'";
+    SetLogSink(&StaleLines::Sink, &noLabel);
+    CHECK(f.device->Map(unlabelledKept) == nullptr);
+    SetLogSink(nullptr, nullptr);
+    CHECK(noLabel.count == 1);
 }
 
 TEST_CASE("buffer lifetime: a debugger reads a handle's label through Core, by its noun and pool")
