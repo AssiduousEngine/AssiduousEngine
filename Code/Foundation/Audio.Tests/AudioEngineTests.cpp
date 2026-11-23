@@ -175,11 +175,11 @@ TEST_CASE("audio.engine: a one-shot plays, reaches its end, and reaps - the slot
     CHECK_FALSE(engine.IsValidHandle(first));
     CHECK(engine.ActiveVoiceCount() == 0u);
 
-    // The freed slot comes back with a new generation: same slot, old handle stays dead.
+    // The freed slot comes back under a new handle: the old one stays dead.
     const VoiceHandle second = engine.Play(clip);
     REQUIRE(second.IsValid());
-    CHECK(second.slot == first.slot);
-    CHECK(second.generation != first.generation);
+    CHECK(second.index == first.index);
+    CHECK_FALSE(second == first);
     CHECK_FALSE(engine.IsValidHandle(first));
     CHECK(engine.IsPlaying(second));
 }
@@ -761,7 +761,16 @@ TEST_CASE("audio.engine: streamed clips play from an IAudioStreamSource through 
     params.loop = true;
     const VoiceHandle voice = engine.Play(clip, params);
     REQUIRE(voice.IsValid());
-    CHECK(voice.slot == 2u); // stream slots sit after the main pool
+    // The stream pool is its own: both main voices still play beside the stream.
+    AudioPlayParams tone;
+    tone.loop = true;
+    const VoiceHandle mainA = engine.Play(MakeToneClip(1.0f), tone);
+    const VoiceHandle mainB = engine.Play(MakeToneClip(1.0f, 4000, 1), tone);
+    CHECK(mainA.IsValid());
+    CHECK(mainB.IsValid());
+    CHECK(engine.IsPlaying(voice));
+    engine.Stop(mainA);
+    engine.Stop(mainB);
     CHECK(engine.IsPlaying(voice));
     engine.Update(0.1f);
     CHECK(engine.IsPlaying(voice));

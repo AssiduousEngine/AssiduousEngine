@@ -230,7 +230,7 @@ namespace foundation::audio
         // it), so ownership moves, the storage never does.
         ma_sound* sound = nullptr;
         bool soundInitialized = false;
-        u32 generation = 1;
+        VoiceHandle handle; // while it plays; invalid when free
         VoiceState state = VoiceState::Free;
         u8 priority = 0;
         u64 started = 0; // when it was played (Impl::playSerial): the oldest of a tie is taken
@@ -352,6 +352,7 @@ namespace foundation::audio
         bool busMuted[static_cast<usize>(AudioBus::Count)] = {};
 
         Array<VoiceSlot> voices; // [0, voiceCount) in-memory, then stream slots
+        HandlePool<VoiceTag, u32> handles; // a playing voice's handle, to its index in voices
 
         u64 playSerial = 0; // counts voices played (VoiceSlot::started)
         u32 voiceCount = 0;
@@ -492,7 +493,7 @@ namespace foundation::audio
         // ---------------- construction ----------------
 
         Impl(IAllocator& alloc, const AudioEngineSettings& engineSettings)
-            : allocator(&alloc), settings(engineSettings)
+            : allocator(&alloc), settings(engineSettings), handles(alloc)
         {
             bridge.callbacks.onOpen = &VfsOpen;
             bridge.callbacks.onClose = &VfsClose;
@@ -1160,21 +1161,18 @@ namespace foundation::audio
 
         [[nodiscard]] VoiceHandle HandleFor(usize slotIndex) const
         {
-            return VoiceHandle{static_cast<u32>(slotIndex), voices[slotIndex].generation};
+            return voices[slotIndex].handle;
         }
 
         [[nodiscard]] VoiceSlot* Resolve(VoiceHandle handle)
         {
-            if (!handle.IsValid() || handle.slot >= voices.Size())
+            const u32* index = handles.Get(handle);
+            if (index == nullptr)
             {
                 return nullptr;
             }
-            VoiceSlot& slot = voices[handle.slot];
-            if (slot.state == VoiceState::Free || slot.generation != handle.generation)
-            {
-                return nullptr;
-            }
-            return &slot;
+            VoiceSlot& slot = voices[*index];
+            return slot.state != VoiceState::Free ? &slot : nullptr;
         }
         [[nodiscard]] const VoiceSlot* Resolve(VoiceHandle handle) const
         {
@@ -1215,7 +1213,8 @@ namespace foundation::audio
             slot.sceneGroup = 0;
             slot.runGroup = 0;
             slot.customBusName = String{};
-            ++slot.generation;
+            (void)handles.Free(slot.handle); // every copy of it is stale now
+            slot.handle = {};
         }
 
         // Faded steal: the victim's handle dies now (the slot is reused at once), but
@@ -2003,7 +2002,6 @@ namespace foundation::audio
         {
             impl.ReleaseSound(slot.sound);
             slot.sound = nullptr;
-            ++slot.generation;
             LOG_WARNING(u8"Audio", u8"voice init failed for clip");
             return {};
         }
@@ -2134,7 +2132,8 @@ namespace foundation::audio
             (void)ma_sound_start(slot.sound);
         }
 
-        const VoiceHandle handle = impl.HandleFor(slotIndex);
+        slot.handle = impl.handles.Allocate(static_cast<u32>(slotIndex));
+        const VoiceHandle handle = slot.handle;
         if (params.allowDedupe)
         {
             impl.recentPlays.InsertOrAssign(static_cast<void*>(clipPtr),

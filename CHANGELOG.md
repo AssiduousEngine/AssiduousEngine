@@ -7,6 +7,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Changed
+
+- Scripts: a `VoiceHandle`'s slot is now `index`, as on every other handle; `isValid()` is unchanged.
+
 ## 0.1.0-beta.5 - 2026-11-22
 
 ### Added
