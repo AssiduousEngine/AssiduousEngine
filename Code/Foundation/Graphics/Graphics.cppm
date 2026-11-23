@@ -192,7 +192,7 @@ export namespace foundation::graphics
         rhi::TextureHandle backbuffer{};
         rhi::TextureViewHandle backbufferView{};
         // The backbuffer viewed in its sRGB or UNORM twin (the window's swapchain asks for it);
-        // null where the device or surface could not. VG's Encoded blend space draws through it.
+        // invalid where the device or surface could not. VG's Encoded blend space draws through it.
         rhi::TextureViewHandle backbufferAlternateView{};
 
         // Convenience for the common 2D/UI case: open a render pass that clears

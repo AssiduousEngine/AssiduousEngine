@@ -1982,3 +1982,85 @@ TEST_CASE("rhi.webgpu: a scissor reaching outside the render area is clipped to 
     device->Destroy();
     backend->Destroy();
 }
+
+// The backend frees a destroyed texture at once, releasing its reference: what recorded work uses
+// holds one of its own. A texture destroyed after a copy out of it was recorded, and before that
+// copy is submitted, is still copied whole, with no WebGPU error (the browser's twin of this is the
+// WebLifetimeCheck sample).
+TEST_CASE("rhi.webgpu: a texture destroyed after a copy out of it was recorded is still copied")
+{
+    Backend* backend = TryCreateBackend();
+    if (backend == nullptr)
+    {
+        return;
+    }
+    u32 errors = 0;
+    SetLogSink(&CountWebGpuErrors, &errors);
+    Device* device = nullptr;
+    REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+    Queue* queue = device->GetQueue(QueueType::Graphics);
+    TransferBatch* batch = nullptr;
+    REQUIRE(queue->CreateTransferBatch(batch).IsOk());
+
+    TextureDesc texDesc;
+    texDesc.format = TextureFormat::RGBA8Unorm;
+    texDesc.width = 4;
+    texDesc.height = 4;
+    texDesc.usage = TextureUsage::CopyDst | TextureUsage::CopySrc;
+    texDesc.label = u8"webgpu.lifetime.texture";
+    TextureHandle texture{};
+    REQUIRE(device->CreateTexture(texDesc, texture).IsOk());
+    u8 texels[4 * 4 * 4];
+    for (u32 i = 0; i < sizeof(texels); ++i)
+    {
+        texels[i] = static_cast<u8>(i * 5);
+    }
+    TextureDataLayout layout;
+    layout.bytesPerRow = 16;
+    layout.rowsPerImage = 4;
+    batch->WriteTexture(texture, Span<const u8>(texels, sizeof(texels)), layout, Extent3D{4, 4, 1});
+    REQUIRE(batch->Submit().IsOk());
+
+    BufferDesc readDesc;
+    readDesc.size = 4 * 256;
+    readDesc.usage = BufferUsage::CopyDst;
+    readDesc.memory = MemoryLocation::GpuToCpu;
+    BufferHandle readback{};
+    REQUIRE(device->CreateBuffer(readDesc, readback).IsOk());
+
+    CommandPool* pool = nullptr;
+    REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
+    CommandEncoder* encoder = nullptr;
+    REQUIRE(pool->CreateEncoder(encoder).IsOk());
+    BufferTextureCopyRegion region;
+    region.bytesPerRow = 256;
+    region.rowsPerImage = 4;
+    region.textureExtent = Extent3D{4, 4, 1};
+    encoder->CopyTextureToBuffer(texture, readback, region);
+    device->DestroyTexture(texture); // before the copy is even finished recording
+    CHECK(device->Describe(texture) == nullptr);
+    CommandBuffer* commandBuffer = encoder->Finish();
+    Fence* fence = nullptr;
+    REQUIRE(device->CreateFence(0, fence).IsOk());
+    CommandBuffer* commandBuffers[] = {commandBuffer};
+    queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
+    REQUIRE(fence->Wait(1, ~0ull));
+
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
+    REQUIRE(bytes != nullptr);
+    CHECK(bytes[0] == 0);
+    CHECK(bytes[15] == static_cast<u8>(15 * 5));
+    CHECK(bytes[256 + 0] == static_cast<u8>(16 * 5)); // row 1 starts at bytesPerRow
+    device->Unmap(readback);
+    device->WaitIdle(); // the error callbacks arrive through the event pump
+    CHECK(errors == 0);
+    CHECK(!device->IsLost());
+    SetLogSink(nullptr, nullptr);
+
+    queue->DestroyTransferBatch(batch);
+    device->DestroyFence(fence);
+    device->DestroyCommandPool(pool);
+    device->DestroyBuffer(readback);
+    device->Destroy();
+    backend->Destroy();
+}
