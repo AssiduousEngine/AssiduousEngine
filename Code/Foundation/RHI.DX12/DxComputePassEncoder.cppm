@@ -32,6 +32,7 @@ export namespace foundation::rhi::dx12
     struct DxComputePassContext
     {
         ID3D12GraphicsCommandList* cmdList = nullptr;
+        const DxBufferTable* buffers = nullptr; // the device's buffers, its handles looked up in
         DxDescriptorStaging* srvStaging = nullptr;
         DxGpuDescriptorHeap* gpuSrvHeap = nullptr;
         DxGpuDescriptorHeap* gpuSamplerHeap = nullptr;
@@ -164,10 +165,10 @@ export namespace foundation::rhi::dx12
             m_ctx.cmdList->Dispatch(x, y, z);
         }
 
-        void DispatchIndirect(Buffer* buffer, u64 offset) override
+        void DispatchIndirect(BufferHandle buffer, u64 offset) override
         {
             if (m_ctx.counters) m_ctx.counters->Dispatches();
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
             if (!dxBuf)
                 return;
 

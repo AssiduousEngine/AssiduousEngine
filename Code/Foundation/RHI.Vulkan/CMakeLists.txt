@@ -38,6 +38,7 @@ target_sources(RHI.Vulkan
             VkBindGroup.cppm
             VkSwapChain.cppm
             VkQueue.cppm
+            VkQueueTimeline.cppm
             VkCommandPool.cppm
             VkRenderBundleEncoder.cppm
             VkRenderPassEncoder.cppm

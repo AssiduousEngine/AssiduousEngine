@@ -30,6 +30,10 @@ export namespace foundation::rhi::vk
     class VkBindGroupImpl : public BindGroup
     {
     public:
+        /// The device's buffers, by which its entries' buffer handles are looked up (set before
+        /// init; a bindless update looks them up again).
+        const VkBufferTable* buffers = nullptr;
+
         Status init(VkDevice device, VkDescriptorPoolManager* poolMgr, const BindGroupDesc& desc,
                     const BindingShifts& shifts = {})
         {
@@ -94,7 +98,7 @@ export namespace foundation::rhi::vk
                 switch (le.type)
                 {
                 case BindingType::BindlessStorageBuffers:
-                    if (auto* vkBuf = static_cast<VkBufferImpl*>(e.buffer))
+                    if (auto* vkBuf = LookUp(buffers, e.buffer))
                     {
                         VkDescriptorBufferInfo bi{};
                         bi.buffer = vkBuf->handle();
@@ -195,7 +199,7 @@ export namespace foundation::rhi::vk
                 case BindingType::UniformBuffer:
                 case BindingType::StorageBufferReadOnly:
                 case BindingType::StorageBufferReadWrite:
-                    if (auto* vkBuf = static_cast<VkBufferImpl*>(e.buffer))
+                    if (auto* vkBuf = LookUp(buffers, e.buffer))
                     {
                         VkDescriptorBufferInfo bi{};
                         bi.buffer = vkBuf->handle();

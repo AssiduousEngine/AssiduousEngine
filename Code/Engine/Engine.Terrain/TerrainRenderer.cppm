@@ -280,10 +280,10 @@ export namespace engine::terrain
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* p = m_gridVertexBuffer->Map())
+            if (void* p = m_device->Map(m_gridVertexBuffer))
             {
                 MemCopy(p, verts.Data(), verts.Size() * sizeof(Float3));
-                m_gridVertexBuffer->Unmap();
+                m_device->Unmap(m_gridVertexBuffer);
             }
 
             // One index buffer per LOD (stride 2^lod over the shared grid).
@@ -307,10 +307,10 @@ export namespace engine::terrain
                 {
                     return core::Status{core::ErrorCode::Unknown};
                 }
-                if (void* p = lm.indexBuffer->Map())
+                if (void* p = m_device->Map(lm.indexBuffer))
                 {
                     MemCopy(p, indices.Data(), indices.Size() * sizeof(u32));
-                    lm.indexBuffer->Unmap();
+                    m_device->Unmap(lm.indexBuffer);
                 }
             }
 
@@ -503,11 +503,11 @@ export namespace engine::terrain
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* mapped = m_dummyTileBuffer->Map())
+            if (void* mapped = m_device->Map(m_dummyTileBuffer))
             {
                 const f32 one = 1.0f;
                 MemCopy(mapped, &one, sizeof(one));
-                m_dummyTileBuffer->Unmap();
+                m_device->Unmap(m_dummyTileBuffer);
             }
 
             if (rhi::Queue* q = m_device->GetQueue(rhi::QueueType::Graphics))
@@ -744,7 +744,7 @@ export namespace engine::terrain
                     {
                         continue;
                     }
-                    if (lm.indexBuffer == nullptr || lm.indexCount == 0)
+                    if (!lm.indexBuffer.IsValid() || lm.indexCount == 0)
                     {
                         continue;
                     }
@@ -915,7 +915,7 @@ export namespace engine::terrain
                     {
                         continue;
                     }
-                    if (lm.indexBuffer == nullptr || lm.surfaceIndexCount == 0)
+                    if (!lm.indexBuffer.IsValid() || lm.surfaceIndexCount == 0)
                     {
                         continue;
                     }
@@ -1023,7 +1023,7 @@ export namespace engine::terrain
 
         struct LodMesh
         {
-            rhi::Buffer* indexBuffer = nullptr;
+            rhi::BufferHandle indexBuffer{};
             u32 indexCount = 0;        // surface and skirt walls
             u32 surfaceIndexCount = 0; // the surface prefix (skirtless draw range)
         };
@@ -1053,7 +1053,7 @@ export namespace engine::terrain
                 lm.indexBuffer = hm.indexBuffers[lod];
                 lm.indexCount = hm.indexCounts[lod];
                 lm.surfaceIndexCount = hm.surfaceIndexCounts[lod];
-                return lm.indexBuffer != nullptr && lm.indexCount != 0;
+                return lm.indexBuffer.IsValid() && lm.indexCount != 0;
             }
             return false; // a holed chunk without its buffers (a failed upload) draws nothing
         }
@@ -1138,7 +1138,7 @@ export namespace engine::terrain
                 render::RetireBindGroup(*m_device, m_retire, bg);
                 bg = nullptr;
             }
-            if (m_viewRing.Buffer() == nullptr || shadowT1 == nullptr)
+            if (!m_viewRing.Buffer().IsValid() || shadowT1 == nullptr)
             {
                 return nullptr;
             }
@@ -1174,7 +1174,7 @@ export namespace engine::terrain
                 render::RetireBindGroup(*m_device, m_retire, m_chunkBg);
                 m_chunkBg = nullptr;
             }
-            if (m_chunkRing.Buffer() == nullptr)
+            if (!m_chunkRing.Buffer().IsValid())
             {
                 return nullptr;
             }
@@ -1293,9 +1293,9 @@ export namespace engine::terrain
                 (data.baseAlbedoView != nullptr) ? data.baseAlbedoView : m_whiteView;
             rhi::TextureView* pal =
                 (data.paletteArrayView != nullptr) ? data.paletteArrayView : m_whiteArrayView;
-            rhi::Buffer* tiles =
-                (data.tileScaleBuffer != nullptr) ? data.tileScaleBuffer : m_dummyTileBuffer;
-            const u64 tileGen = (data.tileScaleBuffer != nullptr) ? data.tileScaleGeneration : 0;
+            rhi::BufferHandle tiles =
+                (data.tileScaleBuffer.IsValid()) ? data.tileScaleBuffer : m_dummyTileBuffer;
+            const u64 tileGen = (data.tileScaleBuffer.IsValid()) ? data.tileScaleGeneration : 0;
             // PBR maps: absent = the flat-normal / default-ORM dummies.
             rhi::TextureView* baseNrm =
                 (data.baseNormalView != nullptr) ? data.baseNormalView : m_flatNormalView;
@@ -1343,7 +1343,7 @@ export namespace engine::terrain
                 m_materialBindGroups.Remove(wgt);
             }
             const u64 tilesSize =
-                (data.tileScaleBuffer != nullptr)
+                (data.tileScaleBuffer.IsValid())
                     ? static_cast<u64>(data.paletteCount) * sizeof(f32)
                     : sizeof(f32);
             rhi::BindGroupEntry entries[] = {
@@ -1695,16 +1695,16 @@ export namespace engine::terrain
             m_heightHoleBindGroups.Clear();
             for (LodMesh& lm : m_lodMeshes)
             {
-                if (lm.indexBuffer != nullptr)
+                if (lm.indexBuffer.IsValid())
                 {
                     m_device->DestroyBuffer(lm.indexBuffer);
-                    lm.indexBuffer = nullptr;
+                    lm.indexBuffer = {};
                 }
             }
-            if (m_gridVertexBuffer != nullptr)
+            if (m_gridVertexBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_gridVertexBuffer);
-                m_gridVertexBuffer = nullptr;
+                m_gridVertexBuffer = {};
             }
             if (m_dummyShadowView != nullptr)
             {
@@ -1786,10 +1786,10 @@ export namespace engine::terrain
             }
             m_flatNormalTex = m_flatNormalArrayTex = m_defaultOrmTex = m_defaultOrmArrayTex =
                 m_midHeightTex = m_midHeightArrayTex = m_opaqueMaskArrayTex = nullptr;
-            if (m_dummyTileBuffer != nullptr)
+            if (m_dummyTileBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_dummyTileBuffer);
-                m_dummyTileBuffer = nullptr;
+                m_dummyTileBuffer = {};
             }
             if (m_albedoSampler != nullptr)
             {
@@ -1884,7 +1884,7 @@ export namespace engine::terrain
         rhi::PipelineLayout* m_holeDepthPipelineLayout = nullptr;
         rhi::Sampler* m_holeSampler = nullptr;
         HashMap<rhi::TextureView*, HeightHoleBindGroup> m_heightHoleBindGroups;
-        rhi::Buffer* m_gridVertexBuffer = nullptr;
+        rhi::BufferHandle m_gridVertexBuffer{};
         u32 m_gridVertexCount = 0;
         LodMesh m_lodMeshes[tmodel::kMaxChunkLod + 1];
         rhi::BindGroup* m_viewBg = nullptr;
@@ -1922,7 +1922,7 @@ export namespace engine::terrain
         rhi::TextureView* m_midHeightArrayView = nullptr;
         rhi::Texture* m_opaqueMaskArrayTex = nullptr; // 1x1x1 opaque-coverage palette array
         rhi::TextureView* m_opaqueMaskArrayView = nullptr;
-        rhi::Buffer* m_dummyTileBuffer = nullptr; // one f32 = 1.0
+        rhi::BufferHandle m_dummyTileBuffer{}; // one f32 = 1.0
         HashMap<rhi::TextureView*, MaterialBindGroup> m_materialBindGroups;
         render::GpuRetireQueue* m_retire = nullptr; // borrowed (RenderSubsystem owns and ticks it)
         // Shadow receive (set 0: t1 CSM array, s0 comparison sampler).

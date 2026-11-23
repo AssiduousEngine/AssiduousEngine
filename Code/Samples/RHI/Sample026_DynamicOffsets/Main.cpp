@@ -45,7 +45,7 @@ private:
     };
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     rhi::BindGroupLayout* m_bgl = nullptr;
     rhi::BindGroup* m_bg = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;
@@ -161,7 +161,7 @@ foundation::core::Status DynamicOffsetSample::OnInit()
 
 void DynamicOffsetSample::updateUBO()
 {
-    void* mapped = m_ub->Map();
+    void* mapped = m_device->Map(m_ub);
     if (!mapped)
         return;
 
@@ -209,7 +209,7 @@ void DynamicOffsetSample::updateUBO()
     objs[3].offsetScale[3] = 0.4f;
 
     std::memcpy(mapped, objs, sizeof(objs));
-    m_ub->Unmap();
+    m_device->Unmap(m_ub);
 }
 
 void DynamicOffsetSample::OnRender()

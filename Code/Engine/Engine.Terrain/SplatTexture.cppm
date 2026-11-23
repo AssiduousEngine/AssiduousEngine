@@ -235,7 +235,7 @@ export namespace engine::terrain
         rhi::TextureView* ormArrayView = nullptr;    // null = no layer used an ORM map
         rhi::TextureView* heightArrayView = nullptr; // null = no layer used a height map (dummy binds)
         rhi::TextureView* maskArrayView = nullptr;   // null = no layer used a coverage mask (opaque)
-        rhi::Buffer* tileScaleBuffer = nullptr; // f32[paletteCount]; base tile rides the view UBO
+        rhi::BufferHandle tileScaleBuffer{}; // f32[paletteCount]; base tile rides the view UBO
         u64 generation = 0;                     // part of the set-3 cache key
     };
 
@@ -323,7 +323,7 @@ export namespace engine::terrain
             rhi::TextureView* heightArrayView = nullptr;
             rhi::Texture* maskTexture = nullptr;        // linear; null when no layer used a mask
             rhi::TextureView* maskArrayView = nullptr;
-            rhi::Buffer* tileScaleBuffer = nullptr;
+            rhi::BufferHandle tileScaleBuffer{};
         };
 
         [[nodiscard]] static PaletteGpu MakeGpu(const Entry& e) noexcept
@@ -467,20 +467,20 @@ export namespace engine::terrain
             bd.memory = rhi::MemoryLocation::CpuToGpu;
             bd.label = u8"terrain.tileScales";
             if (!device.CreateBuffer(bd, out.tileScaleBuffer).IsOk() ||
-                out.tileScaleBuffer == nullptr)
+                !out.tileScaleBuffer.IsValid())
             {
                 Destroy(device, out);
                 return false;
             }
             // Written in place: a layer past the scales given tiles at 1.
-            if (void* mapped = out.tileScaleBuffer->Map())
+            if (void* mapped = device.Map(out.tileScaleBuffer))
             {
                 f32* scales = static_cast<f32*>(mapped);
                 for (u32 i = 0; i < data.sliceCount; ++i)
                 {
                     scales[i] = i < paletteTileScales.Size() ? paletteTileScales[i] : 1.0f;
                 }
-                out.tileScaleBuffer->Unmap();
+                device.Unmap(out.tileScaleBuffer);
             }
             return true;
         }
@@ -510,7 +510,7 @@ export namespace engine::terrain
                 entry.heightTexture = nullptr;
                 entry.maskArrayView = nullptr;
                 entry.maskTexture = nullptr;
-                entry.tileScaleBuffer = nullptr;
+                entry.tileScaleBuffer = {};
                 return;
             }
             Destroy(device, entry);
@@ -544,10 +544,10 @@ export namespace engine::terrain
             tex(entry.heightTexture);
             view(entry.maskArrayView);
             tex(entry.maskTexture);
-            if (entry.tileScaleBuffer != nullptr)
+            if (entry.tileScaleBuffer.IsValid())
             {
                 device.DestroyBuffer(entry.tileScaleBuffer);
-                entry.tileScaleBuffer = nullptr;
+                entry.tileScaleBuffer = {};
             }
         }
 

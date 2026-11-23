@@ -36,6 +36,7 @@ target_sources(RHI.DX12
             DxBindGroup.cppm
             DxSwapChain.cppm
             DxQueue.cppm
+            DxQueueTimeline.cppm
             DxCommandBuffer.cppm
             DxCommandPool.cppm
             DxRenderPassEncoder.cppm

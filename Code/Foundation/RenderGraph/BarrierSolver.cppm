@@ -155,7 +155,7 @@ export namespace foundation::rendergraph
                     tracker->SetState(access.subresource, requiredState);
                     m_resourceStates.InsertOrAssign(resIdx, requiredState);
                 }
-                else if (res->resourceType == RGResourceType::Buffer && res->buffer != nullptr)
+                else if (res->resourceType == RGResourceType::Buffer && res->buffer.IsValid())
                 {
                     rhi::ResourceState currentState = rhi::ResourceState::Undefined;
                     if (rhi::ResourceState* p = m_resourceStates.Find(resIdx))

@@ -384,7 +384,7 @@ TEST_CASE("rings: an untouched DynamicUniformRing never flushes; a used one flus
         DynamicUniformRing ring(*device, 2, 256, rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst,
                                 u8"probe.ring");
         REQUIRE(ring.Reserve(1024));
-        auto* buffer = static_cast<rhi::webgpu::WebGpuBuffer*>(ring.Buffer());
+        auto* buffer = static_cast<rhi::webgpu::WebGpuDevice*>(device)->BufferOf(ring.Buffer());
         REQUIRE(buffer != nullptr);
 
         // Ten idle frames: nothing maps, nothing uploads.

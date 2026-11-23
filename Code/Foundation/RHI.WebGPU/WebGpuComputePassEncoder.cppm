@@ -24,6 +24,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuComputePassEncoder final : public ComputePassEncoder
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up.
+        const WebGpuBufferTable* buffers = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts; set by the command encoder
 
         void Begin(const WebGpuApi& api, WGPUDevice device, WGPUComputePassEncoder encoder)
@@ -70,11 +72,11 @@ export namespace foundation::rhi::webgpu
                 counters->Dispatches();
         }
 
-        void DispatchIndirect(Buffer* buffer, u64 offset) override
+        void DispatchIndirect(BufferHandle buffer, u64 offset) override
         {
             FlushPushConstants();
             m_api->wgpuComputePassEncoderDispatchWorkgroupsIndirect(
-                m_encoder, static_cast<WebGpuBuffer*>(buffer)->Handle(), offset);
+                m_encoder, WgpuBufferOf(buffers, buffer), offset);
             if (counters)
                 counters->Dispatches();
         }

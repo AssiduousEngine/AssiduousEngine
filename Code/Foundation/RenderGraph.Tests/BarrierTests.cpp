@@ -49,12 +49,12 @@ namespace
         {
             return nullptr;
         }
-        void CopyBufferToBuffer(rhi::Buffer*, u64, rhi::Buffer*, u64, u64) override {}
-        void CopyBufferToTexture(rhi::Buffer*, rhi::Texture*,
+        void CopyBufferToBuffer(rhi::BufferHandle, u64, rhi::BufferHandle, u64, u64) override {}
+        void CopyBufferToTexture(rhi::BufferHandle, rhi::Texture*,
                                  const rhi::BufferTextureCopyRegion&) override
         {
         }
-        void CopyTextureToBuffer(rhi::Texture*, rhi::Buffer*,
+        void CopyTextureToBuffer(rhi::Texture*, rhi::BufferHandle,
                                  const rhi::BufferTextureCopyRegion&) override
         {
         }
@@ -69,7 +69,7 @@ namespace
         void WriteTimestamp(rhi::QuerySet*, u32) override {}
         void BeginPipelineStatisticsQuery(rhi::QuerySet*, u32) override {}
         void EndPipelineStatisticsQuery(rhi::QuerySet*, u32) override {}
-        void ResolveQuerySet(rhi::QuerySet*, u32, u32, rhi::Buffer*, u64) override {}
+        void ResolveQuerySet(rhi::QuerySet*, u32, u32, rhi::BufferHandle, u64) override {}
         void BeginDebugLabel(StringView, f32, f32, f32, f32) override {}
         void EndDebugLabel() override {}
         void InsertDebugLabel(StringView, f32, f32, f32, f32) override {}

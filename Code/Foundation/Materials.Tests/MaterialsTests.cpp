@@ -489,13 +489,13 @@ TEST_CASE("material system: an effect group takes binding 1 of the material's se
     inst.SetFloat(u8"Wind.Speed", 4.0f);
     REQUIRE(system.PrepareInstance(inst) != nullptr);
     REQUIRE(device.groupEntries.Size() == 4u);
-    CHECK(device.groupEntries[0].buffer != nullptr);
-    rhi::Buffer* windBuffer = device.groupEntries[1].buffer;
-    REQUIRE(windBuffer != nullptr);
+    CHECK(device.groupEntries[0].buffer.IsValid());
+    rhi::BufferHandle windBuffer = device.groupEntries[1].buffer;
+    REQUIRE(windBuffer.IsValid());
     CHECK(device.groupEntries[1].bufferSize == 16u);
     CHECK(windBuffer != device.groupEntries[0].buffer);
     // The buffer holds the instance's values, by the effect's offsets.
-    const Span<const u8> written{static_cast<const u8*>(windBuffer->Map()), 16};
+    const Span<const u8> written{static_cast<const u8*>(device.Map(windBuffer)), 16};
     CHECK(FloatAt(written, 0) == doctest::Approx(0.3f));
     CHECK(FloatAt(written, 4) == doctest::Approx(4.0f));
     CHECK(FloatAt(written, 8) == doctest::Approx(1.0f));
@@ -503,14 +503,14 @@ TEST_CASE("material system: an effect group takes binding 1 of the material's se
     // A later override rewrites it.
     inst.SetFloat(u8"Wind.Height", 0.5f);
     (void)system.PrepareInstance(inst);
-    CHECK(FloatAt(Span<const u8>{static_cast<const u8*>(windBuffer->Map()), 16}, 8) == doctest::Approx(0.5f));
+    CHECK(FloatAt(Span<const u8>{static_cast<const u8*>(device.Map(windBuffer)), 16}, 8) == doctest::Approx(0.5f));
 
     // Handed over for retirement with the uniform buffer, then gone from the system.
-    Array<rhi::Buffer*> detached;
+    Array<rhi::BufferHandle> detached;
     system.DetachEffectBuffers(&inst, detached);
     REQUIRE(detached.Size() == 1u);
     CHECK(detached[0] == windBuffer);
-    Array<rhi::Buffer*> again;
+    Array<rhi::BufferHandle> again;
     system.DetachEffectBuffers(&inst, again);
     CHECK(again.IsEmpty());
     device.DestroyBuffer(windBuffer);

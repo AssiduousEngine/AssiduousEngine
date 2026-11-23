@@ -40,7 +40,7 @@ private:
                                          kBufSz = kNumPts * kVertSz;
 
     rhi::ShaderModule *m_cs = nullptr, *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vtxBuf = nullptr, *m_paramsBuf = nullptr, *m_vpBuf = nullptr;
+    rhi::BufferHandle m_vtxBuf{}, m_paramsBuf{}, m_vpBuf{};
     void *m_paramsMapped = nullptr, *m_vpMapped = nullptr;
     rhi::BindGroupLayout *m_compBgl = nullptr, *m_renBgl = nullptr;
     rhi::BindGroup *m_compBg = nullptr, *m_renBg = nullptr;
@@ -79,14 +79,14 @@ foundation::core::Status ComputeSample::OnInit()
     pbd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(pbd, m_paramsBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_paramsMapped = m_paramsBuf->Map();
+    m_paramsMapped = m_device->Map(m_paramsBuf);
     rhi::BufferDesc vpd{};
     vpd.size = 64;
     vpd.usage = rhi::BufferUsage::Uniform;
     vpd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(vpd, m_vpBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_vpMapped = m_vpBuf->Map();
+    m_vpMapped = m_device->Map(m_vpBuf);
 
     // Compute bind group layout, bind group, pipeline layout and pipeline.
     rhi::BindGroupLayoutEntry cE[2] = {

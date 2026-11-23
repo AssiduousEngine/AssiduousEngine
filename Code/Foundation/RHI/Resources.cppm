@@ -7,6 +7,7 @@
 export module foundation.rhi:resources;
 
 import foundation.core;
+import :forward;
 import :enums;
 import :texture_format;
 import :types;

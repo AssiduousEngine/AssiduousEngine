@@ -31,6 +31,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuQueue final : public Queue
     {
     public:
+        /// The device's buffers, for its transfer batches to look their handles up.
+        const WebGpuBufferTable* buffers = nullptr;
         WebGpuQueue() = default;
 
         DeviceCounterBlock* counters = nullptr; // the device's counts; its transfer batches bump them
@@ -160,6 +162,7 @@ export namespace foundation::rhi::webgpu
             auto* batch = m_allocator->New<WebGpuTransferBatch>();
             batch->Initialize(*m_api, m_instance, m_device, m_queue, *m_allocator);
             batch->counters = counters;
+            batch->buffers = buffers;
             out = batch;
             return ErrorCode::Ok;
         }

@@ -50,10 +50,10 @@ private:
     rhi::RayTracingPipeline* m_rtPipeline = nullptr;
     rhi::AccelStruct* m_blas = nullptr;
     rhi::AccelStruct* m_tlas = nullptr;
-    rhi::Buffer* m_scratchBuffer = nullptr;
-    rhi::Buffer* m_aabbBuffer = nullptr;     // AABB for BLAS.
-    rhi::Buffer* m_instanceBuffer = nullptr; // TLAS instance data.
-    rhi::Buffer* m_sbtBuffer = nullptr;      // Shader binding table.
+    rhi::BufferHandle m_scratchBuffer{};
+    rhi::BufferHandle m_aabbBuffer{};     // AABB for BLAS.
+    rhi::BufferHandle m_instanceBuffer{}; // TLAS instance data.
+    rhi::BufferHandle m_sbtBuffer{};      // Shader binding table.
     rhi::PipelineLayout* m_rtPipelineLayout = nullptr;
     rhi::BindGroupLayout* m_rtBindGroupLayout = nullptr;
     rhi::BindGroup* m_rtBindGroup = nullptr;
@@ -186,7 +186,7 @@ foundation::core::Status ProceduralRTSample::OnInit()
 
     // Fill instance data: 4 spheres at different positions.
     {
-        auto* ptr = static_cast<foundation::core::u8*>(m_instanceBuffer->Map());
+        auto* ptr = static_cast<foundation::core::u8*>(m_device->Map(m_instanceBuffer));
         if (!ptr)
         {
             std::fprintf(stderr, "ERROR: Failed to map instance buffer\n");
@@ -226,7 +226,7 @@ foundation::core::Status ProceduralRTSample::OnInit()
             *reinterpret_cast<foundation::core::u64*>(inst + 56) = m_blas->DeviceAddress();
         }
 
-        m_instanceBuffer->Unmap();
+        m_device->Unmap(m_instanceBuffer);
     }
 
     // ---- Build BLAS from AABB geometry, then TLAS ----
@@ -397,7 +397,7 @@ foundation::core::Status ProceduralRTSample::OnInit()
             return foundation::core::ErrorCode::Unknown;
 
         // Copy handles into SBT with proper alignment.
-        auto* sbtPtr = static_cast<foundation::core::u8*>(m_sbtBuffer->Map());
+        auto* sbtPtr = static_cast<foundation::core::u8*>(m_device->Map(m_sbtBuffer));
         if (!sbtPtr)
         {
             std::fprintf(stderr, "ERROR: Failed to map SBT buffer\n");
@@ -410,7 +410,7 @@ foundation::core::Status ProceduralRTSample::OnInit()
             std::memcpy(sbtPtr + (i * m_sbtAlignedStride), handleData + (i * handleSize),
                         handleSize);
         }
-        m_sbtBuffer->Unmap();
+        m_device->Unmap(m_sbtBuffer);
 
         std::printf(
             "SBT built: handleSize=%u, baseAlignment=%u, alignedStride=%u, totalSize=%llu\n",

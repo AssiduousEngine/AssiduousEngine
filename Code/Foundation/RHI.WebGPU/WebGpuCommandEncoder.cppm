@@ -39,6 +39,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuCommandEncoder final : public CommandEncoder
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up.
+        const WebGpuBufferTable* buffers = nullptr;
         /// The device's counts this encoder and its passes bump (Device::Counters).
         void SetCounters(DeviceCounterBlock* counters) noexcept { m_counters = counters; }
 
@@ -170,6 +172,7 @@ export namespace foundation::rhi::webgpu
             m_renderPass.Begin(*m_api, m_device, pass, width, height, depthReadOnly, stencilReadOnly,
                                passDesc.label);
             m_renderPass.counters = m_counters;
+            m_renderPass.buffers = buffers;
             if (m_counters)
                 m_counters->RenderPass();
             return &m_renderPass;
@@ -184,6 +187,7 @@ export namespace foundation::rhi::webgpu
                 m_api->wgpuCommandEncoderBeginComputePass(m_encoder, &wgpuDesc);
             m_computePass.Begin(*m_api, m_device, pass);
             m_computePass.counters = m_counters;
+            m_computePass.buffers = buffers;
             if (m_counters)
                 m_counters->ComputePass();
             return &m_computePass;
@@ -197,22 +201,23 @@ export namespace foundation::rhi::webgpu
                 m_allocator->Delete(encoder);
                 return nullptr;
             }
+            encoder->buffers = buffers;
             m_bundleEncoders.PushBack(encoder);
             return encoder;
         }
 
         void Barrier(const BarrierGroup&) override {} // WebGPU tracks hazards itself
 
-        void CopyBufferToBuffer(Buffer* source, u64 sourceOffset, Buffer* destination,
+        void CopyBufferToBuffer(BufferHandle source, u64 sourceOffset, BufferHandle destination,
                                 u64 destinationOffset, u64 size) override
         {
             EnsureOpen();
             m_api->wgpuCommandEncoderCopyBufferToBuffer(
-                m_encoder, static_cast<WebGpuBuffer*>(source)->Handle(), sourceOffset,
-                static_cast<WebGpuBuffer*>(destination)->Handle(), destinationOffset, size);
+                m_encoder, WgpuBufferOf(buffers, source), sourceOffset,
+                WgpuBufferOf(buffers, destination), destinationOffset, size);
         }
 
-        void CopyBufferToTexture(Buffer* source, Texture* destination,
+        void CopyBufferToTexture(BufferHandle source, Texture* destination,
                                  const BufferTextureCopyRegion& region) override
         {
             EnsureOpen();
@@ -223,7 +228,7 @@ export namespace foundation::rhi::webgpu
             m_api->wgpuCommandEncoderCopyBufferToTexture(m_encoder, &src, &dst, &extent);
         }
 
-        void CopyTextureToBuffer(Texture* source, Buffer* destination,
+        void CopyTextureToBuffer(Texture* source, BufferHandle destination,
                                  const BufferTextureCopyRegion& region) override
         {
             EnsureOpen();
@@ -354,7 +359,7 @@ export namespace foundation::rhi::webgpu
         void EndPipelineStatisticsQuery(QuerySet*, u32) override {}
 
         void ResolveQuerySet(QuerySet* querySet, u32 firstQuery, u32 queryCount,
-                             Buffer* destination, u64 destinationOffset) override
+                             BufferHandle destination, u64 destinationOffset) override
         {
             EnsureOpen();
             // WebGPU requires QUERY_RESOLVE usage on the resolve destination, which a
@@ -368,7 +373,7 @@ export namespace foundation::rhi::webgpu
                 queryCount, m_queryScratch, 0);
             m_api->wgpuCommandEncoderCopyBufferToBuffer(
                 m_encoder, m_queryScratch, 0,
-                static_cast<WebGpuBuffer*>(destination)->Handle(), destinationOffset, size);
+                WgpuBufferOf(buffers, destination), destinationOffset, size);
         }
 
         void BeginDebugLabel(StringView label, f32, f32, f32, f32) override
@@ -446,11 +451,11 @@ export namespace foundation::rhi::webgpu
             }
         }
 
-        static WGPUTexelCopyBufferInfo MakeBufferInfo(Buffer* buffer,
+        WGPUTexelCopyBufferInfo MakeBufferInfo(BufferHandle buffer,
                                                       const BufferTextureCopyRegion& region)
         {
             WGPUTexelCopyBufferInfo info = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-            info.buffer = static_cast<WebGpuBuffer*>(buffer)->Handle();
+            info.buffer = WgpuBufferOf(buffers, buffer);
             info.layout.offset = region.bufferOffset;
             info.layout.bytesPerRow = region.bytesPerRow;
             info.layout.rowsPerImage = region.rowsPerImage;

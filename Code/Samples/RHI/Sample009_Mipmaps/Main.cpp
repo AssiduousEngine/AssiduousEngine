@@ -41,7 +41,7 @@ private:
     static constexpr foundation::core::u16 kIdx[] = {0, 1, 2, 0, 2, 3};
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
     rhi::Texture* m_tex = nullptr;
     rhi::TextureView* m_texView = nullptr;
@@ -85,7 +85,7 @@ foundation::core::Status MipmapSample::OnInit()
     ubd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(ubd, m_ub) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_ubMapped = m_ub->Map();
+    m_ubMapped = m_device->Map(m_ub);
 
     // Checkerboard base texture 256x256 with 9 mip levels.
     constexpr u32 tw = 256, th = 256, mipCount = 9;

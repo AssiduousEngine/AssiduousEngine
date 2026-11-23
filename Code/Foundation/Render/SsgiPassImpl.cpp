@@ -552,10 +552,10 @@ namespace foundation::render
         {
             rpc2.viewToWorld[r] = Float4{sky.viewToWorld(r, 0), sky.viewToWorld(r, 1), sky.viewToWorld(r, 2), 0.0f};
         }
-        const bool shSky = sky.shBuffer != nullptr;
+        const bool shSky = sky.shBuffer.IsValid();
         rpc2.skyAmbient = sky.ambient;
         rpc2.shSkyDimmer = shSky ? sky.iblDiffuse : 0.0f; // 0 means no SH sky (the shader's rule)
-        rhi::Buffer* const shBuffer = shSky ? sky.shBuffer : m_dummyShBuffer;
+        rhi::BufferHandle const shBuffer = shSky ? sky.shBuffer : m_dummyShBuffer;
         const u64 shGeneration = shSky ? sky.generation : 0;
         const rendergraph::RGHandle shHandle = shSky ? sky.shHandle : rendergraph::RGHandle{};
 
@@ -955,10 +955,10 @@ namespace foundation::render
         m_blurBindGroups.Clear();
         m_resolveBindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
         m_compositeBindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
-        if (m_dummyShBuffer != nullptr)
+        if (m_dummyShBuffer.IsValid())
         {
             m_device->DestroyBuffer(m_dummyShBuffer);
-            m_dummyShBuffer = nullptr;
+            m_dummyShBuffer = {};
         }
         for (auto& r : m_retired)
         {

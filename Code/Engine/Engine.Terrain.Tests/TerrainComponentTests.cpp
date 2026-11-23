@@ -278,7 +278,7 @@ TEST_CASE("engine.terrain: a cut heightfield extracts its holed chunks' meshes; 
     CHECK(rd->holeView != nullptr);
     REQUIRE(rd->holedMeshCount == 1u);
     CHECK(rd->holedMeshes[0].chunkIndex == 3u);
-    CHECK(rd->holedMeshes[0].indexBuffers[0] != nullptr);
+    CHECK(rd->holedMeshes[0].indexBuffers[0].IsValid());
     CHECK(rd->holedMeshes[0].surfaceIndexCounts[0] == 64u * 64u * 6u); // the render rule: one cut sample drops no quad
     CHECK(rd->chunks[3].hasHoles);
     CHECK_FALSE(rd->chunks[0].hasHoles);

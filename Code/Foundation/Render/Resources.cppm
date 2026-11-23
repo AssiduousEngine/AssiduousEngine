@@ -79,9 +79,9 @@ export namespace foundation::render
             m_age = Max(framesInFlight, 1) + 1;
         }
 
-        void Retire(rhi::Buffer* buffer)
+        void Retire(rhi::BufferHandle buffer)
         {
-            if (buffer != nullptr)
+            if (buffer.IsValid())
             {
                 m_entries.PushBack(Entry{nullptr, nullptr, nullptr, buffer, m_age});
             }
@@ -90,21 +90,21 @@ export namespace foundation::render
         {
             if (texture != nullptr)
             {
-                m_entries.PushBack(Entry{texture, nullptr, nullptr, nullptr, m_age});
+                m_entries.PushBack(Entry{texture, nullptr, nullptr, {}, m_age});
             }
         }
         void Retire(rhi::TextureView* view)
         {
             if (view != nullptr)
             {
-                m_entries.PushBack(Entry{nullptr, view, nullptr, nullptr, m_age});
+                m_entries.PushBack(Entry{nullptr, view, nullptr, {}, m_age});
             }
         }
         void Retire(rhi::BindGroup* bindGroup)
         {
             if (bindGroup != nullptr)
             {
-                m_entries.PushBack(Entry{nullptr, nullptr, bindGroup, nullptr, m_age});
+                m_entries.PushBack(Entry{nullptr, nullptr, bindGroup, {}, m_age});
             }
         }
 
@@ -152,7 +152,7 @@ export namespace foundation::render
             rhi::Texture* texture = nullptr;
             rhi::TextureView* view = nullptr;
             rhi::BindGroup* bindGroup = nullptr;
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             i32 framesLeft = 0;
         };
 
@@ -171,7 +171,7 @@ export namespace foundation::render
             {
                 m_device->DestroyBindGroup(entry.bindGroup);
             }
-            if (entry.buffer != nullptr)
+            if (entry.buffer.IsValid())
             {
                 m_device->DestroyBuffer(entry.buffer);
             }
@@ -204,7 +204,7 @@ export namespace foundation::render
 
         struct Alloc
         {
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 offset = 0;
             bool ok = false;
         };
@@ -324,7 +324,7 @@ export namespace foundation::render
     private:
         struct Chunk
         {
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 used = 0;
             u64 size = 0;
         };
@@ -336,7 +336,7 @@ export namespace foundation::render
             bd.usage = m_usage;
             bd.memory = rhi::MemoryLocation::GpuOnly;
             bd.label = m_label;
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             if (!m_device->CreateBuffer(bd, buffer).IsOk())
             {
                 return false;
@@ -348,7 +348,7 @@ export namespace foundation::render
 
         struct Range
         {
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 offset = 0;
             u64 size = 0;
         };
@@ -386,7 +386,7 @@ export namespace foundation::render
         // (draining the GPU first); never shrinks. Returns false if the buffer can't be created.
         bool Reserve(u32 slotsPerFrame)
         {
-            if (slotsPerFrame <= m_slotsPerFrame && m_buffer != nullptr)
+            if (slotsPerFrame <= m_slotsPerFrame && m_buffer.IsValid())
             {
                 return true;
             }
@@ -400,7 +400,7 @@ export namespace foundation::render
             if (m_retire != nullptr)
             {
                 m_retire->Retire(m_buffer);
-                m_buffer = nullptr;
+                m_buffer = {};
             }
             else
             {
@@ -416,7 +416,7 @@ export namespace foundation::render
             bd.label = m_label;
             if (!m_device->CreateBuffer(bd, m_buffer).IsOk())
             {
-                m_buffer = nullptr;
+                m_buffer = {};
                 return false;
             }
 
@@ -453,7 +453,7 @@ export namespace foundation::render
 
         [[nodiscard]] Range AllocateRange(u32 count)
         {
-            if (!m_inFrame || m_buffer == nullptr || count == 0)
+            if (!m_inFrame || !m_buffer.IsValid() || count == 0)
             {
                 return Range{};
             }
@@ -471,7 +471,7 @@ export namespace foundation::render
             }
             if (m_mapped == nullptr)
             {
-                m_mapped = static_cast<u8*>(m_buffer->Map()); // first write this frame
+                m_mapped = static_cast<u8*>(m_device->Map(m_buffer)); // first write this frame
                 if (m_mapped == nullptr)
                 {
                     return Range{};
@@ -491,7 +491,7 @@ export namespace foundation::render
         // first needs more is drawn whole rather than dropped while the ring catches up.
         [[nodiscard]] bool MakeRoom(u32 count)
         {
-            if (m_buffer != nullptr && m_cursor + count <= m_slotsPerFrame)
+            if (m_buffer.IsValid() && m_cursor + count <= m_slotsPerFrame)
             {
                 return true;
             }
@@ -507,14 +507,14 @@ export namespace foundation::render
         // mapping; the emulated one uploads that window and nothing else), then unmap.
         void EndFrame()
         {
-            if (m_mapped != nullptr && m_buffer != nullptr)
+            if (m_mapped != nullptr && m_buffer.IsValid())
             {
                 if (m_cursor > 0)
                 {
-                    m_buffer->FlushRange(static_cast<u64>(m_frameBase) * m_slotSize,
+                    m_device->FlushRange(m_buffer, static_cast<u64>(m_frameBase) * m_slotSize,
                                          static_cast<u64>(m_cursor) * m_slotSize);
                 }
-                m_buffer->Unmap();
+                m_device->Unmap(m_buffer);
             }
             m_mapped = nullptr;
             m_inFrame = false;
@@ -525,7 +525,7 @@ export namespace foundation::render
         /// Whether this frame's first allocation has mapped the buffer yet.
         [[nodiscard]] bool IsMappedThisFrame() const noexcept { return m_mapped != nullptr; }
 
-        [[nodiscard]] rhi::Buffer* Buffer() const noexcept { return m_buffer; }
+        [[nodiscard]] rhi::BufferHandle Buffer() const noexcept { return m_buffer; }
         [[nodiscard]] u64 SlotSize() const noexcept { return m_slotSize; }
         [[nodiscard]] u32 SlotsPerFrame() const noexcept { return m_slotsPerFrame; }
         [[nodiscard]] u64 ByteCapacity() const noexcept
@@ -541,10 +541,10 @@ export namespace foundation::render
     private:
         void Release()
         {
-            if (m_buffer != nullptr)
+            if (m_buffer.IsValid())
             {
                 m_device->DestroyBuffer(m_buffer);
-                m_buffer = nullptr;
+                m_buffer = {};
             }
             m_mapped = nullptr;
         }
@@ -553,7 +553,7 @@ export namespace foundation::render
         rhi::BufferUsage m_usage;
         const char8_t* m_label;
         GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
-        rhi::Buffer* m_buffer = nullptr;
+        rhi::BufferHandle m_buffer{};
         u8* m_mapped = nullptr;
         u32 m_framesInFlight;
         u64 m_slotSize;
@@ -641,7 +641,7 @@ export namespace foundation::render
 
         void EndFrame() { m_ring.EndFrame(); }
 
-        [[nodiscard]] rhi::Buffer* Buffer() const noexcept { return m_ring.Buffer(); }
+        [[nodiscard]] rhi::BufferHandle Buffer() const noexcept { return m_ring.Buffer(); }
         [[nodiscard]] u32 Generation() const noexcept { return m_ring.Generation(); } // bumps on growth
         [[nodiscard]] u32 SlotsPerFrame() const noexcept { return m_ring.SlotsPerFrame(); }
         [[nodiscard]] u32 FrameSlots() const noexcept { return m_ring.FrameAllocatedSlots(); }

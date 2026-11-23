@@ -34,8 +34,8 @@ private:
     };
     static constexpr foundation::core::u16 kIndexData[] = {0, 1, 2, 0, 2, 3};
 
-    rhi::Buffer* m_vb = nullptr;
-    rhi::Buffer* m_ib = nullptr;
+    rhi::BufferHandle m_vb{};
+    rhi::BufferHandle m_ib{};
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
     rhi::Texture* m_tex = nullptr;

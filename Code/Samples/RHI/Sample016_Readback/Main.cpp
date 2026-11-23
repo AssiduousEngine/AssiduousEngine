@@ -39,12 +39,12 @@ private:
     void readbackPixels();
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer* m_vb = nullptr;
+    rhi::BufferHandle m_vb{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline *m_offPipeline = nullptr, *m_swapPipeline = nullptr;
     rhi::Texture* m_offTex = nullptr;
     rhi::TextureView* m_offView = nullptr;
-    rhi::Buffer* m_readbackBuf = nullptr;
+    rhi::BufferHandle m_readbackBuf{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -139,7 +139,7 @@ foundation::core::Status ReadbackSample::OnInit()
 
 void ReadbackSample::readbackPixels()
 {
-    void* mapped = m_readbackBuf->Map();
+    void* mapped = m_device->Map(m_readbackBuf);
     if (!mapped)
         return;
     foundation::core::u32 bytesPerRow = ((kTexSize * 4 + 255) / 256) * 256;
@@ -168,7 +168,7 @@ void ReadbackSample::readbackPixels()
         }
     std::printf("Non-black pixels: %d / %u (%.0f%%)\n", nonBlack, kTexSize * kTexSize,
                 100.0f * static_cast<float>(nonBlack) / static_cast<float>(kTexSize * kTexSize));
-    m_readbackBuf->Unmap();
+    m_device->Unmap(m_readbackBuf);
 }
 
 void ReadbackSample::OnRender()

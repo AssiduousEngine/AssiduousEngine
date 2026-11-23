@@ -156,4 +156,13 @@ export namespace foundation::rhi::vk
         bool m_nonCoherent = false; // mapped memory that needs Map's invalidate and Unmap's flush
     };
 
+    /// The device's buffers by handle. Encoders, bind groups and transfer batches hold a pointer
+    /// to it and look a handle up as they record; a stale handle answers null.
+    using VkBufferTable = ResourceTable<BufferTag, VkBufferImpl>;
+
+    /// The Vulkan buffer `handle` names in `table`, or null.
+    [[nodiscard]] inline VkBufferImpl* LookUp(const VkBufferTable* table, BufferHandle handle) noexcept
+    {
+        return table != nullptr ? table->Get(handle) : nullptr;
+    }
 } // namespace foundation::rhi::vk

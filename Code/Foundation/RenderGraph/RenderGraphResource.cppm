@@ -92,7 +92,7 @@ export namespace foundation::rendergraph
             rhiDesc.usage = bufferDesc.usage;
             rhiDesc.label = name.AsView();
 
-            rhi::Buffer* buf = nullptr;
+            rhi::BufferHandle buf{};
             if (!device.CreateBuffer(rhiDesc, buf).IsOk())
             {
                 return Status{ErrorCode::Unknown};
@@ -121,7 +121,7 @@ export namespace foundation::rendergraph
             {
                 device.DestroyTexture(texture);
             }
-            if (buffer != nullptr)
+            if (buffer.IsValid())
             {
                 device.DestroyBuffer(buffer);
             }
@@ -186,7 +186,7 @@ export namespace foundation::rendergraph
 
         // --- buffer data ---
         RGBufferDesc bufferDesc;
-        rhi::Buffer* buffer = nullptr;
+        rhi::BufferHandle buffer{};
 
         // --- state tracking ---
         rhi::ResourceState lastKnownState = rhi::ResourceState::Undefined;

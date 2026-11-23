@@ -17,4 +17,5 @@ export import :extensions;
 export import :queue;
 export import :swapchain;
 export import :device;
+export import :lifetime;
 export import :counters;

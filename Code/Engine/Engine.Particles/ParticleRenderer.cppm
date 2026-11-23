@@ -141,10 +141,10 @@ export namespace engine::particles
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* p = m_indexBuffer->Map())
+            if (void* p = m_device->Map(m_indexBuffer))
             {
                 MemCopy(p, indices, sizeof(indices));
-                m_indexBuffer->Unmap();
+                m_device->Unmap(m_indexBuffer);
             }
 
             // Default texture: a soft radial dot (white RGB, smooth alpha falloff to the edge) so
@@ -219,14 +219,14 @@ export namespace engine::particles
             {
                 return core::Status{core::ErrorCode::Unknown};
             }
-            if (void* p = m_trailIndexBuffer->Map())
+            if (void* p = m_device->Map(m_trailIndexBuffer))
             {
                 u32* ix = static_cast<u32*>(p);
                 for (u32 k = 0; k < kTrailMaxIndices; ++k)
                 {
                     ix[k] = k;
                 }
-                m_trailIndexBuffer->Unmap();
+                m_device->Unmap(m_trailIndexBuffer);
             }
             return core::Status{};
         }
@@ -462,7 +462,7 @@ export namespace engine::particles
                 render::RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
                 m_viewBg = nullptr;
             }
-            if (m_viewRing.Buffer() == nullptr)
+            if (!m_viewRing.Buffer().IsValid())
             {
                 return nullptr;
             }
@@ -796,20 +796,20 @@ export namespace engine::particles
                     p.pso = nullptr;
                 }
             }
-            if (m_trailIndexBuffer != nullptr)
+            if (m_trailIndexBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_trailIndexBuffer);
-                m_trailIndexBuffer = nullptr;
+                m_trailIndexBuffer = {};
             }
             if (m_trailPipelineLayout != nullptr)
             {
                 m_device->DestroyPipelineLayout(m_trailPipelineLayout);
                 m_trailPipelineLayout = nullptr;
             }
-            if (m_indexBuffer != nullptr)
+            if (m_indexBuffer.IsValid())
             {
                 m_device->DestroyBuffer(m_indexBuffer);
-                m_indexBuffer = nullptr;
+                m_indexBuffer = {};
             }
             if (m_whiteView != nullptr)
             {
@@ -883,7 +883,7 @@ export namespace engine::particles
         Array<PendingBg> m_depthPending; // depth bind groups awaiting deferred destroy
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         rhi::Sampler* m_sampler = nullptr;
-        rhi::Buffer* m_indexBuffer = nullptr;
+        rhi::BufferHandle m_indexBuffer{};
         rhi::Texture* m_whiteTex = nullptr; // 1x1 white default (untextured particles)
         rhi::TextureView* m_whiteView = nullptr;
         bool m_loggedTrailPipelineMiss = false;     // once-per-renderer diagnostics
@@ -900,7 +900,7 @@ export namespace engine::particles
         HashMap<rhi::TextureView*, TexBindGroup> m_texBindGroups;
         Pipelines
             m_billboard[4]; // one per ParticleBlendMode (Alpha/Additive/Premultiplied/Multiply)
-        rhi::Buffer* m_trailIndexBuffer = nullptr; // identity indices [0,1,2,...] for trail draws
+        rhi::BufferHandle m_trailIndexBuffer{}; // identity indices [0,1,2,...] for trail draws
         rhi::PipelineLayout* m_trailPipelineLayout = nullptr; // view + texture (no depth set)
         Pipelines m_trail[4]; // trail ribbon PSOs, one per blend mode
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;

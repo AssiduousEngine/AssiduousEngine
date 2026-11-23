@@ -194,14 +194,14 @@ namespace foundation::render
 
     void ReflectionProbeSystem::Upload()
     {
-        if (m_probeBuffer == nullptr || m_active == 0)
+        if (!m_probeBuffer.IsValid() || m_active == 0)
         {
             return;
         }
-        if (void* p = m_probeBuffer->Map())
+        if (void* p = m_device->Map(m_probeBuffer))
         {
             MemCopy(p, m_cpuProbes, static_cast<usize>(m_active) * sizeof(GpuProbe));
-            m_probeBuffer->Unmap();
+            m_device->Unmap(m_probeBuffer);
         }
     }
 
@@ -819,10 +819,10 @@ namespace foundation::render
             m_device->DestroyTexture(m_capturedCube);
             m_capturedCube = nullptr;
         }
-        if (m_probeBuffer != nullptr)
+        if (m_probeBuffer.IsValid())
         {
             m_device->DestroyBuffer(m_probeBuffer);
-            m_probeBuffer = nullptr;
+            m_probeBuffer = {};
         }
         if (m_sampler != nullptr)
         {

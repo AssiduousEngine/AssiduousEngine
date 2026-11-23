@@ -59,24 +59,24 @@ export namespace foundation::materials
         // Ensures the instance's uniform buffer is up to date and returns it (null if the material
         // declares no uniforms). Lets a renderer assemble its own fixed set-2 layout (UBO and textures)
         // while still sourcing the packed uniform data from the material system.
-        [[nodiscard]] rhi::Buffer* EnsureUniformBuffer(MaterialInstance& instance)
+        [[nodiscard]] rhi::BufferHandle EnsureUniformBuffer(MaterialInstance& instance)
         {
             Material* material = instance.GetMaterial();
             if (material == nullptr || material->UniformDataSize() == 0)
             {
-                return nullptr;
+                return {};
             }
             instance.SetSink(this);
             if (instance.IsUniformDirty())
             {
                 if (!UpdateUniformBuffer(instance))
                 {
-                    return nullptr;
+                    return {};
                 }
                 instance.ClearUniformDirty();
             }
-            rhi::Buffer** buf = m_uniformBuffers.Find(&instance);
-            return (buf != nullptr) ? *buf : nullptr;
+            rhi::BufferHandle* buf = m_uniformBuffers.Find(&instance);
+            return buf != nullptr ? *buf : rhi::BufferHandle{};
         }
 
         // Bind-group layout inferred from the material's property definitions, cached.
@@ -235,25 +235,25 @@ export namespace foundation::materials
         // that in-flight frames may still reference must have both its bind group and its
         // uniform buffer detached for deferred retirement before it dies; detaching only the
         // bind group frees memory the GPU is still using.
-        [[nodiscard]] rhi::Buffer* DetachUniformBuffer(MaterialInstance* instance)
+        [[nodiscard]] rhi::BufferHandle DetachUniformBuffer(MaterialInstance* instance)
         {
             if (instance == nullptr)
             {
-                return nullptr;
+                return {};
             }
-            if (rhi::Buffer** buf = m_uniformBuffers.Find(instance))
+            if (rhi::BufferHandle* buf = m_uniformBuffers.Find(instance))
             {
-                rhi::Buffer* b = *buf;
+                rhi::BufferHandle b = *buf;
                 m_uniformBuffers.Remove(instance);
                 return b;
             }
-            return nullptr;
+            return {};
         }
 
         // Hands the instance's effect buffers to the caller (removed from the system) without
         // destroying them, appended to `out`: DetachUniformBuffer for the effect groups'
         // buffers, retired the same way.
-        void DetachEffectBuffers(MaterialInstance* instance, Array<rhi::Buffer*>& out)
+        void DetachEffectBuffers(MaterialInstance* instance, Array<rhi::BufferHandle>& out)
         {
             if (instance == nullptr)
             {
@@ -261,9 +261,9 @@ export namespace foundation::materials
             }
             if (EffectBuffers* buffers = m_effectBuffers.Find(instance))
             {
-                for (rhi::Buffer* b : buffers->buffers)
+                for (rhi::BufferHandle b : buffers->buffers)
                 {
-                    if (b != nullptr)
+                    if (b.IsValid())
                     {
                         out.PushBack(b);
                     }
@@ -301,17 +301,17 @@ export namespace foundation::materials
                 m_device->DestroyBindGroup(g);
                 m_bindGroups.Remove(instance);
             }
-            if (rhi::Buffer** buf = m_uniformBuffers.Find(instance))
+            if (rhi::BufferHandle* buf = m_uniformBuffers.Find(instance))
             {
-                rhi::Buffer* b = *buf;
+                rhi::BufferHandle b = *buf;
                 m_device->DestroyBuffer(b);
                 m_uniformBuffers.Remove(instance);
             }
             if (EffectBuffers* buffers = m_effectBuffers.Find(instance))
             {
-                for (rhi::Buffer* b : buffers->buffers)
+                for (rhi::BufferHandle b : buffers->buffers)
                 {
-                    if (b != nullptr)
+                    if (b.IsValid())
                     {
                         m_device->DestroyBuffer(b);
                     }
@@ -461,7 +461,7 @@ export namespace foundation::materials
             }
             while (buffers->buffers.Size() < material->EffectGroupCount())
             {
-                buffers->buffers.PushBack(nullptr);
+                buffers->buffers.PushBack(rhi::BufferHandle{});
             }
             for (usize g = 0; g < material->EffectGroupCount(); ++g)
             {
@@ -470,8 +470,8 @@ export namespace foundation::materials
                 {
                     continue;
                 }
-                rhi::Buffer*& buffer = buffers->buffers[g];
-                if (buffer == nullptr)
+                rhi::BufferHandle& buffer = buffers->buffers[g];
+                if (!buffer.IsValid())
                 {
                     rhi::BufferDesc bd{};
                     bd.size = group.uniformSize; // a whole row already (Material::SetEffectGroup)
@@ -479,19 +479,19 @@ export namespace foundation::materials
                     bd.memory = rhi::MemoryLocation::CpuToGpu;
                     if (!m_device->CreateBuffer(bd, buffer).IsOk())
                     {
-                        buffer = nullptr;
+                        buffer = {};
                         return false;
                     }
                 }
                 const Span<const u8> data = instance.EffectData(g);
                 if (data.Size() > 0 && data.Size() <= group.uniformSize)
                 {
-                    if (void* ptr = buffer->Map())
+                    if (void* ptr = m_device->Map(buffer))
                     {
                         EncodeUniformsForGpu(Span<const MaterialPropertyDef>{group.properties.Data(),
                                                                              group.properties.Size()},
                                              data, static_cast<u8*>(ptr));
-                        buffer->Unmap();
+                        m_device->Unmap(buffer);
                     }
                 }
             }
@@ -510,8 +510,8 @@ export namespace foundation::materials
                 return true;
             }
 
-            rhi::Buffer* buffer = nullptr;
-            if (rhi::Buffer** existing = m_uniformBuffers.Find(&instance))
+            rhi::BufferHandle buffer{};
+            if (rhi::BufferHandle* existing = m_uniformBuffers.Find(&instance))
             {
                 buffer = *existing;
             }
@@ -534,10 +534,10 @@ export namespace foundation::materials
             const Span<const u8> data = instance.UniformData();
             if (data.Size() > 0)
             {
-                if (void* ptr = buffer->Map())
+                if (void* ptr = m_device->Map(buffer))
                 {
                     EncodeUniformsForGpu(*material, data, static_cast<u8*>(ptr));
-                    buffer->Unmap();
+                    m_device->Unmap(buffer);
                 }
             }
             return true;
@@ -548,7 +548,7 @@ export namespace foundation::materials
             Material* material = instance.GetMaterial();
             Array<rhi::BindGroupEntry> entries;
 
-            if (rhi::Buffer** buf = m_uniformBuffers.Find(&instance))
+            if (rhi::BufferHandle* buf = m_uniformBuffers.Find(&instance))
             {
                 entries.PushBack(
                     rhi::BindGroupEntry::BufferEntry(*buf, 0, material->UniformDataSize()));
@@ -564,7 +564,7 @@ export namespace foundation::materials
                     {
                         continue;
                     }
-                    if (buffers == nullptr || g >= buffers->buffers.Size() || buffers->buffers[g] == nullptr)
+                    if (buffers == nullptr || g >= buffers->buffers.Size() || !buffers->buffers[g].IsValid())
                     {
                         return false; // never written: the layout's entry would go unfilled
                     }
@@ -706,9 +706,9 @@ export namespace foundation::materials
             }
             for (auto& e : m_effectBuffers)
             {
-                for (rhi::Buffer* b : e.value.buffers)
+                for (rhi::BufferHandle b : e.value.buffers)
                 {
-                    if (b != nullptr)
+                    if (b.IsValid())
                     {
                         m_device->DestroyBuffer(b);
                     }
@@ -793,11 +793,11 @@ export namespace foundation::materials
 
         HashMap<u64, rhi::BindGroupLayout*> m_layoutCache;
         HashMap<u64, rhi::Sampler*> m_samplerCache;
-        HashMap<MaterialInstance*, rhi::Buffer*> m_uniformBuffers;
+        HashMap<MaterialInstance*, rhi::BufferHandle> m_uniformBuffers;
         // Each instance's effect group buffers, by group index (null for a group without uniforms).
         struct EffectBuffers
         {
-            Array<rhi::Buffer*> buffers;
+            Array<rhi::BufferHandle> buffers;
         };
         HashMap<MaterialInstance*, EffectBuffers> m_effectBuffers;
         HashMap<MaterialInstance*, rhi::BindGroup*> m_bindGroups;

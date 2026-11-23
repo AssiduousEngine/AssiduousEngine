@@ -167,7 +167,7 @@ export namespace foundation::render
         // stable single-allocation view. The forward samples PrefilterArrayView (set-0 t8).
         [[nodiscard]] rhi::TextureView* CapturedSampleView() const noexcept;
         [[nodiscard]] rhi::TextureView* PrefilterArrayView() const noexcept;
-        [[nodiscard]] rhi::Buffer* ProbeBuffer() const noexcept { return m_probeBuffer; }
+        [[nodiscard]] rhi::BufferHandle ProbeBuffer() const noexcept { return m_probeBuffer; }
         [[nodiscard]] rhi::Sampler* Sampler() const noexcept { return m_sampler; }
 
     private:
@@ -246,7 +246,7 @@ export namespace foundation::render
         rhi::TextureView* m_prefilterArrayView = nullptr;
         rhi::ResourceState m_prefilterState =
             rhi::ResourceState::Undefined; // persists across frames (import)
-        rhi::Buffer* m_probeBuffer = nullptr;
+        rhi::BufferHandle m_probeBuffer{};
         rhi::Sampler* m_sampler = nullptr;
 
         Array<CaptureTask> m_captures; // dirty probes to (re)capture this frame

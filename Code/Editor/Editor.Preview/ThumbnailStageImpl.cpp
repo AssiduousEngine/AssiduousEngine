@@ -102,7 +102,7 @@ namespace editor
         rhi::Device* device = nullptr;
         rhi::Texture* target = nullptr;
         rhi::TextureView* targetView = nullptr;
-        rhi::Buffer* readback = nullptr;
+        rhi::BufferHandle readback{};
         rhi::ResourceState targetState = rhi::ResourceState::Undefined;
 
         State state = State::Idle;
@@ -151,13 +151,13 @@ namespace editor
             bufferDesc.size = static_cast<u64>(kRenderSize) * kRenderSize * 8u;
             bufferDesc.usage = rhi::BufferUsage::CopyDst;
             bufferDesc.memory = rhi::MemoryLocation::GpuToCpu;
-            if (!device->CreateBuffer(bufferDesc, readback).IsOk() || readback == nullptr)
+            if (!device->CreateBuffer(bufferDesc, readback).IsOk() || !readback.IsValid())
             {
                 device->DestroyTextureView(targetView);
                 device->DestroyTexture(target);
                 targetView = nullptr;
                 target = nullptr;
-                readback = nullptr;
+                readback = {};
                 return false;
             }
             targetState = rhi::ResourceState::Undefined;
@@ -329,10 +329,10 @@ namespace editor
                 return;
             }
             image::Image pixels;
-            if (const u8* mapped = static_cast<const u8*>(impl.readback->Map()))
+            if (const u8* mapped = static_cast<const u8*>(impl.device->Map(impl.readback)))
             {
                 Downscale(mapped, kRenderSize * 8u, pixels);
-                impl.readback->Unmap();
+                impl.device->Unmap(impl.readback);
                 impl.ReleaseJobScene();
                 impl.service->AcceptSceneResult(impl.job.id, Move(pixels), true);
                 impl.job = {};
@@ -440,10 +440,10 @@ namespace editor
         if (impl.device != nullptr)
         {
             impl.device->WaitIdle(); // an in-flight readback copy may still reference these
-            if (impl.readback != nullptr)
+            if (impl.readback.IsValid())
             {
                 impl.device->DestroyBuffer(impl.readback);
-                impl.readback = nullptr;
+                impl.readback = {};
             }
             if (impl.targetView != nullptr)
             {

@@ -60,7 +60,7 @@ private:
         12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_globalUbo = nullptr, *m_objUbo = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_globalUbo{}, m_objUbo{};
     void *m_globalMapped = nullptr, *m_objMapped = nullptr;
     rhi::BindGroupLayout *m_globalBgl = nullptr, *m_objBgl = nullptr;
     rhi::BindGroup *m_globalBg = nullptr, *m_objBg = nullptr;
@@ -110,14 +110,14 @@ foundation::core::Status BindGroupSample::OnInit()
     gbd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(gbd, m_globalUbo) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_globalMapped = m_globalUbo->Map();
+    m_globalMapped = m_device->Map(m_globalUbo);
     rhi::BufferDesc obd{};
     obd.size = kObjCount * kObjStride;
     obd.usage = rhi::BufferUsage::Uniform;
     obd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(obd, m_objUbo) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_objMapped = m_objUbo->Map();
+    m_objMapped = m_device->Map(m_objUbo);
 
     // Set 0: global VP.
     rhi::BindGroupLayoutEntry gE[1] = {

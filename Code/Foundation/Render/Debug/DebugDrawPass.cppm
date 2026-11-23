@@ -118,9 +118,9 @@ export namespace foundation::render
         static void EmitQuad(Array<debug::DebugTextVertex>& out, f32 x, f32 y, f32 w, f32 h, f32 u0,
                              f32 v0, f32 u1, f32 v1, u32 col);
 
-        rhi::Buffer* UploadGeom(u32 viewIndex, u32 frameIndex, const Array<debug::DebugVertex>& verts);
-        rhi::Buffer* UploadScreen(u32 viewIndex, u32 frameIndex, const Array<debug::DebugTextVertex>& verts);
-        bool EnsureBuffer(rhi::Buffer*& buf, u64& cap, u64 bytes);
+        rhi::BufferHandle UploadGeom(u32 viewIndex, u32 frameIndex, const Array<debug::DebugVertex>& verts);
+        rhi::BufferHandle UploadScreen(u32 viewIndex, u32 frameIndex, const Array<debug::DebugTextVertex>& verts);
+        bool EnsureBuffer(rhi::BufferHandle& buf, u64& cap, u64 bytes);
 
         Pipelines* EnsurePipelines(rhi::TextureFormat colorFmt, rhi::TextureFormat depthFmt);
 
@@ -161,9 +161,9 @@ export namespace foundation::render
         // screen text, each a buffer grown to fit.
         struct Slot
         {
-            rhi::Buffer* geom = nullptr;
+            rhi::BufferHandle geom{};
             u64 geomCap = 0;
-            rhi::Buffer* screen = nullptr;
+            rhi::BufferHandle screen{};
             u64 screenCap = 0;
         };
         ViewSlots<Slot> m_slots;

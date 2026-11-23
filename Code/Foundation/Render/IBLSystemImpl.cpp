@@ -270,10 +270,10 @@ namespace foundation::render
             DestroyEquirect();
             return;
         }
-        if (void* p = m_equirectStaging->Map())
+        if (void* p = m_device->Map(m_equirectStaging))
         {
             MemCopy(p, rgba.Data(), bytes);
-            m_equirectStaging->Unmap();
+            m_device->Unmap(m_equirectStaging);
         }
         if (!EnsureEquirectPipeline())
         {
@@ -338,10 +338,10 @@ namespace foundation::render
             DestroyCubemap();
             return;
         }
-        if (void* p = m_cubemapStaging->Map())
+        if (void* p = m_device->Map(m_cubemapStaging))
         {
             MemCopy(p, sixFaces.Data(), faceBytes * 6u);
-            m_cubemapStaging->Unmap();
+            m_device->Unmap(m_cubemapStaging);
         }
         if (!EnsureCubemapPipeline())
         {
@@ -366,7 +366,7 @@ namespace foundation::render
 
     void IBLSystem::Upload(rhi::CommandEncoder& enc)
     {
-        if (m_equirectPending && m_equirectTex != nullptr && m_equirectStaging != nullptr)
+        if (m_equirectPending && m_equirectTex != nullptr && m_equirectStaging.IsValid())
         {
             enc.TransitionTexture(m_equirectTex, rhi::ResourceState::Undefined,
                                   rhi::ResourceState::CopyDst);
@@ -379,7 +379,7 @@ namespace foundation::render
                                   rhi::ResourceState::ShaderRead);
             m_equirectPending = false;
         }
-        if (m_cubemapPending && m_srcCube != nullptr && m_cubemapStaging != nullptr)
+        if (m_cubemapPending && m_srcCube != nullptr && m_cubemapStaging.IsValid())
         {
             enc.TransitionTexture(m_srcCube, rhi::ResourceState::Undefined,
                                   rhi::ResourceState::CopyDst);
@@ -841,7 +841,7 @@ namespace foundation::render
         if (ctx.m_shBuffer)
         {
             m_device->DestroyBuffer(ctx.m_shBuffer);
-            ctx.m_shBuffer = nullptr;
+            ctx.m_shBuffer = {};
         }
         if (ctx.m_prefilterView)
         {
@@ -1194,7 +1194,7 @@ namespace foundation::render
         if (m_cubemapStaging)
         {
             m_device->DestroyBuffer(m_cubemapStaging);
-            m_cubemapStaging = nullptr;
+            m_cubemapStaging = {};
         }
         if (m_srcCubeView)
         {
@@ -1219,7 +1219,7 @@ namespace foundation::render
         if (m_equirectStaging)
         {
             m_device->DestroyBuffer(m_equirectStaging);
-            m_equirectStaging = nullptr;
+            m_equirectStaging = {};
         }
         if (m_equirectView)
         {

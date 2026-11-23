@@ -112,4 +112,14 @@ export namespace foundation::rhi::dx12
         void* m_persistentMap = nullptr;
     };
 
+
+    /// The device's buffers by handle; encoders, bind groups and transfer batches look their
+    /// handles up in it as they record.
+    using DxBufferTable = ResourceTable<BufferTag, DxBufferImpl>;
+
+    /// The D3D12 buffer `handle` names in `table`, or null (a stale handle).
+    [[nodiscard]] inline DxBufferImpl* LookUp(const DxBufferTable* table, BufferHandle handle) noexcept
+    {
+        return table != nullptr ? table->Get(handle) : nullptr;
+    }
 } // namespace foundation::rhi::dx12

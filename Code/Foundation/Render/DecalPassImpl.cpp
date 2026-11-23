@@ -127,7 +127,7 @@ namespace foundation::render
                                   const Float4x4& viewProj, u32 w, u32 h, i32 vpX, i32 vpY, u32 vpW,
                                   u32 vpH, u32 samples)
     {
-        if (decals.IsEmpty() || w == 0 || h == 0 || m_decalRing.Buffer() == nullptr)
+        if (decals.IsEmpty() || w == 0 || h == 0 || !m_decalRing.Buffer().IsValid())
         {
             return;
         }
@@ -277,7 +277,7 @@ namespace foundation::render
             m_device->DestroyBindGroup(m_uboBg);
             m_uboBg = nullptr;
         }
-        if (m_decalRing.Buffer() == nullptr)
+        if (!m_decalRing.Buffer().IsValid())
         {
             return nullptr;
         }

@@ -221,7 +221,7 @@ export namespace foundation::rhi
             const u32 bytesPerRow =
                 (width * BytesPerPixel(format) + (kRowAlignment - 1u)) & ~(kRowAlignment - 1u);
             const u64 needed = static_cast<u64>(bytesPerRow) * height;
-            if (m_readback == nullptr || m_readbackSize < needed)
+            if (!m_readback.IsValid() || m_readbackSize < needed)
             {
                 Release(device);
                 rhi::BufferDesc desc{};
@@ -229,10 +229,10 @@ export namespace foundation::rhi
                 desc.usage = rhi::BufferUsage::CopyDst;
                 desc.memory = rhi::MemoryLocation::GpuToCpu;
                 desc.label = u8"screenshot.readback";
-                if (!device.CreateBuffer(desc, m_readback).IsOk() || m_readback == nullptr)
+                if (!device.CreateBuffer(desc, m_readback).IsOk() || !m_readback.IsValid())
                 {
                     LOG_ERROR(u8"Screenshot", u8"could not create the {} byte readback buffer", needed);
-                    m_readback = nullptr;
+                    m_readback = {};
                     return false;
                 }
                 m_readbackSize = needed;
@@ -306,7 +306,7 @@ export namespace foundation::rhi
                 return Status{ErrorCode::Internal}; // nothing recorded
             }
             m_recorded = false;
-            const u8* mapped = static_cast<const u8*>(m_readback->Map());
+            const u8* mapped = static_cast<const u8*>(device.Map(m_readback));
             if (mapped == nullptr)
             {
                 LOG_ERROR(u8"Screenshot", u8"could not map the readback buffer");
@@ -316,7 +316,7 @@ export namespace foundation::rhi
             Array<u8> rgba(allocator);
             rgba.Resize(static_cast<usize>(m_width) * m_height * 4u);
             UnpackRows(mapped, m_bytesPerRow, m_width, m_height, m_format, Span<u8>{rgba.Data(), rgba.Size()});
-            m_readback->Unmap();
+            device.Unmap(m_readback);
             u32 width = m_width;
             u32 height = m_height;
             if (m_preRotation != ContentRotation::None)
@@ -372,11 +372,11 @@ export namespace foundation::rhi
         /// Drops the readback buffer (device teardown).
         void Release(rhi::Device& device)
         {
-            if (m_readback != nullptr)
+            if (m_readback.IsValid())
             {
                 device.DestroyBuffer(m_readback);
             }
-            m_readback = nullptr;
+            m_readback = {};
             m_readbackSize = 0;
             m_recorded = false;
         }
@@ -392,7 +392,7 @@ export namespace foundation::rhi
         String m_path;
         bool m_armed = false;
         bool m_recorded = false;
-        rhi::Buffer* m_readback = nullptr;
+        rhi::BufferHandle m_readback{};
         u64 m_readbackSize = 0;
         u32 m_width = 0, m_height = 0, m_bytesPerRow = 0;
         ContentRotation m_preRotation = ContentRotation::None; // the recorded frame's, undone on Complete

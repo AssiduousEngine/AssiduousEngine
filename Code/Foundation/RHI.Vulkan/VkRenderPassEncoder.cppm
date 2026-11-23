@@ -30,6 +30,8 @@ export namespace foundation::rhi::vk
     class VkRenderPassEncoderImpl : public RenderPassEncoder, public MeshShaderPassExt
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up as it records.
+        const VkBufferTable* buffers = nullptr;
         MeshShaderPassExt* AsMeshShaderExt() noexcept override { return this; }
         VkRenderPassEncoderImpl(VkCommandBuffer cmdBuf, VkDevice device)
             : m_cmdBuf(cmdBuf), m_device(device)
@@ -75,18 +77,18 @@ export namespace foundation::rhi::vk
                                size, data);
         }
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buffer);
+            auto* vkBuf = LookUp(buffers, buffer);
             if (!vkBuf)
                 return;
             VkBuffer handle = vkBuf->handle();
             vkCmdBindVertexBuffers(m_cmdBuf, slot, 1, &handle, &offset);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buffer);
+            auto* vkBuf = LookUp(buffers, buffer);
             if (!vkBuf)
                 return;
             vkCmdBindIndexBuffer(m_cmdBuf, vkBuf->handle(), offset, toVkIndexType(format));
@@ -140,9 +142,9 @@ export namespace foundation::rhi::vk
                 m_counters->Draws();
         }
 
-        void DrawIndirect(Buffer* buf, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buf);
+            auto* vkBuf = LookUp(buffers, buf);
             if (!vkBuf)
                 return;
             vkCmdDrawIndirect(m_cmdBuf, vkBuf->handle(), offset, drawCount,
@@ -151,9 +153,9 @@ export namespace foundation::rhi::vk
                 m_counters->Draws(drawCount);
         }
 
-        void DrawIndexedIndirect(Buffer* buf, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
-            auto* vkBuf = static_cast<VkBufferImpl*>(buf);
+            auto* vkBuf = LookUp(buffers, buf);
             if (!vkBuf)
                 return;
             vkCmdDrawIndexedIndirect(m_cmdBuf, vkBuf->handle(), offset, drawCount,
@@ -210,8 +212,8 @@ export namespace foundation::rhi::vk
 
         void SetMeshPipeline(MeshPipeline* pipeline) override;
         void DrawMeshTasks(u32 gx, u32 gy, u32 gz) override;
-        void DrawMeshTasksIndirect(Buffer* buf, u64 offset, u32 drawCount, u32 stride) override;
-        void DrawMeshTasksIndirectCount(Buffer* buf, u64 offset, Buffer* countBuf, u64 countOffset,
+        void DrawMeshTasksIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override;
+        void DrawMeshTasksIndirectCount(BufferHandle buf, u64 offset, BufferHandle countBuf, u64 countOffset,
                                         u32 maxDrawCount, u32 stride) override;
 
     private:

@@ -50,7 +50,7 @@ private:
     void updateInstances();
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_instBuf = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_instBuf{};
     void* m_instMapped = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline* m_pipeline = nullptr;
@@ -100,7 +100,7 @@ foundation::core::Status InstancingSample::OnInit()
     instBd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(instBd, m_instBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_instMapped = m_instBuf->Map();
+    m_instMapped = m_device->Map(m_instBuf);
     if (!m_instMapped)
         return foundation::core::ErrorCode::Unknown;
 
@@ -225,7 +225,7 @@ void InstancingSample::OnRender()
 void InstancingSample::OnShutdown()
 {
     if (m_instBuf && m_instMapped)
-        m_instBuf->Unmap();
+        m_device->Unmap(m_instBuf);
     if (m_fence)
         m_device->DestroyFence(m_fence);
     if (m_pool)

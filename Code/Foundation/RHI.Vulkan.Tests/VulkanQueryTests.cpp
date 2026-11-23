@@ -131,16 +131,16 @@ TEST_CASE("vk.queries: a statistics query resolves to a record the device decode
     bd.usage = BufferUsage::CopyDst;
     bd.memory = MemoryLocation::GpuToCpu;
     bd.label = u8"vk.queries.readback";
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(bd, readback).IsOk());
     // Fill the readback with a pattern, so a resolve that writes nothing would show.
-    if (u8* bytes = static_cast<u8*>(readback->Map()))
+    if (u8* bytes = static_cast<u8*>(device->Map(readback)))
     {
         for (u64 i = 0; i < bd.size; ++i)
         {
             bytes[i] = 0xAB;
         }
-        readback->Unmap();
+        device->Unmap(readback);
     }
 
     CommandPool* pool = nullptr;
@@ -163,7 +163,7 @@ TEST_CASE("vk.queries: a statistics query resolves to a record the device decode
     queue->Submit(Span<CommandBuffer* const>(cbs, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* bytes = static_cast<const u8*>(readback->Map());
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     for (u32 q = 0; q < 2; ++q)
     {
@@ -175,7 +175,7 @@ TEST_CASE("vk.queries: a statistics query resolves to a record the device decode
         CHECK(stats.fragmentInvocations == 0u);
         CHECK(stats.computeInvocations == 0u);
     }
-    readback->Unmap();
+    device->Unmap(readback);
 
     pool->DestroyEncoder(enc);
     device->DestroyFence(fence);
@@ -200,7 +200,7 @@ TEST_CASE("vk.counters: memory held follows real allocations, and the driver rep
     bd.size = 1u << 20;
     bd.usage = BufferUsage::Storage;
     bd.label = u8"vk.counters.buffer";
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device->CreateBuffer(bd, buffer).IsOk());
     Texture* target = nullptr;
     REQUIRE(device->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 256, 256), target).IsOk());

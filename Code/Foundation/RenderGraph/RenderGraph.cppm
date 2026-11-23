@@ -353,7 +353,7 @@ export namespace foundation::rendergraph
             return AddResource(res);
         }
 
-        RGHandle ImportBuffer(StringView name, rhi::Buffer* buffer)
+        RGHandle ImportBuffer(StringView name, rhi::BufferHandle buffer)
         {
             RenderGraphResource* res = (*m_allocator).New<RenderGraphResource>(
                 name, RGResourceType::Buffer, RGResourceLifetime::Imported);
@@ -422,10 +422,10 @@ export namespace foundation::rendergraph
             RenderGraphResource* res = ResolveChecked(handle);
             return res != nullptr ? res->depthOnlyView : nullptr;
         }
-        [[nodiscard]] rhi::Buffer* GetBuffer(RGHandle handle)
+        [[nodiscard]] rhi::BufferHandle GetBuffer(RGHandle handle)
         {
             RenderGraphResource* res = ResolveChecked(handle);
-            return res != nullptr ? res->buffer : nullptr;
+            return res != nullptr ? res->buffer : rhi::BufferHandle{};
         }
 
         void SwapPingPong(RGHandle handle)
@@ -496,7 +496,7 @@ export namespace foundation::rendergraph
             rhi::Texture* texture = nullptr;
             rhi::TextureView* view = nullptr;
             rhi::TextureView* view2 = nullptr;
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
 
             void Execute(rhi::Device* device)
             {
@@ -516,7 +516,7 @@ export namespace foundation::rendergraph
                 {
                     device->DestroyTexture(texture);
                 }
-                if (buffer != nullptr)
+                if (buffer.IsValid())
                 {
                     device->DestroyBuffer(buffer);
                 }
@@ -1146,12 +1146,12 @@ export namespace foundation::rendergraph
                     res->textureView = nullptr;
                     res->depthOnlyView = nullptr;
                 }
-                else if (res->resourceType == RGResourceType::Buffer && res->buffer != nullptr)
+                else if (res->resourceType == RGResourceType::Buffer && res->buffer.IsValid())
                 {
                     DeferredDeletion d{};
                     d.buffer = res->buffer;
                     deletions.PushBack(d);
-                    res->buffer = nullptr;
+                    res->buffer = {};
                 }
             }
         }

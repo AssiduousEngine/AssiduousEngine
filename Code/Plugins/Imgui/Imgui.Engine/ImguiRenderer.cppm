@@ -171,10 +171,10 @@ export namespace imgui
                 return false;
             }
             const Float4x4 proj = Projection(target, windowToTarget);
-            if (void* p = slot.ubo->Map())
+            if (void* p = m_device->Map(slot.ubo))
             {
                 MemCopy(p, &proj, sizeof(Float4x4));
-                slot.ubo->Unmap();
+                m_device->Unmap(slot.ubo);
             }
             m_prepared = &slot;
             return true;
@@ -264,11 +264,11 @@ export namespace imgui
         static constexpr u32 kMaxFIF = 4;
         struct FrameSlot
         {
-            rhi::Buffer* vtx = nullptr;
+            rhi::BufferHandle vtx{};
             u64 vtxCap = 0;
-            rhi::Buffer* idx = nullptr;
+            rhi::BufferHandle idx{};
             u64 idxCap = 0;
-            rhi::Buffer* ubo = nullptr;
+            rhi::BufferHandle ubo{};
             rhi::BindGroup* bindGroup = nullptr;
         };
 
@@ -311,10 +311,10 @@ export namespace imgui
             {
                 return false;
             }
-            if (void* p = m_fontStaging->Map())
+            if (void* p = m_device->Map(m_fontStaging))
             {
                 MemCopy(p, pixels, bytes);
-                m_fontStaging->Unmap();
+                m_device->Unmap(m_fontStaging);
             }
             m_fontW = static_cast<u32>(w);
             m_fontH = static_cast<u32>(h);
@@ -339,7 +339,7 @@ export namespace imgui
 
         void EnsureFontUploaded(rhi::CommandEncoder& enc)
         {
-            if (m_fontUploaded || m_fontTex == nullptr || m_fontStaging == nullptr)
+            if (m_fontUploaded || m_fontTex == nullptr || !m_fontStaging.IsValid())
             {
                 return;
             }
@@ -381,14 +381,14 @@ export namespace imgui
                 return false;
             }
 
-            auto* vdst = static_cast<u8*>(slot.vtx->Map());
-            auto* idst = static_cast<u8*>(slot.idx->Map());
+            auto* vdst = static_cast<u8*>(m_device->Map(slot.vtx));
+            auto* idst = static_cast<u8*>(m_device->Map(slot.idx));
             if (vdst == nullptr || idst == nullptr)
             {
                 if (vdst)
-                    slot.vtx->Unmap();
+                    m_device->Unmap(slot.vtx);
                 if (idst)
-                    slot.idx->Unmap();
+                    m_device->Unmap(slot.idx);
                 return false;
             }
             u64 vo = 0, io_ = 0;
@@ -402,22 +402,22 @@ export namespace imgui
                 MemCopy(idst + io_, cl->IdxBuffer.Data, ib);
                 io_ += ib;
             }
-            slot.vtx->Unmap();
-            slot.idx->Unmap();
+            m_device->Unmap(slot.vtx);
+            m_device->Unmap(slot.idx);
             return true;
         }
 
         // Grow a per-slot dynamic buffer to at least `bytes`, with 1.5x headroom, rounded to 64 KiB.
-        bool EnsureBuffer(rhi::Buffer*& buf, u64& cap, u64 bytes, rhi::BufferUsage usage)
+        bool EnsureBuffer(rhi::BufferHandle& buf, u64& cap, u64 bytes, rhi::BufferUsage usage)
         {
-            if (buf != nullptr && cap >= bytes)
+            if (buf.IsValid() && cap >= bytes)
             {
                 return true;
             }
-            if (buf != nullptr)
+            if (buf.IsValid())
             {
                 m_device->DestroyBuffer(buf);
-                buf = nullptr;
+                buf = {};
             }
             u64 want = (bytes + bytes / 2u + 0xFFFFu) & ~static_cast<u64>(0xFFFFu);
             rhi::BufferDesc bd{};
@@ -427,7 +427,7 @@ export namespace imgui
             bd.label = u8"imgui.geom";
             if (!m_device->CreateBuffer(bd, buf).IsOk())
             {
-                buf = nullptr;
+                buf = {};
                 cap = 0;
                 return false;
             }
@@ -514,17 +514,17 @@ export namespace imgui
                 if (m_frames[i].ubo)
                 {
                     m_device->DestroyBuffer(m_frames[i].ubo);
-                    m_frames[i].ubo = nullptr;
+                    m_frames[i].ubo = {};
                 }
                 if (m_frames[i].vtx)
                 {
                     m_device->DestroyBuffer(m_frames[i].vtx);
-                    m_frames[i].vtx = nullptr;
+                    m_frames[i].vtx = {};
                 }
                 if (m_frames[i].idx)
                 {
                     m_device->DestroyBuffer(m_frames[i].idx);
-                    m_frames[i].idx = nullptr;
+                    m_frames[i].idx = {};
                 }
             }
             if (m_pipeline)
@@ -540,7 +540,7 @@ export namespace imgui
             if (m_fontStaging)
             {
                 m_device->DestroyBuffer(m_fontStaging);
-                m_fontStaging = nullptr;
+                m_fontStaging = {};
             }
             if (m_fontView)
             {
@@ -576,7 +576,7 @@ export namespace imgui
 
         rhi::Texture* m_fontTex = nullptr;
         rhi::TextureView* m_fontView = nullptr;
-        rhi::Buffer* m_fontStaging = nullptr;
+        rhi::BufferHandle m_fontStaging{};
         rhi::Sampler* m_sampler = nullptr;
         u32 m_fontW = 0, m_fontH = 0;
         bool m_fontUploaded = false;

@@ -28,6 +28,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuBindGroup final : public BindGroup
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up.
+        const WebGpuBufferTable* buffers = nullptr;
         Status Initialize(const WebGpuApi& api, WGPUDevice device, const BindGroupDesc& groupDesc)
         {
             m_api = &api;
@@ -50,9 +52,9 @@ export namespace foundation::rhi::webgpu
 
                 WGPUBindGroupEntry wgpuEntry = WGPU_BIND_GROUP_ENTRY_INIT;
                 wgpuEntry.binding = ShiftedBinding(layoutEntry.type, layoutEntry.binding);
-                if (entry.buffer != nullptr)
+                if (entry.buffer.IsValid())
                 {
-                    wgpuEntry.buffer = static_cast<WebGpuBuffer*>(entry.buffer)->Handle();
+                    wgpuEntry.buffer = WgpuBufferOf(buffers, entry.buffer);
                     wgpuEntry.offset = entry.bufferOffset;
                     wgpuEntry.size =
                         entry.bufferSize != 0 ? entry.bufferSize : WGPU_WHOLE_SIZE;

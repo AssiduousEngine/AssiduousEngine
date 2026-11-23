@@ -209,8 +209,8 @@ namespace foundation::render
         bp->orthographic = projection::IsOrthographic(view.Camera().projection) ? 1u : 0u;
         bp->slotsPerCluster = perCluster;
 
-        rhi::Buffer* offsets = slot.offsets;
-        rhi::Buffer* indices = slot.indices;
+        rhi::BufferHandle offsets = slot.offsets;
+        rhi::BufferHandle indices = slot.indices;
         if (!EnsureBindGroup(slot))
         {
             return binding;
@@ -262,7 +262,7 @@ namespace foundation::render
         const u64 offsetsBytes =
             static_cast<u64>(totalClusters) * sizeof(u32) * 2; // uint2 per cluster
         const u64 indicesBytes = static_cast<u64>(indexCapacity) * sizeof(u32); // the shared list
-        if (slot.offsets != nullptr && offsetsBytes <= slot.offsetsBytes && indicesBytes <= slot.indicesBytes)
+        if (slot.offsets.IsValid() && offsetsBytes <= slot.offsetsBytes && indicesBytes <= slot.indicesBytes)
         {
             return true;
         }
@@ -271,12 +271,12 @@ namespace foundation::render
         // group over them, so retire them through the queue when one is wired (on web a
         // mid-frame WaitIdle pumps the event loop, expires the canvas texture and drops
         // the whole frame's submit); otherwise drain (standalone and test use).
-        const bool replacing = slot.offsets != nullptr || slot.indices != nullptr;
+        const bool replacing = slot.offsets.IsValid() || slot.indices.IsValid();
         if (replacing && m_retire == nullptr)
         {
             m_device->WaitIdle();
         }
-        if (slot.offsets != nullptr)
+        if (slot.offsets.IsValid())
         {
             if (m_retire != nullptr)
             {
@@ -286,9 +286,9 @@ namespace foundation::render
             {
                 m_device->DestroyBuffer(slot.offsets);
             }
-            slot.offsets = nullptr;
+            slot.offsets = {};
         }
-        if (slot.indices != nullptr)
+        if (slot.indices.IsValid())
         {
             if (m_retire != nullptr)
             {
@@ -298,7 +298,7 @@ namespace foundation::render
             {
                 m_device->DestroyBuffer(slot.indices);
             }
-            slot.indices = nullptr;
+            slot.indices = {};
         }
         rhi::BufferDesc obd{};
         obd.size = offsetsBytes;
@@ -307,7 +307,7 @@ namespace foundation::render
         obd.label = u8"cluster.offsets";
         if (!m_device->CreateBuffer(obd, slot.offsets).IsOk())
         {
-            slot.offsets = nullptr;
+            slot.offsets = {};
             return false;
         }
         rhi::BufferDesc ibd{};
@@ -317,7 +317,7 @@ namespace foundation::render
         ibd.label = u8"cluster.indices";
         if (!m_device->CreateBuffer(ibd, slot.indices).IsOk())
         {
-            slot.indices = nullptr;
+            slot.indices = {};
             return false;
         }
 
@@ -337,16 +337,16 @@ namespace foundation::render
             }
             slot.bindGroup = nullptr;
         }
-        slot.bgOffsets = nullptr;
-        slot.bgIndices = nullptr;
+        slot.bgOffsets = {};
+        slot.bgIndices = {};
         return true;
     }
 
     bool ClusterSystem::EnsureBindGroup(Slot& slot)
     {
-        rhi::Buffer* offsets = slot.offsets;
-        rhi::Buffer* indices = slot.indices;
-        rhi::Buffer* lights = m_lightRing.Buffer();
+        rhi::BufferHandle offsets = slot.offsets;
+        rhi::BufferHandle indices = slot.indices;
+        rhi::BufferHandle lights = m_lightRing.Buffer();
         const bool stable = slot.bindGroup != nullptr &&
                             slot.bgParamsGen == m_paramsRing.Generation() &&
                             slot.bgLightGen == m_lightRing.Generation() &&
@@ -360,8 +360,8 @@ namespace foundation::render
             m_device->DestroyBindGroup(slot.bindGroup);
             slot.bindGroup = nullptr;
         }
-        rhi::Buffer* params = m_paramsRing.Buffer();
-        if (params == nullptr || lights == nullptr || offsets == nullptr || indices == nullptr)
+        rhi::BufferHandle params = m_paramsRing.Buffer();
+        if (!params.IsValid() || !lights.IsValid() || !offsets.IsValid() || !indices.IsValid())
         {
             return false;
         }
@@ -394,11 +394,11 @@ namespace foundation::render
             {
                 m_device->DestroyBindGroup(slot.bindGroup);
             }
-            if (slot.offsets != nullptr)
+            if (slot.offsets.IsValid())
             {
                 m_device->DestroyBuffer(slot.offsets);
             }
-            if (slot.indices != nullptr)
+            if (slot.indices.IsValid())
             {
                 m_device->DestroyBuffer(slot.indices);
             }

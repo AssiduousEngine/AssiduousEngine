@@ -40,7 +40,7 @@ export namespace engine::terrain
     struct HoledChunkMesh
     {
         u32 chunkIndex = 0;
-        rhi::Buffer* indexBuffers[foundation::terrain::kMaxChunkLod + 1] = {};
+        rhi::BufferHandle indexBuffers[foundation::terrain::kMaxChunkLod + 1] = {};
         u32 indexCounts[foundation::terrain::kMaxChunkLod + 1] = {};
         u32 surfaceIndexCounts[foundation::terrain::kMaxChunkLod + 1] = {};
     };
@@ -100,7 +100,7 @@ export namespace engine::terrain
         rhi::TextureView* ormArrayView = nullptr;
         rhi::TextureView* heightArrayView = nullptr; // null = no palette layer used a height map
         rhi::TextureView* maskArrayView = nullptr;   // null = no palette layer used a coverage mask
-        rhi::Buffer* tileScaleBuffer = nullptr;
+        rhi::BufferHandle tileScaleBuffer{};
         u64 tileScaleGeneration = 0; // part of the set-3 cache key (never raw pointers)
         u32 paletteCount = 0;
         // Height-blend soft-skirt width; the renderer packs it into the view UBO only when a base

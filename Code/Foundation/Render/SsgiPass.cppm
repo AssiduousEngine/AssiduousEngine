@@ -169,7 +169,7 @@ export namespace foundation::render
         // and the camera's world matrix to take the G-buffer's view-space normal to world space.
         struct Sky
         {
-            rhi::Buffer* shBuffer = nullptr;   // the scene's SH9 irradiance (null for none)
+            rhi::BufferHandle shBuffer{};   // the scene's SH9 irradiance (null for none)
             rendergraph::RGHandle shHandle{};  // read by the composite (orders the SH bake first)
             u64 generation = 0;                // the IBL context's (bind group key)
             f32 iblDiffuse = 1.0f;             // EnvironmentSettings' sky-lighting dimmer
@@ -301,7 +301,7 @@ export namespace foundation::render
         BindGroupCache<5> m_resolveBindGroups;
         BindGroupCache<5> m_compositeBindGroups;
         u64 m_bindGroupsBuilt = 0;
-        rhi::Buffer* m_dummyShBuffer = nullptr; // bound when the scene has no SH sky (never read)
+        rhi::BufferHandle m_dummyShBuffer{}; // bound when the scene has no SH sky (never read)
         Array<Retired> m_retired;
         u32 m_lastFrame = 0xFFFFFFFFu;
     };

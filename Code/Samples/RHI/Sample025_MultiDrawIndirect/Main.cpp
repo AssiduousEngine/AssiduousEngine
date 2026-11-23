@@ -52,7 +52,7 @@ private:
     foundation::core::Status createLineGeometry();
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_indirectBuf = nullptr, *m_lineVb = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_indirectBuf{}, m_lineVb{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline *m_fillPipeline = nullptr, *m_linePipeline = nullptr;
     rhi::CommandPool* m_pool = nullptr;

@@ -665,7 +665,7 @@ export namespace foundation::ui::runtime
             readDesc.size = static_cast<u64>(rowPitch) * rtHeight;
             readDesc.usage = rhi::BufferUsage::CopyDst;
             readDesc.memory = rhi::MemoryLocation::GpuToCpu;
-            rhi::Buffer* readBuffer = nullptr;
+            rhi::BufferHandle readBuffer{};
             rhi::CommandPool* pool = nullptr;
             rhi::Fence* fence = nullptr;
             bool ok = device->CreateBuffer(readDesc, readBuffer).IsOk() &&
@@ -735,7 +735,7 @@ export namespace foundation::ui::runtime
             {
                 device->DestroyCommandPool(pool);
             }
-            if (readBuffer != nullptr)
+            if (readBuffer.IsValid())
             {
                 device->DestroyBuffer(readBuffer);
             }

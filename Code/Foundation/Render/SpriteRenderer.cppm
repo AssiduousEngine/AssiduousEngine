@@ -147,7 +147,7 @@ export namespace foundation::render
         rhi::BindGroupLayout* m_texLayout = nullptr;
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         rhi::Sampler* m_sampler = nullptr;
-        rhi::Buffer* m_indexBuffer = nullptr;
+        rhi::BufferHandle m_indexBuffer{};
         rhi::BindGroup* m_viewBg = nullptr;
         u32 m_viewBgGen = 0xFFFFFFFFu; // generation the view bind group was built for
         Array<Pipelines> m_pipelines; // one entry per (format, additive) seen

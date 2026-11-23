@@ -43,13 +43,13 @@ private:
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
 
-    rhi::Buffer* m_vb = nullptr;
-    rhi::Buffer* m_ib = nullptr;
+    rhi::BufferHandle m_vb{};
+    rhi::BufferHandle m_ib{};
     rhi::Texture* m_tex = nullptr;
     rhi::TextureView* m_texView = nullptr;
     rhi::Sampler* m_sampler = nullptr;
 
-    rhi::Buffer* m_transformBuf = nullptr;
+    rhi::BufferHandle m_transformBuf{};
     void* m_transformMapped = nullptr;
 
     rhi::BindGroupLayout* m_bgl = nullptr;
@@ -131,7 +131,7 @@ foundation::core::Status BatchUploadSample::OnInit()
     tbd.label = u8"BatchTransform";
     if (m_device->CreateBuffer(tbd, m_transformBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_transformMapped = m_transformBuf->Map();
+    m_transformMapped = m_device->Map(m_transformBuf);
 
     // Bind group layout: UBO, texture and sampler
     rhi::BindGroupLayoutEntry bglEntries[3] = {
@@ -353,7 +353,7 @@ void BatchUploadSample::OnRender()
 void BatchUploadSample::OnShutdown()
 {
     if (m_transformBuf && m_transformMapped)
-        m_transformBuf->Unmap();
+        m_device->Unmap(m_transformBuf);
 
     if (m_uploadFence)
         m_device->DestroyFence(m_uploadFence);

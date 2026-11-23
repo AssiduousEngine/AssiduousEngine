@@ -272,7 +272,7 @@ export namespace foundation::render
         // This frame's reflection probes: the captured cube-array view (set-0 t8) and the probe buffer
         // (each probe's box, slice and intensity) for the forward's local-reflection path. A null view
         // binds the dummy cube array with count 0, and the forward keeps the global IBL reflection.
-        void SetProbes(rhi::TextureView* cubeArray, rhi::Buffer* probeBuffer, u32 count) override;
+        void SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count) override;
 
         // Upload this frame's local-shadow entries into the local-shadow ring (bound whole at set 0;
         // the shader reads LocalShadows[LocalShadowBase + shadowIndex]). Called once per frame (after
@@ -464,7 +464,7 @@ export namespace foundation::render
         }
 
     private:
-        void RetireOrDrainBuffer(rhi::Buffer*& buffer);
+        void RetireOrDrainBuffer(rhi::BufferHandle& buffer);
         struct MultiMeshSet; // defined with the pool below
         // Release one set's GPU objects: retired when the queue is wired, destroyed in place
         // otherwise (Null-device tests, shutdown after the device idled).
@@ -645,14 +645,14 @@ export namespace foundation::render
 
         void TickRetiredBindGroups();
 
-        void RetireBuffer(rhi::Buffer* buffer);
+        void RetireBuffer(rhi::BufferHandle buffer);
 
         // (Re)create a bind group over a ring's buffer when the ring (re)allocated. `whole` binds
         // the entire buffer (storage, indexed); otherwise a `bindSize` window (dynamic-offset UBO).
         // `secondUniform`, when given, is bound whole as binding 1 (the instanced set's InstanceSet).
         bool EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayout* layout, u64 bindSize,
                              rhi::BindGroup*& bg, u32& bgGen, bool whole,
-                             rhi::Buffer* secondUniform = nullptr);
+                             rhi::BufferHandle secondUniform = {});
 
         // The set-0 bind group spans two rings: the per-view UBO (dynamic-offset window of one
         // GpuView) and the light list (the whole light buffer, read as Lights[lightOffset + i]). Slots
@@ -677,10 +677,10 @@ export namespace foundation::render
         // The set-3 bind group for a (view, frame in flight) slot, over the ClusterSystem's cluster
         // buffers for it. One per slot (the buffers alternate per frame) so a slot's group is stable.
         // Rebuild when the cluster buffers' version changes (the ClusterSystem bumps it on realloc).
-        // Pointer identity is not a safe "unchanged" test: a freed rhi::Buffer* address can be reused by
+        // Pointer identity is not a safe "unchanged" test: a freed rhi::BufferHandle address can be reused by
         // the new allocation, and a stale bind group would point at a destroyed VkBuffer.
-        rhi::BindGroup* EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::Buffer* offsets,
-                                               rhi::Buffer* indices, u32 version);
+        rhi::BindGroup* EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::BufferHandle offsets,
+                                               rhi::BufferHandle indices, u32 version);
 
         void Shutdown();
 
@@ -736,7 +736,7 @@ export namespace foundation::render
         DynamicUniformRing m_localShadowRing; // per-frame GpuLocalShadow entries (spot and point atlas)
         DynamicUniformRing m_boneRing; // bone-matrix staging ring (CpuToGpu; written once per frame)
         u32 m_boneSlotsWanted = kInitialBoneMatrices; // per-frame slots the pool is sized for
-        rhi::Buffer* m_boneDevice = nullptr; // GpuOnly device mirror the VS reads (set-0 t4 SRV)
+        rhi::BufferHandle m_boneDevice{}; // GpuOnly device mirror the VS reads (set-0 t4 SRV)
         u64 m_boneDeviceBytes = 0;
         u32 m_boneDeviceGen = 0; // bumps on (re)create, invalidating set-0 bind groups
         // Per-frame map: a skinned instance's boneMatrices pointer -> its bases (matrix units) in the pool.
@@ -825,7 +825,7 @@ export namespace foundation::render
         Array<RetiredBG> m_retiredBGs{*m_allocator};
         struct RetiredBuffer
         {
-            rhi::Buffer* buffer;
+            rhi::BufferHandle buffer;
             u32 framesLeft;
         };
         Array<RetiredBuffer> m_retiredBuffers{*m_allocator}; // material uniform buffers of pruned instances
@@ -843,7 +843,7 @@ export namespace foundation::render
             u64 iblGen = 0;
             rhi::TextureView* prefilter = nullptr;
             rhi::TextureView* probeCube = nullptr;
-            rhi::Buffer* probeBuf = nullptr;
+            rhi::BufferHandle probeBuf{};
         };
         Array<ViewBGSlot> m_viewBGs{*m_allocator};
         rhi::BindGroup* m_viewBG = nullptr; // current view's (borrowed from its slot)
@@ -853,7 +853,7 @@ export namespace foundation::render
         rhi::BindGroup* m_objectBG = nullptr;
         rhi::BindGroup* m_instanceBG = nullptr;
         // The InstanceSet a per-frame instanced batch binds: no fade, each instance its own id.
-        rhi::Buffer* m_noFadeSetBuf = nullptr;
+        rhi::BufferHandle m_noFadeSetBuf{};
         // The set-0 bind group spans the view UBO, light buffer, shadow map and sampler; rebuild it when any
         // of those change (rings roll over, or the active shadow map view changes).
         // The set-0 shadow binding is cached by (view pointer, ShadowSystem generation): a freed shadow
@@ -899,15 +899,14 @@ export namespace foundation::render
             // The InstanceData is N-buffered (one region per frame-in-flight) so a runtime position change can
             // rewrite this frame's region while the GPU reads the previous frame's, hazard-free even for
             // crowds that move every frame. Each region has its own set-1 bind group; the draw binds this frame's.
-            rhi::Buffer* instanceBuf =
-                nullptr; // Storage, CpuToGpu: framesInFlight x capacity x InstanceData
+            rhi::BufferHandle instanceBuf{}; // Storage, CpuToGpu: framesInFlight x capacity x InstanceData
             rhi::BindGroup* instanceBG[kMultiMeshMaxFiF] =
                 {}; // one set-1 bind group per FiF region
             rhi::BindGroup* activeInstanceBG =
                 nullptr;      // this frame's region bind group (set in EnsureMultiMeshSet)
             // Its InstanceSet block (fade window, instance count, pick id), one kViewSlot per
             // frame-in-flight region, rewritten each frame the set draws (Uniform, CpuToGpu).
-            rhi::Buffer* setBuf = nullptr;
+            rhi::BufferHandle setBuf{};
             u32 capacity = 0; // instances per region
             u32 count = 0;    // live instance count this frame
             // Per region: the version its bytes hold and how many instances were written with it.
@@ -920,21 +919,20 @@ export namespace foundation::render
             u32 lastFrame = 0; // last frame this set was extracted (for eviction)
             // Skinned crowds: a per-set draw offsets buffer (dynamic, refilled each frame with per-instance bone
             // bases), used instead of the shared static ramp, whose .y is always 0. Allocated only for skinned sets.
-            rhi::Buffer* offsetsBuf =
-                nullptr;             // Vertex, CpuToGpu: framesInFlight x capacity x GpuDrawOffsets
+            rhi::BufferHandle offsetsBuf{};             // Vertex, CpuToGpu: framesInFlight x capacity x GpuDrawOffsets
             // The same instances in the pick pass's layout ({i, bone base, 0, 0}: the ids 0, so the set
             // picks as its InstanceSet's entity), filled beside offsetsBuf with the same regions.
-            rhi::Buffer* pickOffsetsBuf = nullptr; // Vertex, CpuToGpu: framesInFlight x capacity x GpuPickDrawOffsets
+            rhi::BufferHandle pickOffsetsBuf{}; // Vertex, CpuToGpu: framesInFlight x capacity x GpuPickDrawOffsets
             u32 offsetsCapacity = 0; // instances per frame region
             u32 offsetsByteOffset =
                 0; // this frame's region byte offset (rewritten every frame, so one region per frame in flight)
             bool skinned = false; // drew skinned this frame (posePool present)
         };
         HashMap<u64, MultiMeshSet> m_multiMeshSets{*m_allocator};
-        rhi::Buffer* m_rampBuffer = nullptr; // shared draw offsets ramp (Vertex, CpuToGpu)
+        rhi::BufferHandle m_rampBuffer{}; // shared draw offsets ramp (Vertex, CpuToGpu)
         // The ramp in the pick pass's layout, {i, 0, 0, 0}: a MultiMesh set's pick draws bind it (its ids
         // 0, so the set picks as its InstanceSet's entity), never the forward layout's ramp.
-        rhi::Buffer* m_pickRampBuffer = nullptr;
+        rhi::BufferHandle m_pickRampBuffer{};
         u32 m_rampCapacity = 0;
         u32 m_multiMeshFrame = 0; // bumped each UploadMultiMeshes (eviction clock)
 
@@ -942,7 +940,7 @@ export namespace foundation::render
         // linear env sampler (s1), all set 0. Neutral 1x1 dummies are bound when no environment is active.
         static constexpr u64 kShBytes = sizeof(f32) * 4 * 9; // 9 RGB SH coefficients as float4
         rhi::Sampler* m_envSampler = nullptr;
-        rhi::Buffer* m_dummyShBuffer = nullptr;
+        rhi::BufferHandle m_dummyShBuffer{};
         rhi::Texture* m_dummyCube = nullptr;
         rhi::TextureView* m_dummyCubeView = nullptr;
         rhi::Texture* m_dummyBrdf = nullptr;
@@ -953,20 +951,20 @@ export namespace foundation::render
             64u * 16u; // sizeof(GpuProbe)=64 * kMaxReflectionProbes=16
         rhi::Texture* m_dummyProbeCube = nullptr;
         rhi::TextureView* m_dummyProbeCubeView = nullptr;
-        rhi::Buffer* m_dummyProbeBuffer = nullptr; // 1 zeroed record for the no-probe path
+        rhi::BufferHandle m_dummyProbeBuffer{}; // 1 zeroed record for the no-probe path
         rhi::TextureView* m_activeProbeCube = nullptr;
-        rhi::Buffer* m_activeProbeBuffer = nullptr;
+        rhi::BufferHandle m_activeProbeBuffer{};
         u32 m_activeProbeCount = 0;
 
         // set 3 (clustered light lists). A dummy bound when clustering is off; otherwise one bind group
         // per (view, frame-in-flight) slot over the ClusterSystem's per-view cluster buffers.
-        rhi::Buffer* m_dummyClusterOffsets = nullptr;
-        rhi::Buffer* m_dummyClusterIndices = nullptr;
+        rhi::BufferHandle m_dummyClusterOffsets{};
+        rhi::BufferHandle m_dummyClusterIndices{};
         rhi::BindGroup* m_dummyClusterBG = nullptr;
         struct ClusterSlot
         {
             rhi::BindGroup* group = nullptr;
-            rhi::Buffer* offsets = nullptr;
+            rhi::BufferHandle offsets{};
             u32 version = 0;
         };
         ViewSlots<ClusterSlot> m_clusterSlots; // grown to the most views one frame draws

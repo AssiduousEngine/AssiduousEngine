@@ -89,10 +89,10 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        if (void* p = m_indexBuffer->Map())
+        if (void* p = m_device->Map(m_indexBuffer))
         {
             MemCopy(p, indices, sizeof(indices));
-            m_indexBuffer->Unmap();
+            m_device->Unmap(m_indexBuffer);
         }
 
         return Status{};
@@ -214,7 +214,7 @@ namespace foundation::render
             RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
             m_viewBg = nullptr;
         }
-        if (m_viewRing.Buffer() == nullptr)
+        if (!m_viewRing.Buffer().IsValid())
         {
             return nullptr;
         }
@@ -382,10 +382,10 @@ namespace foundation::render
             }
         }
         m_pipelines.Clear();
-        if (m_indexBuffer != nullptr)
+        if (m_indexBuffer.IsValid())
         {
             m_device->DestroyBuffer(m_indexBuffer);
-            m_indexBuffer = nullptr;
+            m_indexBuffer = {};
         }
         if (m_sampler != nullptr)
         {

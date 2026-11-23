@@ -47,7 +47,7 @@ private:
         1, 2, 6, 1, 6, 5, 3, 7, 6, 3, 6, 2, 4, 0, 1, 4, 1, 5,
     };
 
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::BindGroupLayout* m_bgl = nullptr;
     rhi::BindGroup* m_bg = nullptr;
@@ -90,7 +90,7 @@ foundation::core::Status UniformBufferSample::OnInit()
     ubd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(ubd, m_ub) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_ubMapped = m_ub->Map();
+    m_ubMapped = m_device->Map(m_ub);
 
     // Upload.
     rhi::TransferBatch* batch = nullptr;

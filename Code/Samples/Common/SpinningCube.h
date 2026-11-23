@@ -128,10 +128,10 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
             }
             const usize fi = static_cast<usize>(frameIndex);
             Uniforms u{mvp};
-            if (u8* p = static_cast<u8*>(m_uniforms[fi]->Map()))
+            if (u8* p = static_cast<u8*>(m_device->Map(m_uniforms[fi])))
             {
                 MemCopy(p, &u, sizeof(u));
-                m_uniforms[fi]->Unmap();
+                m_device->Unmap(m_uniforms[fi]);
             }
 
             rhi::ColorAttachment ca{};
@@ -242,12 +242,12 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
         rhi::Device* m_device = nullptr;
         rhi::ShaderModule* m_vs = nullptr;
         rhi::ShaderModule* m_ps = nullptr;
-        rhi::Buffer* m_vb = nullptr;
-        rhi::Buffer* m_ib = nullptr;
+        rhi::BufferHandle m_vb{};
+        rhi::BufferHandle m_ib{};
         rhi::BindGroupLayout* m_bgl = nullptr;
         rhi::PipelineLayout* m_pl = nullptr;
         rhi::RenderPipeline* m_pipeline = nullptr;
-        Array<rhi::Buffer*> m_uniforms;
+        Array<rhi::BufferHandle> m_uniforms;
         Array<rhi::BindGroup*> m_bindGroups;
     };
 } // namespace samples

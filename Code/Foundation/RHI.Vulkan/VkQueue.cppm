@@ -15,6 +15,8 @@ import foundation.rhi;
 import :command_buffer;
 import :fence;
 import :transfer_batch;
+import :queue_timeline;
+import :buffer;
 
 using namespace foundation::core;
 
@@ -34,6 +36,14 @@ export namespace foundation::rhi::vk
         {
             queueType = type;
         }
+        ~VkQueueImpl() override { m_timeline.destroy(m_vkDevice); }
+
+        /// Its own timeline, counted by the device's tracker (made by the device after the queue).
+        [[nodiscard]] Status initTimeline(SubmissionTracker& tracker) { return m_timeline.init(m_vkDevice, tracker); }
+        [[nodiscard]] VkQueueTimeline& timeline() noexcept { return m_timeline; }
+        [[nodiscard]] u64 completed() const { return m_timeline.completed(m_vkDevice); }
+        /// The device's buffers, for its transfer batches.
+        const VkBufferTable* buffers = nullptr;
 
         // ---- Queue interface ----
         // All Submit overloads are defined out-of-line (VkDevice.cppm): they report
@@ -65,8 +75,11 @@ export namespace foundation::rhi::vk
 
         Status CreateTransferBatch(TransferBatch*& out) override
         {
-            out = m_allocator.New<VkTransferBatchImpl>(m_vkDevice, m_queue, m_familyIndex,
-                                                       m_physDevice, counters);
+            auto* batch = m_allocator.New<VkTransferBatchImpl>(m_vkDevice, m_queue, m_familyIndex,
+                                                               m_physDevice, counters);
+            batch->buffers = buffers;
+            batch->timeline = &m_timeline;
+            out = batch;
             return ErrorCode::Ok;
         }
         void DestroyTransferBatch(TransferBatch*& batch) override
@@ -99,6 +112,7 @@ export namespace foundation::rhi::vk
         VkDevice m_vkDevice = VK_NULL_HANDLE;
         VkPhysicalDevice m_physDevice = VK_NULL_HANDLE;
         IAllocator& m_allocator;
+        VkQueueTimeline m_timeline;
     };
 
 } // namespace foundation::rhi::vk

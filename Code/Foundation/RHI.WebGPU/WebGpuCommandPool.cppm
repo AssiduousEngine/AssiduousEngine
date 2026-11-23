@@ -16,6 +16,7 @@ export module foundation.rhi.webgpu:command_pool;
 
 import foundation.core;
 import foundation.rhi;
+import :buffer;
 import :api;
 import :blit_helper;
 import :command_encoder;
@@ -28,6 +29,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuCommandPool final : public CommandPool
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up.
+        const WebGpuBufferTable* buffers = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts; set by the device
 
         void Initialize(const WebGpuApi& api, WGPUDevice device, IAllocator& allocator,
@@ -44,6 +47,7 @@ export namespace foundation::rhi::webgpu
             auto* encoder = m_allocator->New<WebGpuCommandEncoder>();
             encoder->Initialize(*m_api, m_device, *m_allocator, *m_blitHelper);
             encoder->SetCounters(counters);
+            encoder->buffers = buffers;
             m_encoders.PushBack(encoder);
             out = encoder;
             return ErrorCode::Ok;
@@ -81,6 +85,7 @@ export namespace foundation::rhi::webgpu
                 m_allocator->Delete(encoder);
                 return nullptr;
             }
+            encoder->buffers = buffers;
             m_bundleEncoders.PushBack(encoder);
             return encoder;
         }

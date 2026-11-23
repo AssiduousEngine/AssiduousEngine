@@ -35,7 +35,7 @@ private:
         0.0f, 1.0f, 0.0f, -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,  1.0f,
     };
 
-    rhi::Buffer* m_vertexBuf = nullptr;
+    rhi::BufferHandle m_vertexBuf{};
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
     rhi::BindGroupLayout* m_bgl = nullptr;

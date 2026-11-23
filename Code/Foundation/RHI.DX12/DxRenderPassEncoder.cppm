@@ -62,6 +62,7 @@ export namespace foundation::rhi::dx12
     struct DxRenderPassContext
     {
         ID3D12GraphicsCommandList* cmdList = nullptr;
+        const DxBufferTable* buffers = nullptr; // the device's buffers, its handles looked up in
         DxDescriptorStaging* srvStaging = nullptr;
         DxGpuDescriptorHeap* gpuSrvHeap = nullptr;
         DxGpuDescriptorHeap* gpuSamplerHeap = nullptr;
@@ -214,9 +215,9 @@ export namespace foundation::rhi::dx12
 
         // ---- Vertex and index buffers ----
 
-        void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset) override
+        void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
             if (!dxBuf || slot >= 8)
                 return;
 
@@ -235,9 +236,9 @@ export namespace foundation::rhi::dx12
             m_ctx.cmdList->IASetVertexBuffers(slot, 1, &view);
         }
 
-        void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset) override
+        void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
             if (!dxBuf)
                 return;
 
@@ -302,10 +303,10 @@ export namespace foundation::rhi::dx12
                                                 firstInstance);
         }
 
-        void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
             if (!dxBuf)
                 return;
 
@@ -322,10 +323,10 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
             if (!dxBuf)
                 return;
 
@@ -394,10 +395,10 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void DrawMeshTasksIndirect(Buffer* buffer, u64 offset, u32 drawCount, u32 stride) override
+        void DrawMeshTasksIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
             if (!dxBuf)
                 return;
 
@@ -415,12 +416,12 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void DrawMeshTasksIndirectCount(Buffer* buffer, u64 offset, Buffer* countBuffer,
+        void DrawMeshTasksIndirectCount(BufferHandle buffer, u64 offset, BufferHandle countBuffer,
                                         u64 countOffset, u32 maxDrawCount, u32 /*stride*/) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(maxDrawCount); // the count is on the GPU: at most this many
-            auto* dxBuf = static_cast<DxBufferImpl*>(buffer);
-            auto* dxCountBuf = static_cast<DxBufferImpl*>(countBuffer);
+            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxCountBuf = LookUp(m_ctx.buffers, countBuffer);
             if (!dxBuf || !dxCountBuf)
                 return;
 

@@ -42,9 +42,9 @@ export namespace foundation::rhi
                                       const void* data) = 0;
 
         /// Bind a vertex buffer to a slot.
-        virtual void SetVertexBuffer(u32 slot, Buffer* buffer, u64 offset = 0) = 0;
+        virtual void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset = 0) = 0;
         /// Bind an index buffer.
-        virtual void SetIndexBuffer(Buffer* buffer, IndexFormat format, u64 offset = 0) = 0;
+        virtual void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset = 0) = 0;
 
         /// Issue a non-indexed draw call.
         virtual void Draw(u32 vertexCount, u32 instanceCount = 1, u32 firstVertex = 0,
@@ -53,10 +53,10 @@ export namespace foundation::rhi
         virtual void DrawIndexed(u32 indexCount, u32 instanceCount = 1, u32 firstIndex = 0,
                                  i32 baseVertex = 0, u32 firstInstance = 0) = 0;
         /// Issue an indirect draw call.
-        virtual void DrawIndirect(Buffer* buffer, u64 offset, u32 drawCount = 1,
+        virtual void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount = 1,
                                   u32 stride = 0) = 0;
         /// Issue an indexed indirect draw call.
-        virtual void DrawIndexedIndirect(Buffer* buffer, u64 offset, u32 drawCount = 1,
+        virtual void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount = 1,
                                          u32 stride = 0) = 0;
     };
 
@@ -133,7 +133,7 @@ export namespace foundation::rhi
         /// Dispatch compute work groups.
         virtual void Dispatch(u32 x, u32 y = 1, u32 z = 1) = 0;
         /// Dispatch compute work groups via an indirect buffer.
-        virtual void DispatchIndirect(Buffer* buffer, u64 offset) = 0;
+        virtual void DispatchIndirect(BufferHandle buffer, u64 offset) = 0;
 
         /// Insert a compute-to-compute memory barrier.
         virtual void ComputeBarrier() = 0;
@@ -182,7 +182,7 @@ export namespace foundation::rhi
         }
 
         /// Convenience: transition a single buffer between resource states.
-        void TransitionBuffer(Buffer* buf, ResourceState oldState, ResourceState newState)
+        void TransitionBuffer(BufferHandle buf, ResourceState oldState, ResourceState newState)
         {
             BufferBarrier bb{};
             bb.buffer = buf;
@@ -194,11 +194,11 @@ export namespace foundation::rhi
         }
 
         /// Copy operations.
-        virtual void CopyBufferToBuffer(Buffer* src, u64 srcOffset, Buffer* dst, u64 dstOffset,
+        virtual void CopyBufferToBuffer(BufferHandle src, u64 srcOffset, BufferHandle dst, u64 dstOffset,
                                         u64 size) = 0;
-        virtual void CopyBufferToTexture(Buffer* src, Texture* dst,
+        virtual void CopyBufferToTexture(BufferHandle src, Texture* dst,
                                          const BufferTextureCopyRegion& region) = 0;
-        virtual void CopyTextureToBuffer(Texture* src, Buffer* dst,
+        virtual void CopyTextureToBuffer(Texture* src, BufferHandle dst,
                                          const BufferTextureCopyRegion& region) = 0;
         virtual void CopyTextureToTexture(Texture* src, Texture* dst,
                                           const TextureCopyRegion& region) = 0;
@@ -220,7 +220,7 @@ export namespace foundation::rhi
         virtual void EndPipelineStatisticsQuery(QuerySet* querySet, u32 index) = 0;
         /// Copy `count` results into `dst` from `dstOffset`, each Device::QueryResultSize(type)
         /// bytes apart.
-        virtual void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, Buffer* dst,
+        virtual void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, BufferHandle dst,
                                      u64 dstOffset) = 0;
 
         /// Debug labels.
@@ -272,7 +272,7 @@ export namespace foundation::rhi
         virtual ~TransferBatch() = default;
 
         /// Stage a buffer write.
-        virtual void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) = 0;
+        virtual void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) = 0;
         /// Stage a texture write.
         virtual void WriteTexture(Texture* dst, Span<const u8> data,
                                   const TextureDataLayout& layout, Extent3D extent,

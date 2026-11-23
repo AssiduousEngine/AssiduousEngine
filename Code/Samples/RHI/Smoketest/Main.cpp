@@ -147,19 +147,19 @@ int main(int /*argc*/, char** /*argv*/)
     ubDesc.usage = BufferUsage::Uniform | BufferUsage::CopyDst;
     ubDesc.memory = MemoryLocation::CpuToGpu;
     ubDesc.label = u8"smoketest_uniform";
-    Buffer* ub = nullptr;
+    BufferHandle ub{};
     if (device->CreateBuffer(ubDesc, ub) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createBuffer failed\n");
     }
     else
     {
-        void* mapped = ub->Map();
+        void* mapped = device->Map(ub);
         std::printf("uniform buffer: size=%llu mapped=%p\n",
-                    static_cast<unsigned long long>(ub->GetSize()), mapped);
+                    static_cast<unsigned long long>(device->Describe(ub)->size), mapped);
         if (mapped)
             std::memset(mapped, 0xAB, 16);
-        ub->Unmap();
+        device->Unmap(ub);
     }
 
     SamplerDesc sampDesc{};
@@ -412,15 +412,15 @@ int main(int /*argc*/, char** /*argv*/)
         nullDevice->CreateSwapChain(nullSurface, nullSd, nullSwap);
         std::printf("null swap chain: %ux%u\n", nullSwap->Width(), nullSwap->Height());
 
-        Buffer* nullBuf = nullptr;
+        BufferHandle nullBuf{};
         BufferDesc nbd{};
         nbd.size = 256;
         nbd.usage = BufferUsage::Uniform;
         nbd.memory = MemoryLocation::CpuToGpu;
         nullDevice->CreateBuffer(nbd, nullBuf);
-        void* mapped = nullBuf->Map();
+        void* mapped = device->Map(nullBuf);
         std::printf("null buffer mapped: %s\n", mapped ? "yes" : "no");
-        nullBuf->Unmap();
+        device->Unmap(nullBuf);
 
         CommandPool* nullPool = nullptr;
         nullDevice->CreateCommandPool(QueueType::Graphics, nullPool);
@@ -485,7 +485,7 @@ int main(int /*argc*/, char** /*argv*/)
                                 static_cast<int>(dx12Device->type));
 
                     // Create and destroy a buffer.
-                    Buffer* dx12Buf = nullptr;
+                    BufferHandle dx12Buf{};
                     BufferDesc bd{};
                     bd.size = 256;
                     bd.usage = BufferUsage::Uniform;
@@ -553,7 +553,7 @@ int main(int /*argc*/, char** /*argv*/)
                                 static_cast<int>(wgpuDevice->type));
 
                     // Buffer: the Map emulation (a CPU shadow, written with WriteBuffer on Unmap).
-                    Buffer* wgpuBuf = nullptr;
+                    BufferHandle wgpuBuf{};
                     BufferDesc bd{};
                     bd.size = 256;
                     bd.usage = BufferUsage::Uniform;
@@ -561,12 +561,12 @@ int main(int /*argc*/, char** /*argv*/)
                     wgpuDevice->CreateBuffer(bd, wgpuBuf);
                     if (wgpuBuf)
                     {
-                        void* mapped = wgpuBuf->Map();
+                        void* mapped = device->Map(wgpuBuf);
                         std::printf("WebGPU buffer mapped: %s\n", mapped ? "OK" : "FAIL");
                         if (mapped)
                         {
                             std::memset(mapped, 0x5A, 256);
-                            wgpuBuf->Unmap(); // flushes via wgpuQueueWriteBuffer
+                            device->Unmap(wgpuBuf); // flushes via wgpuQueueWriteBuffer
                         }
                         wgpuDevice->DestroyBuffer(wgpuBuf);
                     }

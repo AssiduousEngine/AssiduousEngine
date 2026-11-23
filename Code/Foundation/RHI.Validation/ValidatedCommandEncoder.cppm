@@ -96,7 +96,7 @@ export namespace foundation::rhi::validation
             m_inner->Barrier(group);
         }
 
-        void CopyBufferToBuffer(Buffer* src, u64 srcOff, Buffer* dst, u64 dstOff, u64 size) override
+        void CopyBufferToBuffer(BufferHandle src, u64 srcOff, BufferHandle dst, u64 dstOff, u64 size) override
         {
             if (!checkState("copyBufferToBuffer", EncoderState::Recording))
                 return;
@@ -115,7 +115,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyBufferToBuffer(src, srcOff, dst, dstOff, size);
         }
 
-        void CopyBufferToTexture(Buffer* src, Texture* dst,
+        void CopyBufferToTexture(BufferHandle src, Texture* dst,
                                  const BufferTextureCopyRegion& r) override
         {
             if (!checkState("copyBufferToTexture", EncoderState::Recording))
@@ -133,7 +133,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyBufferToTexture(src, dst, r);
         }
 
-        void CopyTextureToBuffer(Texture* src, Buffer* dst,
+        void CopyTextureToBuffer(Texture* src, BufferHandle dst,
                                  const BufferTextureCopyRegion& r) override
         {
             if (!checkState("copyTextureToBuffer", EncoderState::Recording))
@@ -260,7 +260,7 @@ export namespace foundation::rhi::validation
             m_inner->EndPipelineStatisticsQuery(qs, index);
         }
 
-        void ResolveQuerySet(QuerySet* qs, u32 first, u32 count, Buffer* dst, u64 dstOff) override
+        void ResolveQuerySet(QuerySet* qs, u32 first, u32 count, BufferHandle dst, u64 dstOff) override
         {
             if (!checkState("resolveQuerySet", EncoderState::Recording))
                 return;
@@ -332,7 +332,7 @@ export namespace foundation::rhi::validation
 
         // ---- RayTracingEncoderExt ----
 
-        void BuildBottomLevelAccelStruct(AccelStruct* dst, Buffer* scratch, u64 scratchOff,
+        void BuildBottomLevelAccelStruct(AccelStruct* dst, BufferHandle scratch, u64 scratchOff,
                                          Span<const AccelStructGeometryTriangles> tris,
                                          Span<const AccelStructGeometryAABBs> aabbs) override
         {
@@ -355,8 +355,8 @@ export namespace foundation::rhi::validation
                 LogError("[Validation] buildBLAS: inner encoder does not support ray tracing");
         }
 
-        void BuildTopLevelAccelStruct(AccelStruct* dst, Buffer* scratch, u64 scratchOff,
-                                      Buffer* instanceBuf, u64 instanceOff,
+        void BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratch, u64 scratchOff,
+                                      BufferHandle instanceBuf, u64 instanceOff,
                                       u32 instanceCount) override
         {
             if (!checkState("buildTLAS", EncoderState::Recording))
@@ -421,8 +421,8 @@ export namespace foundation::rhi::validation
                 rt->SetPushConstants(stages, offset, size, data);
         }
 
-        void TraceRays(Buffer* raygenSBT, u64 raygenOff, u64 raygenStride, Buffer* missSBT,
-                       u64 missOff, u64 missStride, Buffer* hitSBT, u64 hitOff, u64 hitStride,
+        void TraceRays(BufferHandle raygenSBT, u64 raygenOff, u64 raygenStride, BufferHandle missSBT,
+                       u64 missOff, u64 missStride, BufferHandle hitSBT, u64 hitOff, u64 hitStride,
                        u32 width, u32 height, u32 depth) override
         {
             if (!checkState("traceRays", EncoderState::Recording))

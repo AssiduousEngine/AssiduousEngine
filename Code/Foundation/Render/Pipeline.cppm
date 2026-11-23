@@ -101,7 +101,7 @@ export namespace foundation::render
         // The actual per-scene products, bound per view into set 0 (a frame renders several
         // scenes, each with its own IBL context). `generation` is unique across contexts
         // (one system-wide counter), so bind-group caches can key on it alone.
-        rhi::Buffer* shBuffer = nullptr;
+        rhi::BufferHandle shBuffer{};
         rhi::TextureView* prefilterView = nullptr;
         rhi::TextureView* brdfView = nullptr;
         f32 maxLod = 0.0f;
@@ -210,13 +210,13 @@ export namespace foundation::render
         bool drawDynamic = false;
         rhi::BindGroup* materialSet = nullptr; // set 2 (material, inferred from properties)
         rhi::BindGroup* clusterSet = nullptr;  // set 3 (clustered light lists; dummy when off)
-        rhi::Buffer* vertexBuffer0 = nullptr;
+        rhi::BufferHandle vertexBuffer0{};
         u64 vertexOffset0 = 0;
-        rhi::Buffer* vertexBuffer1 = nullptr;
+        rhi::BufferHandle vertexBuffer1{};
         u64 vertexOffset1 = 0; // optional: skin stream (skinned) or instance offsets
-        rhi::Buffer* vertexBuffer2 = nullptr;
+        rhi::BufferHandle vertexBuffer2{};
         u64 vertexOffset2 = 0; // optional: instance offsets (skinned and instanced)
-        rhi::Buffer* indexBuffer = nullptr;
+        rhi::BufferHandle indexBuffer{};
         u64 indexOffset = 0;
         rhi::IndexFormat indexFormat = rhi::IndexFormat::UInt32;
         u32 indexCount = 0;
@@ -257,7 +257,7 @@ export namespace foundation::render
     // command emission: it touches no shared state, so it is safe to run concurrently.
     inline void EmitDraw(rhi::RenderCommandEncoder& enc, const ResolvedDraw& d)
     {
-        if (d.pso == nullptr || d.indexBuffer == nullptr)
+        if (d.pso == nullptr || !d.indexBuffer.IsValid())
         {
             return;
         }
@@ -298,15 +298,15 @@ export namespace foundation::render
         {
             enc.SetBindGroup(3, d.clusterSet, Span<const u32>{});
         } // cluster lists
-        if (d.vertexBuffer0 != nullptr)
+        if (d.vertexBuffer0.IsValid())
         {
             enc.SetVertexBuffer(0, d.vertexBuffer0, d.vertexOffset0);
         }
-        if (d.vertexBuffer1 != nullptr)
+        if (d.vertexBuffer1.IsValid())
         {
             enc.SetVertexBuffer(1, d.vertexBuffer1, d.vertexOffset1);
         }
-        if (d.vertexBuffer2 != nullptr)
+        if (d.vertexBuffer2.IsValid())
         {
             enc.SetVertexBuffer(2, d.vertexBuffer2, d.vertexOffset2);
         }
@@ -389,7 +389,7 @@ export namespace foundation::render
         // This frame's reflection probes: the prefiltered cube array (set-0 t8), the probe-metadata SRV (t9)
         // and the active probe count (the forward loops Probes[0..count]). Null means no probes. Called once per
         // frame before PrepareFrame. Default no-op.
-        virtual void SetProbes(rhi::TextureView* cubeArray, rhi::Buffer* probeBuffer, u32 count);
+        virtual void SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count);
 
         // Upload this frame's local-shadow entries (the atlas's per-light matrices and rects) for a renderer
         // that binds them in set 0. Called once per frame after PrepareFrame. Default no-op.

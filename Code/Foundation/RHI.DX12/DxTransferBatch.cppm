@@ -16,6 +16,7 @@ import foundation.core;
 import foundation.rhi;
 import :conversions;
 import :buffer;
+import :queue_timeline;
 import :texture;
 import :fence;
 
@@ -29,6 +30,13 @@ export namespace foundation::rhi::dx12
     class DxTransferBatchImpl : public TransferBatch
     {
     public:
+        /// The device's buffers (its writes look their destinations up as they record), and its
+        /// queue's timeline, which its submissions signal like the queue's own.
+        const DxBufferTable* buffers = nullptr;
+        DxQueueTimeline* timeline = nullptr;
+        /// Open from its first recorded write to its submit (or Reset, or its end): the writes
+        /// name their destinations as they are recorded.
+        SubmissionTracker::Recording recording = 0;
         DeviceCounterBlock* counters = nullptr; // the device's counts (transfer bytes)
 
         Status init(ID3D12Device* device, ID3D12CommandQueue* queue, QueueType queueType)
@@ -74,9 +82,9 @@ export namespace foundation::rhi::dx12
 
         // ---- TransferBatch interface ----
 
-        void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) override
+        void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
-            auto* dxDst = static_cast<DxBufferImpl*>(dst);
+            auto* dxDst = LookUp(buffers, dst);
             if (!dxDst || data.Size() == 0)
                 return;
             if (counters)
@@ -218,6 +226,7 @@ export namespace foundation::rhi::dx12
 
             ID3D12CommandList* lists[] = {m_cmdList.Get()};
             m_queue->ExecuteCommandLists(1, lists);
+            submitted();
 
             // Wait for completion.
             ++m_fenceValue;
@@ -242,6 +251,7 @@ export namespace foundation::rhi::dx12
 
             ID3D12CommandList* lists[] = {m_cmdList.Get()};
             m_queue->ExecuteCommandLists(1, lists);
+            submitted();
 
             if (auto* dxFence = static_cast<DxFenceImpl*>(fence))
                 m_queue->Signal(dxFence->handle(), signalValue);
@@ -251,10 +261,15 @@ export namespace foundation::rhi::dx12
             return ErrorCode::Ok;
         }
 
-        void Reset() override { releaseStagingBuffers(); }
+        void Reset() override
+        {
+            discardRecording();
+            releaseStagingBuffers();
+        }
 
         void Destroy() override
         {
+            discardRecording();
             releaseStagingBuffers();
 
             if (m_fenceEvent)
@@ -268,8 +283,27 @@ export namespace foundation::rhi::dx12
         }
 
     private:
+        // The queue's timeline signalled after the batch's work, and its recording ended there.
+        void submitted()
+        {
+            if (timeline == nullptr)
+                return;
+            const u64 value = timeline->signal(m_queue);
+            if (SubmissionTracker* tracker = timeline->tracker(); tracker != nullptr && value != 0)
+                tracker->End(recording, timeline->slot(), value);
+            recording = 0;
+        }
+        void discardRecording()
+        {
+            if (timeline != nullptr && timeline->tracker() != nullptr)
+                timeline->tracker()->End(recording);
+            recording = 0;
+        }
+
         void ensureRecording()
         {
+            if (recording == 0 && timeline != nullptr && timeline->tracker() != nullptr)
+                recording = timeline->tracker()->Begin();
             if (!m_isRecording)
             {
                 m_allocator->Reset();

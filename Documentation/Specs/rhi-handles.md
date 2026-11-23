@@ -149,9 +149,16 @@ namespace foundation::rhi
   device's pools carry its id (Decision 1), so a handle used on the wrong device fails its lookup.
   One table shared by the backends was weighed and not taken: it would catch the same mistake, but
   at the cost of a cast on every lookup and one lock across devices (user, 2026-11-22).
-- **`Destroy*(handle)` makes the handle stale at once and retires the object**: the device frees
-  it when the GPU has finished every submission made before the destroy, which it tracks by the
-  queue's submission fences (a timeline semaphore on Vulkan, the fence on Direct3D 12). WebGPU's
+- **`Destroy*(handle)` makes the handle stale at once and retires the object**, and the device
+  frees it once the GPU can no longer use it. A command buffer recorded before the destroy may be
+  submitted after it (a frame's commands recorded, an upload that destroys a buffer submitted, then
+  the frame's commands), so "every submission made before the destroy" is not enough (user,
+  2026-11-22): a retired object waits until **every command buffer begun before the destroy has been
+  submitted or discarded**, and then until the last of those submissions completes. A shared tracker
+  in `foundation.rhi` does the bookkeeping; each backend reports a command buffer's begin, its
+  submit (with the queue's submission value) and its discard, and its queue signals an internal
+  timeline on every submit (a timeline semaphore on Vulkan, a fence on Direct3D 12) whose completed
+  value the tracker compares. WebGPU's
   own objects already outlive the work that uses them; its backend frees at once if that holds in
   the browser and wgpu-native, and retires as the others do if it does not (checked in H1).
 - **`GpuRetireQueue`, the per-pass `Retire*` paths and their `WaitIdle` fallbacks go**: a pass that

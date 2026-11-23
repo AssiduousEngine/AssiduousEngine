@@ -41,7 +41,7 @@ private:
                                                    8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15};
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline *m_opaquePipe = nullptr, *m_blendPipe = nullptr;
     rhi::CommandPool* m_pool = nullptr;

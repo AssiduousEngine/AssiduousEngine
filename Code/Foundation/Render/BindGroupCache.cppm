@@ -32,7 +32,7 @@ export namespace foundation::render
     {
         rhi::TextureView* views[N] = {};
         u64 generations[N] = {};
-        rhi::Buffer* buffer = nullptr;
+        rhi::BufferHandle buffer{};
         u64 bufferGeneration = 0;
 
         void Set(usize slot, rhi::TextureView* view, u64 generation) noexcept
@@ -40,7 +40,7 @@ export namespace foundation::render
             views[slot] = view;
             generations[slot] = generation;
         }
-        void SetBuffer(rhi::Buffer* b, u64 generation) noexcept
+        void SetBuffer(rhi::BufferHandle b, u64 generation) noexcept
         {
             buffer = b;
             bufferGeneration = generation;

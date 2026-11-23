@@ -1093,14 +1093,14 @@ export namespace foundation::vg::renderer
         static constexpr i32 UniformSlotSize =
             256; // dynamic-offset alignment (>= sizeof(VGUniforms) = 80)
 
-        static void WriteBuffer(rhi::Buffer* buf, u64 offset, const void* data, usize size)
+        void WriteBuffer(rhi::BufferHandle buf, u64 offset, const void* data, usize size)
         {
-            if (buf == nullptr || size == 0)
+            if (!buf.IsValid() || size == 0)
                 return;
-            if (u8* p = static_cast<u8*>(buf->Map()))
+            if (u8* p = static_cast<u8*>(m_device->Map(buf)))
             {
                 MemCopy(p + offset, data, size);
-                buf->Unmap();
+                m_device->Unmap(buf);
             }
         }
 
@@ -1660,22 +1660,22 @@ export namespace foundation::vg::renderer
             vd.size = static_cast<u64>(m_targetVertexCapacity) * sizeof(VGRenderVertex);
             vd.usage = rhi::BufferUsage::Vertex;
             vd.memory = rhi::MemoryLocation::CpuToGpu;
-            rhi::Buffer* newVert = nullptr;
+            rhi::BufferHandle newVert{};
             if (!m_device->CreateBuffer(vd, newVert).IsOk())
                 return;
             rhi::BufferDesc id{};
             id.size = static_cast<u64>(m_targetVertexCapacity) * 3u * sizeof(u32);
             id.usage = rhi::BufferUsage::Index;
             id.memory = rhi::MemoryLocation::CpuToGpu;
-            rhi::Buffer* newIdx = nullptr;
+            rhi::BufferHandle newIdx{};
             if (!m_device->CreateBuffer(id, newIdx).IsOk())
             {
                 m_device->DestroyBuffer(newVert);
                 return;
             }
-            if (m_vertexBuffers[fi] != nullptr)
+            if (m_vertexBuffers[fi].IsValid())
                 m_device->DestroyBuffer(m_vertexBuffers[fi]);
-            if (m_indexBuffers[fi] != nullptr)
+            if (m_indexBuffers[fi].IsValid())
                 m_device->DestroyBuffer(m_indexBuffers[fi]);
             m_vertexBuffers[fi] = newVert;
             m_indexBuffers[fi] = newIdx;
@@ -2009,10 +2009,10 @@ export namespace foundation::vg::renderer
                 m_device->DestroyTexture(cached.gpuTexture);
         }
 
-        void DestroyBuffers(Array<rhi::Buffer*>& buffers)
+        void DestroyBuffers(Array<rhi::BufferHandle>& buffers)
         {
             for (usize i = 0; i < buffers.Size(); ++i)
-                if (buffers[i] != nullptr)
+                if (buffers[i].IsValid())
                     m_device->DestroyBuffer(buffers[i]);
             buffers.Clear();
         }
@@ -2058,9 +2058,9 @@ export namespace foundation::vg::renderer
         rhi::Sampler* m_samplerRepeat = nullptr;
         rhi::Sampler* m_samplerMirror = nullptr;
 
-        Array<rhi::Buffer*> m_vertexBuffers;
-        Array<rhi::Buffer*> m_indexBuffers;
-        Array<rhi::Buffer*> m_uniformBuffers;
+        Array<rhi::BufferHandle> m_vertexBuffers;
+        Array<rhi::BufferHandle> m_indexBuffers;
+        Array<rhi::BufferHandle> m_uniformBuffers;
 
         // On-demand growth of the vertex and index buffers: an overflowing Prepare bumps the target
         // and skips that frame's slice; each frame's buffers are resized up to the target at

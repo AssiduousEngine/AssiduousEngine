@@ -37,11 +37,11 @@ private:
     static constexpr foundation::core::u16 kIdx[] = {0, 1, 2};
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline* m_pipeline = nullptr;
     rhi::QuerySet* m_tsQuerySet = nullptr;
-    rhi::Buffer* m_queryResultBuf = nullptr;
+    rhi::BufferHandle m_queryResultBuf{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -133,7 +133,7 @@ void QuerySample::OnRender()
     // Read back previous frame's query results (after fence wait ensures GPU is done).
     if (m_frameCount > 1)
     {
-        void* mapped = m_queryResultBuf->Map();
+        void* mapped = m_device->Map(m_queryResultBuf);
         if (mapped)
         {
             auto* timestamps = static_cast<u64*>(mapped);
@@ -146,7 +146,7 @@ void QuerySample::OnRender()
                             gpuTimeUs, static_cast<unsigned long long>(delta), period);
                 m_lastReportTime = m_totalTime;
             }
-            m_queryResultBuf->Unmap();
+            m_device->Unmap(m_queryResultBuf);
         }
     }
 

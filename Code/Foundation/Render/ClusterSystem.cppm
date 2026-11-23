@@ -53,10 +53,10 @@ export namespace foundation::render
     // fragment shader needs to map a pixel and depth to its cluster. Filled by DeclareBuild.
     struct ClusterBinding
     {
-        rhi::Buffer* offsets = nullptr;      // uint2 per cluster: (indexStart, count)
-        rhi::Buffer* lightIndices = nullptr; // flat uint light-index list
+        rhi::BufferHandle offsets{};      // uint2 per cluster: (indexStart, count)
+        rhi::BufferHandle lightIndices{}; // flat uint light-index list
         // Bumped every time this slot's buffers are reallocated (resize). Consumers must invalidate any
-        // cached bind group on a version change: a freed rhi::Buffer* address can be reused by the new
+        // cached bind group on a version change: a freed rhi::BufferHandle address can be reused by the new
         // allocation, so pointer equality is not a reliable "unchanged" test.
         u32 version = 0;
         rendergraph::RGHandle offsetsHandle =
@@ -69,7 +69,7 @@ export namespace foundation::render
         f32 nearZ = 0.0f, farZ = 0.0f, logScale = 0.0f, logBias = 0.0f;
         [[nodiscard]] bool Valid() const noexcept
         {
-            return offsets != nullptr && lightIndices != nullptr;
+            return offsets.IsValid() && lightIndices.IsValid();
         }
     };
 
@@ -134,16 +134,16 @@ export namespace foundation::render
         // in one frame must not share buffers, or the second view's build overwrites the first's.
         struct Slot
         {
-            rhi::Buffer* offsets = nullptr; // cluster (offset, count)
-            rhi::Buffer* indices = nullptr; // the shared light-index list
+            rhi::BufferHandle offsets{}; // cluster (offset, count)
+            rhi::BufferHandle indices{}; // the shared light-index list
             u64 offsetsBytes = 0;           // size of the slot's buffers (views can differ)
             u64 indicesBytes = 0;
             u32 bufferVersion = 0; // incremented on realloc; consumers invalidate cached bind groups
             rhi::BindGroup* bindGroup = nullptr;
             u32 bgParamsGen = 0;
             u32 bgLightGen = 0;
-            rhi::Buffer* bgOffsets = nullptr;
-            rhi::Buffer* bgIndices = nullptr;
+            rhi::BufferHandle bgOffsets{};
+            rhi::BufferHandle bgIndices{};
         };
 
         // (Re)create one slot's cluster buffers when its cluster count grows. Lazy: only the slots

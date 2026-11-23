@@ -294,4 +294,15 @@ export namespace foundation::rhi::webgpu
     private:
         Array<WebGpuBuffer*> m_buffers;
     };
+
+    /// The device's buffers by handle; encoders, bind groups and transfer batches look their
+    /// handles up in it as they record.
+    using WebGpuBufferTable = ResourceTable<BufferTag, WebGpuBuffer>;
+
+    /// The WebGPU buffer `handle` names in `table`, or null (a stale handle).
+    [[nodiscard]] inline WGPUBuffer WgpuBufferOf(const WebGpuBufferTable* table, BufferHandle handle) noexcept
+    {
+        WebGpuBuffer* buffer = table != nullptr ? table->Get(handle) : nullptr;
+        return buffer != nullptr ? buffer->Handle() : nullptr;
+    }
 }

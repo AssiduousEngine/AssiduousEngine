@@ -120,11 +120,11 @@ namespace foundation::render
     {
         for (Slot& slot : m_slots)
         {
-            if (slot.buffer != nullptr)
+            if (slot.buffer.IsValid())
             {
                 // Destruction is a teardown (the owner waited the device idle); free directly.
                 m_device->DestroyBuffer(slot.buffer);
-                slot.buffer = nullptr;
+                slot.buffer = {};
             }
         }
     }
@@ -268,7 +268,7 @@ namespace foundation::render
 
     bool PickSystem::EnsureBuffer(Slot& slot, u64 bytes)
     {
-        if (slot.buffer != nullptr && slot.capacity >= bytes)
+        if (slot.buffer.IsValid() && slot.capacity >= bytes)
         {
             return true;
         }
@@ -278,9 +278,9 @@ namespace foundation::render
         desc.usage = rhi::BufferUsage::CopyDst;
         desc.memory = rhi::MemoryLocation::GpuToCpu;
         desc.label = u8"pick.readback";
-        if (!m_device->CreateBuffer(desc, slot.buffer).IsOk() || slot.buffer == nullptr)
+        if (!m_device->CreateBuffer(desc, slot.buffer).IsOk() || !slot.buffer.IsValid())
         {
-            slot.buffer = nullptr;
+            slot.buffer = {};
             slot.capacity = 0;
             return false;
         }
@@ -290,7 +290,7 @@ namespace foundation::render
 
     void PickSystem::ReleaseBuffer(Slot& slot)
     {
-        if (slot.buffer == nullptr)
+        if (!slot.buffer.IsValid())
         {
             return;
         }
@@ -303,7 +303,7 @@ namespace foundation::render
             m_device->WaitIdle();
             m_device->DestroyBuffer(slot.buffer);
         }
-        slot.buffer = nullptr;
+        slot.buffer = {};
         slot.capacity = 0;
     }
 
@@ -327,13 +327,13 @@ namespace foundation::render
                     break;
                 }
                 slot.hits.Clear();
-                if (slot.buffer != nullptr)
+                if (slot.buffer.IsValid())
                 {
-                    if (const u8* mapped = static_cast<const u8*>(slot.buffer->Map()))
+                    if (const u8* mapped = static_cast<const u8*>(m_device->Map(slot.buffer)))
                     {
                         DecodePickTexels(mapped, slot.rect.width, slot.rect.height,
                                          PickRowStride(slot.rect.width), slot.hits);
-                        slot.buffer->Unmap();
+                        m_device->Unmap(slot.buffer);
                     }
                 }
                 slot.rendered = true;
@@ -429,7 +429,7 @@ namespace foundation::render
                     b.SetExecute([record, context, viewProj, rect, viewContext](rhi::RenderPassEncoder& rp)
                                  { record(context, rp, viewProj, rect, viewContext); });
                 });
-            rhi::Buffer* buffer = slot.buffer;
+            rhi::BufferHandle buffer = slot.buffer;
             rendergraph::RenderGraph* g = &graph;
             graph.AddCopyPass(u8"pick.readback",
                               [ids, readback, rect, rowStride, buffer, g](rendergraph::PassBuilder& b)
@@ -441,7 +441,7 @@ namespace foundation::render
                                       [ids, rect, rowStride, buffer, g](rhi::CommandEncoder& enc)
                                       {
                                           rhi::Texture* src = g->GetTexture(ids);
-                                          if (src == nullptr || buffer == nullptr)
+                                          if (src == nullptr || !buffer.IsValid())
                                           {
                                               return;
                                           }

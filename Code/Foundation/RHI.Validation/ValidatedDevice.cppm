@@ -87,25 +87,34 @@ export namespace foundation::rhi::validation
 
         // ---- Create methods (with validation and tracking) ----
 
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
-            if (!checkAlive("CreateBuffer", out)) return ErrorCode::Unknown;
-            if (d.size == 0) { LogError("[Validation] CreateBuffer: size is 0"); out = nullptr; return ErrorCode::InvalidArgument; }
+            if (m_destroyed)
+            {
+                LogError("[Validation] CreateBuffer: device destroyed");
+                out = BufferHandle::Invalid();
+                return ErrorCode::Unknown;
+            }
+            if (d.size == 0) { LogError("[Validation] CreateBuffer: size is 0"); out = BufferHandle::Invalid(); return ErrorCode::InvalidArgument; }
             if (d.memory == MemoryLocation::CpuToGpu && (static_cast<u32>(d.usage) & static_cast<u32>(BufferUsage::Storage)))
             {
                 LogError("[Validation] CreateBuffer: Storage usage is not compatible with CpuToGpu memory. "
                          "DX12 UPLOAD heaps cannot have ALLOW_UNORDERED_ACCESS. "
                          "Use StorageRead for read-only structured buffers, or GpuOnly memory with a staging copy pattern.");
-                out = nullptr; return ErrorCode::InvalidArgument;
+                out = {}; return ErrorCode::InvalidArgument;
             }
             if (d.memory == MemoryLocation::GpuToCpu && (static_cast<u32>(d.usage) & static_cast<u32>(BufferUsage::Storage)))
             {
                 LogError("[Validation] CreateBuffer: Storage usage is not compatible with GpuToCpu memory. "
                          "DX12 READBACK heaps cannot have ALLOW_UNORDERED_ACCESS.");
-                out = nullptr; return ErrorCode::InvalidArgument;
+                out = {}; return ErrorCode::InvalidArgument;
             }
             Status r = m_inner->CreateBuffer(d, out);
-            if (r == ErrorCode::Ok && out) { m_liveBuffers.PushBack(out); Remember(out, d.label); }
+            if (r == ErrorCode::Ok && out)
+            {
+                m_liveBuffers.PushBack(out);
+                m_bufferLabels.InsertOrAssign(KeyOf(out), d.label.IsEmpty() ? String(u8"(unlabelled)") : String(d.label));
+            }
             return r;
         }
 
@@ -185,7 +194,7 @@ export namespace foundation::rhi::validation
                     case BindingType::UniformBuffer:
                     case BindingType::StorageBufferReadOnly:
                     case BindingType::StorageBufferReadWrite:
-                        if (entry.buffer == nullptr)
+                        if (!entry.buffer.IsValid())
                             LogErrorf("[Validation] CreateBindGroup: entry [%u] expects a buffer but Buffer is null", entryIdx);
                         break;
                     case BindingType::SampledTexture:
@@ -444,7 +453,51 @@ export namespace foundation::rhi::validation
         x = nullptr;                                                                               \
     }
 
-        V_DESTROY(Buffer, DestroyBuffer, m_liveBuffers)
+        void DestroyBuffer(BufferHandle& x) override
+        {
+            if (!x) return;
+            if (!removeFromList(m_liveBuffers, x))
+                LogErrorf("[Validation] DestroyBuffer: stale or foreign buffer handle (slot %u, count %u)", x.index, x.Count());
+            // Its label kept a while, so a stale use of the handle is reported by name.
+            if (const String* label = m_bufferLabels.Find(KeyOf(x)))
+            {
+                DestroyedLabel& slot = m_destroyedBufferLabels[m_destroyedCursor++ % kDestroyedLabelCount];
+                slot.key = KeyOf(x);
+                slot.label = *label;
+            }
+            (void)m_bufferLabels.Remove(KeyOf(x));
+            m_inner->DestroyBuffer(x);
+            x = BufferHandle::Invalid();
+        }
+        const BufferDesc* Describe(BufferHandle b) const override
+        {
+            const BufferDesc* desc = m_inner->Describe(b);
+            if (desc == nullptr && b)
+                ReportStale("Describe", b);
+            return desc;
+        }
+        void* Map(BufferHandle b) override
+        {
+            if (!Live(b, "Map"))
+                return nullptr;
+            return m_inner->Map(b);
+        }
+        void Unmap(BufferHandle b) override
+        {
+            if (Live(b, "Unmap"))
+                m_inner->Unmap(b);
+        }
+        void FlushRange(BufferHandle b, u64 offset, u64 size) override
+        {
+            if (!Live(b, "FlushRange"))
+                return;
+            const BufferDesc* desc = m_inner->Describe(b);
+            if (offset + size > desc->size)
+                LogErrorf("[Validation] FlushRange: [%llu, %llu) is past the buffer's %llu bytes",
+                          static_cast<unsigned long long>(offset), static_cast<unsigned long long>(offset + size),
+                          static_cast<unsigned long long>(desc->size));
+            m_inner->FlushRange(b, offset, size);
+        }
         V_DESTROY(Texture, DestroyTexture, m_liveTextures)
         V_DESTROY(TextureView, DestroyTextureView, m_liveTextureViews)
         V_DESTROY(Sampler, DestroySampler, m_liveSamplers)
@@ -547,7 +600,7 @@ export namespace foundation::rhi::validation
         }
 
         template <typename T>
-        bool removeFromList(Array<T*>& list, T* item)
+        bool removeFromList(Array<T>& list, const T& item)
         {
             for (usize i = 0; i < list.Size(); ++i)
             {
@@ -562,6 +615,38 @@ export namespace foundation::rhi::validation
 
         // The creation label of a tracked resource (buffers, textures, views), so a leak report
         // names what leaked instead of a handle nobody can chase.
+        // A buffer handle's key in the label map: its slot and generation.
+        [[nodiscard]] static u64 KeyOf(BufferHandle b) noexcept { return (u64{b.index} << 32) | b.generation; }
+        [[nodiscard]] StringView BufferLabelOf(BufferHandle b) const
+        {
+            if (const String* label = m_bufferLabels.Find(KeyOf(b)))
+                return label->AsView();
+            for (const DestroyedLabel& destroyed : m_destroyedBufferLabels)
+                if (destroyed.key == KeyOf(b) && !destroyed.label.IsEmpty())
+                    return destroyed.label.AsView();
+            return StringView(u8"(destroyed long ago, or another device's)");
+        }
+        void ReportStale(const char* method, BufferHandle b) const
+        {
+            LogErrorf("[Validation] %s: stale buffer handle (slot %u, count %u), last created as '%s'", method,
+                      b.index, b.Count(), reinterpret_cast<const char*>(BufferLabelOf(b).Data()));
+        }
+        // Whether `b` names a live buffer; reported when it does not.
+        [[nodiscard]] bool Live(BufferHandle b, const char* method) const
+        {
+            if (!b)
+            {
+                LogErrorf("[Validation] %s: buffer handle is null", method);
+                return false;
+            }
+            if (m_inner->Describe(b) == nullptr)
+            {
+                ReportStale(method, b);
+                return false;
+            }
+            return true;
+        }
+
         void Remember(const void* resource, StringView label)
         {
             m_labels.InsertOrAssign(resource, label.IsEmpty() ? String(u8"(unlabelled)") : String(label));
@@ -587,7 +672,9 @@ export namespace foundation::rhi::validation
                                 reinterpret_cast<const char*>(LabelOf(list[i]).Data()));
             };
             report("Buffer", m_liveBuffers.Size());
-            names("Buffer", m_liveBuffers);
+            for (usize i = 0; i < m_liveBuffers.Size(); ++i)
+                LogWarningf("[Validation]   live Buffer: %s",
+                            reinterpret_cast<const char*>(BufferLabelOf(m_liveBuffers[i]).Data()));
             report("Texture", m_liveTextures.Size());
             names("Texture", m_liveTextures);
             report("TextureView", m_liveTextureViews.Size());
@@ -620,9 +707,19 @@ export namespace foundation::rhi::validation
         };
         Array<QueueWrap> m_queueWrappers;
 
-        Array<Buffer*> m_liveBuffers;
+        Array<BufferHandle> m_liveBuffers;
         Array<Texture*> m_liveTextures;
         Array<TextureView*> m_liveTextureViews;
+        HashMap<u64, String> m_bufferLabels; // a live buffer's creation label, by KeyOf (leak and stale reports)
+        // The labels of the last buffers destroyed, by KeyOf: a stale use soon after names them.
+        static constexpr u32 kDestroyedLabelCount = 1024;
+        struct DestroyedLabel
+        {
+            u64 key = 0;
+            String label;
+        };
+        DestroyedLabel m_destroyedBufferLabels[kDestroyedLabelCount];
+        u32 m_destroyedCursor = 0;
         HashMap<const void*, String> m_labels; // creation labels of the three above (leak reports)
         Array<Sampler*> m_liveSamplers;
         Array<ShaderModule*> m_liveShaderModules;

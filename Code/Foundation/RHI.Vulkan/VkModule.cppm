@@ -25,6 +25,7 @@ export import :render_pipeline;
 export import :compute_pipeline;
 export import :bind_group;
 export import :swap_chain;
+export import :queue_timeline;
 export import :queue;
 export import :command_pool;
 export import :render_bundle_encoder;

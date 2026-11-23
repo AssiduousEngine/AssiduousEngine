@@ -32,9 +32,9 @@ TEST_CASE("rhi.validation: wraps a backend and forwards valid calls")
 
     BufferDesc bufferDesc{};
     bufferDesc.size = 128;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     CHECK(device->CreateBuffer(bufferDesc, buffer).IsOk());
-    CHECK(buffer != nullptr);
+    CHECK(buffer.IsValid());
 
     device->DestroyBuffer(buffer);
     device->Destroy();
@@ -178,6 +178,38 @@ TEST_CASE("rhi.validation: a device destroyed with live textures names them by t
     janitor->DestroyTextureView(leakedView);
     janitor->DestroyTexture(leaked);
     janitor->Destroy();
+    vb->Destroy();
+}
+
+TEST_CASE("rhi.validation: a destroyed buffer's handle used again is reported with the buffer's creation label")
+{
+    Backend* inner = nullptr;
+    REQUIRE(null::CreateNullBackend(inner).IsOk());
+    Backend* vb = validation::CreateValidatedBackend(inner, DefaultAllocator());
+    REQUIRE(vb != nullptr);
+    Device* device = nullptr;
+    REQUIRE(vb->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+
+    BufferDesc bd{};
+    bd.size = 64;
+    bd.usage = BufferUsage::Uniform;
+    bd.memory = MemoryLocation::CpuToGpu;
+    bd.label = u8"stale.probe.buffer";
+    BufferHandle buffer{};
+    REQUIRE(device->CreateBuffer(bd, buffer).IsOk());
+    const BufferHandle kept = buffer;
+    device->DestroyBuffer(buffer);
+
+    LineCapture capture;
+    capture.needle = "stale.probe.buffer";
+    SetLogSink(&LineCapture::Sink, &capture);
+    CHECK(device->Map(kept) == nullptr);
+    device->Unmap(kept);
+    CHECK(device->Describe(kept) == nullptr);
+    SetLogSink(nullptr, nullptr);
+    CHECK(capture.matching == 3); // each call, named
+
+    device->Destroy();
     vb->Destroy();
 }
 

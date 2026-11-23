@@ -50,7 +50,7 @@ private:
     rhi::BindGroup* m_compBg = nullptr;
     rhi::PipelineLayout* m_compPl = nullptr;
     rhi::ComputePipeline* m_compPipe = nullptr;
-    rhi::Buffer* m_paramsBuf = nullptr;
+    rhi::BufferHandle m_paramsBuf{};
     void* m_paramsMapped = nullptr;
 
     // Graphics resources.
@@ -59,11 +59,11 @@ private:
     rhi::BindGroup* m_renBg = nullptr;
     rhi::PipelineLayout* m_renPl = nullptr;
     rhi::RenderPipeline* m_renPipe = nullptr;
-    rhi::Buffer* m_vpBuf = nullptr;
+    rhi::BufferHandle m_vpBuf{};
     void* m_vpMapped = nullptr;
 
     // Shared.
-    rhi::Buffer* m_vtxBuf = nullptr;
+    rhi::BufferHandle m_vtxBuf{};
     samples::framework::DepthBuffer m_depthBuf;
 
     // Synchronization.
@@ -121,7 +121,7 @@ foundation::core::Status MultiQueueSample::OnInit()
     pbd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(pbd, m_paramsBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_paramsMapped = m_paramsBuf->Map();
+    m_paramsMapped = m_device->Map(m_paramsBuf);
 
     // View-projection UBO.
     rhi::BufferDesc vpd{};
@@ -130,7 +130,7 @@ foundation::core::Status MultiQueueSample::OnInit()
     vpd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(vpd, m_vpBuf) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_vpMapped = m_vpBuf->Map();
+    m_vpMapped = m_device->Map(m_vpBuf);
 
     // Compute pipeline.
     rhi::BindGroupLayoutEntry cE[2] = {
@@ -329,9 +329,9 @@ void MultiQueueSample::OnRender()
 void MultiQueueSample::OnShutdown()
 {
     if (m_paramsBuf && m_paramsMapped)
-        m_paramsBuf->Unmap();
+        m_device->Unmap(m_paramsBuf);
     if (m_vpBuf && m_vpMapped)
-        m_vpBuf->Unmap();
+        m_device->Unmap(m_vpBuf);
     m_depthBuf.Destroy(m_device);
     if (m_gfxFence)
         m_device->DestroyFence(m_gfxFence);

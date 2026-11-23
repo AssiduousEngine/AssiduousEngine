@@ -68,7 +68,7 @@ private:
     rhi::Texture* m_depthTexture = nullptr;
     rhi::TextureView* m_depthView = nullptr;
     rhi::Sampler* m_comparisonSampler = nullptr;
-    rhi::Buffer* m_quadVb = nullptr;
+    rhi::BufferHandle m_quadVb{};
     rhi::BindGroupLayout* m_shadowBgl = nullptr;
     rhi::BindGroup* m_shadowBg = nullptr;
     rhi::PipelineLayout* m_shadowPl = nullptr;

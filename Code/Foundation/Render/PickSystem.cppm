@@ -150,7 +150,7 @@ export namespace foundation::render
             PickRequestId id = kInvalidPickRequest;
             const void* viewportKey = nullptr;
             PickRect rect{};
-            rhi::Buffer* buffer = nullptr;
+            rhi::BufferHandle buffer{};
             u64 capacity = 0;
             u32 submittedIndex = 0;
             bool sawOtherIndex = false;

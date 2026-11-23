@@ -22,7 +22,7 @@ export namespace foundation::rhi::validation
     public:
         explicit ValidatedTransferBatch(TransferBatch* inner) : m_inner(inner) {}
 
-        void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) override
+        void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
             if (m_destroyed)
             {

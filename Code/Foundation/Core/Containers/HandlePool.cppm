@@ -39,6 +39,8 @@ export namespace foundation::core
         // Assigned by a pool once; says nothing of whether its value is still there (the pool's
         // Get and IsLive answer that).
         [[nodiscard]] constexpr bool IsValid() const noexcept { return index != kInvalidIndex; }
+        // As IsValid, so a handle tests as a pointer did (`if (!buffer)`): assigned, not live.
+        [[nodiscard]] constexpr explicit operator bool() const noexcept { return IsValid(); }
         [[nodiscard]] constexpr u32 PoolId() const noexcept { return generation >> kHandlePoolIdShift; }
         [[nodiscard]] constexpr u32 Count() const noexcept { return generation & kHandleCountMask; }
 

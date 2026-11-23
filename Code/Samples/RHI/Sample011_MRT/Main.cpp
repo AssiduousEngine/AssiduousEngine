@@ -43,7 +43,7 @@ private:
 
     rhi::ShaderModule *m_gbVs = nullptr, *m_gbPs = nullptr, *m_compVs = nullptr,
                       *m_compPs = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{};
     rhi::Sampler* m_sampler = nullptr;
     rhi::PipelineLayout *m_gbPl = nullptr, *m_compPl = nullptr;
     rhi::RenderPipeline *m_gbPipe = nullptr, *m_compPipe = nullptr;

@@ -121,7 +121,7 @@ TEST_CASE("vk.queues: a requested compute queue is granted exactly when the adap
         bd.size = 256;
         bd.usage = BufferUsage::Vertex | BufferUsage::Storage;
         bd.label = u8"vk.queues.vertex";
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         REQUIRE(device->CreateBuffer(bd, buffer).IsOk());
         BufferBarrier bb{};
         bb.buffer = buffer;
@@ -206,24 +206,24 @@ TEST_CASE("vk.submit: a fenced submit given no fence still runs its command buff
     bd.memory = MemoryLocation::CpuToGpu;
     bd.usage = BufferUsage::CopySrc;
     bd.label = u8"vk.submit.src";
-    Buffer* src = nullptr;
+    BufferHandle src{};
     REQUIRE(device->CreateBuffer(bd, src).IsOk());
     bd.memory = MemoryLocation::GpuToCpu;
     bd.usage = BufferUsage::CopyDst;
     bd.label = u8"vk.submit.dst";
-    Buffer* dst = nullptr;
+    BufferHandle dst{};
     REQUIRE(device->CreateBuffer(bd, dst).IsOk());
-    void* srcBytes = src->Map();
+    void* srcBytes = device->Map(src);
     REQUIRE(srcBytes != nullptr);
     for (u32 i = 0; i < 16; ++i)
     {
         static_cast<u8*>(srcBytes)[i] = static_cast<u8>(i + 1);
     }
-    src->Unmap();
-    void* dstBytes = dst->Map();
+    device->Unmap(src);
+    void* dstBytes = device->Map(dst);
     REQUIRE(dstBytes != nullptr);
     MemSet(dstBytes, 0, 16);
-    dst->Unmap();
+    device->Unmap(dst);
 
     CommandPool* pool = nullptr;
     REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -236,16 +236,64 @@ TEST_CASE("vk.submit: a fenced submit given no fence still runs its command buff
     device->GetQueue(QueueType::Graphics)->Submit(Span<CommandBuffer* const>{cbs, 1}, nullptr, 0);
     device->WaitIdle();
 
-    dstBytes = dst->Map();
+    dstBytes = device->Map(dst);
     REQUIRE(dstBytes != nullptr);
     CHECK(static_cast<const u8*>(dstBytes)[0] == 1u);
     CHECK(static_cast<const u8*>(dstBytes)[15] == 16u);
-    dst->Unmap();
+    device->Unmap(dst);
 
     pool->DestroyEncoder(enc);
     device->DestroyCommandPool(pool);
     device->DestroyBuffer(src);
     device->DestroyBuffer(dst);
+    device->Destroy();
+    backend->Destroy();
+}
+
+TEST_CASE("vk.lifetime: a buffer destroyed after commands naming it were recorded lives until those commands ran")
+{
+    // The commands copy into the buffer; it is destroyed before they are submitted. Its memory must
+    // stay until the queue's timeline passes their submission, and go after.
+    Backend* backend = nullptr;
+    Device* device = MakeDeviceWithComputeQueue(backend);
+    if (device == nullptr)
+    {
+        MESSAGE("no Vulkan adapter - skipped");
+        return;
+    }
+    BufferDesc bd{};
+    bd.size = 4096;
+    bd.memory = MemoryLocation::CpuToGpu;
+    bd.usage = BufferUsage::CopySrc;
+    bd.label = u8"vk.lifetime.src";
+    BufferHandle src{};
+    REQUIRE(device->CreateBuffer(bd, src).IsOk());
+    bd.memory = MemoryLocation::GpuOnly;
+    bd.usage = BufferUsage::CopyDst;
+    bd.label = u8"vk.lifetime.dst";
+    BufferHandle dst{};
+    REQUIRE(device->CreateBuffer(bd, dst).IsOk());
+    const u64 held = device->Counters().bufferBytes;
+
+    CommandPool* pool = nullptr;
+    REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
+    CommandEncoder* enc = nullptr;
+    REQUIRE(pool->CreateEncoder(enc).IsOk());
+    enc->CopyBufferToBuffer(src, 0, dst, 0, 4096);
+    const BufferHandle kept = dst;
+    device->DestroyBuffer(dst);
+    CHECK(device->Describe(kept) == nullptr);          // stale at once
+    CHECK(device->Counters().bufferBytes == held);       // its memory stays: the recording names it
+    CommandBuffer* cb = enc->Finish();
+    pool->DestroyEncoder(enc);
+    CHECK(device->Counters().bufferBytes == held);       // finished, not submitted
+    CommandBuffer* const cbs[] = {cb};
+    device->GetQueue(QueueType::Graphics)->Submit(Span<CommandBuffer* const>{cbs, 1});
+    device->WaitIdle();                                  // the timeline passes the submission
+    CHECK(device->Counters().bufferBytes < held);        // freed
+
+    device->DestroyCommandPool(pool);
+    device->DestroyBuffer(src);
     device->Destroy();
     backend->Destroy();
 }

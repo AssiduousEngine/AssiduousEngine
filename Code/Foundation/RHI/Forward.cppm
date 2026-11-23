@@ -5,8 +5,14 @@
 
 export module foundation.rhi:forward;
 
+import foundation.core;
+
 export namespace foundation::rhi
 {
+    // The handles that name a device's resources (Specs/rhi-handles.md): a slot and a generation,
+    // stale once the resource is destroyed, and failing on another device.
+    struct BufferTag;
+    using BufferHandle = foundation::core::Handle<BufferTag>;
 
     class Backend;
     class Adapter;

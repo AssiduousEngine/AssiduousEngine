@@ -133,7 +133,7 @@ TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit 
     const engine::terrain::PaletteGpu p1 =
         cache.GetOrCreate(device, *data, Span<const f32>{scales.Data(), scales.Size()});
     REQUIRE(p1.arrayView != nullptr);
-    REQUIRE(p1.tileScaleBuffer != nullptr);
+    REQUIRE(p1.tileScaleBuffer.IsValid());
     CHECK(p1.generation == 1u);
     CHECK(cache.Size() == 1u);
     // The same uid and scales: the same objects (no rebuild).
@@ -178,7 +178,7 @@ TEST_CASE("palette cache: invalid palette data yields nothing")
     terrain::TerrainPaletteData bad; // zero-sized = invalid
     const engine::terrain::PaletteGpu p = cache.GetOrCreate(device, bad, Span<const f32>{});
     CHECK(p.arrayView == nullptr);
-    CHECK(p.tileScaleBuffer == nullptr);
+    CHECK(!p.tileScaleBuffer.IsValid());
     CHECK(cache.Size() == 0u);
 }
 

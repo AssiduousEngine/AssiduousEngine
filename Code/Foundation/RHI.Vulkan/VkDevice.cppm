@@ -240,6 +240,9 @@ export namespace foundation::rhi::vk
                         q, qt, static_cast<u32>(family), tsPeriod, this, m_device,
                         adapter->physicalDevice(), m_allocator);
                     vkQ->counters = &m_counters;
+                    vkQ->buffers = &m_buffers;
+                    if (vkQ->initTimeline(m_tracker) != ErrorCode::Ok)
+                        LogError("[RHI] a Vulkan queue's timeline could not be made: what it uses is freed only when the device goes");
                     m_allQueues.PushBack(vkQ);
                     switch (qt)
                     {
@@ -502,18 +505,44 @@ export namespace foundation::rhi::vk
         }
 
         // ---- Resource creation ----
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
+            out = BufferHandle::Invalid();
             auto* b = m_allocator.New<VkBufferImpl>();
             if (b->init(m_device, m_adapter, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(b);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
+            out = m_buffers.Add(b);
+            if (!out)
+            {
+                b->cleanup(m_device);
+                m_allocator.Delete(b);
+                return ErrorCode::OutOfMemory;
+            }
             m_counters.BufferMade(b->allocationSize());
-            out = b;
             return ErrorCode::Ok;
+        }
+        const BufferDesc* Describe(BufferHandle buffer) const override
+        {
+            const VkBufferImpl* b = m_buffers.Get(buffer);
+            return b != nullptr ? &b->desc : nullptr;
+        }
+        void* Map(BufferHandle buffer) override
+        {
+            VkBufferImpl* b = m_buffers.Get(buffer);
+            return b != nullptr ? b->Map() : nullptr;
+        }
+        void Unmap(BufferHandle buffer) override
+        {
+            if (VkBufferImpl* b = m_buffers.Get(buffer))
+                b->Unmap();
+        }
+        void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
+        {
+            if (VkBufferImpl* b = m_buffers.Get(buffer))
+                b->FlushRange(offset, size);
         }
         Status CreateTexture(const TextureDesc& d, Texture*& out) override
         {
@@ -580,6 +609,7 @@ export namespace foundation::rhi::vk
         Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
         {
             auto* g = m_allocator.New<VkBindGroupImpl>();
+            g->buffers = &m_buffers;
             if (g->init(m_device, m_poolManager, d, m_bindingShifts) != ErrorCode::Ok)
             {
                 m_allocator.Delete(g);
@@ -642,6 +672,8 @@ export namespace foundation::rhi::vk
             auto* p = m_allocator.New<VkCommandPoolImpl>();
             p->ownerDevice = this;
             p->counters = &m_counters;
+            p->buffers = &m_buffers;
+            p->tracker = &m_tracker;
             if (p->init(m_device, m_adapter, qt, m_allocator) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
@@ -792,15 +824,10 @@ export namespace foundation::rhi::vk
         }
 
         // ---- Resource destruction ----
-        void DestroyBuffer(Buffer*& b) override
+        void DestroyBuffer(BufferHandle& b) override
         {
-            if (b)
-            {
-                m_counters.BufferFreed(static_cast<VkBufferImpl*>(b)->allocationSize());
-                static_cast<VkBufferImpl*>(b)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkBufferImpl*>(b));
-                b = nullptr;
-            }
+            if (m_buffers.Retire(b))
+                collectRetired();
         }
         void DestroyTexture(Texture*& t) override
         {
@@ -957,10 +984,27 @@ export namespace foundation::rhi::vk
         {
             if (vkDeviceWaitIdle(m_device) == VK_ERROR_DEVICE_LOST)
                 markLost();
+            collectRetired();
+        }
+
+        /// Frees the retired resources no recording and no queue can still use. After each
+        /// submit, each destroy and each idle.
+        void collectRetired()
+        {
+            u64 completed[SubmissionTracker::kMaxQueues] = {};
+            for (u32 q = 0; q < SubmissionTracker::kMaxQueues; ++q)
+                completed[q] = ~u64{0}; // a slot no queue took holds nothing back
+            for (VkQueueImpl* queue : m_allQueues)
+                if (queue->timeline().valid())
+                    completed[queue->timeline().slot()] = queue->completed();
+            m_tracker.Collect(Span<const u64>(completed, SubmissionTracker::kMaxQueues));
         }
         void Destroy() override
         {
             WaitIdle();
+            // Freed while the VkDevice still lives (the members' destructors run after it goes).
+            m_buffers.FreeAll();
+            m_tracker.FreeAll();
             if (m_poolManager)
             {
                 m_poolManager->Destroy();
@@ -1022,6 +1066,17 @@ export namespace foundation::rhi::vk
         bool m_validationEnabled = false;
         PFN_vkGetCalibratedTimestampsEXT m_getCalibratedTimestamps = nullptr;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
+        // When a destroyed resource may go, and its buffers by handle (Specs/rhi-handles.md).
+        SubmissionTracker m_tracker{m_allocator};
+        VkBufferTable m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        static void FreeBuffer(void* context, void* object)
+        {
+            auto* device = static_cast<VkDeviceImpl*>(context);
+            auto* buffer = static_cast<VkBufferImpl*>(object);
+            device->m_counters.BufferFreed(buffer->allocationSize());
+            buffer->cleanup(device->m_device);
+            device->m_allocator.Delete(buffer);
+        }
         BindingShifts m_bindingShifts = BindingShifts::standard();
         VkDescriptorPoolManager* m_poolManager = nullptr;
 
@@ -1129,21 +1184,8 @@ export namespace foundation::rhi::vk
 
     void VkQueueImpl::Submit(Span<CommandBuffer* const> cmdBufs)
     {
-        if (cmdBufs.Size() == 0)
-            return;
-        Array<VkCommandBuffer> bufs(cmdBufs.Size());
-        for (usize i = 0; i < cmdBufs.Size(); ++i)
-            bufs[i] = static_cast<VkCommandBufferImpl*>(cmdBufs[i])->handle();
-
-        VkSubmitInfo si{};
-        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        si.commandBufferCount = static_cast<u32>(bufs.Size());
-        si.pCommandBuffers = bufs.Data();
-        const VkResult submitted = vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE);
-        if (submitted == VK_ERROR_DEVICE_LOST)
-            m_device->markLost();
-        else if (submitted != VK_SUCCESS)
-            ReportVkFailure(m_submitFailureReported, "vkQueueSubmit", submitted); // out of memory: the work is lost
+        // One body for every submit, so each signals the queue's timeline.
+        SubmitSignalled(cmdBufs, {}, {}, nullptr, 0, VK_NULL_HANDLE, VK_NULL_HANDLE);
     }
 
     void VkQueueImpl::Submit(Span<CommandBuffer* const> cmdBufs, Fence* signalFence,
@@ -1212,9 +1254,16 @@ export namespace foundation::rhi::vk
         si.pWaitSemaphores = waitSems.Data();
         si.pWaitDstStageMask = waitStages.Data();
 
-        VkSemaphore signalSems[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
-        u64 signalValues[2] = {0, 0};
+        VkSemaphore signalSems[3] = {VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE};
+        u64 signalValues[3] = {0, 0, 0};
         u32 signalCount = 0;
+        // The queue's own timeline: how the device knows when this submission's resources may go.
+        const u64 submission = m_timeline.valid() ? m_timeline.next() : 0;
+        if (submission != 0)
+        {
+            signalSems[signalCount] = m_timeline.semaphore();
+            signalValues[signalCount++] = submission;
+        }
         if (signalFence != nullptr)
         {
             signalSems[signalCount] = static_cast<VkFenceImpl*>(signalFence)->handle();
@@ -1235,6 +1284,19 @@ export namespace foundation::rhi::vk
             m_device->markLost();
         else if (submitted != VK_SUCCESS)
             ReportVkFailure(m_submitFailureReported, "vkQueueSubmit", submitted); // out of memory: the work is lost
+        if (submitted != VK_SUCCESS && submission != 0)
+            m_timeline.signalFromHost(m_vkDevice, submission); // the work is lost; nothing waits on it
+        // Its command buffers' recordings end at this submission.
+        if (SubmissionTracker* tracker = m_timeline.tracker(); tracker != nullptr && submission != 0)
+        {
+            for (CommandBuffer* cb : cmdBufs)
+            {
+                auto* vkCb = static_cast<VkCommandBufferImpl*>(cb);
+                tracker->End(vkCb->recording, m_timeline.slot(), submission);
+                vkCb->recording = 0;
+            }
+        }
+        m_device->collectRetired();
     }
 
 } // namespace foundation::rhi::vk

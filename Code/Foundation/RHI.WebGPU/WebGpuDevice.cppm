@@ -57,6 +57,9 @@ export namespace foundation::rhi::webgpu
             m_transferQueue.Initialize(api, instance, device, queue, allocator,
                                        QueueType::Transfer, m_bufferRegistry);
             m_graphicsQueue.counters = &m_counters;
+            m_graphicsQueue.buffers = &m_buffers;
+            m_computeQueue.buffers = &m_buffers;
+            m_transferQueue.buffers = &m_buffers;
             m_computeQueue.counters = &m_counters;
             m_transferQueue.counters = &m_counters;
             m_blitHelper.Initialize(api, device);
@@ -277,18 +280,50 @@ export namespace foundation::rhi::webgpu
         }
 
         // ---- Resource creation ----
-        Status CreateBuffer(const BufferDesc& bufferDesc, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& bufferDesc, BufferHandle& out) override
         {
+            out = BufferHandle::Invalid();
+            Buffer* made = nullptr;
             const Status status = CreateResource<WebGpuBuffer>(
-                out, [&](WebGpuBuffer& b)
+                made, [&](WebGpuBuffer& b)
                 { return b.Initialize(*m_api, m_instance, m_device,
                                       m_graphicsQueue.Handle(), bufferDesc); });
-            if (status.IsOk())
+            if (!status.IsOk())
+                return status;
+            auto* buffer = static_cast<WebGpuBuffer*>(made);
+            out = m_buffers.Add(buffer);
+            if (!out)
             {
-                m_bufferRegistry.Add(static_cast<WebGpuBuffer*>(out));
-                m_counters.BufferMade(bufferDesc.size);
+                buffer->Release();
+                m_allocator.Delete(buffer);
+                return ErrorCode::OutOfMemory;
             }
-            return status;
+            m_bufferRegistry.Add(buffer);
+            m_counters.BufferMade(bufferDesc.size);
+            return ErrorCode::Ok;
+        }
+        /// The backend's own buffer a handle names, or null: for tests that read its state (its
+        /// shadow's uploads).
+        [[nodiscard]] WebGpuBuffer* BufferOf(BufferHandle buffer) const noexcept { return m_buffers.Get(buffer); }
+        const BufferDesc* Describe(BufferHandle buffer) const override
+        {
+            const WebGpuBuffer* b = m_buffers.Get(buffer);
+            return b != nullptr ? &b->desc : nullptr;
+        }
+        void* Map(BufferHandle buffer) override
+        {
+            WebGpuBuffer* b = m_buffers.Get(buffer);
+            return b != nullptr ? b->Map() : nullptr;
+        }
+        void Unmap(BufferHandle buffer) override
+        {
+            if (WebGpuBuffer* b = m_buffers.Get(buffer))
+                b->Unmap();
+        }
+        void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
+        {
+            if (WebGpuBuffer* b = m_buffers.Get(buffer))
+                b->FlushRange(offset, size);
         }
         Status CreateTexture(const TextureDesc& textureDesc, Texture*& out) override
         {
@@ -338,7 +373,11 @@ export namespace foundation::rhi::webgpu
         {
             return CreateResource<WebGpuBindGroup>(
                 out,
-                [&](WebGpuBindGroup& g) { return g.Initialize(*m_api, m_device, groupDesc); });
+                [&](WebGpuBindGroup& g)
+                {
+                    g.buffers = &m_buffers;
+                    return g.Initialize(*m_api, m_device, groupDesc);
+                });
         }
         Status CreatePipelineLayout(const PipelineLayoutDesc& layoutDesc,
                                     PipelineLayout*& out) override
@@ -373,6 +412,7 @@ export namespace foundation::rhi::webgpu
             auto* pool = m_allocator.New<WebGpuCommandPool>();
             pool->Initialize(*m_api, m_device, m_allocator, m_blitHelper);
             pool->counters = &m_counters;
+            pool->buffers = &m_buffers;
             out = pool;
             return ErrorCode::Ok;
         }
@@ -402,14 +442,13 @@ export namespace foundation::rhi::webgpu
 
         // ---- Resource destruction ----
         // Every path tolerates the nullptr a failed Create* handed out.
-        void DestroyBuffer(Buffer*& x) override
+        // WebGPU frees by releasing a reference: what an encoder recorded and what a submission
+        // uses hold their own, so a destroyed buffer goes at once, nothing recorded or submitted
+        // losing it (Specs/rhi-handles.md, Decision 4).
+        void DestroyBuffer(BufferHandle& x) override
         {
-            if (x != nullptr)
-            {
-                m_bufferRegistry.Remove(static_cast<WebGpuBuffer*>(x));
-                m_counters.BufferFreed(x->desc.size);
-            }
-            ReleaseAndDelete<WebGpuBuffer>(x);
+            if (m_buffers.Retire(x))
+                m_tracker.Collect({});
         }
         void DestroyTexture(Texture*& x) override
         {
@@ -510,6 +549,9 @@ export namespace foundation::rhi::webgpu
 
         void Destroy() override
         {
+            // Freed while the WebGPU device still lives (the members' destructors run after).
+            m_buffers.FreeAll();
+            m_tracker.FreeAll();
             m_blitHelper.Release();
             m_api->wgpuQueueRelease(m_graphicsQueue.Handle());
             m_api->wgpuDeviceRelease(m_device);
@@ -574,6 +616,19 @@ export namespace foundation::rhi::webgpu
         WebGpuBlitHelper m_blitHelper;
         WebGpuBufferRegistry m_bufferRegistry;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
+        // Its buffers by handle, and the tracker the table retires through: no recordings are
+        // registered, so a destroyed buffer is freed at once (see DestroyBuffer).
+        SubmissionTracker m_tracker{m_allocator};
+        WebGpuBufferTable m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        static void FreeBuffer(void* context, void* object)
+        {
+            auto* device = static_cast<WebGpuDevice*>(context);
+            auto* buffer = static_cast<WebGpuBuffer*>(object);
+            device->m_bufferRegistry.Remove(buffer);
+            device->m_counters.BufferFreed(buffer->desc.size);
+            buffer->Release();
+            device->m_allocator.Delete(buffer);
+        }
         WebGpuQueue m_graphicsQueue;
         WebGpuQueue m_computeQueue;
         WebGpuQueue m_transferQueue;

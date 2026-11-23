@@ -89,7 +89,7 @@ namespace
         rhi::TextureView* maskArrayView = nullptr;    // per-layer coverage mask array (coverage-mask)
         f32 heightBlendContrast = 0.25f;              // soft-skirt width (only when a height map binds)
         Float4x4 chunkToWorld = Float4x4::Identity(); // the tangent frame follows this
-        rhi::Buffer* tileScaleBuffer = nullptr;       // f32[paletteCount]
+        rhi::BufferHandle tileScaleBuffer{};       // f32[paletteCount]
         u64 tileScaleGeneration = 0;
         u32 paletteCount = 0;
     };

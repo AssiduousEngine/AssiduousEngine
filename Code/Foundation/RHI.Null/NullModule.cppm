@@ -52,6 +52,8 @@ export namespace foundation::rhi::null
     };
     class NullCommandBuffer : public CommandBuffer
     {
+    public:
+        SubmissionTracker::Recording recording = 0; // from its encoder's Finish, ended at submit
     };
 
     class NullFence : public Fence
@@ -136,16 +138,16 @@ export namespace foundation::rhi::null
         void SetPipeline(RenderPipeline*) override { counters->PipelineBinds(); }
         void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
-        void SetVertexBuffer(u32, Buffer*, u64) override {}
-        void SetIndexBuffer(Buffer*, IndexFormat, u64) override {}
+        void SetVertexBuffer(u32, BufferHandle, u64) override {}
+        void SetIndexBuffer(BufferHandle, IndexFormat, u64) override {}
         void SetViewport(f32, f32, f32, f32, f32, f32) override {}
         void SetScissor(i32, i32, u32, u32) override {}
         void SetBlendConstant(f32, f32, f32, f32) override {}
         void SetStencilReference(u32) override {}
         void Draw(u32, u32, u32, u32) override { counters->Draws(); }
         void DrawIndexed(u32, u32, u32, i32, u32) override { counters->Draws(); }
-        void DrawIndirect(Buffer*, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
-        void DrawIndexedIndirect(Buffer*, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
+        void DrawIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
+        void DrawIndexedIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
         void ExecuteBundles(Span<RenderBundle* const> bundles) override
         {
             for (RenderBundle* bundle : bundles)
@@ -159,8 +161,8 @@ export namespace foundation::rhi::null
         void End() override {}
         void SetMeshPipeline(MeshPipeline*) override { counters->PipelineBinds(); }
         void DrawMeshTasks(u32, u32, u32) override { counters->Draws(); }
-        void DrawMeshTasksIndirect(Buffer*, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
-        void DrawMeshTasksIndirectCount(Buffer*, u64, Buffer*, u64, u32 maxDrawCount, u32) override
+        void DrawMeshTasksIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
+        void DrawMeshTasksIndirectCount(BufferHandle, u64, BufferHandle, u64, u32 maxDrawCount, u32) override
         {
             counters->Draws(maxDrawCount); // the count is on the GPU: at most this many
         }
@@ -173,12 +175,12 @@ export namespace foundation::rhi::null
         void SetPipeline(RenderPipeline*) override { ++bundle.counts.pipelineBinds; }
         void SetBindGroup(u32, BindGroup*, Span<const u32>) override { ++bundle.counts.bindGroupBinds; }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
-        void SetVertexBuffer(u32, Buffer*, u64) override {}
-        void SetIndexBuffer(Buffer*, IndexFormat, u64) override {}
+        void SetVertexBuffer(u32, BufferHandle, u64) override {}
+        void SetIndexBuffer(BufferHandle, IndexFormat, u64) override {}
         void Draw(u32, u32, u32, u32) override { ++bundle.counts.draws; }
         void DrawIndexed(u32, u32, u32, i32, u32) override { ++bundle.counts.draws; }
-        void DrawIndirect(Buffer*, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
-        void DrawIndexedIndirect(Buffer*, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
+        void DrawIndirect(BufferHandle, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
+        void DrawIndexedIndirect(BufferHandle, u64, u32 drawCount, u32) override { bundle.counts.draws += drawCount; }
         RenderBundle* Finish() override { return &bundle; }
         NullRenderBundle bundle;
     };
@@ -191,7 +193,7 @@ export namespace foundation::rhi::null
         void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void Dispatch(u32, u32, u32) override { counters->Dispatches(); }
-        void DispatchIndirect(Buffer*, u64) override { counters->Dispatches(); }
+        void DispatchIndirect(BufferHandle, u64) override { counters->Dispatches(); }
         void ComputeBarrier() override {}
         void WriteTimestamp(QuerySet*, u32) override {}
         void End() override {}
@@ -207,6 +209,7 @@ export namespace foundation::rhi::null
         NullCommandBuffer cb;
 
         DeviceCounterBlock* counters = nullptr;
+        SubmissionTracker::Recording recording = 0; // open from CreateEncoder to Finish
 
         // Made by a NullCommandPool, it counts into its device; made on its own (tests), into a
         // block of its own.
@@ -236,9 +239,9 @@ export namespace foundation::rhi::null
             return &rbe;
         }
         void Barrier(const BarrierGroup&) override {}
-        void CopyBufferToBuffer(Buffer*, u64, Buffer*, u64, u64) override {}
-        void CopyBufferToTexture(Buffer*, Texture*, const BufferTextureCopyRegion&) override {}
-        void CopyTextureToBuffer(Texture*, Buffer*, const BufferTextureCopyRegion&) override {}
+        void CopyBufferToBuffer(BufferHandle, u64, BufferHandle, u64, u64) override {}
+        void CopyBufferToTexture(BufferHandle, Texture*, const BufferTextureCopyRegion&) override {}
+        void CopyTextureToBuffer(Texture*, BufferHandle, const BufferTextureCopyRegion&) override {}
         void CopyTextureToTexture(Texture*, Texture*, const TextureCopyRegion&) override {}
         void Blit(Texture*, Texture*) override {}
         void GenerateMipmaps(Texture*) override {}
@@ -247,53 +250,90 @@ export namespace foundation::rhi::null
         void WriteTimestamp(QuerySet*, u32) override {}
         void BeginPipelineStatisticsQuery(QuerySet*, u32) override {}
         void EndPipelineStatisticsQuery(QuerySet*, u32) override {}
-        void ResolveQuerySet(QuerySet*, u32, u32, Buffer*, u64) override {}
+        void ResolveQuerySet(QuerySet*, u32, u32, BufferHandle, u64) override {}
         void BeginDebugLabel(StringView, f32, f32, f32, f32) override {}
         void EndDebugLabel() override {}
         void InsertDebugLabel(StringView, f32, f32, f32, f32) override {}
-        CommandBuffer* Finish() override { return &cb; }
+        CommandBuffer* Finish() override
+        {
+            cb.recording = recording;
+            recording = 0;
+            return &cb;
+        }
 
         // RayTracingEncoderExt
-        void BuildBottomLevelAccelStruct(AccelStruct*, Buffer*, u64,
+        void BuildBottomLevelAccelStruct(AccelStruct*, BufferHandle, u64,
                                          Span<const AccelStructGeometryTriangles>,
                                          Span<const AccelStructGeometryAABBs>) override
         {
         }
-        void BuildTopLevelAccelStruct(AccelStruct*, Buffer*, u64, Buffer*, u64, u32) override {}
+        void BuildTopLevelAccelStruct(AccelStruct*, BufferHandle, u64, BufferHandle, u64, u32) override {}
         void SetRayTracingPipeline(RayTracingPipeline*) override { counters->PipelineBinds(); }
         void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
-        void TraceRays(Buffer*, u64, u64, Buffer*, u64, u64, Buffer*, u64, u64, u32, u32,
+        void TraceRays(BufferHandle, u64, u64, BufferHandle, u64, u64, BufferHandle, u64, u64, u32, u32,
                        u32) override
         {
             counters->Dispatches();
         }
     };
 
+    // The pool's one encoder records at a time; what it began is a recording the device's tracker
+    // counts until it is submitted, or discarded by DestroyEncoder, Reset or the pool's end.
     class NullCommandPool : public CommandPool
     {
     public:
-        explicit NullCommandPool(DeviceCounterBlock& counters) noexcept : enc(counters) {}
+        NullCommandPool(DeviceCounterBlock& counters, SubmissionTracker& tracker) noexcept
+            : enc(counters), m_tracker(&tracker)
+        {
+        }
+        ~NullCommandPool() override { Discard(); }
         NullCommandEncoder enc;
         Status CreateEncoder(CommandEncoder*& out) override
         {
+            m_tracker->End(enc.recording); // one left open by an encoder never finished
+            enc.recording = m_tracker->Begin();
             out = &enc;
             return ErrorCode::Ok;
         }
-        void DestroyEncoder(CommandEncoder*&) override {}
-        void Reset() override {}
+        void DestroyEncoder(CommandEncoder*& encoder) override
+        {
+            m_tracker->End(enc.recording);
+            enc.recording = 0;
+            encoder = nullptr;
+        }
+        void Reset() override { Discard(); }
         RenderBundleEncoder* CreateRenderBundleEncoder(const RenderBundleDesc&) override
         {
+            // A bundle may be executed by any later command buffer until the pool resets.
+            if (m_bundle == 0)
+            {
+                m_bundle = m_tracker->Begin();
+            }
             enc.rbe.bundle.counts = RecordedCounts{};
             return &enc.rbe;
         }
+
+    private:
+        void Discard()
+        {
+            m_tracker->End(enc.recording);
+            m_tracker->End(enc.cb.recording);
+            m_tracker->End(m_bundle);
+            enc.recording = 0;
+            enc.cb.recording = 0;
+            m_bundle = 0;
+        }
+
+        SubmissionTracker* m_tracker;
+        SubmissionTracker::Recording m_bundle = 0;
     };
 
     class NullTransferBatch : public TransferBatch
     {
     public:
         DeviceCounterBlock* counters = nullptr;
-        void WriteBuffer(Buffer*, u64, Span<const u8> data) override { counters->Transfer(data.Size()); }
+        void WriteBuffer(BufferHandle, u64, Span<const u8> data) override { counters->Transfer(data.Size()); }
         void WriteTexture(Texture*, Span<const u8> data, const TextureDataLayout&, Extent3D, u32,
                           u32) override
         {
@@ -368,27 +408,56 @@ export namespace foundation::rhi::null
         }
     };
 
+    // A submission completes as it is made (there is no GPU): it ends its command buffers'
+    // recordings at the queue's next value and frees what nothing can use any more.
     class NullQueue : public Queue
     {
     public:
         NullTransferBatch tb;
-        void Submit(Span<CommandBuffer* const>) override {}
-        void Submit(Span<CommandBuffer* const>, Fence* f, u64 v) override
+        SubmissionTracker* tracker = nullptr;
+        u32 slot = 0;
+        Function<void()> collect; // the device's: frees what is safe now
+
+        void Submit(Span<CommandBuffer* const> cbs) override { Submitted(cbs); }
+        void Submit(Span<CommandBuffer* const> cbs, Fence* f, u64 v) override
         {
+            Submitted(cbs);
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
         }
-        void Submit(Span<CommandBuffer* const>, Span<Fence* const>, Span<const u64>, Fence* f,
+        void Submit(Span<CommandBuffer* const> cbs, Span<Fence* const>, Span<const u64>, Fence* f,
                     u64 v) override
         {
+            Submitted(cbs);
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
         }
-        void SubmitFrame(Span<CommandBuffer* const>, SwapChain&, Span<Fence* const>, Span<const u64>, Fence* f,
+        void SubmitFrame(Span<CommandBuffer* const> cbs, SwapChain&, Span<Fence* const>, Span<const u64>, Fence* f,
                          u64 v) override
         {
+            Submitted(cbs);
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
+        }
+        void Submitted(Span<CommandBuffer* const> cbs)
+        {
+            if (tracker == nullptr)
+            {
+                return;
+            }
+            const u64 value = tracker->NextSubmission(slot);
+            for (CommandBuffer* cb : cbs)
+            {
+                if (auto* null = static_cast<NullCommandBuffer*>(cb))
+                {
+                    tracker->End(null->recording, slot, value);
+                    null->recording = 0;
+                }
+            }
+            if (collect)
+            {
+                collect();
+            }
         }
         using Queue::SubmitFrame;
         void WaitIdle() override {}
@@ -419,9 +488,38 @@ export namespace foundation::rhi::null
         bool refusePresentMode = false;
         PresentMode refusedPresentMode = PresentMode::Immediate;
 
+        SubmissionTracker m_tracker{m_allocator};
+        ResourceTable<BufferTag, NullBuffer> m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+
+        static void FreeBuffer(void* context, void* object)
+        {
+            auto* device = static_cast<NullDevice*>(context);
+            auto* buffer = static_cast<NullBuffer*>(object);
+            device->m_counters.BufferFreed(buffer->desc.size);
+            device->m_allocator.Delete(buffer);
+        }
+
+        // Everything submitted is complete: free what no open recording can still use.
+        void CollectRetired()
+        {
+            u64 completed[SubmissionTracker::kMaxQueues] = {};
+            for (u32 q = 0; q < SubmissionTracker::kMaxQueues; ++q)
+            {
+                completed[q] = m_tracker.LastSubmission(q);
+            }
+            m_tracker.Collect(Span<const u64>(completed, SubmissionTracker::kMaxQueues));
+        }
+
         explicit NullDevice(IAllocator& allocator) : m_allocator(allocator)
         {
             type = DeviceType::Null;
+            NullQueue* const queues[] = {&gfxQueue, &compQueue, &xferQueue};
+            for (NullQueue* queue : queues)
+            {
+                queue->tracker = &m_tracker;
+                queue->slot = m_tracker.AddQueue();
+                queue->collect = [this]() { CollectRetired(); };
+            }
             gfxQueue.tb.counters = &m_counters;
             compQueue.tb.counters = &m_counters;
             xferQueue.tb.counters = &m_counters;
@@ -471,14 +569,39 @@ export namespace foundation::rhi::null
                    FormatSupport::DepthStencil;
         }
 
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
             auto* b = m_allocator.New<NullBuffer>();
             b->desc = d;
             b->allocate(d.size);
+            out = m_buffers.Add(b);
+            if (!out.IsValid())
+            {
+                m_allocator.Delete(b);
+                return ErrorCode::OutOfMemory;
+            }
             m_counters.BufferMade(d.size);
-            out = b;
             return ErrorCode::Ok;
+        }
+        const BufferDesc* Describe(BufferHandle buffer) const override
+        {
+            const NullBuffer* b = m_buffers.Get(buffer);
+            return b != nullptr ? &b->desc : nullptr;
+        }
+        void* Map(BufferHandle buffer) override
+        {
+            NullBuffer* b = m_buffers.Get(buffer);
+            return b != nullptr ? b->Map() : nullptr;
+        }
+        void Unmap(BufferHandle buffer) override
+        {
+            if (NullBuffer* b = m_buffers.Get(buffer))
+                b->Unmap();
+        }
+        void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
+        {
+            if (NullBuffer* b = m_buffers.Get(buffer))
+                b->FlushRange(offset, size);
         }
         Status CreateTexture(const TextureDesc& d, Texture*& out) override
         {
@@ -541,7 +664,7 @@ export namespace foundation::rhi::null
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
         {
-            out = m_allocator.New<NullCommandPool>(m_counters);
+            out = m_allocator.New<NullCommandPool>(m_counters, m_tracker);
             return ErrorCode::Ok;
         }
         Status CreateFence(u64, Fence*& out) override
@@ -580,12 +703,10 @@ export namespace foundation::rhi::null
             return ErrorCode::Ok;
         }
 
-        void DestroyBuffer(Buffer*& x) override
+        void DestroyBuffer(BufferHandle& x) override
         {
-            if (x != nullptr)
-                m_counters.BufferFreed(x->desc.size);
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_buffers.Retire(x))
+                CollectRetired();
         }
         void DestroyTexture(Texture*& x) override
         {

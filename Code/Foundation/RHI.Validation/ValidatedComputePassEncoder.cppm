@@ -94,7 +94,7 @@ export namespace foundation::rhi::validation
             m_inner->Dispatch(x, y, z);
         }
 
-        void DispatchIndirect(Buffer* buffer, u64 offset) override
+        void DispatchIndirect(BufferHandle buffer, u64 offset) override
         {
             if (m_ended)
             {

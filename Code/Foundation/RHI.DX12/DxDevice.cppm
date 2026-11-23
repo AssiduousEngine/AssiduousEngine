@@ -120,6 +120,7 @@ export namespace foundation::rhi::dx12
                     break;
                 }
                 q->counters = &m_counters;
+                wireQueue(*q);
                 m_graphicsQueues.PushBack(q);
             }
             for (u32 i = 0; i < desc.computeQueueCount; ++i)
@@ -131,6 +132,7 @@ export namespace foundation::rhi::dx12
                     break;
                 }
                 q->counters = &m_counters;
+                wireQueue(*q);
                 m_computeQueues.PushBack(q);
             }
             for (u32 i = 0; i < desc.transferQueueCount; ++i)
@@ -142,6 +144,7 @@ export namespace foundation::rhi::dx12
                     break;
                 }
                 q->counters = &m_counters;
+                wireQueue(*q);
                 m_transferQueues.PushBack(q);
             }
 
@@ -344,19 +347,45 @@ export namespace foundation::rhi::dx12
         // Device interface: resource creation
         // ==================================================================
 
-        Status CreateBuffer(const BufferDesc& d, Buffer*& out) override
+        Status CreateBuffer(const BufferDesc& d, BufferHandle& out) override
         {
+            out = BufferHandle::Invalid();
             auto* b = m_allocator.New<DxBufferImpl>();
             if (b->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(b);
-                out = nullptr;
                 return ErrorCode::Unknown;
+            }
+            out = m_buffers.Add(b);
+            if (!out)
+            {
+                b->cleanup();
+                m_allocator.Delete(b);
+                return ErrorCode::OutOfMemory;
             }
             setDebugName(b->handle(), d.label);
             m_counters.BufferMade(d.size);
-            out = b;
             return ErrorCode::Ok;
+        }
+        const BufferDesc* Describe(BufferHandle buffer) const override
+        {
+            const DxBufferImpl* b = m_buffers.Get(buffer);
+            return b != nullptr ? &b->desc : nullptr;
+        }
+        void* Map(BufferHandle buffer) override
+        {
+            DxBufferImpl* b = m_buffers.Get(buffer);
+            return b != nullptr ? b->Map() : nullptr;
+        }
+        void Unmap(BufferHandle buffer) override
+        {
+            if (DxBufferImpl* b = m_buffers.Get(buffer))
+                b->Unmap();
+        }
+        void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
+        {
+            if (DxBufferImpl* b = m_buffers.Get(buffer))
+                b->FlushRange(offset, size);
         }
 
         Status CreateTexture(const TextureDesc& d, Texture*& out) override
@@ -443,6 +472,7 @@ export namespace foundation::rhi::dx12
         Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
         {
             auto* g = m_allocator.New<DxBindGroupImpl>();
+            g->buffers = &m_buffers;
             if (g->init(m_device.Get(), d, &m_cpuSrvHeap, &m_cpuSamplerHeap, &m_gpuSamplerHeap, &m_samplerTables) !=
                 ErrorCode::Ok)
             {
@@ -654,6 +684,8 @@ export namespace foundation::rhi::dx12
         Status CreateCommandPool(QueueType qt, CommandPool*& out) override
         {
             auto* p = m_allocator.New<DxCommandPoolImpl>();
+            p->buffers = &m_buffers;
+            p->tracker = &m_tracker;
             if (p->init(this, m_device.Get(), qt, &m_cpuSrvHeap, &m_gpuSrvHeap, &m_cpuSamplerHeap,
                         &m_gpuSamplerHeap, m_allocator) != ErrorCode::Ok)
             {
@@ -738,15 +770,10 @@ export namespace foundation::rhi::dx12
         // Resource destruction
         // ==================================================================
 
-        void DestroyBuffer(Buffer*& b) override
+        void DestroyBuffer(BufferHandle& b) override
         {
-            if (b)
-            {
-                m_counters.BufferFreed(b->desc.size);
-                static_cast<DxBufferImpl*>(b)->cleanup();
-                m_allocator.Delete(static_cast<DxBufferImpl*>(b));
-                b = nullptr;
-            }
+            if (m_buffers.Retire(b))
+                collectRetired();
         }
         void DestroyTexture(Texture*& t) override
         {
@@ -903,6 +930,31 @@ export namespace foundation::rhi::dx12
             for (auto* q : m_transferQueues)
                 q->WaitIdle();
             drainDebugMessages();
+            collectRetired();
+        }
+
+        /// Frees the retired resources no recording and no queue can still use. After each
+        /// submit, each destroy and each idle.
+        void collectRetired()
+        {
+            u64 completed[SubmissionTracker::kMaxQueues] = {};
+            for (u32 q = 0; q < SubmissionTracker::kMaxQueues; ++q)
+                completed[q] = ~u64{0}; // a slot no queue took holds nothing back
+            const Array<DxQueueImpl*>* families[] = {&m_graphicsQueues, &m_computeQueues, &m_transferQueues};
+            for (const Array<DxQueueImpl*>* family : families)
+                for (DxQueueImpl* queue : *family)
+                    if (queue->timeline().valid())
+                        completed[queue->timeline().slot()] = queue->timeline().completed();
+            m_tracker.Collect(Span<const u64>(completed, SubmissionTracker::kMaxQueues));
+        }
+
+        // A queue made: its timeline, its batches' buffers, and the collection after its submits.
+        void wireQueue(DxQueueImpl& queue)
+        {
+            queue.buffers = &m_buffers;
+            queue.collect = [this]() { collectRetired(); };
+            if (queue.initTimeline(m_tracker) != ErrorCode::Ok)
+                LogError("[RHI] a D3D12 queue's timeline could not be made: what it uses is freed only when the device goes");
         }
 
         void drainDebugMessages()
@@ -935,6 +987,9 @@ export namespace foundation::rhi::dx12
         void Destroy() override
         {
             WaitIdle();
+            // Freed while the D3D12 device still lives (the members' destructors run after).
+            m_buffers.FreeAll();
+            m_tracker.FreeAll();
 
             // Queues.
             for (auto* q : m_graphicsQueues)
@@ -1293,6 +1348,17 @@ export namespace foundation::rhi::dx12
         ComPtr<ID3D12InfoQueue> m_infoQueue;
         DxAdapterImpl* m_adapter = nullptr;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
+        // When a destroyed resource may go, and its buffers by handle (Specs/rhi-handles.md).
+        SubmissionTracker m_tracker{m_allocator};
+        DxBufferTable m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        static void FreeBuffer(void* context, void* object)
+        {
+            auto* device = static_cast<DxDeviceImpl*>(context);
+            auto* buffer = static_cast<DxBufferImpl*>(object);
+            device->m_counters.BufferFreed(buffer->desc.size);
+            buffer->cleanup();
+            device->m_allocator.Delete(buffer);
+        }
 
         // Queues.
         Array<DxQueueImpl*> m_graphicsQueues;
@@ -1455,6 +1521,7 @@ export namespace foundation::rhi::dx12
         rpeCtx.drawIndexedSig = m_device->drawIndexedSignature();
         rpeCtx.dispatchMeshSig = m_device->dispatchMeshSignature();
         rpeCtx.counters = m_device->counters();
+        rpeCtx.buffers = buffers;
 
         DxComputePassContext cpeCtx{};
         cpeCtx.cmdList = cmdList;
@@ -1463,9 +1530,11 @@ export namespace foundation::rhi::dx12
         cpeCtx.gpuSamplerHeap = m_device->gpuSamplerHeap();
         cpeCtx.dispatchSig = m_device->dispatchSignature();
         cpeCtx.counters = m_device->counters();
+        cpeCtx.buffers = buffers;
 
         auto* enc = m_allocPtr->New<DxCommandEncoderImpl>(m_device, cmdList, this, rpeCtx, cpeCtx,
                                                           *m_allocPtr);
+        enc->recording = beginRecording();
         ++m_unfinishedEncoders; // balanced by Finish() closing the list
         out = enc;
         return ErrorCode::Ok;
@@ -1475,7 +1544,12 @@ export namespace foundation::rhi::dx12
     {
         if (encoder)
         {
-            m_allocPtr->Delete(static_cast<DxCommandEncoderImpl*>(encoder));
+            // One never finished is discarded; a finished one's command buffer holds its
+            // recording, which its submit (or the pool's Reset) ends.
+            auto* dxEncoder = static_cast<DxCommandEncoderImpl*>(encoder);
+            if (!dxEncoder->finished && tracker != nullptr)
+                tracker->End(dxEncoder->recording);
+            m_allocPtr->Delete(dxEncoder);
             encoder = nullptr;
         }
     }
@@ -1503,6 +1577,8 @@ export namespace foundation::rhi::dx12
 
         DxRenderPassContext ctx{};
         ctx.cmdList = list.Get();
+        ctx.buffers = buffers;
+        beginBundleRecording();
         ctx.srvStaging = &m_srvStaging;
         ctx.gpuSrvHeap = m_device->gpuSrvHeap();
         ctx.gpuSamplerHeap = m_device->gpuSamplerHeap();

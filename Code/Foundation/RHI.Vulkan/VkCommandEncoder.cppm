@@ -38,6 +38,8 @@ export namespace foundation::rhi::vk
     class VkCommandEncoderImpl : public CommandEncoder, public RayTracingEncoderExt
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up as it records.
+        const VkBufferTable* buffers = nullptr;
         RayTracingEncoderExt* AsRayTracingExt() noexcept override { return this; }
         VkCommandEncoderImpl(VkCommandBuffer cmdBuf, VkDevice device, VkCommandPoolImpl* pool,
                              IAllocator& allocator)
@@ -46,7 +48,14 @@ export namespace foundation::rhi::vk
         {
             m_rpe.setCounters(m_counters);
             m_cpe.setCounters(m_counters);
+            buffers = pool != nullptr ? pool->buffers : nullptr;
+            m_rpe.buffers = buffers;
+            m_cpe.buffers = buffers;
         }
+
+        /// Open from its pool's CreateEncoder to Finish, when its command buffer takes it.
+        SubmissionTracker::Recording recording = 0;
+        bool finished = false;
 
         // ---- CommandEncoder ----
 
@@ -193,7 +202,7 @@ export namespace foundation::rhi::vk
                 bufBs[i].dstAccessMask = dst.accessMask;
                 bufBs[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 bufBs[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                if (auto* vb = static_cast<VkBufferImpl*>(bb.buffer))
+                if (auto* vb = LookUp(buffers, bb.buffer))
                     bufBs[i].buffer = vb->handle();
                 bufBs[i].offset = bb.offset;
                 bufBs[i].size = (bb.size == ~0ull) ? VK_WHOLE_SIZE : bb.size;
@@ -276,10 +285,10 @@ export namespace foundation::rhi::vk
             vkCmdPipelineBarrier2(m_cmdBuf, &di);
         }
 
-        void CopyBufferToBuffer(Buffer* src, u64 srcOff, Buffer* dst, u64 dstOff, u64 size) override
+        void CopyBufferToBuffer(BufferHandle src, u64 srcOff, BufferHandle dst, u64 dstOff, u64 size) override
         {
-            auto* s = static_cast<VkBufferImpl*>(src);
-            auto* d = static_cast<VkBufferImpl*>(dst);
+            auto* s = LookUp(buffers, src);
+            auto* d = LookUp(buffers, dst);
             if (!s || !d)
                 return;
             VkBufferCopy r{};
@@ -289,10 +298,10 @@ export namespace foundation::rhi::vk
             vkCmdCopyBuffer(m_cmdBuf, s->handle(), d->handle(), 1, &r);
         }
 
-        void CopyBufferToTexture(Buffer* src, Texture* dst,
+        void CopyBufferToTexture(BufferHandle src, Texture* dst,
                                  const BufferTextureCopyRegion& region) override
         {
-            auto* s = static_cast<VkBufferImpl*>(src);
+            auto* s = LookUp(buffers, src);
             auto* d = static_cast<VkTextureImpl*>(dst);
             if (!s || !d)
                 return;
@@ -318,11 +327,11 @@ export namespace foundation::rhi::vk
                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &c);
         }
 
-        void CopyTextureToBuffer(Texture* src, Buffer* dst,
+        void CopyTextureToBuffer(Texture* src, BufferHandle dst,
                                  const BufferTextureCopyRegion& region) override
         {
             auto* s = static_cast<VkTextureImpl*>(src);
-            auto* d = static_cast<VkBufferImpl*>(dst);
+            auto* d = LookUp(buffers, dst);
             if (!s || !d)
                 return;
             VkBufferImageCopy c{};
@@ -497,11 +506,11 @@ export namespace foundation::rhi::vk
                 vkCmdEndQuery(m_cmdBuf, q->handle(), index);
         }
 
-        void ResolveQuerySet(QuerySet* qs, u32 first, u32 count, Buffer* dst,
+        void ResolveQuerySet(QuerySet* qs, u32 first, u32 count, BufferHandle dst,
                              u64 dstOffset) override
         {
             auto* q = static_cast<VkQuerySetImpl*>(qs);
-            auto* b = static_cast<VkBufferImpl*>(dst);
+            auto* b = LookUp(buffers, dst);
             // One result per query, as wide as its kind (Device::QueryResultSize): a statistics
             // query carries all six of its counters.
             const VkDeviceSize stride = (q != nullptr && q->type == QueryType::PipelineStatistics)
@@ -565,23 +574,26 @@ export namespace foundation::rhi::vk
             if (const VkResult vr = vkEndCommandBuffer(m_cmdBuf); vr != VK_SUCCESS)
                 ReportVkFailure(reported, "vkEndCommandBuffer", vr);
             auto* cb = m_allocator.New<VkCommandBufferImpl>(m_cmdBuf);
+            cb->recording = recording;
+            recording = 0;
+            finished = true;
             m_pool->trackCommandBuffer(cb);
             return cb;
         }
 
         // ---- RayTracingEncoderExt ----
 
-        void BuildBottomLevelAccelStruct(AccelStruct* dst, Buffer* scratch, u64 scratchOffset,
+        void BuildBottomLevelAccelStruct(AccelStruct* dst, BufferHandle scratch, u64 scratchOffset,
                                          Span<const AccelStructGeometryTriangles> tris,
                                          Span<const AccelStructGeometryAABBs> aabbs) override;
-        void BuildTopLevelAccelStruct(AccelStruct* dst, Buffer* scratch, u64 scratchOffset,
-                                      Buffer* instanceBuf, u64 instanceOffset,
+        void BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratch, u64 scratchOffset,
+                                      BufferHandle instanceBuf, u64 instanceOffset,
                                       u32 instanceCount) override;
         void SetRayTracingPipeline(RayTracingPipeline* pipeline) override;
         void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override;
         void SetPushConstants(ShaderStage stages, u32 offset, u32 size, const void* data) override;
-        void TraceRays(Buffer* raygenSBT, u64 raygenOff, u64 raygenStride, Buffer* missSBT,
-                       u64 missOff, u64 missStride, Buffer* hitSBT, u64 hitOff, u64 hitStride,
+        void TraceRays(BufferHandle raygenSBT, u64 raygenOff, u64 raygenStride, BufferHandle missSBT,
+                       u64 missOff, u64 missStride, BufferHandle hitSBT, u64 hitOff, u64 hitStride,
                        u32 width, u32 height, u32 depth) override;
 
     private:
@@ -646,25 +658,25 @@ export namespace foundation::rhi::vk
                            toVkShaderStageFlags(stages), offset, size, data);
     }
 
-    inline void VkCommandEncoderImpl::TraceRays(Buffer* raygenSBT, u64 raygenOff, u64 raygenStride,
-                                                Buffer* missSBT, u64 missOff, u64 missStride,
-                                                Buffer* hitSBT, u64 hitOff, u64 hitStride, u32 w,
+    inline void VkCommandEncoderImpl::TraceRays(BufferHandle raygenSBT, u64 raygenOff, u64 raygenStride,
+                                                BufferHandle missSBT, u64 missOff, u64 missStride,
+                                                BufferHandle hitSBT, u64 hitOff, u64 hitStride, u32 w,
                                                 u32 h, u32 d)
     {
-        auto* rg = static_cast<VkBufferImpl*>(raygenSBT);
+        auto* rg = LookUp(buffers, raygenSBT);
         if (!rg)
             return;
         VkStridedDeviceAddressRegionKHR rgn{}, msn{}, htn{}, cal{};
         rgn.deviceAddress = getBufferDeviceAddress(rg) + raygenOff;
         rgn.stride = raygenStride;
         rgn.size = raygenStride;
-        if (auto* ms = static_cast<VkBufferImpl*>(missSBT))
+        if (auto* ms = LookUp(buffers, missSBT))
         {
             msn.deviceAddress = getBufferDeviceAddress(ms) + missOff;
             msn.stride = missStride;
             msn.size = missStride;
         }
-        if (auto* ht = static_cast<VkBufferImpl*>(hitSBT))
+        if (auto* ht = LookUp(buffers, hitSBT))
         {
             htn.deviceAddress = getBufferDeviceAddress(ht) + hitOff;
             htn.stride = hitStride;
@@ -680,11 +692,11 @@ export namespace foundation::rhi::vk
     }
 
     inline void VkCommandEncoderImpl::BuildBottomLevelAccelStruct(
-        AccelStruct* dst, Buffer* scratch, u64 scratchOffset,
+        AccelStruct* dst, BufferHandle scratch, u64 scratchOffset,
         Span<const AccelStructGeometryTriangles> tris, Span<const AccelStructGeometryAABBs> aabbs)
     {
         auto* as = static_cast<VkAccelStructImpl*>(dst);
-        auto* sc = static_cast<VkBufferImpl*>(scratch);
+        auto* sc = LookUp(buffers, scratch);
         if (!as || !sc)
             return;
 
@@ -696,7 +708,7 @@ export namespace foundation::rhi::vk
         for (usize i = 0; i < tris.Size(); ++i)
         {
             const auto& t = tris[i];
-            auto* vb = static_cast<VkBufferImpl*>(t.vertexBuffer);
+            auto* vb = LookUp(buffers, t.vertexBuffer);
             if (!vb)
                 continue;
             VkAccelerationStructureGeometryTrianglesDataKHR td{};
@@ -705,14 +717,14 @@ export namespace foundation::rhi::vk
             td.vertexData.deviceAddress = getBufferDeviceAddress(vb) + t.vertexOffset;
             td.vertexStride = t.vertexStride;
             td.maxVertex = t.vertexCount - 1;
-            if (auto* ib = static_cast<VkBufferImpl*>(t.indexBuffer))
+            if (auto* ib = LookUp(buffers, t.indexBuffer))
             {
                 td.indexType = toVkIndexType(t.indexFormat);
                 td.indexData.deviceAddress = getBufferDeviceAddress(ib) + t.indexOffset;
             }
             else
                 td.indexType = VK_INDEX_TYPE_NONE_KHR;
-            if (auto* tb = static_cast<VkBufferImpl*>(t.transformBuffer))
+            if (auto* tb = LookUp(buffers, t.transformBuffer))
                 td.transformData.deviceAddress = getBufferDeviceAddress(tb) + t.transformOffset;
             geoms[idx] = {};
             geoms[idx].sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
@@ -734,7 +746,7 @@ export namespace foundation::rhi::vk
         for (usize i = 0; i < aabbs.Size(); ++i)
         {
             const auto& a = aabbs[i];
-            auto* ab = static_cast<VkBufferImpl*>(a.aabbBuffer);
+            auto* ab = LookUp(buffers, a.aabbBuffer);
             if (!ab)
                 continue;
             VkAccelerationStructureGeometryAabbsDataKHR ad{};
@@ -778,15 +790,15 @@ export namespace foundation::rhi::vk
         m_pfnBuild(m_cmdBuf, 1, &bi, &pRange);
     }
 
-    inline void VkCommandEncoderImpl::BuildTopLevelAccelStruct(AccelStruct* dst, Buffer* scratch,
+    inline void VkCommandEncoderImpl::BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratch,
                                                                u64 scratchOffset,
-                                                               Buffer* instanceBuf,
+                                                               BufferHandle instanceBuf,
                                                                u64 instanceOffset,
                                                                u32 instanceCount)
     {
         auto* as = static_cast<VkAccelStructImpl*>(dst);
-        auto* sc = static_cast<VkBufferImpl*>(scratch);
-        auto* ib = static_cast<VkBufferImpl*>(instanceBuf);
+        auto* sc = LookUp(buffers, scratch);
+        auto* ib = LookUp(buffers, instanceBuf);
         if (!as || !sc || !ib)
             return;
 
@@ -852,10 +864,10 @@ export namespace foundation::rhi::vk
             m_counters->Draws();
     }
 
-    void VkRenderPassEncoderImpl::DrawMeshTasksIndirect(Buffer* buf, u64 offset, u32 drawCount,
+    void VkRenderPassEncoderImpl::DrawMeshTasksIndirect(BufferHandle buf, u64 offset, u32 drawCount,
                                                         u32 stride)
     {
-        auto* vkBuf = static_cast<VkBufferImpl*>(buf);
+        auto* vkBuf = LookUp(buffers, buf);
         if (!vkBuf)
             return;
         if (!m_pfnDrawMeshIndirect)
@@ -868,12 +880,12 @@ export namespace foundation::rhi::vk
             m_counters->Draws(drawCount);
     }
 
-    void VkRenderPassEncoderImpl::DrawMeshTasksIndirectCount(Buffer* buf, u64 offset,
-                                                             Buffer* countBuf, u64 countOffset,
+    void VkRenderPassEncoderImpl::DrawMeshTasksIndirectCount(BufferHandle buf, u64 offset,
+                                                             BufferHandle countBuf, u64 countOffset,
                                                              u32 maxDrawCount, u32 stride)
     {
-        auto* vkBuf = static_cast<VkBufferImpl*>(buf);
-        auto* vkCb = static_cast<VkBufferImpl*>(countBuf);
+        auto* vkBuf = LookUp(buffers, buf);
+        auto* vkCb = LookUp(buffers, countBuf);
         if (!vkBuf || !vkCb)
             return;
         if (!m_pfnDrawMeshIndCount)
@@ -921,7 +933,9 @@ export namespace foundation::rhi::vk
             return ErrorCode::OutOfMemory;
         }
 
-        out = m_allocator->New<VkCommandEncoderImpl>(cmdBuf, m_device, this, *m_allocator);
+        auto* encoder = m_allocator->New<VkCommandEncoderImpl>(cmdBuf, m_device, this, *m_allocator);
+        encoder->recording = beginRecording();
+        out = encoder;
         return ErrorCode::Ok;
     }
 
@@ -929,6 +943,11 @@ export namespace foundation::rhi::vk
     {
         if (encoder)
         {
+            // One never finished is discarded; a finished one's command buffer holds its
+            // recording, which its submit (or the pool's Reset) ends.
+            auto* vkEncoder = static_cast<VkCommandEncoderImpl*>(encoder);
+            if (!vkEncoder->finished && tracker != nullptr)
+                tracker->End(vkEncoder->recording);
             m_allocator->Delete(encoder);
             encoder = nullptr;
         }
@@ -936,6 +955,7 @@ export namespace foundation::rhi::vk
 
     void VkCommandPoolImpl::Reset()
     {
+        DiscardRecordings();
         for (auto* cb : m_trackedBuffers)
         {
             m_freeHandles.PushBack(cb->handle());
@@ -1012,6 +1032,11 @@ export namespace foundation::rhi::vk
         }
 
         auto* enc = m_allocator->New<VkRenderBundleEncoderImpl>(sec, *m_allocator);
+        enc->buffers = buffers;
+        // A bundle may be executed by any command buffer until the pool resets: one recording for
+        // the pool's bundles, open until then.
+        if (m_bundleRecording == 0)
+            m_bundleRecording = beginRecording();
         trackBundleEncoder(enc);
         return enc;
     }

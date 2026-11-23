@@ -92,8 +92,8 @@ TEST_CASE("bind group cache: the bound buffer and its generation are inputs too"
     BindGroupCache<3> cache;
     rhi::TextureView* history = View(6);
     rhi::BindGroup* stale = nullptr;
-    rhi::Buffer* skyA = reinterpret_cast<rhi::Buffer*>(g_slots[4]);
-    rhi::Buffer* skyB = reinterpret_cast<rhi::Buffer*>(g_slots[5]);
+    rhi::BufferHandle skyA{4, 1}; // two distinct handles; the cache only compares them
+    rhi::BufferHandle skyB{5, 1};
 
     BindGroupInputs<3> withA = Inputs(0, 1, 1, 1, 3, 1);
     withA.SetBuffer(skyA, 7);

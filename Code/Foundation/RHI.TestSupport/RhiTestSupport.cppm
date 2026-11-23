@@ -123,7 +123,7 @@ export namespace foundation::rhi::testsupport
         rb.size = static_cast<u64>(bytesPerRow) * height;
         rb.usage = rhi::BufferUsage::CopyDst;
         rb.memory = rhi::MemoryLocation::GpuToCpu;
-        rhi::Buffer* readback = nullptr;
+        rhi::BufferHandle readback{};
         if (!device.CreateBuffer(rb, readback).IsOk())
         {
             return out;
@@ -161,7 +161,7 @@ export namespace foundation::rhi::testsupport
                 rhi::CommandBuffer* list[] = {cmd};
                 queue->Submit(Span<rhi::CommandBuffer* const>(list, 1), fence, 1);
                 fence->Wait(1, ~0ull);
-                if (const u8* mapped = static_cast<const u8*>(readback->Map()))
+                if (const u8* mapped = static_cast<const u8*>(device.Map(readback)))
                 {
                     out.width = width;
                     out.height = height;
@@ -175,7 +175,7 @@ export namespace foundation::rhi::testsupport
                             dst[x] = src[x];
                         }
                     }
-                    readback->Unmap();
+                    device.Unmap(readback);
                     out.valid = true;
                 }
             }

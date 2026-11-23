@@ -60,6 +60,10 @@ export namespace foundation::rhi::dx12
         {
         }
 
+        /// Open from its pool's CreateEncoder to Finish, when its command buffer takes it.
+        SubmissionTracker::Recording recording = 0;
+        bool finished = false;
+
         ~DxCommandEncoderImpl() override = default;
 
         // ================================================================
@@ -192,7 +196,7 @@ export namespace foundation::rhi::dx12
             for (usize i = 0; i < group.bufferBarriers.Size(); ++i)
             {
                 const auto& bb = group.bufferBarriers[i];
-                auto* dxBuf = static_cast<DxBufferImpl*>(bb.buffer);
+                auto* dxBuf = LookUp(m_rpeCtx.buffers, bb.buffer);
                 if (!dxBuf)
                     continue;
 
@@ -355,21 +359,21 @@ export namespace foundation::rhi::dx12
 
         // ---- Copy Operations ----
 
-        void CopyBufferToBuffer(Buffer* src, u64 srcOffset, Buffer* dst, u64 dstOffset,
+        void CopyBufferToBuffer(BufferHandle src, u64 srcOffset, BufferHandle dst, u64 dstOffset,
                                 u64 size) override
         {
-            auto* dxSrc = static_cast<DxBufferImpl*>(src);
-            auto* dxDst = static_cast<DxBufferImpl*>(dst);
+            auto* dxSrc = LookUp(m_rpeCtx.buffers, src);
+            auto* dxDst = LookUp(m_rpeCtx.buffers, dst);
             if (!dxSrc || !dxDst)
                 return;
             m_cmdList->CopyBufferRegion(dxDst->handle(), dstOffset, dxSrc->handle(), srcOffset,
                                         size);
         }
 
-        void CopyBufferToTexture(Buffer* src, Texture* dst,
+        void CopyBufferToTexture(BufferHandle src, Texture* dst,
                                  const BufferTextureCopyRegion& region) override
         {
-            auto* dxSrc = static_cast<DxBufferImpl*>(src);
+            auto* dxSrc = LookUp(m_rpeCtx.buffers, src);
             auto* dxTex = static_cast<DxTextureImpl*>(dst);
             if (!dxSrc || !dxTex)
                 return;
@@ -396,11 +400,11 @@ export namespace foundation::rhi::dx12
                                          region.textureOrigin.z, &srcLoc, nullptr);
         }
 
-        void CopyTextureToBuffer(Texture* src, Buffer* dst,
+        void CopyTextureToBuffer(Texture* src, BufferHandle dst,
                                  const BufferTextureCopyRegion& region) override
         {
             auto* dxTex = static_cast<DxTextureImpl*>(src);
-            auto* dxDst = static_cast<DxBufferImpl*>(dst);
+            auto* dxDst = LookUp(m_rpeCtx.buffers, dst);
             if (!dxTex || !dxDst)
                 return;
 
@@ -619,11 +623,11 @@ export namespace foundation::rhi::dx12
                 m_cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_PIPELINE_STATISTICS, index);
         }
 
-        void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, Buffer* dst,
+        void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, BufferHandle dst,
                              u64 dstOffset) override
         {
             auto* qs = static_cast<DxQuerySetImpl*>(querySet);
-            auto* dxDst = static_cast<DxBufferImpl*>(dst);
+            auto* dxDst = LookUp(m_rpeCtx.buffers, dst);
             if (!qs || !dxDst)
                 return;
             m_cmdList->ResolveQueryData(qs->handle(), DxQuerySetImpl::toDxQueryType(qs->type),
@@ -648,6 +652,9 @@ export namespace foundation::rhi::dx12
             m_cmdList->Close();
             m_pool->markEncoderFinished(); // list closed: the pool may now Reset safely
             auto* cb = m_allocator.New<DxCommandBufferImpl>(m_cmdList);
+            cb->recording = recording;
+            recording = 0;
+            finished = true;
             m_pool->trackCommandBuffer(cb);
             return cb;
         }
@@ -656,12 +663,12 @@ export namespace foundation::rhi::dx12
         // RayTracingEncoderExt interface
         // ================================================================
 
-        void BuildBottomLevelAccelStruct(AccelStruct* dst, Buffer* scratchBuffer, u64 scratchOffset,
+        void BuildBottomLevelAccelStruct(AccelStruct* dst, BufferHandle scratchBuffer, u64 scratchOffset,
                                          Span<const AccelStructGeometryTriangles> tris,
                                          Span<const AccelStructGeometryAABBs> aabbs) override
         {
             auto* dxAs = static_cast<DxAccelStructImpl*>(dst);
-            auto* dxScratch = static_cast<DxBufferImpl*>(scratchBuffer);
+            auto* dxScratch = LookUp(m_rpeCtx.buffers, scratchBuffer);
             if (!dxAs || !dxScratch)
                 return;
 
@@ -683,7 +690,7 @@ export namespace foundation::rhi::dx12
 
                 auto& tri = geomDescs[idx].Triangles;
 
-                if (auto* vb = static_cast<DxBufferImpl*>(t.vertexBuffer))
+                if (auto* vb = LookUp(m_rpeCtx.buffers, t.vertexBuffer))
                 {
                     tri.VertexBuffer.StartAddress = vb->gpuAddress() + t.vertexOffset;
                     tri.VertexBuffer.StrideInBytes = t.vertexStride;
@@ -693,7 +700,7 @@ export namespace foundation::rhi::dx12
 
                 if (t.indexBuffer)
                 {
-                    if (auto* ib = static_cast<DxBufferImpl*>(t.indexBuffer))
+                    if (auto* ib = LookUp(m_rpeCtx.buffers, t.indexBuffer))
                     {
                         tri.IndexBuffer = ib->gpuAddress() + t.indexOffset;
                         tri.IndexCount = t.indexCount;
@@ -709,7 +716,7 @@ export namespace foundation::rhi::dx12
 
                 if (t.transformBuffer)
                 {
-                    if (auto* tb = static_cast<DxBufferImpl*>(t.transformBuffer))
+                    if (auto* tb = LookUp(m_rpeCtx.buffers, t.transformBuffer))
                         tri.Transform3x4 = tb->gpuAddress() + t.transformOffset;
                 }
 
@@ -723,7 +730,7 @@ export namespace foundation::rhi::dx12
                 geomDescs[idx].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
                 geomDescs[idx].Flags = toGeometryFlags(a.flags);
 
-                if (auto* ab = static_cast<DxBufferImpl*>(a.aabbBuffer))
+                if (auto* ab = LookUp(m_rpeCtx.buffers, a.aabbBuffer))
                 {
                     geomDescs[idx].AABBs.AABBs.StartAddress = ab->gpuAddress() + a.offset;
                     geomDescs[idx].AABBs.AABBs.StrideInBytes = a.stride;
@@ -746,13 +753,13 @@ export namespace foundation::rhi::dx12
             cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
         }
 
-        void BuildTopLevelAccelStruct(AccelStruct* dst, Buffer* scratchBuffer, u64 scratchOffset,
-                                      Buffer* instanceBuffer, u64 instanceOffset,
+        void BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratchBuffer, u64 scratchOffset,
+                                      BufferHandle instanceBuffer, u64 instanceOffset,
                                       u32 instanceCount) override
         {
             auto* dxAs = static_cast<DxAccelStructImpl*>(dst);
-            auto* dxScratch = static_cast<DxBufferImpl*>(scratchBuffer);
-            auto* dxInstances = static_cast<DxBufferImpl*>(instanceBuffer);
+            auto* dxScratch = LookUp(m_rpeCtx.buffers, scratchBuffer);
+            auto* dxInstances = LookUp(m_rpeCtx.buffers, instanceBuffer);
             if (!dxAs || !dxScratch || !dxInstances)
                 return;
 
@@ -883,8 +890,8 @@ export namespace foundation::rhi::dx12
                 static_cast<UINT>(layout->pushConstantRootIndex()), size / 4, data, offset / 4);
         }
 
-        void TraceRays(Buffer* raygenSBT, u64 raygenOffset, u64 raygenStride, Buffer* missSBT,
-                       u64 missOffset, u64 missStride, Buffer* hitSBT, u64 hitOffset, u64 hitStride,
+        void TraceRays(BufferHandle raygenSBT, u64 raygenOffset, u64 raygenStride, BufferHandle missSBT,
+                       u64 missOffset, u64 missStride, BufferHandle hitSBT, u64 hitOffset, u64 hitStride,
                        u32 width, u32 height, u32 depth) override
         {
             if (m_rpeCtx.counters) m_rpeCtx.counters->Dispatches(); // a trace counts as a dispatch
@@ -895,7 +902,7 @@ export namespace foundation::rhi::dx12
             D3D12_DISPATCH_RAYS_DESC dispatchDesc{};
 
             // Raygen: a single record.
-            if (auto* dxBuf = static_cast<DxBufferImpl*>(raygenSBT))
+            if (auto* dxBuf = LookUp(m_rpeCtx.buffers, raygenSBT))
             {
                 dispatchDesc.RayGenerationShaderRecord.StartAddress =
                     dxBuf->gpuAddress() + raygenOffset;
@@ -905,7 +912,7 @@ export namespace foundation::rhi::dx12
             // Miss.
             if (missSBT)
             {
-                if (auto* dxBuf = static_cast<DxBufferImpl*>(missSBT))
+                if (auto* dxBuf = LookUp(m_rpeCtx.buffers, missSBT))
                 {
                     dispatchDesc.MissShaderTable.StartAddress = dxBuf->gpuAddress() + missOffset;
                     dispatchDesc.MissShaderTable.StrideInBytes = missStride;
@@ -916,7 +923,7 @@ export namespace foundation::rhi::dx12
             // Hit group.
             if (hitSBT)
             {
-                if (auto* dxBuf = static_cast<DxBufferImpl*>(hitSBT))
+                if (auto* dxBuf = LookUp(m_rpeCtx.buffers, hitSBT))
                 {
                     dispatchDesc.HitGroupTable.StartAddress = dxBuf->gpuAddress() + hitOffset;
                     dispatchDesc.HitGroupTable.StrideInBytes = hitStride;

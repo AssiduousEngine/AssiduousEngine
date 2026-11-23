@@ -134,6 +134,9 @@ export namespace foundation::rhi::dx12
     class DxBindGroupImpl : public BindGroup
     {
     public:
+        /// The device's buffers, by which its entries' buffer handles are looked up (set before
+        /// init; a bindless update looks them up again).
+        const DxBufferTable* buffers = nullptr;
         Status init(ID3D12Device* device, const BindGroupDesc& d, DxGpuDescriptorHeap* cpuSrvHeap,
                     DxGpuDescriptorHeap* cpuSamplerHeap, DxGpuDescriptorHeap* gpuSamplerHeap,
                     DxSamplerTables* samplerTables)
@@ -339,7 +342,7 @@ export namespace foundation::rhi::dx12
 
                 if (r.hasDynamicOffset)
                 {
-                    if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                    if (auto* buf = LookUp(buffers, e.buffer))
                         m_dynAddrs.PushBack(buf->gpuAddress() + e.bufferOffset);
                     else
                         m_dynAddrs.PushBack(0);
@@ -360,7 +363,7 @@ export namespace foundation::rhi::dx12
             switch (r.type)
             {
             case BindingType::UniformBuffer:
-                if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                if (auto* buf = LookUp(buffers, e.buffer))
                 {
                     D3D12_CONSTANT_BUFFER_VIEW_DESC cbv{};
                     cbv.BufferLocation = buf->gpuAddress() + e.bufferOffset;
@@ -370,7 +373,7 @@ export namespace foundation::rhi::dx12
                 }
                 break;
             case BindingType::StorageBufferReadOnly:
-                if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                if (auto* buf = LookUp(buffers, e.buffer))
                 {
                     u64 sz = (e.bufferSize > 0) ? e.bufferSize : buf->desc.size;
                     D3D12_SHADER_RESOURCE_VIEW_DESC srv{};
@@ -395,7 +398,7 @@ export namespace foundation::rhi::dx12
                 }
                 break;
             case BindingType::StorageBufferReadWrite:
-                if (auto* buf = static_cast<DxBufferImpl*>(e.buffer))
+                if (auto* buf = LookUp(buffers, e.buffer))
                 {
                     u64 sz = (e.bufferSize > 0) ? e.bufferSize : buf->desc.size;
                     D3D12_UNORDERED_ACCESS_VIEW_DESC uav{};

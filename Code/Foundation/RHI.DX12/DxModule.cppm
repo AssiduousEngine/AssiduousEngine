@@ -37,6 +37,7 @@ export import :compute_pass_encoder;
 export import :command_encoder;
 export import :transfer_batch;
 export import :swap_chain;
+export import :queue_timeline;
 export import :queue;
 export import :accel_struct;
 export import :mesh_pipeline;

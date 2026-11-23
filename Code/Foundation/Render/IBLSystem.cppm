@@ -95,7 +95,7 @@ export namespace foundation::render
             {
                 return m_prefilterView;
             }
-            [[nodiscard]] rhi::Buffer* ShBuffer() const noexcept { return m_shBuffer; }
+            [[nodiscard]] rhi::BufferHandle ShBuffer() const noexcept { return m_shBuffer; }
             // Unique across contexts (one system-wide counter), so safe as a sole cache key.
             [[nodiscard]] u64 Generation() const noexcept { return m_generation; }
             // Stable per-context identity (stamped at creation, never reused). Downstream caches
@@ -142,7 +142,7 @@ export namespace foundation::render
             rhi::Texture* m_prefilterCube = nullptr;
             rhi::TextureView* m_prefilterView = nullptr;
             u32 m_prefilterRes = 0; // the size the prefilter cube was made at
-            rhi::Buffer* m_shBuffer = nullptr;
+            rhi::BufferHandle m_shBuffer{};
             rhi::BindGroup* m_envBindGroup = nullptr;  // env full-chain sample (prefilter input)
             rhi::BindGroup* m_envMipBG[kEnvMips] = {}; // mip m as the downsample source
             rhi::BindGroup* m_shBindGroup = nullptr;   // env and SH output buffer (compute)
@@ -297,7 +297,7 @@ export namespace foundation::render
         // Shared programmatic HDR equirect source: an uploaded 2D texture sampled by the equirect pass.
         rhi::Texture* m_equirectTex = nullptr;
         rhi::TextureView* m_equirectView = nullptr;
-        rhi::Buffer* m_equirectStaging = nullptr;
+        rhi::BufferHandle m_equirectStaging{};
         rhi::Sampler* m_equirectSampler = nullptr;
         rhi::BindGroupLayout* m_equirectLayout = nullptr;
         rhi::PipelineLayout* m_equirectPipelineLayout = nullptr;
@@ -309,7 +309,7 @@ export namespace foundation::render
         // Shared programmatic cubemap source.
         rhi::Texture* m_srcCube = nullptr;
         rhi::TextureView* m_srcCubeView = nullptr;
-        rhi::Buffer* m_cubemapStaging = nullptr;
+        rhi::BufferHandle m_cubemapStaging{};
         rhi::RenderPipeline* m_cubemapPipeline = nullptr; // reuses m_prefilterLayout and m_envLayout
         rhi::BindGroup* m_cubemapBindGroup = nullptr;
         u32 m_cubemapFaceSize = 0;

@@ -16,6 +16,7 @@ module;
 export module foundation.rhi:device;
 
 import foundation.core;
+import :forward;
 import :enums;
 import :texture_format;
 import :types;
@@ -198,7 +199,7 @@ export namespace foundation::rhi
         [[nodiscard]] virtual PipelineStatistics DecodePipelineStatistics(const void* result) const noexcept = 0;
 
         // ---- Resource creation ----
-        virtual Status CreateBuffer(const BufferDesc& desc, Buffer*& out) = 0;
+        virtual Status CreateBuffer(const BufferDesc& desc, BufferHandle& out) = 0;
         virtual Status CreateTexture(const TextureDesc& desc, Texture*& out) = 0;
         virtual Status CreateTextureView(Texture* texture, const TextureViewDesc& desc,
                                          TextureView*& out) = 0;
@@ -220,8 +221,22 @@ export namespace foundation::rhi
         virtual Status CreateSwapChain(Surface* surface, const SwapChainDesc& desc,
                                        SwapChain*& out) = 0;
 
+        // ---- Buffers ----
+        /// What the buffer was created with; null for a stale handle.
+        [[nodiscard]] virtual const BufferDesc* Describe(BufferHandle buffer) const = 0;
+        /// Map the buffer for CPU access. Null if it is not mappable or the handle is stale.
+        [[nodiscard]] virtual void* Map(BufferHandle buffer) = 0;
+        virtual void Unmap(BufferHandle buffer) = 0;
+        /// Make [offset, offset+size) of a mapped CpuToGpu buffer visible to the GPU. A real
+        /// coherent mapping needs nothing; a backend that emulates mapping with a CPU shadow
+        /// (WebGPU) uploads exactly that range. A caller that uses it flushes every range it wrote
+        /// during the mapping; Unmap then only closes the mapping.
+        virtual void FlushRange(BufferHandle buffer, u64 offset, u64 size) = 0;
+
         // ---- Resource destruction ----
-        virtual void DestroyBuffer(Buffer*& buf) = 0;
+        /// The handle (and the caller's copy) is stale at once; the buffer is freed when the GPU
+        /// can no longer use it (Specs/rhi-handles.md, Decision 4).
+        virtual void DestroyBuffer(BufferHandle& buf) = 0;
         virtual void DestroyTexture(Texture*& tex) = 0;
         virtual void DestroyTextureView(TextureView*& view) = 0;
         virtual void DestroySampler(Sampler*& sampler) = 0;

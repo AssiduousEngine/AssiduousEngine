@@ -25,7 +25,7 @@ TEST_CASE("render.retire: entries age out after framesInFlight + 1 ticks")
     rhi::BufferDesc bd{};
     bd.size = 256;
     bd.usage = rhi::BufferUsage::Storage;
-    rhi::Buffer* buffer = nullptr;
+    rhi::BufferHandle buffer{};
     REQUIRE(device.CreateBuffer(bd, buffer).IsOk());
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8Unorm, 4, 4);
     rhi::Texture* texture = nullptr;
@@ -47,9 +47,9 @@ TEST_CASE("render.retire: entries age out after framesInFlight + 1 ticks")
     CHECK(queue.PendingCount() == 0u);
 
     // Null retires are no-ops; Flush drains immediately.
-    queue.Retire(static_cast<rhi::Buffer*>(nullptr));
+    queue.Retire(rhi::BufferHandle{});
     CHECK(queue.PendingCount() == 0u);
-    rhi::Buffer* another = nullptr;
+    rhi::BufferHandle another{};
     REQUIRE(device.CreateBuffer(bd, another).IsOk());
     queue.Retire(another);
     CHECK(queue.PendingCount() == 1u);

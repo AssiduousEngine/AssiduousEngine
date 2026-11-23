@@ -43,11 +43,11 @@ TEST_CASE("rhi.null: device creates resources and a mappable buffer")
 
     BufferDesc bufferDesc{};
     bufferDesc.size = 256;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device->CreateBuffer(bufferDesc, buffer).IsOk());
-    REQUIRE(buffer != nullptr);
-    CHECK(buffer->Map() != nullptr); // null backend backs it with host memory
-    buffer->Unmap();
+    REQUIRE(buffer.IsValid());
+    CHECK(device->Map(buffer) != nullptr); // null backend backs it with host memory
+    device->Unmap(buffer);
 
     Texture* texture = nullptr;
     CHECK(device->CreateTexture(TextureDesc{}, texture).IsOk());
@@ -161,19 +161,19 @@ TEST_CASE("rhi.counters: a frame of known work counts what it did, a bundle each
     pass->SetBindGroup(1, nullptr, {});
     pass->Draw(3);
     pass->DrawIndexed(36);
-    pass->DrawIndirect(nullptr, 0, 4, 16);
+    pass->DrawIndirect({}, 0, 4, 16);
     RenderBundle* bundles[] = {bundle, bundle};
     pass->ExecuteBundles(Span<RenderBundle* const>(bundles, 2)); // the bundle runs twice
     pass->End();
     ComputePassEncoder* compute = enc->BeginComputePass();
     compute->SetPipeline(nullptr);
     compute->Dispatch(8, 8, 1);
-    compute->DispatchIndirect(nullptr, 0);
+    compute->DispatchIndirect({}, 0);
     compute->End();
     TransferBatch* batch = nullptr;
     REQUIRE(device.GetQueue(QueueType::Graphics, 0)->CreateTransferBatch(batch).IsOk());
     const u8 bytes[100] = {};
-    batch->WriteBuffer(nullptr, 0, Span<const u8>(bytes, 100));
+    batch->WriteBuffer({}, 0, Span<const u8>(bytes, 100));
 
     const DeviceCounters c = device.Counters();
     CHECK(c.draws == 2u + 4u + 2u * 2u); // two direct, four indirect, the bundle's two twice
@@ -191,7 +191,7 @@ TEST_CASE("rhi.counters: memory held rises and falls with buffers and textures, 
     null::NullDevice device{DefaultAllocator()};
     BufferDesc bd{};
     bd.size = 1024;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device.CreateBuffer(bd, buffer).IsOk());
     TextureDesc td{};
     td.format = TextureFormat::RGBA8Unorm;

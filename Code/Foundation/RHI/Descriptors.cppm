@@ -221,14 +221,14 @@ export namespace foundation::rhi
     /// Describes one resource binding within a bind group.
     struct BindGroupEntry
     {
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         u64 bufferOffset = 0;
         u64 bufferSize = 0;
         TextureView* textureView = nullptr;
         Sampler* sampler = nullptr;
         AccelStruct* accelStruct = nullptr;
 
-        static BindGroupEntry BufferEntry(Buffer* buf, u64 offset, u64 size)
+        static BindGroupEntry BufferEntry(BufferHandle buf, u64 offset, u64 size)
         {
             BindGroupEntry e{};
             e.buffer = buf;
@@ -268,7 +268,7 @@ export namespace foundation::rhi
     {
         u32 layoutIndex = 0;
         u32 arrayIndex = 0;
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         u64 bufferOffset = 0;
         u64 bufferSize = 0;
         TextureView* textureView = nullptr;
@@ -509,7 +509,7 @@ export namespace foundation::rhi
 
     struct BufferBarrier
     {
-        Buffer* buffer = nullptr;
+        BufferHandle buffer{};
         ResourceState oldState = ResourceState::Undefined;
         ResourceState newState = ResourceState::Undefined;
         u64 offset = 0;

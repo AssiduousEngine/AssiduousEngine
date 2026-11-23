@@ -199,11 +199,11 @@ export namespace foundation::rendergraph
                     {
                         m_device->DestroyQuerySet(slot.statistics);
                     }
-                    if (slot.timestampReadback != nullptr)
+                    if (slot.timestampReadback.IsValid())
                     {
                         m_device->DestroyBuffer(slot.timestampReadback);
                     }
-                    if (slot.statisticsReadback != nullptr)
+                    if (slot.statisticsReadback.IsValid())
                     {
                         m_device->DestroyBuffer(slot.statisticsReadback);
                     }
@@ -219,8 +219,8 @@ export namespace foundation::rendergraph
         {
             rhi::QuerySet* timestamps = nullptr;
             rhi::QuerySet* statistics = nullptr;
-            rhi::Buffer* timestampReadback = nullptr;
-            rhi::Buffer* statisticsReadback = nullptr;
+            rhi::BufferHandle timestampReadback{};
+            rhi::BufferHandle statisticsReadback{};
             Array<profiler::NameId> names; // the passes measured, in order
             u64 frameNumber = 0;
             bool pending = false;
@@ -228,7 +228,7 @@ export namespace foundation::rendergraph
             explicit Slot(IAllocator& allocator) noexcept : names(allocator) {}
         };
 
-        [[nodiscard]] bool MakeReadback(u64 size, rhi::Buffer*& out)
+        [[nodiscard]] bool MakeReadback(u64 size, rhi::BufferHandle& out)
         {
             rhi::BufferDesc bd{};
             bd.size = size;
@@ -272,7 +272,7 @@ export namespace foundation::rendergraph
         [[nodiscard]] bool SyncPoint()
         {
             rhi::QuerySet* set = nullptr;
-            rhi::Buffer* readback = nullptr;
+            rhi::BufferHandle readback{};
             rhi::CommandPool* pool = nullptr;
             rhi::Fence* fence = nullptr;
             rhi::QuerySetDesc qd{};
@@ -299,7 +299,7 @@ export namespace foundation::rendergraph
                     m_queue->Submit(Span<rhi::CommandBuffer* const>(buffers, 1), fence, 1);
                     ok = fence->Wait(1, ~0ull);
                     const u64 after = GetTicks();
-                    const u64* mapped = ok ? static_cast<const u64*>(readback->Map()) : nullptr;
+                    const u64* mapped = ok ? static_cast<const u64*>(m_device->Map(readback)) : nullptr;
                     ok = mapped != nullptr && mapped[0] != 0;
                     if (ok)
                     {
@@ -308,7 +308,7 @@ export namespace foundation::rendergraph
                     }
                     if (mapped != nullptr)
                     {
-                        readback->Unmap();
+                        m_device->Unmap(readback);
                     }
                 }
                 pool->DestroyEncoder(encoder);
@@ -321,7 +321,7 @@ export namespace foundation::rendergraph
             {
                 m_device->DestroyCommandPool(pool);
             }
-            if (readback != nullptr)
+            if (readback.IsValid())
             {
                 m_device->DestroyBuffer(readback);
             }
@@ -347,13 +347,13 @@ export namespace foundation::rendergraph
                 return;
             }
             slot.pending = false;
-            const u64* stamps = static_cast<const u64*>(slot.timestampReadback->Map());
+            const u64* stamps = static_cast<const u64*>(m_device->Map(slot.timestampReadback));
             if (stamps == nullptr)
             {
                 return;
             }
             const u8* statistics = slot.statistics != nullptr
-                                       ? static_cast<const u8*>(slot.statisticsReadback->Map())
+                                       ? static_cast<const u8*>(m_device->Map(slot.statisticsReadback))
                                        : nullptr;
             Array<profiler::GpuPassEvent> passes(*m_allocator);
             for (u32 i = 0; i < slot.names.Size(); ++i)
@@ -384,9 +384,9 @@ export namespace foundation::rendergraph
             }
             if (statistics != nullptr)
             {
-                slot.statisticsReadback->Unmap();
+                m_device->Unmap(slot.statisticsReadback);
             }
-            slot.timestampReadback->Unmap();
+            m_device->Unmap(slot.timestampReadback);
             profiler::Profiler::Get().SubmitGpuPasses(
                 slot.frameNumber, Span<const profiler::GpuPassEvent>(passes.Data(), passes.Size()));
         }

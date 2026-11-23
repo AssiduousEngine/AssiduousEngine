@@ -62,11 +62,11 @@ export namespace foundation::rhi::dx12
         {
             m_rec.SetPushConstants(s, o, sz, d);
         }
-        void SetVertexBuffer(u32 slot, Buffer* b, u64 o) override
+        void SetVertexBuffer(u32 slot, BufferHandle b, u64 o) override
         {
             m_rec.SetVertexBuffer(slot, b, o);
         }
-        void SetIndexBuffer(Buffer* b, IndexFormat f, u64 o) override
+        void SetIndexBuffer(BufferHandle b, IndexFormat f, u64 o) override
         {
             m_rec.SetIndexBuffer(b, f, o);
         }
@@ -80,12 +80,12 @@ export namespace foundation::rhi::dx12
             ++m_recorded.draws;
             m_rec.DrawIndexed(ic, inst, fi, bv, finst);
         }
-        void DrawIndirect(Buffer* b, u64 o, u32 dc, u32 st) override
+        void DrawIndirect(BufferHandle b, u64 o, u32 dc, u32 st) override
         {
             m_recorded.draws += dc;
             m_rec.DrawIndirect(b, o, dc, st);
         }
-        void DrawIndexedIndirect(Buffer* b, u64 o, u32 dc, u32 st) override
+        void DrawIndexedIndirect(BufferHandle b, u64 o, u32 dc, u32 st) override
         {
             m_recorded.draws += dc;
             m_rec.DrawIndexedIndirect(b, o, dc, st);

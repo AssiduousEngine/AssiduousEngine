@@ -29,6 +29,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuTransferBatch final : public TransferBatch
     {
     public:
+        /// The device's buffers, by which this looks its buffer handles up.
+        const WebGpuBufferTable* buffers = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts (transfer bytes)
 
         void Initialize(const WebGpuApi& api, WGPUInstance instance, WGPUDevice device,
@@ -41,10 +43,10 @@ export namespace foundation::rhi::webgpu
             m_allocator = &allocator;
         }
 
-        void WriteBuffer(Buffer* dst, u64 dstOffset, Span<const u8> data) override
+        void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
             BufferWrite write;
-            write.destination = static_cast<WebGpuBuffer*>(dst)->Handle();
+            write.destination = WgpuBufferOf(buffers, dst);
             write.offset = dstOffset;
             write.dataOffset = m_payload.Size();
             write.size = data.Size();

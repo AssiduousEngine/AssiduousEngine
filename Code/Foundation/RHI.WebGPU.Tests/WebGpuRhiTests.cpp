@@ -103,9 +103,9 @@ TEST_CASE("rhi.webgpu: unimplemented stages fail honestly, extensions unsupporte
 
     // An empty buffer desc must fail validation, not hand back wgpu's "invalid
     // object".
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     CHECK(device->CreateBuffer(BufferDesc{}, buffer).Code() == ErrorCode::InvalidArgument);
-    CHECK(buffer == nullptr);
+    CHECK(!buffer.IsValid());
 
     // Pipeline statistics have no WebGPU shape: NotSupported.
     QuerySetDesc statisticsDesc;
@@ -271,12 +271,12 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     bufferDesc.size = 256;
     bufferDesc.usage = BufferUsage::Uniform | BufferUsage::CopyDst;
     bufferDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* buffer = nullptr;
+    BufferHandle buffer{};
     REQUIRE(device->CreateBuffer(bufferDesc, buffer).IsOk());
-    void* mapped = buffer->Map();
+    void* mapped = device->Map(buffer);
     REQUIRE(mapped != nullptr);
     MemSet(mapped, 0xAB, 256);
-    buffer->Unmap(); // queue-ordered upload; GPU validation would log on error
+    device->Unmap(buffer); // queue-ordered upload; GPU validation would log on error
     device->WaitIdle();
     CHECK(!device->IsLost());
 
@@ -285,9 +285,9 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     gpuOnly.size = 64;
     gpuOnly.usage = BufferUsage::Storage;
     gpuOnly.memory = MemoryLocation::GpuOnly;
-    Buffer* deviceLocal = nullptr;
+    BufferHandle deviceLocal{};
     REQUIRE(device->CreateBuffer(gpuOnly, deviceLocal).IsOk());
-    CHECK(deviceLocal->Map() == nullptr);
+    CHECK(device->Map(deviceLocal) == nullptr);
 
     // Texture + a full-resource view.
     Texture* texture = nullptr;
@@ -363,7 +363,7 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     uboDesc.size = 16;
     uboDesc.usage = BufferUsage::Uniform;
     uboDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ubo = nullptr;
+    BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
     Texture* texture = nullptr;
     TextureDesc texDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
@@ -492,7 +492,7 @@ TEST_CASE("rhi.webgpu: encode + submit + readback - a full GPU round trip")
     readbackDesc.size = 4 * 256;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -528,14 +528,14 @@ TEST_CASE("rhi.webgpu: encode + submit + readback - a full GPU round trip")
     REQUIRE(fence->Wait(1, ~0ull));
 
     // Map the readback and verify the clear color survived the round trip.
-    const u8* pixels = static_cast<const u8*>(readback->Map());
+    const u8* pixels = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixels != nullptr);
     CHECK(pixels[0] == 255); // R
     CHECK(pixels[1] == 0);   // G
     CHECK(pixels[2] == 0);   // B
     CHECK(pixels[3] == 255); // A
     CHECK(pixels[256 * 3 + 0] == 255); // last row, first pixel
-    readback->Unmap();
+    device->Unmap(readback);
 
     CHECK(!device->IsLost());
     device->DestroyFence(fence);
@@ -565,7 +565,7 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     gpuDesc.size = 64;
     gpuDesc.usage = BufferUsage::Storage | BufferUsage::CopySrc | BufferUsage::CopyDst;
     gpuDesc.memory = MemoryLocation::GpuOnly;
-    Buffer* gpuBuffer = nullptr;
+    BufferHandle gpuBuffer{};
     REQUIRE(device->CreateBuffer(gpuDesc, gpuBuffer).IsOk());
 
     u8 pattern[64];
@@ -601,7 +601,7 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     readDesc.size = 4 * 256;
     readDesc.usage = BufferUsage::CopyDst;
     readDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -617,12 +617,12 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
         ->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* bytes = static_cast<const u8*>(readback->Map());
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 0);
     CHECK(bytes[21] == static_cast<u8>(21 * 3));
     CHECK(bytes[63] == static_cast<u8>(63 * 3));
-    readback->Unmap();
+    device->Unmap(readback);
 
     // Texture readback through the second copy path.
     BufferTextureCopyRegion region;
@@ -637,12 +637,12 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     device->GetQueue(QueueType::Graphics)
         ->Submit(Span<CommandBuffer* const>(second, 1), fence, 2);
     REQUIRE(fence->Wait(2, ~0ull));
-    bytes = static_cast<const u8*>(readback->Map());
+    bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 255);                 // first texel byte
     CHECK(bytes[15] == static_cast<u8>(255 - 15)); // last byte of row 0
     CHECK(bytes[256 + 0] == static_cast<u8>(255 - 16)); // row 1 starts at bytesPerRow
-    readback->Unmap();
+    device->Unmap(readback);
 
     queue->DestroyTransferBatch(batch);
     device->DestroyFence(fence);
@@ -797,13 +797,13 @@ TEST_CASE("rhi.webgpu: per-frame map/unmap/resubmit cycle stays valid")
     sourceDesc.size = 64;
     sourceDesc.usage = BufferUsage::CopySrc | BufferUsage::CopyDst;
     sourceDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* source = nullptr;
+    BufferHandle source{};
     REQUIRE(device->CreateBuffer(sourceDesc, source).IsOk());
     BufferDesc readbackDesc;
     readbackDesc.size = 64;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -817,11 +817,11 @@ TEST_CASE("rhi.webgpu: per-frame map/unmap/resubmit cycle stays valid")
         if (frame > 1)
         {
             REQUIRE(fence->Wait(frame - 1, ~0ull));
-            void* mapped = readback->Map();
+            void* mapped = device->Map(readback);
             CHECK(mapped != nullptr);
             if (mapped != nullptr)
             {
-                readback->Unmap();
+                device->Unmap(readback);
             }
         }
         CommandEncoder* encoder = nullptr;
@@ -893,7 +893,7 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     readbackDesc.size = 4 * 256; // sized for the 4x4 blit readback below too
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
     BufferTextureCopyRegion region;
     region.bytesPerRow = 256;
@@ -909,13 +909,13 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixel = static_cast<const u8*>(readback->Map());
+    const u8* pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     CHECK(pixel[0] == 0);   // R
     CHECK(pixel[1] == 255); // G survived three downsamples
     CHECK(pixel[2] == 0);   // B
     CHECK(pixel[3] == 255); // A
-    readback->Unmap();
+    device->Unmap(readback);
 
     // Scaling blit: the 8x8 green source into a 4x4 target of a DIFFERENT format.
     TextureDesc blitDesc = TextureDesc::RenderTarget(TextureFormat::BGRA8Unorm, 4, 4);
@@ -933,12 +933,12 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     CommandBuffer* second[] = {commandBuffer};
     queue->Submit(Span<CommandBuffer* const>(second, 1), fence, 2);
     REQUIRE(fence->Wait(2, ~0ull));
-    pixel = static_cast<const u8*>(readback->Map());
+    pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     CHECK(pixel[0] == 0);   // B (BGRA order now)
     CHECK(pixel[1] == 255); // G
     CHECK(pixel[2] == 0);   // R
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -967,16 +967,16 @@ TEST_CASE("rhi.webgpu: persistent mapping - writes without Unmap reach the GPU")
     uboDesc.size = 64;
     uboDesc.usage = BufferUsage::Uniform | BufferUsage::CopySrc;
     uboDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ubo = nullptr;
+    BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
     BufferDesc readbackDesc;
     readbackDesc.size = 64;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
-    u8* persistent = static_cast<u8*>(ubo->Map()); // never unmapped
+    u8* persistent = static_cast<u8*>(device->Map(ubo)); // never unmapped
     REQUIRE(persistent != nullptr);
 
     CommandPool* pool = nullptr;
@@ -995,11 +995,11 @@ TEST_CASE("rhi.webgpu: persistent mapping - writes without Unmap reach the GPU")
         queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, frame);
         REQUIRE(fence->Wait(frame, ~0ull));
 
-        const u8* bytes = static_cast<const u8*>(readback->Map());
+        const u8* bytes = static_cast<const u8*>(device->Map(readback));
         REQUIRE(bytes != nullptr);
         CHECK(bytes[0] == static_cast<u8>(frame * 17)); // this frame's write arrived
         CHECK(bytes[63] == static_cast<u8>(frame * 17));
-        readback->Unmap();
+        device->Unmap(readback);
         pool->DestroyEncoder(encoder);
     }
 
@@ -1031,18 +1031,18 @@ TEST_CASE("rhi.webgpu: persistent shadow flush skips byte-identical re-uploads")
     uboDesc.size = 64;
     uboDesc.usage = BufferUsage::Uniform | BufferUsage::CopySrc;
     uboDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ubo = nullptr;
+    BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
-    auto* webgpuUbo = static_cast<webgpu::WebGpuBuffer*>(ubo);
+    auto* webgpuUbo = static_cast<webgpu::WebGpuDevice*>(device)->BufferOf(ubo);
 
     BufferDesc readbackDesc;
     readbackDesc.size = 64;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
-    u8* persistent = static_cast<u8*>(ubo->Map()); // held open, never Unmapped
+    u8* persistent = static_cast<u8*>(device->Map(ubo)); // held open, never Unmapped
     REQUIRE(persistent != nullptr);
 
     CommandPool* pool = nullptr;
@@ -1075,21 +1075,21 @@ TEST_CASE("rhi.webgpu: persistent shadow flush skips byte-identical re-uploads")
     CHECK(webgpuUbo->UploadCount() == 1u); // three redundant re-uploads elided
 
     // ...and the GPU still holds frame 1's bytes despite those skipped flushes.
-    const u8* bytes = static_cast<const u8*>(readback->Map());
+    const u8* bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 0x11);
     CHECK(bytes[63] == 0x11);
-    readback->Unmap();
+    device->Unmap(readback);
 
     // Frame 5: a real change uploads again and the new data lands.
     MemSet(persistent, 0x22, 64);
     submitCopy(5);
     CHECK(webgpuUbo->UploadCount() == 2u);
-    bytes = static_cast<const u8*>(readback->Map());
+    bytes = static_cast<const u8*>(device->Map(readback));
     REQUIRE(bytes != nullptr);
     CHECK(bytes[0] == 0x22);
     CHECK(bytes[63] == 0x22);
-    readback->Unmap();
+    device->Unmap(readback);
 
     CHECK(!device->IsLost());
     device->DestroyFence(fence);
@@ -1116,15 +1116,15 @@ TEST_CASE("rhi.webgpu: FlushRange uploads only the written window; Unmap then ad
     ringDesc.size = 1024;
     ringDesc.usage = BufferUsage::Uniform | BufferUsage::CopySrc;
     ringDesc.memory = MemoryLocation::CpuToGpu;
-    Buffer* ring = nullptr;
+    BufferHandle ring{};
     REQUIRE(device->CreateBuffer(ringDesc, ring).IsOk());
-    auto* webgpuRing = static_cast<webgpu::WebGpuBuffer*>(ring);
+    auto* webgpuRing = static_cast<webgpu::WebGpuDevice*>(device)->BufferOf(ring);
 
     BufferDesc readbackDesc;
     readbackDesc.size = 1024;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1145,53 +1145,53 @@ TEST_CASE("rhi.webgpu: FlushRange uploads only the written window; Unmap then ad
 
     // Frame 1: map, write the window, flush the window, unmap: one upload, and the Unmap after
     // a ranged flush must not add a whole-buffer one.
-    u8* mapped = static_cast<u8*>(ring->Map());
+    u8* mapped = static_cast<u8*>(device->Map(ring));
     REQUIRE(mapped != nullptr);
     MemSet(mapped + 512, 0x5A, 64);
-    ring->FlushRange(512, 64);
+    device->FlushRange(ring, 512, 64);
     CHECK(webgpuRing->UploadCount() == 1u);
-    ring->Unmap();
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 1u);
     submitCopy(1);
     CHECK(webgpuRing->UploadCount() == 1u); // and the submit hook re-sends nothing
     {
-        const u8* bytes = static_cast<const u8*>(readback->Map());
+        const u8* bytes = static_cast<const u8*>(device->Map(readback));
         REQUIRE(bytes != nullptr);
         CHECK(bytes[0] == 0x00);   // untouched bytes stay zero-initialized
         CHECK(bytes[511] == 0x00);
         CHECK(bytes[512] == 0x5A); // the window landed
         CHECK(bytes[575] == 0x5A);
         CHECK(bytes[576] == 0x00);
-        readback->Unmap();
+        device->Unmap(readback);
     }
 
     // Frame 2: the same bytes flushed again are a skipped upload (the ranged compare).
-    mapped = static_cast<u8*>(ring->Map());
-    ring->FlushRange(512, 64);
-    ring->Unmap();
+    mapped = static_cast<u8*>(device->Map(ring));
+    device->FlushRange(ring, 512, 64);
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 1u);
 
     // Frame 3: a different window uploads once more and lands beside the first.
-    mapped = static_cast<u8*>(ring->Map());
+    mapped = static_cast<u8*>(device->Map(ring));
     MemSet(mapped + 128, 0xA5, 32);
-    ring->FlushRange(128, 32);
-    ring->Unmap();
+    device->FlushRange(ring, 128, 32);
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 2u);
     submitCopy(2);
     {
-        const u8* bytes = static_cast<const u8*>(readback->Map());
+        const u8* bytes = static_cast<const u8*>(device->Map(readback));
         REQUIRE(bytes != nullptr);
         CHECK(bytes[128] == 0xA5);
         CHECK(bytes[159] == 0xA5);
         CHECK(bytes[160] == 0x00);
         CHECK(bytes[512] == 0x5A); // the earlier window survives a partial upload
-        readback->Unmap();
+        device->Unmap(readback);
     }
 
     // A plain Map/Unmap with no writes still costs at most the whole-shadow compare, never an
     // upload (the GPU holds these exact bytes).
-    (void)ring->Map();
-    ring->Unmap();
+    (void)device->Map(ring);
+    device->Unmap(ring);
     CHECK(webgpuRing->UploadCount() == 2u);
 
     CHECK(!device->IsLost());
@@ -1336,7 +1336,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     readbackDesc.size = 256;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
     BufferTextureCopyRegion region;
     region.bytesPerRow = 256;
@@ -1351,11 +1351,11 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixel = static_cast<const u8*>(readback->Map());
+    const u8* pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     // +X is face 0: red = 1/8 = 32.
     CHECK(pixel[0] == 32);
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1511,7 +1511,7 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     readbackDesc.size = 4 * 256;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
     BufferTextureCopyRegion region;
     region.bytesPerRow = 256;
@@ -1526,10 +1526,10 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     queue->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixel = static_cast<const u8*>(readback->Map());
+    const u8* pixel = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixel != nullptr);
     CHECK(pixel[2] == 255); // the sky-blue fragment survived the far-plane depth test
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1674,7 +1674,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     storageDesc.size = 16;
     storageDesc.usage = BufferUsage::Storage | BufferUsage::CopySrc;
     storageDesc.memory = MemoryLocation::GpuOnly;
-    Buffer* storage = nullptr;
+    BufferHandle storage{};
     REQUIRE(device->CreateBuffer(storageDesc, storage).IsOk());
 
     const BindGroupEntry groupEntries[] = {BindGroupEntry::BufferEntry(storage, 0, 16)};
@@ -1709,7 +1709,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     readbackDesc.size = 16;
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1736,13 +1736,13 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
         ->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u32* result = static_cast<const u32*>(readback->Map());
+    const u32* result = static_cast<const u32*>(device->Map(readback));
     REQUIRE(result != nullptr);
     CHECK(result[0] == pushValues[0]); // the push-constant data reached the shader...
     CHECK(result[1] == pushValues[1]); // ...through the emulated uniform bind group
     CHECK(result[2] == pushValues[2]);
     CHECK(result[3] == pushValues[3]);
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);
@@ -1826,7 +1826,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     readbackDesc.size = 256; // bytesPerRow-aligned single row
     readbackDesc.usage = BufferUsage::CopyDst;
     readbackDesc.memory = MemoryLocation::GpuToCpu;
-    Buffer* readback = nullptr;
+    BufferHandle readback{};
     REQUIRE(device->CreateBuffer(readbackDesc, readback).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1867,13 +1867,13 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
         ->Submit(Span<CommandBuffer* const>(commandBuffers, 1), fence, 1);
     REQUIRE(fence->Wait(1, ~0ull));
 
-    const u8* pixels = static_cast<const u8*>(readback->Map());
+    const u8* pixels = static_cast<const u8*>(device->Map(readback));
     REQUIRE(pixels != nullptr);
     CHECK(pixels[0] == 255); // left = red (first draw's push data survived the second Set)
     CHECK(pixels[1] == 0);
     CHECK(pixels[4] == 0); // right = green
     CHECK(pixels[5] == 255);
-    readback->Unmap();
+    device->Unmap(readback);
 
     device->DestroyFence(fence);
     device->DestroyBuffer(readback);

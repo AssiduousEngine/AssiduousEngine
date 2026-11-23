@@ -129,16 +129,16 @@ export namespace engine::terrain
                     ibd.usage = rhi::BufferUsage::Index | rhi::BufferUsage::CopyDst;
                     ibd.memory = rhi::MemoryLocation::CpuToGpu;
                     ibd.label = u8"terrain.holed.indices";
-                    rhi::Buffer* buffer = nullptr;
+                    rhi::BufferHandle buffer{};
                     if (!device.CreateBuffer(ibd, buffer).IsOk())
                     {
                         mesh.indexCounts[lod] = 0;
                         continue;
                     }
-                    if (void* p = buffer->Map())
+                    if (void* p = device.Map(buffer))
                     {
                         MemCopy(p, indices.Data(), indices.Size() * sizeof(u32));
-                        buffer->Unmap();
+                        device.Unmap(buffer);
                     }
                     mesh.indexBuffers[lod] = buffer;
                 }
@@ -152,7 +152,7 @@ export namespace engine::terrain
             {
                 for (u32 lod = 0; lod <= tmodel::kMaxChunkLod; ++lod)
                 {
-                    if (mesh.indexBuffers[lod] == nullptr)
+                    if (!mesh.indexBuffers[lod].IsValid())
                     {
                         continue;
                     }
@@ -164,7 +164,7 @@ export namespace engine::terrain
                     {
                         device.DestroyBuffer(mesh.indexBuffers[lod]);
                     }
-                    mesh.indexBuffers[lod] = nullptr;
+                    mesh.indexBuffers[lod] = {};
                 }
             }
             entry.meshes.Clear();

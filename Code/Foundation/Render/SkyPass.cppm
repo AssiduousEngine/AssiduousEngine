@@ -99,7 +99,7 @@ export namespace foundation::render
 
         struct Slot
         {
-            rhi::Buffer* ubo = nullptr;
+            rhi::BufferHandle ubo{};
             rhi::BindGroup* bindGroup = nullptr;
             rhi::TextureView* env = nullptr;
             u64 envUid = 0;

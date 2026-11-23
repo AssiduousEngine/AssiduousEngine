@@ -71,7 +71,7 @@ namespace foundation::render
         (void)passCount;
     }
 
-    void Renderer::SetProbes(rhi::TextureView* cubeArray, rhi::Buffer* probeBuffer, u32 count)
+    void Renderer::SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count)
     {
         (void)cubeArray;
         (void)probeBuffer;
@@ -1449,7 +1449,7 @@ namespace foundation::render
             {
                 for (Renderer* r : m_registry->Unique())
                 {
-                    r->SetProbes(nullptr, nullptr, 0);
+                    r->SetProbes(nullptr, {}, 0);
                 }
             }
             if (m_ibl != nullptr && m_ibl->Ready())
@@ -2289,7 +2289,7 @@ namespace foundation::render
                         ssgiParams.maxSteps = Max(static_cast<i32>(post.ssgiMaxSteps), 1);
                         SsgiPass::Sky sky;
                         // The forward's own test for using the scene's IBL (MeshRenderer view set).
-                        if (ibl.valid && ibl.shBuffer != nullptr && ibl.prefilterView != nullptr &&
+                        if (ibl.valid && ibl.shBuffer.IsValid() && ibl.prefilterView != nullptr &&
                             ibl.brdfView != nullptr)
                         {
                             sky.shBuffer = ibl.shBuffer;

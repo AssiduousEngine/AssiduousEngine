@@ -215,7 +215,7 @@ namespace foundation::render
                                              u64 envUid, const GpuSky& u)
     {
         Slot& s = m_slots.At(viewIndex, frameIndex);
-        if (s.ubo == nullptr)
+        if (!s.ubo.IsValid())
         {
             rhi::BufferDesc bd{};
             bd.size = sizeof(GpuSky);
@@ -224,14 +224,14 @@ namespace foundation::render
             bd.label = u8"sky.ubo";
             if (!m_device->CreateBuffer(bd, s.ubo).IsOk())
             {
-                s.ubo = nullptr;
+                s.ubo = {};
                 return nullptr;
             }
         }
-        if (void* p = s.ubo->Map())
+        if (void* p = m_device->Map(s.ubo))
         {
             MemCopy(p, &u, sizeof(GpuSky));
-            s.ubo->Unmap();
+            m_device->Unmap(s.ubo);
         }
         if (s.bindGroup == nullptr || s.env != envView || s.envUid != envUid)
         {
@@ -271,7 +271,7 @@ namespace foundation::render
             if (slot.ubo)
             {
                 m_device->DestroyBuffer(slot.ubo);
-                slot.ubo = nullptr;
+                slot.ubo = {};
             }
         }
         if (m_pipeline)

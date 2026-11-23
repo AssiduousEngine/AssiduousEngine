@@ -37,7 +37,7 @@ private:
     static constexpr foundation::core::u16 kQuadIdx[] = {0, 1, 2, 0, 2, 3};
 
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
+    rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
     rhi::Texture* m_tex = nullptr;
     rhi::TextureView* m_texView = nullptr;
@@ -92,7 +92,7 @@ foundation::core::Status BorderSamplerSample::OnInit()
     ubd.memory = rhi::MemoryLocation::CpuToGpu;
     if (m_device->CreateBuffer(ubd, m_ub) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    m_ubMapped = m_ub->Map();
+    m_ubMapped = m_device->Map(m_ub);
     // Write all 3 offsets upfront.
     float off0[4] = {-0.55f, 0.0f, 0.0f, 0.0f};
     float off1[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -295,7 +295,7 @@ void BorderSamplerSample::OnRender()
 void BorderSamplerSample::OnShutdown()
 {
     if (m_ub && m_ubMapped)
-        m_ub->Unmap();
+        m_device->Unmap(m_ub);
     if (m_fence)
         m_device->DestroyFence(m_fence);
     if (m_pool)

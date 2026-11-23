@@ -126,10 +126,10 @@ namespace foundation::render
             {
                 return Status{ErrorCode::Unknown};
             }
-            if (auto* p = static_cast<GpuInstanceSet*>(m_noFadeSetBuf->Map()))
+            if (auto* p = static_cast<GpuInstanceSet*>(m_device->Map(m_noFadeSetBuf)))
             {
                 *p = GpuInstanceSet{};
-                m_noFadeSetBuf->Unmap();
+                m_device->Unmap(m_noFadeSetBuf);
             }
         }
 
@@ -212,9 +212,9 @@ namespace foundation::render
             (view != nullptr) ? passCount : 0; // each tile re-emits the casters
     }
 
-    void MeshRenderer::SetProbes(rhi::TextureView* cubeArray, rhi::Buffer* probeBuffer, u32 count)
+    void MeshRenderer::SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count)
     {
-        const bool has = (cubeArray != nullptr && probeBuffer != nullptr && count > 0);
+        const bool has = (cubeArray != nullptr && probeBuffer.IsValid() && count > 0);
         m_activeProbeCube = has ? cubeArray : m_dummyProbeCubeView;
         m_activeProbeBuffer = has ? probeBuffer : m_dummyProbeBuffer;
         m_activeProbeCount =
@@ -360,13 +360,13 @@ namespace foundation::render
     bool MeshRenderer::EnsureBoneDevice()
     {
         const u64 want = m_boneRing.ByteCapacity();
-        if (m_boneDevice != nullptr && m_boneDeviceBytes == want)
+        if (m_boneDevice.IsValid() && m_boneDeviceBytes == want)
         {
             return true;
         }
         // Idle only when replacing a live buffer (the first allocation has nothing to protect;
         // a mid-frame wait on web pumps the event loop and drops the frame's submit).
-        if (m_boneDevice != nullptr)
+        if (m_boneDevice.IsValid())
         {
             RetireOrDrainBuffer(m_boneDevice);
         }
@@ -377,7 +377,7 @@ namespace foundation::render
         bd.label = u8"mesh.bones.device";
         if (!m_device->CreateBuffer(bd, m_boneDevice).IsOk())
         {
-            m_boneDevice = nullptr;
+            m_boneDevice = {};
             m_boneDeviceBytes = 0;
             return false;
         }
@@ -645,9 +645,9 @@ namespace foundation::render
     // Replace-path release: retire the buffer through the frames-in-flight queue when
     // wired (web-safe: no mid-frame WaitIdle pumping the browser event loop), otherwise
     // drain. Nulls the pointer either way.
-    void MeshRenderer::RetireOrDrainBuffer(rhi::Buffer*& buffer)
+    void MeshRenderer::RetireOrDrainBuffer(rhi::BufferHandle& buffer)
     {
-        if (buffer == nullptr)
+        if (!buffer.IsValid())
         {
             return;
         }
@@ -660,21 +660,21 @@ namespace foundation::render
             m_device->WaitIdle();
             m_device->DestroyBuffer(buffer);
         }
-        buffer = nullptr;
+        buffer = {};
     }
 
     bool MeshRenderer::EnsureRamp(u32 count)
     {
-        if (m_rampBuffer != nullptr && m_pickRampBuffer != nullptr && count <= m_rampCapacity)
+        if (m_rampBuffer.IsValid() && m_pickRampBuffer.IsValid() && count <= m_rampCapacity)
         {
             return true;
         }
         // An in-flight frame may still reference the old ramps: retire when wired, otherwise drain.
-        if (m_rampBuffer != nullptr)
+        if (m_rampBuffer.IsValid())
         {
             RetireOrDrainBuffer(m_rampBuffer);
         }
-        if (m_pickRampBuffer != nullptr)
+        if (m_pickRampBuffer.IsValid())
         {
             RetireOrDrainBuffer(m_pickRampBuffer);
         }
@@ -685,34 +685,34 @@ namespace foundation::render
         bd.label = u8"mesh.multimesh.ramp";
         if (!m_device->CreateBuffer(bd, m_rampBuffer).IsOk())
         {
-            m_rampBuffer = nullptr;
+            m_rampBuffer = {};
             m_rampCapacity = 0;
             return false;
         }
-        if (auto* p = static_cast<GpuDrawOffsets*>(m_rampBuffer->Map()))
+        if (auto* p = static_cast<GpuDrawOffsets*>(m_device->Map(m_rampBuffer)))
         {
             for (u32 i = 0; i < count; ++i)
             {
                 p[i] = GpuDrawOffsets{i, 0, 0, 0.0f};
             }
-            m_rampBuffer->Unmap();
+            m_device->Unmap(m_rampBuffer);
         }
         rhi::BufferDesc pd = bd;
         pd.size = static_cast<u64>(count) * sizeof(GpuPickDrawOffsets);
         pd.label = u8"mesh.multimesh.pick-ramp";
         if (!m_device->CreateBuffer(pd, m_pickRampBuffer).IsOk())
         {
-            m_pickRampBuffer = nullptr;
+            m_pickRampBuffer = {};
             m_rampCapacity = 0;
             return false;
         }
-        if (auto* p = static_cast<GpuPickDrawOffsets*>(m_pickRampBuffer->Map()))
+        if (auto* p = static_cast<GpuPickDrawOffsets*>(m_device->Map(m_pickRampBuffer)))
         {
             for (u32 i = 0; i < count; ++i)
             {
                 p[i] = GpuPickDrawOffsets{i, 0, 0, 0};
             }
-            m_pickRampBuffer->Unmap();
+            m_device->Unmap(m_pickRampBuffer);
         }
         m_rampCapacity = count;
         return true;
@@ -732,12 +732,12 @@ namespace foundation::render
         // The whole list when the item carries one (a faded set draws a prefix of it).
         const u32 uploadCount = Max(mm.instanceCount, mm.uploadCount);
 
-        if (set->instanceBuf == nullptr || uploadCount > set->capacity)
+        if (!set->instanceBuf.IsValid() || uploadCount > set->capacity)
         {
             // An in-flight frame may still reference the old buffer and bind groups: retire
             // when wired (web-safe), otherwise drain once for the whole replacement.
             if (m_retire == nullptr &&
-                (set->instanceBuf != nullptr || set->instanceBG[0] != nullptr))
+                (set->instanceBuf.IsValid() || set->instanceBG[0] != nullptr))
             {
                 m_device->WaitIdle();
             }
@@ -756,7 +756,7 @@ namespace foundation::render
                     set->instanceBG[r] = nullptr;
                 }
             }
-            if (set->instanceBuf != nullptr)
+            if (set->instanceBuf.IsValid())
             {
                 if (m_retire != nullptr)
                 {
@@ -766,7 +766,7 @@ namespace foundation::render
                 {
                     m_device->DestroyBuffer(set->instanceBuf);
                 }
-                set->instanceBuf = nullptr;
+                set->instanceBuf = {};
             }
             rhi::BufferDesc bd{};
             // The region capacity is rounded (MultiMeshRegionCapacity) so region r's byte offset
@@ -779,12 +779,12 @@ namespace foundation::render
             bd.label = u8"mesh.multimesh.instances";
             if (!m_device->CreateBuffer(bd, set->instanceBuf).IsOk())
             {
-                set->instanceBuf = nullptr;
+                set->instanceBuf = {};
                 set->capacity = 0;
                 return;
             }
             // The set's InstanceSet block, one slot per region (kept across a capacity change).
-            if (set->setBuf == nullptr)
+            if (!set->setBuf.IsValid())
             {
                 rhi::BufferDesc sd{};
                 sd.size = static_cast<u64>(kMultiMeshMaxFiF) * kViewSlot;
@@ -793,7 +793,7 @@ namespace foundation::render
                 sd.label = u8"mesh.multimesh.instance-set";
                 if (!m_device->CreateBuffer(sd, set->setBuf).IsOk())
                 {
-                    set->setBuf = nullptr;
+                    set->setBuf = {};
                     return;
                 }
             }
@@ -829,7 +829,7 @@ namespace foundation::render
                     }
                 }
                 m_device->DestroyBuffer(set->instanceBuf);
-                set->instanceBuf = nullptr;
+                set->instanceBuf = {};
                 set->capacity = 0;
                 return;
             }
@@ -846,9 +846,9 @@ namespace foundation::render
         // This frame's InstanceSet (its region, so the GPU's read of the last frame's is untouched):
         // the fade window, the count each instance's rank divides by (the whole list, of which a
         // faded set draws a prefix), and the one entity the set picks as.
-        if (set->setBuf != nullptr)
+        if (set->setBuf.IsValid())
         {
-            if (auto* base = static_cast<byte*>(set->setBuf->Map()))
+            if (auto* base = static_cast<byte*>(m_device->Map(set->setBuf)))
             {
                 GpuInstanceSet block{};
                 block.fadeStart = mm.fadeStart;
@@ -857,7 +857,7 @@ namespace foundation::render
                 block.pickIndex = EntityTag::Index(mm.entityId) + 1u;
                 block.pickGeneration = EntityTag::Generation(mm.entityId);
                 MemCopy(base + static_cast<usize>(region) * kViewSlot, &block, sizeof(block));
-                set->setBuf->Unmap();
+                m_device->Unmap(set->setBuf);
             }
         }
 
@@ -867,9 +867,9 @@ namespace foundation::render
         // region was last written with (the tail would otherwise be stale bytes, per region).
         const bool behind = set->regionVersion[region] != mm.version ||
                             set->regionCount[region] < uploadCount;
-        if (behind && set->instanceBuf != nullptr && mm.transforms != nullptr)
+        if (behind && set->instanceBuf.IsValid() && mm.transforms != nullptr)
         {
-            if (auto* dst = static_cast<GpuInstance*>(set->instanceBuf->Map()))
+            if (auto* dst = static_cast<GpuInstance*>(m_device->Map(set->instanceBuf)))
             {
                 GpuInstance* r = dst + static_cast<usize>(region) * set->capacity;
                 for (u32 i = 0; i < uploadCount; ++i)
@@ -877,7 +877,7 @@ namespace foundation::render
                     const Color tint = (mm.tints != nullptr) ? mm.tints[i] : mm.color; // per-instance or shared
                     r[i] = GpuInstance{mm.transforms[i], mm.transforms[i], tint};
                 }
-                set->instanceBuf->Unmap();
+                m_device->Unmap(set->instanceBuf);
                 set->regionVersion[region] = mm.version;
                 set->regionCount[region] = uploadCount;
             }
@@ -886,13 +886,13 @@ namespace foundation::render
         // Skinned crowds need a per-set draw offsets buffer (dynamic per-instance bone bases). Allocate or
         // grow it here; it is filled in FillSkinnedMultiMeshOffsets once the pose pool's bone base is known.
         set->skinned = (mm.posePool != nullptr && mm.poseCount > 0 && mm.boneCount > 0);
-        if (set->skinned && (set->offsetsBuf == nullptr || mm.instanceCount > set->offsetsCapacity))
+        if (set->skinned && !(set->offsetsBuf.IsValid() || mm.instanceCount > set->offsetsCapacity))
         {
-            if (set->offsetsBuf != nullptr)
+            if (set->offsetsBuf.IsValid())
             {
                 RetireOrDrainBuffer(set->offsetsBuf);
             }
-            if (set->pickOffsetsBuf != nullptr)
+            if (set->pickOffsetsBuf.IsValid())
             {
                 RetireOrDrainBuffer(set->pickOffsetsBuf);
             }
@@ -906,7 +906,7 @@ namespace foundation::render
             od.label = u8"mesh.multimesh.offsets";
             if (!m_device->CreateBuffer(od, set->offsetsBuf).IsOk())
             {
-                set->offsetsBuf = nullptr;
+                set->offsetsBuf = {};
                 set->offsetsCapacity = 0;
                 return;
             }
@@ -917,8 +917,8 @@ namespace foundation::render
             if (!m_device->CreateBuffer(pd, set->pickOffsetsBuf).IsOk())
             {
                 RetireOrDrainBuffer(set->offsetsBuf);
-                set->offsetsBuf = nullptr;
-                set->pickOffsetsBuf = nullptr;
+                set->offsetsBuf = {};
+                set->pickOffsetsBuf = {};
                 set->offsetsCapacity = 0;
                 return;
             }
@@ -929,53 +929,53 @@ namespace foundation::render
     bool MeshRenderer::ReadMultiMeshInstanceTint(u64 key, u32 region, u32 index, Color& out)
     {
         MultiMeshSet* set = m_multiMeshSets.Find(key);
-        if (set == nullptr || set->instanceBuf == nullptr || region >= kMultiMeshMaxFiF ||
+        if (set == nullptr || !set->instanceBuf.IsValid() || region >= kMultiMeshMaxFiF ||
             index >= set->capacity)
         {
             return false;
         }
-        auto* data = static_cast<const GpuInstance*>(set->instanceBuf->Map());
+        auto* data = static_cast<const GpuInstance*>(m_device->Map(set->instanceBuf));
         if (data == nullptr)
         {
             return false;
         }
         out = data[static_cast<usize>(region) * set->capacity + index].tint;
-        set->instanceBuf->Unmap();
+        m_device->Unmap(set->instanceBuf);
         return true;
     }
 
     bool MeshRenderer::ReadMultiMeshInstanceSet(u64 key, u32 region, GpuInstanceSet& out)
     {
         MultiMeshSet* set = m_multiMeshSets.Find(key);
-        if (set == nullptr || set->setBuf == nullptr || region >= kMultiMeshMaxFiF)
+        if (set == nullptr || !set->setBuf.IsValid() || region >= kMultiMeshMaxFiF)
         {
             return false;
         }
-        const auto* base = static_cast<const byte*>(set->setBuf->Map());
+        const auto* base = static_cast<const byte*>(m_device->Map(set->setBuf));
         if (base == nullptr)
         {
             return false;
         }
         MemCopy(&out, base + static_cast<usize>(region) * kViewSlot, sizeof(out));
-        set->setBuf->Unmap();
+        m_device->Unmap(set->setBuf);
         return true;
     }
 
     bool MeshRenderer::ReadMultiMeshInstance(u64 key, u32 region, u32 index, Float4x4& out)
     {
         MultiMeshSet* set = m_multiMeshSets.Find(key);
-        if (set == nullptr || set->instanceBuf == nullptr || region >= kMultiMeshMaxFiF ||
+        if (set == nullptr || !set->instanceBuf.IsValid() || region >= kMultiMeshMaxFiF ||
             index >= set->capacity)
         {
             return false;
         }
-        auto* data = static_cast<const GpuInstance*>(set->instanceBuf->Map());
+        auto* data = static_cast<const GpuInstance*>(m_device->Map(set->instanceBuf));
         if (data == nullptr)
         {
             return false;
         }
         out = data[static_cast<usize>(region) * set->capacity + index].world;
-        set->instanceBuf->Unmap();
+        m_device->Unmap(set->instanceBuf);
         return true;
     }
 
@@ -999,7 +999,7 @@ namespace foundation::render
                 continue;
             }
             MultiMeshSet* set = m_multiMeshSets.Find(mm->key);
-            if (set == nullptr || set->offsetsBuf == nullptr || set->offsetsCapacity == 0)
+            if (set == nullptr || !set->offsetsBuf.IsValid() || set->offsetsCapacity == 0)
             {
                 continue;
             }
@@ -1011,13 +1011,13 @@ namespace foundation::render
             const u32 base =
                 region *
                 set->offsetsCapacity; // write only this frame's region (the GPU reads the previous one)
-            auto* od = static_cast<GpuDrawOffsets*>(set->offsetsBuf->Map());
+            auto* od = static_cast<GpuDrawOffsets*>(m_device->Map(set->offsetsBuf));
             if (od == nullptr)
             {
                 continue;
             }
-            auto* pickOd = set->pickOffsetsBuf != nullptr
-                               ? static_cast<GpuPickDrawOffsets*>(set->pickOffsetsBuf->Map())
+            auto* pickOd = set->pickOffsetsBuf.IsValid()
+                               ? static_cast<GpuPickDrawOffsets*>(m_device->Map(set->pickOffsetsBuf))
                                : nullptr;
             const u32 M = mm->poseCount;
             for (u32 i = 0; i < mm->instanceCount; ++i)
@@ -1037,10 +1037,10 @@ namespace foundation::render
                     pickOd[base + i] = GpuPickDrawOffsets{i, curBase, 0, 0}; // ids 0: the set's own
                 }
             }
-            set->offsetsBuf->Unmap();
+            m_device->Unmap(set->offsetsBuf);
             if (pickOd != nullptr)
             {
-                set->pickOffsetsBuf->Unmap();
+                m_device->Unmap(set->pickOffsetsBuf);
             }
             set->offsetsByteOffset = base * static_cast<u32>(sizeof(GpuDrawOffsets));
         }
@@ -1118,7 +1118,7 @@ namespace foundation::render
         vd.view = ctx.viewMatrix;
         vd.cameraPos = ctx.cameraPos;
         vd.ambient = ctx.ambient;
-        const bool iblActive = ctx.ibl.valid && ctx.ibl.shBuffer != nullptr &&
+        const bool iblActive = ctx.ibl.valid && ctx.ibl.shBuffer.IsValid() &&
                                ctx.ibl.prefilterView != nullptr && ctx.ibl.brdfView != nullptr;
         vd.iblMaxLod = iblActive ? ctx.ibl.maxLod : -1.0f; // < 0: the forward uses flat ambient
         // Probes are disabled during probe capture (ctx.probesEnabled=false), giving count 0, so metallics
@@ -1405,7 +1405,7 @@ namespace foundation::render
         // units, computed once this frame by UploadSkinning). No per-pass upload here.
         u32 boneBase = 0, prevBoneBase = 0;
         bool skinned = md.boneMatrices != nullptr && md.boneCount > 0 && md.mesh != nullptr &&
-                       md.mesh->IsSkinned() && mesh.skinBuffer != nullptr;
+                       md.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
         if (skinned)
         {
             const BoneSlot* s = m_boneStart.Find(md.boneMatrices);
@@ -1528,7 +1528,7 @@ namespace foundation::render
         // Skinned instanced draw: the shared skin stream (joints, weights) is per mesh; each instance's
         // bone base rides in GpuDrawOffsets::boneBase (current) and prevBoneBase, so one draw skins N characters.
         const bool skinned = head.boneMatrices != nullptr && head.mesh != nullptr &&
-                             head.mesh->IsSkinned() && mesh.skinBuffer != nullptr;
+                             head.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
         if (skinned)
         {
             config.vertexLayout = materials::VertexLayoutType::SkinnedMesh;
@@ -1668,7 +1668,7 @@ namespace foundation::render
     {
         u32 boneBase = 0;
         bool skinned = md.boneMatrices != nullptr && md.boneCount > 0 && md.mesh != nullptr &&
-                       md.mesh->IsSkinned() && mesh.skinBuffer != nullptr;
+                       md.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
         if (skinned)
         {
             if (const BoneSlot* s = m_boneStart.Find(md.boneMatrices))
@@ -1728,7 +1728,7 @@ namespace foundation::render
     {
         const auto& head = *static_cast<const MeshRenderData*>(items[first].data);
         const bool skinned = head.boneMatrices != nullptr && head.mesh != nullptr &&
-                             head.mesh->IsSkinned() && mesh.skinBuffer != nullptr;
+                             head.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
         const DynamicUniformRing::Range inst = m_instanceRing.AllocateRange(count);
         const DynamicUniformRing::Range offs = m_offsetsRing.AllocateRange(count);
         if (!inst.ok || !offs.ok)
@@ -1824,8 +1824,8 @@ namespace foundation::render
         // Skinned crowd: per-instance bone base in the set's own draw offsets buffer (and the skin stream);
         // static: the shared [i,0,0,0] ramp. A skinned set falls back to static if its skin data is missing.
         const bool skinned =
-            set->skinned && set->offsetsBuf != nullptr && mesh.skinBuffer != nullptr;
-        if (!skinned && m_rampBuffer == nullptr)
+            set->skinned && set->offsetsBuf.IsValid() && mesh.skinBuffer.IsValid();
+        if (!skinned && !m_rampBuffer.IsValid())
         {
             return;
         }
@@ -1927,9 +1927,9 @@ namespace foundation::render
             return;
         }
         const bool skinned =
-            set->skinned && set->offsetsBuf != nullptr && mesh.skinBuffer != nullptr &&
-            (!pick || set->pickOffsetsBuf != nullptr);
-        if (!skinned && (pick ? m_pickRampBuffer : m_rampBuffer) == nullptr)
+            set->skinned && set->offsetsBuf.IsValid() && mesh.skinBuffer.IsValid() &&
+            (!pick || set->pickOffsetsBuf.IsValid());
+        if (!skinned && !(pick ? m_pickRampBuffer : m_rampBuffer).IsValid())
         {
             return;
         }
@@ -2107,7 +2107,7 @@ namespace foundation::render
                                      bool instanced, bool pick, bool skinned, Array<ResolvedDraw>& out)
     {
         const u64 stride = (mesh.indexFormat == rhi::IndexFormat::UInt16) ? 2u : 4u;
-        const bool depthStream = mesh.depthBuffer != nullptr;
+        const bool depthStream = mesh.depthBuffer.IsValid();
         for (const DepthLikeRange& range : ranges)
         {
             ResolvedDraw d = base;
@@ -2519,9 +2519,9 @@ namespace foundation::render
 
     void MeshRenderer::RetireEffectBuffers(materials::MaterialInstance& instance)
     {
-        Array<rhi::Buffer*> buffers(*m_allocator);
+        Array<rhi::BufferHandle> buffers(*m_allocator);
         m_materials->DetachEffectBuffers(&instance, buffers);
-        for (rhi::Buffer* buffer : buffers)
+        for (rhi::BufferHandle buffer : buffers)
         {
             RetireBuffer(buffer);
         }
@@ -2655,9 +2655,9 @@ namespace foundation::render
         m_retiredBuffers.Resize(w);
     }
 
-    void MeshRenderer::RetireBuffer(rhi::Buffer* buffer)
+    void MeshRenderer::RetireBuffer(rhi::BufferHandle buffer)
     {
-        if (buffer != nullptr)
+        if (buffer.IsValid())
         {
             m_retiredBuffers.PushBack(RetiredBuffer{buffer, m_framesInFlight});
         }
@@ -2665,7 +2665,7 @@ namespace foundation::render
 
     bool MeshRenderer::EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayout* layout,
                                        u64 bindSize, rhi::BindGroup*& bg, u32& bgGen, bool whole,
-                                       rhi::Buffer* secondUniform)
+                                       rhi::BufferHandle secondUniform)
     {
         if (bg != nullptr && bgGen == ring.Generation())
         {
@@ -2673,19 +2673,19 @@ namespace foundation::render
         }
         RetireBindGroup(bg);
         bg = nullptr;
-        rhi::Buffer* buffer = ring.Buffer();
-        if (buffer == nullptr)
+        rhi::BufferHandle buffer = ring.Buffer();
+        if (!buffer.IsValid())
         {
             return false;
         }
         const rhi::BindGroupEntry be[] = {
             rhi::BindGroupEntry::BufferEntry(buffer, 0, whole ? ring.ByteCapacity() : bindSize),
             rhi::BindGroupEntry::BufferEntry(secondUniform, 0,
-                                             secondUniform != nullptr ? secondUniform->GetSize() : 0u),
+                                             secondUniform.IsValid() ? m_device->Describe(secondUniform)->size : 0u),
         };
         rhi::BindGroupDesc bgd{};
         bgd.layout = layout;
-        bgd.entries = Span<const rhi::BindGroupEntry>{be, secondUniform != nullptr ? 2u : 1u};
+        bgd.entries = Span<const rhi::BindGroupEntry>{be, secondUniform.IsValid() ? 2u : 1u};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
             bg = nullptr;
@@ -2709,14 +2709,14 @@ namespace foundation::render
         {
             m_activeProbeCube = m_dummyProbeCubeView;
         }
-        if (m_activeProbeBuffer == nullptr)
+        if (!m_activeProbeBuffer.IsValid())
         {
             m_activeProbeBuffer = m_dummyProbeBuffer;
         }
         // This view's scene's IBL products (dummies when IBL is off or unavailable).
-        const bool iblActive = ctx.ibl.valid && ctx.ibl.shBuffer != nullptr &&
+        const bool iblActive = ctx.ibl.valid && ctx.ibl.shBuffer.IsValid() &&
                                ctx.ibl.prefilterView != nullptr && ctx.ibl.brdfView != nullptr;
-        rhi::Buffer* sh = iblActive ? ctx.ibl.shBuffer : m_dummyShBuffer;
+        rhi::BufferHandle sh = iblActive ? ctx.ibl.shBuffer : m_dummyShBuffer;
         rhi::TextureView* prefilter = iblActive ? ctx.ibl.prefilterView : m_dummyCubeView;
         rhi::TextureView* brdf = iblActive ? ctx.ibl.brdfView : m_dummyBrdfView;
         const u64 iblGen = iblActive ? ctx.ibl.generation : 0;
@@ -2740,13 +2740,13 @@ namespace foundation::render
         RetireBindGroup(slot.bg);
         slot.bg = nullptr;
         m_viewBG = nullptr;
-        rhi::Buffer* viewBuf = m_viewRing.Buffer();
-        rhi::Buffer* lightBuf = m_lightRing.Buffer();
-        rhi::Buffer* localBuf = m_localShadowRing.Buffer();
-        rhi::Buffer* boneBuf = m_boneDevice; // VS reads the device mirror, not the staging ring
-        if (viewBuf == nullptr || lightBuf == nullptr || localBuf == nullptr ||
-            boneBuf == nullptr || m_activeShadowView == nullptr || m_activeAtlasView == nullptr ||
-            m_shadowSampler == nullptr || sh == nullptr || prefilter == nullptr ||
+        rhi::BufferHandle viewBuf = m_viewRing.Buffer();
+        rhi::BufferHandle lightBuf = m_lightRing.Buffer();
+        rhi::BufferHandle localBuf = m_localShadowRing.Buffer();
+        rhi::BufferHandle boneBuf = m_boneDevice; // VS reads the device mirror, not the staging ring
+        if (!viewBuf.IsValid() || !lightBuf.IsValid() || !localBuf.IsValid() ||
+            !boneBuf.IsValid() || m_activeShadowView == nullptr || m_activeAtlasView == nullptr ||
+            m_shadowSampler == nullptr || !sh.IsValid() || prefilter == nullptr ||
             brdf == nullptr || m_envSampler == nullptr)
         {
             return false;
@@ -2966,9 +2966,9 @@ namespace foundation::render
         }
         RetireBindGroup(m_shadowViewBG);
         m_shadowViewBG = nullptr;
-        rhi::Buffer* buf = m_shadowViewRing.Buffer();
-        rhi::Buffer* boneBuf = m_boneDevice; // shared device mirror (same as the forward set 0)
-        if (buf == nullptr || boneBuf == nullptr)
+        rhi::BufferHandle buf = m_shadowViewRing.Buffer();
+        rhi::BufferHandle boneBuf = m_boneDevice; // shared device mirror (same as the forward set 0)
+        if (!buf.IsValid() || !boneBuf.IsValid())
         {
             return false;
         }
@@ -3046,10 +3046,10 @@ namespace foundation::render
     }
 
     rhi::BindGroup* MeshRenderer::EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex,
-                                                         rhi::Buffer* offsets, rhi::Buffer* indices,
+                                                         rhi::BufferHandle offsets, rhi::BufferHandle indices,
                                                          u32 version)
     {
-        if (offsets == nullptr || indices == nullptr)
+        if (!offsets.IsValid() || !indices.IsValid())
         {
             return m_dummyClusterBG;
         }
@@ -3064,8 +3064,8 @@ namespace foundation::render
             slot.group = nullptr;
         }
         rhi::BindGroupEntry entries[] = {
-            rhi::BindGroupEntry::BufferEntry(offsets, 0, offsets->desc.size),
-            rhi::BindGroupEntry::BufferEntry(indices, 0, indices->desc.size),
+            rhi::BindGroupEntry::BufferEntry(offsets, 0, m_device->Describe(offsets)->size),
+            rhi::BindGroupEntry::BufferEntry(indices, 0, m_device->Describe(indices)->size),
         };
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_clusterLayout;
@@ -3117,7 +3117,7 @@ namespace foundation::render
         if (m_boneDevice)
         {
             m_device->DestroyBuffer(m_boneDevice);
-            m_boneDevice = nullptr;
+            m_boneDevice = {};
             m_boneDeviceBytes = 0;
         }
         if (m_dummyShadowView)
@@ -3178,12 +3178,12 @@ namespace foundation::render
         if (m_dummyProbeBuffer)
         {
             m_device->DestroyBuffer(m_dummyProbeBuffer);
-            m_dummyProbeBuffer = nullptr;
+            m_dummyProbeBuffer = {};
         }
         if (m_dummyShBuffer)
         {
             m_device->DestroyBuffer(m_dummyShBuffer);
-            m_dummyShBuffer = nullptr;
+            m_dummyShBuffer = {};
         }
         if (m_envSampler)
         {
@@ -3198,7 +3198,7 @@ namespace foundation::render
         if (m_noFadeSetBuf)
         {
             m_device->DestroyBuffer(m_noFadeSetBuf);
-            m_noFadeSetBuf = nullptr;
+            m_noFadeSetBuf = {};
         }
         if (m_instanceBG)
         {
@@ -3215,19 +3215,19 @@ namespace foundation::render
                     m_device->DestroyBindGroup(kv.value.instanceBG[r]);
                 }
             }
-            if (kv.value.instanceBuf != nullptr)
+            if (kv.value.instanceBuf.IsValid())
             {
                 m_device->DestroyBuffer(kv.value.instanceBuf);
             }
-            if (kv.value.offsetsBuf != nullptr)
+            if (kv.value.offsetsBuf.IsValid())
             {
                 m_device->DestroyBuffer(kv.value.offsetsBuf);
             }
-            if (kv.value.pickOffsetsBuf != nullptr)
+            if (kv.value.pickOffsetsBuf.IsValid())
             {
                 m_device->DestroyBuffer(kv.value.pickOffsetsBuf);
             }
-            if (kv.value.setBuf != nullptr)
+            if (kv.value.setBuf.IsValid())
             {
                 m_device->DestroyBuffer(kv.value.setBuf);
             }
@@ -3236,13 +3236,13 @@ namespace foundation::render
         if (m_rampBuffer)
         {
             m_device->DestroyBuffer(m_rampBuffer);
-            m_rampBuffer = nullptr;
+            m_rampBuffer = {};
             m_rampCapacity = 0;
         }
         if (m_pickRampBuffer)
         {
             m_device->DestroyBuffer(m_pickRampBuffer);
-            m_pickRampBuffer = nullptr;
+            m_pickRampBuffer = {};
         }
         for (ClusterSlot& slot : m_clusterSlots.All())
         {
@@ -3260,12 +3260,12 @@ namespace foundation::render
         if (m_dummyClusterOffsets)
         {
             m_device->DestroyBuffer(m_dummyClusterOffsets);
-            m_dummyClusterOffsets = nullptr;
+            m_dummyClusterOffsets = {};
         }
         if (m_dummyClusterIndices)
         {
             m_device->DestroyBuffer(m_dummyClusterIndices);
-            m_dummyClusterIndices = nullptr;
+            m_dummyClusterIndices = {};
         }
         for (auto& kv : m_pipelineLayouts)
         {
