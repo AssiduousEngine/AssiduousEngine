@@ -153,14 +153,17 @@ TEST_CASE("dx12: a sampler updated in a group with a shared table moves it to it
     rhi::BindGroupHandle b{};
     REQUIRE(device->CreateBindGroup(bgd, a).IsOk());
     REQUIRE(device->CreateBindGroup(bgd, b).IsOk());
-    auto* da = static_cast<rhi::dx12::DxBindGroupImpl*>(a);
-    auto* db = static_cast<rhi::dx12::DxBindGroupImpl*>(b);
+    auto* dxDevice = static_cast<rhi::dx12::DxDeviceImpl*>(device);
+    auto* da = dxDevice->BindGroupImplOf(a);
+    auto* db = dxDevice->BindGroupImplOf(b);
+    REQUIRE(da != nullptr);
+    REQUIRE(db != nullptr);
     CHECK(da->gpuSamplerOffset() == db->gpuSamplerOffset()); // shared
 
     rhi::BindlessUpdateEntry update{};
     update.layoutIndex = 1; // the sampler
     update.sampler = other;
-    a->UpdateBindless(Span<const rhi::BindlessUpdateEntry>{&update, 1});
+    device->UpdateBindless(a, Span<const rhi::BindlessUpdateEntry>{&update, 1});
     CHECK(da->gpuSamplerOffset() >= 0);
     CHECK(da->gpuSamplerOffset() != db->gpuSamplerOffset()); // its own now; b keeps the shared one
 

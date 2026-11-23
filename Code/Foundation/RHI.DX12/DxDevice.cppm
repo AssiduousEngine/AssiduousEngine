@@ -478,6 +478,12 @@ export namespace foundation::rhi::dx12
             const DxBindGroupLayoutImpl* l = m_tables.bindGroupLayouts.Get(layout);
             return l != nullptr ? l->Entries() : Span<const BindGroupLayoutEntry>{};
         }
+        /// The backend's own bind group a handle names, or null: for tests that read its state (its
+        /// descriptor offsets).
+        [[nodiscard]] DxBindGroupImpl* BindGroupImplOf(BindGroupHandle group) const noexcept
+        {
+            return m_tables.bindGroups.Get(group);
+        }
         BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
         {
             const DxBindGroupImpl* g = m_tables.bindGroups.Get(group);
