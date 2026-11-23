@@ -275,7 +275,7 @@ TEST_CASE("instance table: changed slots far apart are copied as one span; neigh
     CHECK(scattered.copies == 1u);
 }
 
-TEST_CASE("instance table: changes in slot order are copied straight from where they were staged")
+TEST_CASE("instance table: changes in slot order copy as one run, and a tint alone writes once")
 {
     Bed bed;
     const u32 count = 300;
@@ -288,7 +288,7 @@ TEST_CASE("instance table: changes in slot order are copied straight from where 
         }
         (void)bed.End();
     }
-    // Everything moves: one run, staged as it changed, no second staging from the mirror.
+    // Everything moves: one run, one copy.
     bed.Begin();
     u32 last = 0;
     for (u32 i = 0; i < count; ++i)
@@ -297,7 +297,6 @@ TEST_CASE("instance table: changes in slot order are copied straight from where 
     }
     const InstanceTableFrameStats moved = bed.End();
     CHECK(moved.written == count);
-    CHECK(moved.staged);
     CHECK(moved.copies == 1u);
     CHECK(moved.bytes == static_cast<u64>(count) * sizeof(GpuInstance));
     CHECK(Same(bed.table.Record(last).prevWorld, At(0.0f)));
@@ -409,5 +408,82 @@ TEST_CASE("instance table: the mesh renderer's frame gives each mesh its record,
         CHECK(Same(renderer.InstanceRecords().Record(first).prevWorld, At(0.0f)));
         device.DestroyCommandPool(pool);
     }
+    compiler->Destroy();
+}
+
+TEST_CASE("instance table: refreshed across the job system, every record is the one its mesh carries")
+{
+    // Enough meshes to refresh in parallel and to stage in pieces at once.
+    shaders::Compiler* compiler = nullptr;
+    if (!shaders::createCompiler(shaders::CompilerDesc{}, compiler).IsOk())
+    {
+        MESSAGE("no shader compiler; skipping");
+        return;
+    }
+    InitGlobalJobSystem(4);
+    {
+        rhi::null::NullDevice device(DefaultAllocator());
+        shaders::ShaderSystem shaderSystem(*compiler, device);
+        materials::PipelineStateCache psoCache(shaderSystem, device);
+        materials::MaterialSystem materialSystem;
+        REQUIRE(materialSystem.Initialize(device).IsOk());
+        MeshRenderer renderer(DefaultAllocator(), device, shaderSystem, psoCache, materialSystem, 2);
+        REQUIRE(renderer.Initialize().IsOk());
+        rhi::CommandPool* pool = nullptr;
+        REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
+        RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+        RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+
+        constexpr u32 kMeshes = 10000;
+        Array<u32> slots;
+        auto frame = [&](u32 index, f32 offset)
+        {
+            ExtractedScene scene{DefaultAllocator()};
+            for (u32 i = 0; i < kMeshes; ++i)
+            {
+                MeshRenderData* md = scene.Add<MeshRenderData>();
+                REQUIRE(md != nullptr);
+                md->mesh = cube.Get();
+                md->material = material.Get();
+                md->rendererId = renderer.RendererId();
+                md->category = RenderCategories::Opaque;
+                md->scene = kSceneA;
+                md->entityId = Entity(i, 1);
+                md->world = At(static_cast<f32>(i) + offset);
+            }
+            renderer.PrepareFrame(kMeshes, index % 2);
+            rhi::CommandEncoder* encoder = nullptr;
+            REQUIRE(pool->CreateEncoder(encoder).IsOk());
+            const ExtractedScene* one = &scene;
+            renderer.UploadSkinning(Span<const ExtractedScene* const>(&one, 1u), *encoder);
+            slots.Clear();
+            for (RenderData* data : scene.Items())
+            {
+                slots.PushBack(static_cast<MeshRenderData*>(data)->instanceSlot);
+            }
+            pool->DestroyEncoder(encoder);
+            renderer.FinishFrame();
+        };
+
+        frame(0, 0.0f);
+        frame(1, 0.0f); // the previous worlds catch up
+        CHECK(renderer.InstanceRecords().FrameStats().written == 0u);
+        frame(2, 0.5f); // every mesh moves
+        const InstanceTableFrameStats moved = renderer.InstanceRecords().FrameStats();
+        CHECK(moved.written == kMeshes);
+        CHECK(moved.bytes == static_cast<u64>(kMeshes) * sizeof(GpuInstance));
+        u32 wrong = 0;
+        for (u32 i = 0; i < kMeshes; ++i)
+        {
+            const GpuInstance& record = renderer.InstanceRecords().Record(slots[i]);
+            if (!Same(record.world, At(static_cast<f32>(i) + 0.5f)) || !Same(record.prevWorld, At(static_cast<f32>(i))))
+            {
+                ++wrong;
+            }
+        }
+        CHECK(wrong == 0u);
+        device.DestroyCommandPool(pool);
+    }
+    ShutdownGlobalJobSystem();
     compiler->Destroy();
 }

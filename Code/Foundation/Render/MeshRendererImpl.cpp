@@ -386,9 +386,43 @@ namespace foundation::render
                 {
                     continue; // a set keeps its own instances
                 }
-                md->instanceSlot = m_instanceTable.Write(md->scene, md->entityId, md->world, md->color);
+                const InstanceTable::Claimed claimed =
+                    m_instanceTable.Claim(md->scene, md->entityId, md->world, md->color);
+                md->instanceSlot = claimed.slot;
+                if (claimed.refresh)
+                {
+                    m_refreshItems.PushBack(md);
+                }
             }
         }
+        // The records of the meshes the table already held, compared and written across the job
+        // system (each slot is one item's), then marked in item order so the copy makes few runs.
+        const u32 count = static_cast<u32>(m_refreshItems.Size());
+        m_refreshed.Resize(count);
+        const auto refresh = [this](u32 i)
+        {
+            const MeshRenderData* md = m_refreshItems[i];
+            m_refreshed[i] = m_instanceTable.Refresh(md->instanceSlot, md->world, md->color) ? 1 : 0;
+        };
+        if (count >= kParallelRefreshItems && HasGlobalJobSystem())
+        {
+            GlobalJobs().ParallelFor(count, refresh, kParallelRefreshItems / 4u);
+        }
+        else
+        {
+            for (u32 i = 0; i < count; ++i)
+            {
+                refresh(i);
+            }
+        }
+        for (u32 i = 0; i < count; ++i)
+        {
+            if (m_refreshed[i] != 0)
+            {
+                m_instanceTable.MarkChanged(m_refreshItems[i]->instanceSlot);
+            }
+        }
+        m_refreshItems.Clear();
         m_instanceTable.EndScenes();
         PROFILE_SCOPE("mesh.instances.upload");
         m_instanceTable.Upload(encoder);

@@ -41,7 +41,6 @@ export namespace foundation::render
         u64 bytes = 0;       // bytes copied into the table
         u32 transitions = 0; // buffer transitions recorded
         bool grew = false;   // the table was made again, larger, and filled whole
-        bool staged = false; // copied from the records as they were staged, not from the mirror
     };
 
     class InstanceTable
@@ -87,28 +86,29 @@ export namespace foundation::render
             m_frameSlots.Clear();
             m_changed.Clear();
             m_stats = {};
-            // This frame's staging: room for every live slot to change, and some new ones. It is
-            // mapped on the first change, so a frame at rest maps nothing.
-            m_stagingSlots = m_used + m_used / 8u + 64u;
-            m_stagingSlots = m_stagingSlots < kInitialSlots ? kInitialSlots : m_stagingSlots;
-            m_staged = nullptr;
-            m_stagedOffset = 0;
-            m_stagingOverflow = !m_staging.Reserve(m_stagingSlots);
-            m_staging.BeginFrame(frameIndex);
         }
 
-        /// The slot of the item's entity in `scene`, its record brought up to date: written when
-        /// its world or tint moved, or when its previous world catches up the frame after. An entity
-        /// written once already this frame (a mesh split into items by category) keeps what the first
-        /// write made. An item with no entity (`entityId` 0) takes a slot for this frame alone.
-        [[nodiscard]] u32 Write(u64 scene, u64 entityId, const Float4x4& world, const Color& tint)
+        /// What Claim found for an item: its slot, and whether its record is still to be brought up
+        /// to date (Refresh). A new slot's record is written by Claim; an entity met already this
+        /// frame (a mesh split into items by category) keeps what its first item made.
+        struct Claimed
+        {
+            u32 slot = kNoSlot;
+            bool refresh = false;
+        };
+
+        /// The slot of the item's entity in `scene`: a new one when the entity has none or another
+        /// entity held its index, written at once with no motion on its first frame. An item with no
+        /// entity (`entityId` 0) takes a slot for this frame alone. Serial: it hands out slots.
+        [[nodiscard]] Claimed Claim(u64 scene, u64 entityId, const Float4x4& world, const Color& tint)
         {
             if (entityId == 0)
             {
                 const u32 slot = AllocateSlot();
                 m_frameSlots.PushBack(slot);
-                Put(slot, GpuInstance{world, world, tint}, true);
-                return slot;
+                Set(slot, GpuInstance{world, world, tint}, true);
+                MarkChanged(slot);
+                return Claimed{slot, false};
             }
             Scene& slots = SceneOf(scene);
             const u32 index = static_cast<u32>(entityId);
@@ -120,7 +120,7 @@ export namespace foundation::render
             Entry& entry = slots.entries[index];
             if (entry.slot != kNoSlot && entry.generation == generation && entry.seenFrame == m_frame)
             {
-                return entry.slot;
+                return Claimed{entry.slot, false};
             }
             entry.seenFrame = m_frame;
             if (entry.slot == kNoSlot || entry.generation != generation)
@@ -131,23 +131,56 @@ export namespace foundation::render
                 }
                 entry.slot = AllocateSlot();
                 entry.generation = generation;
-                Put(entry.slot, GpuInstance{world, world, tint}, true); // no motion on its first frame
-                return entry.slot;
+                Set(entry.slot, GpuInstance{world, world, tint}, true);
+                MarkChanged(entry.slot);
+                return Claimed{entry.slot, false};
             }
-            // The common case, a mesh at rest, costs one compare of what the item carries: nothing is
-            // built. A mesh that stopped writes once more, as its previous world catches up.
-            const GpuInstance& kept = m_mirror[entry.slot];
+            return Claimed{entry.slot, true};
+        }
+
+        /// Brings a claimed slot's record up to date: written when its world or tint moved, or once
+        /// more as its previous world catches up; true when it was written (MarkChanged it, in item
+        /// order). A mesh at rest costs one compare of what it carries, and nothing is built. Touches
+        /// only that slot's record, so distinct slots refresh on any threads at once.
+        [[nodiscard]] bool Refresh(u32 slot, const Float4x4& world, const Color& tint)
+        {
+            const GpuInstance& kept = m_mirror[slot];
             const bool sameWorld = MemCompare(&kept.world, &world, sizeof(Float4x4)) == 0;
             if (sameWorld && MemCompare(&kept.tint, &tint, sizeof(Color)) == 0)
             {
-                if (m_settled[entry.slot] == 0)
+                if (m_settled[slot] != 0)
                 {
-                    Put(entry.slot, GpuInstance{world, world, tint}, true);
+                    return false;
                 }
-                return entry.slot;
+                Set(slot, GpuInstance{world, world, tint}, true);
+                return true;
             }
-            Put(entry.slot, GpuInstance{world, kept.world, tint}, sameWorld);
-            return entry.slot;
+            Set(slot, GpuInstance{world, kept.world, tint}, sameWorld);
+            return true;
+        }
+
+        /// Adds a written slot to this frame's copy (once). Serial; the order given is the order the
+        /// slots are copied in, so items in slot order make few runs.
+        void MarkChanged(u32 slot)
+        {
+            if (m_changedFrame[slot] == m_frame)
+            {
+                return;
+            }
+            m_changedFrame[slot] = m_frame;
+            m_changed.PushBack(slot);
+            ++m_stats.written;
+        }
+
+        /// Claim, Refresh and MarkChanged in one, for one item at a time.
+        [[nodiscard]] u32 Write(u64 scene, u64 entityId, const Float4x4& world, const Color& tint)
+        {
+            const Claimed claimed = Claim(scene, entityId, world, tint);
+            if (claimed.refresh && Refresh(claimed.slot, world, tint))
+            {
+                MarkChanged(claimed.slot);
+            }
+            return claimed.slot;
         }
 
         /// Once every scene of the frame is written: frees the slots of entities a written scene no
@@ -209,36 +242,69 @@ export namespace foundation::render
             {
                 return;
             }
-            // The changed records were staged in the order they changed, which follows the items and
-            // so mostly the slots: consecutive slots copy as one run, straight from staging.
-            if (!grow && !m_stagingOverflow && m_staged != nullptr)
+            // The runs to copy: the whole used range after a growth, else the changed slots in the order
+            // they were marked (items in slot order make few runs), neighbours merged, or one span over
+            // them all when they scatter too far.
+            Array<Run> runs(*m_allocator);
+            if (grow)
             {
-                Array<Run> runs(*m_allocator);
-                for (u32 k = 0; k < m_changed.Size(); ++k)
+                if (m_used > 0)
                 {
-                    const u32 slot = m_changed[k];
-                    if (!runs.IsEmpty() && runs[runs.Size() - 1].first + runs[runs.Size() - 1].count == slot)
-                    {
-                        ++runs[runs.Size() - 1].count;
-                    }
-                    else
-                    {
-                        runs.PushBack(Run{slot, 1, k});
-                    }
-                }
-                if (runs.Size() <= kMaxCopyRuns)
-                {
-                    BeginCopy(encoder, false);
-                    for (const Run& run : runs)
-                    {
-                        CopyRun(encoder, run, m_stagedOffset + static_cast<u64>(run.staged) * sizeof(GpuInstance));
-                    }
-                    EndCopy(encoder);
-                    m_stats.staged = true;
-                    return;
+                    runs.PushBack(Run{0, m_used, 0});
                 }
             }
-            CopyFromMirror(encoder, grow);
+            else
+            {
+                AppendRuns(runs);
+                if (runs.Size() > kMaxCopyRuns)
+                {
+                    m_changed.Sort([](u32 a, u32 b) { return a < b; });
+                    runs.Clear();
+                    AppendRuns(runs);
+                }
+                if (runs.Size() > kMaxCopyRuns)
+                {
+                    const u32 first = runs[0].first;
+                    const u32 end = runs[runs.Size() - 1].first + runs[runs.Size() - 1].count;
+                    runs.Clear();
+                    runs.PushBack(Run{first, end - first, 0});
+                }
+            }
+            if (runs.IsEmpty())
+            {
+                return;
+            }
+            u32 total = 0;
+            for (Run& run : runs)
+            {
+                run.staged = total;
+                total += run.count;
+            }
+            if (!m_staging.Reserve(total < kInitialSlots ? kInitialSlots : total))
+            {
+                return;
+            }
+            m_staging.BeginFrame(m_frameIndex);
+            const DynamicUniformRing::Range staged = m_staging.AllocateRange(total);
+            if (!staged.ok)
+            {
+                return;
+            }
+            StageRecords(Span<const Run>(runs.Data(), runs.Size()), static_cast<GpuInstance*>(staged.ptr), total);
+            encoder.TransitionBuffer(m_buffer, grow ? rhi::ResourceState::Undefined : rhi::ResourceState::ShaderRead,
+                                     rhi::ResourceState::CopyDst);
+            ++m_stats.transitions;
+            for (const Run& run : runs)
+            {
+                const u64 bytes = static_cast<u64>(run.count) * sizeof(GpuInstance);
+                encoder.CopyBufferToBuffer(m_staging.Buffer(),
+                                           staged.byteOffset + static_cast<u64>(run.staged) * sizeof(GpuInstance), m_buffer,
+                                           static_cast<u64>(run.first) * sizeof(GpuInstance), bytes);
+                ++m_stats.copies;
+                m_stats.bytes += bytes;
+            }
+            encoder.TransitionBuffer(m_buffer, rhi::ResourceState::CopyDst, rhi::ResourceState::ShaderRead);
+            ++m_stats.transitions;
         }
 
         /// The table the passes bind (whole, as `Instances`); remade when it grows.
@@ -303,130 +369,57 @@ export namespace foundation::render
 
         void FreeSlot(u32 slot) { m_freeSlots.PushBack(slot); }
 
-        // Writes a changed record into the mirror and stages it for this frame's copy. `settled`:
-        // its previous world equals its world, so it needs no write until it moves again.
-        void Put(u32 slot, const GpuInstance& record, bool settled)
+        // A record into the mirror. `settled`: its previous world equals its world, so it needs no
+        // write until it moves again.
+        void Set(u32 slot, const GpuInstance& record, bool settled)
         {
             m_mirror[slot] = record;
             m_settled[slot] = settled ? 1 : 0;
-            if (m_changedFrame[slot] == m_frame)
-            {
-                m_stagingOverflow = true; // a second write to one slot this frame: copy from the mirror
-                return;
-            }
-            m_changedFrame[slot] = m_frame;
-            const u32 order = static_cast<u32>(m_changed.Size());
-            m_changed.PushBack(slot);
-            ++m_stats.written;
-            if (m_stagingOverflow)
-            {
-                return;
-            }
-            if (m_staged == nullptr)
-            {
-                const DynamicUniformRing::Range range = m_staging.AllocateRange(m_stagingSlots);
-                if (!range.ok)
-                {
-                    m_stagingOverflow = true;
-                    return;
-                }
-                m_staged = static_cast<GpuInstance*>(range.ptr);
-                m_stagedOffset = range.byteOffset;
-            }
-            if (order >= m_stagingSlots)
-            {
-                m_stagingOverflow = true; // more changed than staged room: copy from the mirror
-                return;
-            }
-            m_staged[order] = record;
         }
 
-        void BeginCopy(rhi::CommandEncoder& encoder, bool fresh)
+        void AppendRuns(Array<Run>& runs) const
         {
-            encoder.TransitionBuffer(m_buffer, fresh ? rhi::ResourceState::Undefined : rhi::ResourceState::ShaderRead,
-                                     rhi::ResourceState::CopyDst);
-            ++m_stats.transitions;
-        }
-
-        void EndCopy(rhi::CommandEncoder& encoder)
-        {
-            encoder.TransitionBuffer(m_buffer, rhi::ResourceState::CopyDst, rhi::ResourceState::ShaderRead);
-            ++m_stats.transitions;
-        }
-
-        void CopyRun(rhi::CommandEncoder& encoder, const Run& run, u64 stagingOffset)
-        {
-            const u64 bytes = static_cast<u64>(run.count) * sizeof(GpuInstance);
-            encoder.CopyBufferToBuffer(m_staging.Buffer(), stagingOffset, m_buffer,
-                                       static_cast<u64>(run.first) * sizeof(GpuInstance), bytes);
-            ++m_stats.copies;
-            m_stats.bytes += bytes;
-        }
-
-        // The fallback: the runs (the whole used range after a growth, else the changed slots in
-        // order, neighbours merged, or one span over them when they scatter) staged again from the
-        // mirror, in a region of their own.
-        void CopyFromMirror(rhi::CommandEncoder& encoder, bool grow)
-        {
-            Array<Run> runs(*m_allocator);
-            if (grow)
+            for (u32 slot : m_changed)
             {
-                if (m_used > 0)
+                if (!runs.IsEmpty() && runs[runs.Size() - 1].first + runs[runs.Size() - 1].count == slot)
                 {
-                    runs.PushBack(Run{0, m_used, 0});
+                    ++runs[runs.Size() - 1].count;
+                }
+                else
+                {
+                    runs.PushBack(Run{slot, 1, 0});
                 }
             }
-            else
+        }
+
+        // The runs' records from the mirror into staging, in pieces the job system copies at once
+        // when there are enough of them: a frame where every mesh moved stages megabytes.
+        void StageRecords(Span<const Run> runs, GpuInstance* staged, u32 total)
+        {
+            static constexpr u32 kPieceRecords = 4096;
+            const auto copyRange = [this, staged](u32 slot, u32 at, u32 count)
             {
-                m_changed.Sort([](u32 a, u32 b) { return a < b; });
-                for (u32 slot : m_changed)
-                {
-                    if (!runs.IsEmpty() && runs[runs.Size() - 1].first + runs[runs.Size() - 1].count == slot)
-                    {
-                        ++runs[runs.Size() - 1].count;
-                    }
-                    else if (runs.IsEmpty() || runs[runs.Size() - 1].first + runs[runs.Size() - 1].count < slot)
-                    {
-                        runs.PushBack(Run{slot, 1, 0});
-                    }
-                }
-                if (runs.Size() > kMaxCopyRuns)
-                {
-                    const u32 first = runs[0].first;
-                    const u32 end = runs[runs.Size() - 1].first + runs[runs.Size() - 1].count;
-                    runs.Clear();
-                    runs.PushBack(Run{first, end - first, 0});
-                }
-            }
-            if (runs.IsEmpty())
+                MemCopy(staged + at, &m_mirror[slot], static_cast<usize>(count) * sizeof(GpuInstance));
+            };
+            if (total < 2u * kPieceRecords || !HasGlobalJobSystem())
             {
+                for (const Run& run : runs)
+                {
+                    copyRange(run.first, run.staged, run.count);
+                }
                 return;
             }
-            u32 total = 0;
+            Array<Run> pieces(*m_allocator);
             for (const Run& run : runs)
             {
-                total += run.count;
+                for (u32 done = 0; done < run.count; done += kPieceRecords)
+                {
+                    const u32 count = run.count - done < kPieceRecords ? run.count - done : kPieceRecords;
+                    pieces.PushBack(Run{run.first + done, count, run.staged + done});
+                }
             }
-            if (!m_staging.Reserve(total < kInitialSlots ? kInitialSlots : total))
-            {
-                return;
-            }
-            m_staging.BeginFrame(m_frameIndex); // a new region: what was staged as it changed is not used
-            const DynamicUniformRing::Range staged = m_staging.AllocateRange(total);
-            if (!staged.ok)
-            {
-                return;
-            }
-            BeginCopy(encoder, grow);
-            u32 cursor = 0;
-            for (const Run& run : runs)
-            {
-                MemCopy(static_cast<u8*>(staged.ptr) + static_cast<usize>(cursor) * sizeof(GpuInstance),
-                        &m_mirror[run.first], static_cast<usize>(run.count) * sizeof(GpuInstance));
-                CopyRun(encoder, run, staged.byteOffset + static_cast<u64>(cursor) * sizeof(GpuInstance));
-                cursor += run.count;
-            }
-            EndCopy(encoder);
+            GlobalJobs().ParallelFor(static_cast<u32>(pieces.Size()),
+                                     [&](u32 i) { copyRange(pieces[i].first, pieces[i].staged, pieces[i].count); }, 1);
         }
 
         bool Grow()
@@ -471,10 +464,6 @@ export namespace foundation::render
         Array<u32> m_freeSlots;
         Array<u32> m_frameSlots;       // this frame's slots for items with no entity
         Array<u32> m_changed;          // the slots this frame wrote, in the order it wrote them
-        GpuInstance* m_staged = nullptr; // this frame's staging, the changed records in that order
-        u64 m_stagedOffset = 0;
-        u32 m_stagingSlots = 0;        // the room this frame's staging has
-        bool m_stagingOverflow = false; // the staging could not take them all: copy from the mirror
         HashMap<u64, Scene> m_scenes;  // by scene serial
         u64 m_lastScene = ~0ull;       // the scene the last Write found, kept for the next
         Scene* m_lastSceneSlots = nullptr;
