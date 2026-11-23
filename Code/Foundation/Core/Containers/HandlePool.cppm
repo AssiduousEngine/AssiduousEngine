@@ -245,10 +245,18 @@ export namespace foundation::core
             Atomic<u32> count{0};
             u32 nextFree = Handle<Tag>::kInvalidIndex;
             bool live = false;
-            alignas(T) byte storage[sizeof(T)];
+            // The value's storage, constructed and destructed by the pool as `live` says. A union
+            // rather than an aligned byte array: it takes T's alignment without an alignment
+            // specifier, whose padding MSVC warns of (C4324).
+            union Storage
+            {
+                Storage() noexcept {}
+                ~Storage() {}
+                T value;
+            } storage;
 
-            [[nodiscard]] T* Value() noexcept { return reinterpret_cast<T*>(storage); }
-            [[nodiscard]] const T* Value() const noexcept { return reinterpret_cast<const T*>(storage); }
+            [[nodiscard]] T* Value() noexcept { return &storage.value; }
+            [[nodiscard]] const T* Value() const noexcept { return &storage.value; }
         };
 
         [[nodiscard]] bool AddPage(u32 page)
