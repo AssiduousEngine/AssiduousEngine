@@ -174,7 +174,7 @@ export namespace foundation::rendergraph
         String name;
         RGResourceType resourceType;
         RGResourceLifetime lifetime;
-        u32 generation = 1;
+        RGHandle handle; // the graph's handle to it, set when the graph adds it
 
         // --- reference tracking (computed during compile) ---
         i32 refCount = 0;

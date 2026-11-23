@@ -2527,8 +2527,7 @@ namespace foundation::render
                         // (WebGPU rule); the resolved twin is in the list instead.
                         if (res->textureDesc.sampleCount <= 1)
                         {
-                            const rendergraph::RGHandle srcH{static_cast<u32>(foundResource),
-                                                             res->generation};
+                            const rendergraph::RGHandle srcH = res->handle;
                             m_debugBlit->DeclareDebugBlit(
                                 m_graph, srcH, colorH, v->TargetFormat(), v->ViewportX(),
                                 v->ViewportY(), v->ViewportWidth(), v->ViewportHeight(),

@@ -240,7 +240,8 @@ screens do, which should match ImGui's look. Investigate and settle:
 lies inside its frame's CPU span, give or take 2 ms (`slack`). On CI's Windows clang Debug job it
 failed once on WebGPU (`outsideFrame` 20, CI on bfb22ac89) and passed on a rerun. It failed the
 same way twice more, on Windows' software adapter (Microsoft Basic Render Driver): run 44398182132,
-and run 44482531143 on 7fefb9087 (MSVC RelWithDebInfo shared, 20 of 24 passes outside). WebGPU has no
+and run 44482531143 on 7fefb9087 (MSVC RelWithDebInfo shared, 20 of 24 passes outside), and run
+45217250039 on 0ecd5188a (MSVC Debug, 20 of 24). WebGPU has no
 calibrated timestamps (`Features::timestampCalibration` false, `WebGpuQueue.cppm`), so the
 profiler maps GPU time to CPU time from one sync point taken at the start (`GraphProfiler::
 Calibrate`, `SyncPoint`) and never again: the error is the sync point's own uncertainty plus the

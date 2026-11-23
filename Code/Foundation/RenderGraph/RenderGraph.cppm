@@ -43,7 +43,7 @@ export namespace foundation::rendergraph
         // The allocator (required; the owner decides) backs passes, resources,
         // the transient texture pool, and the GPU profiler.
         RenderGraph(IAllocator& allocator, rhi::Device* device, RenderGraphConfig config = {})
-            : m_allocator(&allocator), m_device(device), m_config(config)
+            : m_allocator(&allocator), m_device(device), m_config(config), m_handles(allocator)
         {
             if (device != nullptr)
             {
@@ -461,7 +461,7 @@ export namespace foundation::rendergraph
                 RenderGraphResource* res = m_resources[i];
                 if (res != nullptr && res->name == name)
                 {
-                    return RGHandle{static_cast<u32>(i), res->generation};
+                    return res->handle;
                 }
             }
             return RGHandle::Invalid();
@@ -573,12 +573,8 @@ export namespace foundation::rendergraph
             {
                 return nullptr;
             }
-            RenderGraphResource* res = m_resources[handle.index];
-            if (res == nullptr || res->generation != handle.generation)
-            {
-                return nullptr;
-            }
-            return res;
+            RenderGraphResource* const* res = m_handles.Get(handle);
+            return res != nullptr ? *res : nullptr;
         }
         // Validate a handle (bounds only; ignores generation), for mutators.
         [[nodiscard]] RenderGraphResource* Resolve(RGHandle handle)
@@ -590,26 +586,18 @@ export namespace foundation::rendergraph
             return m_resources[handle.index];
         }
 
-        // A slot's generation moves each time it takes a resource, so a handle to what held it
-        // before (a pass's handle kept from an earlier frame) no longer resolves to its successor.
-        // Every resource was generation 1, so such a handle reached whatever took the slot.
+        // The pool names the resource; its slot is the resource's place in m_resources, so the
+        // compile walks a dense array and a handle kept past a recycle resolves to nothing.
         RGHandle AddResource(RenderGraphResource* res)
         {
-            u32 idx = 0;
-            if (!m_freeResourceSlots.IsEmpty())
+            const RGHandle handle = m_handles.Allocate(res);
+            while (m_resources.Size() <= handle.index)
             {
-                idx = static_cast<u32>(m_freeResourceSlots.Back());
-                m_freeResourceSlots.PopBack();
-                m_resources[idx] = res;
+                m_resources.PushBack(nullptr);
             }
-            else
-            {
-                idx = static_cast<u32>(m_resources.Size());
-                m_resources.PushBack(res);
-                m_slotGenerations.PushBack(0);
-            }
-            res->generation = ++m_slotGenerations[idx];
-            return RGHandle{idx, res->generation};
+            m_resources[handle.index] = res;
+            res->handle = handle;
+            return handle;
         }
 
         template <typename Setup>
@@ -644,7 +632,7 @@ export namespace foundation::rendergraph
                 }
                 if (res->lifetime != RGResourceLifetime::Persistent)
                 {
-                    m_freeResourceSlots.PushBack(static_cast<i32>(i));
+                    (void)m_handles.Free(res->handle);
                     (*m_allocator).Delete(res);
                     m_resources[i] = nullptr;
                 }
@@ -1401,8 +1389,7 @@ export namespace foundation::rendergraph
         rhi::Device* m_device;
         RenderGraphConfig m_config;
         Array<RenderGraphResource*> m_resources;
-        Array<i32> m_freeResourceSlots;
-        Array<u32> m_slotGenerations; // by slot: how many resources it has held (kept as slots are reused)
+        HandlePool<RGResourceTag, RenderGraphResource*> m_handles; // slot = index in m_resources
         Array<RenderGraphPass*> m_passes;
         Array<i32> m_executionOrder;
         Array<i32> m_finalAfter; // per resource: the execution position it takes its final state after

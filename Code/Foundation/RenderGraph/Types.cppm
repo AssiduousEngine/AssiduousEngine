@@ -21,24 +21,11 @@ export namespace foundation::rendergraph
 {
     namespace rhi = foundation::rhi;
 
-    // Handle to a graph resource (texture or buffer); generation-checked for staleness.
-    struct RGHandle
-    {
-        u32 index = 0xFFFFFFFFu;
-        u32 generation = 0;
-
-        [[nodiscard]] static constexpr RGHandle Invalid() noexcept
-        {
-            return RGHandle{0xFFFFFFFFu, 0};
-        }
-        [[nodiscard]] constexpr bool IsValid() const noexcept { return index != 0xFFFFFFFFu; }
-    };
-
-    [[nodiscard]] constexpr bool operator==(RGHandle a, RGHandle b) noexcept
-    {
-        return a.index == b.index && a.generation == b.generation;
-    }
-    [[nodiscard]] constexpr bool operator!=(RGHandle a, RGHandle b) noexcept { return !(a == b); }
+    // Handle to a graph resource (texture or buffer): stale once the graph recycles the resource,
+    // so a handle kept from an earlier frame never reaches what took its slot, and another graph's
+    // fails here.
+    struct RGResourceTag;
+    using RGHandle = Handle<RGResourceTag>;
 
     // Handle to a graph pass.
     struct PassHandle
