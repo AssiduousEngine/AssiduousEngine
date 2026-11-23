@@ -1,7 +1,7 @@
 # Online
 
-> STATUS: PROPOSED 2026-11-04, refreshed 2026-11-22 against the code and the user's rulings of that
-> day (below), for discussion. Sized L, in phases O0 to O7, green after each.
+> STATUS: APPROVED 2026-11-22 (proposed 2026-11-04, refreshed 2026-11-22 against the code and the
+> user's rulings of that day, below). Sized L, in phases O0 to O7, green after each.
 > Origin: the 0.1 release's last system (user, 2026-11-03): "Survey the reference engines", and
 > "the point here is not to copy one reference or the other. It is to come up with a suitable API
 > that fits our engine". Its first platform backend, Steam, is a plugin, which is why the plugin
@@ -445,12 +445,8 @@ the tree (a platform SDK under its own licence):
 
 ## Open questions
 
-None left from 2026-11-04: the SDK's source (ruling 5), the ids (ruling 6) and play in editor
-(ruling 7) are decided above.
-
-1. **Which file names the right SDK folder**: `public/steam/steam_api_flat.h` for the build, or the
-   redistributable library the export stages; the first is what the build needs, the second what
-   the export needs. Proposed: the header, since a folder without it cannot build the plugin at all.
+None. Decided with the approval: the file that proves a folder is the Steamworks SDK is
+`public/steam/steam_api_flat.h`, since a folder without it cannot build the plugin.
 
 ## Tests (the contract)
 
