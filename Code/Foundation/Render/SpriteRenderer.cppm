@@ -34,7 +34,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The sprite pass's view (cbuffer SpriteView, sprite.vs.hlsl); Integration.ShaderBlocks checks it
     // against the compiled shader, member by member.
     struct GpuSpriteView
@@ -99,14 +98,6 @@ export namespace foundation::render
 
         void FinishFrame() override;
 
-        /// Wire the frames-in-flight retire queue (web-safe ring grows). Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept
-        {
-            m_instanceRing.SetRetireQueue(retire);
-            m_viewRing.SetRetireQueue(retire);
-            m_retire = retire;
-        }
-
         /// View slots the ring holds per frame, and those this frame took (tests pin them).
         [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
         [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
@@ -116,8 +107,8 @@ export namespace foundation::render
         static constexpr u64 kViewSlotSize = 256; // GpuSpriteView padded to the dynamic-uniform alignment
 
         // One bind group over the whole view ring (a per-draw dynamic offset selects the slot). Rebuilt
-        // when the ring grows (generation bump); the old one is retired through the queue when wired,
-        // since a frame in flight may still use it.
+        // when the ring grows (generation bump); the old one is destroyed, the device keeping it
+        // while a frame in flight uses it.
         rhi::BindGroupHandle EnsureViewBindGroup();
 
         rhi::BindGroupHandle EnsureTextureBindGroup(rhi::TextureViewHandle tex);
@@ -142,7 +133,6 @@ export namespace foundation::render
         shaders::ShaderSystem* m_shaders;
         DynamicUniformRing m_instanceRing;
         ViewUniformRing m_viewRing;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
         rhi::BindGroupLayoutHandle m_viewLayout{};
         rhi::BindGroupLayoutHandle m_texLayout{};
         rhi::PipelineLayoutHandle m_pipelineLayout{};
@@ -154,8 +144,7 @@ export namespace foundation::render
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Depth32Float;
         // Cached per-texture bind groups, keyed by view handle: a view made where a destroyed one
         // was has another handle, so a group built for the old view is never handed back.
-        // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
-        // retire through the device as views do.
+        // A destroyed view's group goes when the next group is made (DropGroupsOfDestroyedViews).
         HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle> m_texBindGroups;
     };
 

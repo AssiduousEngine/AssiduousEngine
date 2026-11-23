@@ -84,7 +84,7 @@ import foundation.fonts.resource; // the project's fonts (Font products)
 import foundation.image;
 import foundation.vg.svg;
 import foundation.render.api; // the two overlay roles
-import foundation.render;     // GpuRetireQueue
+import foundation.render;
 import foundation.script;     // the script contexts the surface is installed in
 import foundation.shell;      // the text input target
 import foundation.input;      // InputKindTracker
@@ -639,10 +639,9 @@ export namespace engine::gui
 
         /// Sets up the GPU side: loads the VG shaders from the data mount and makes the renderer.
         /// Whoever owns graphics (the application's startup) calls it. Idempotent; until it runs,
-        /// the overlays draw nothing. A texture that is removed or remade goes to `retire`, which
-        /// destroys it once the frames in flight are done with it; with none, the GUI waits for
-        /// the GPU instead (on the web a wait inside a frame drops that frame).
-        void EnsureRenderReady(rhi::Device& device, i32 frameCount, render::GpuRetireQueue* retire = nullptr);
+        /// the overlays draw nothing. A texture that is removed or remade is destroyed through the
+        /// device, which keeps it while a frame in flight still samples it.
+        void EnsureRenderReady(rhi::Device& device, i32 frameCount);
         /// Draws the GUI textures. It runs the frame's bakes, then draws every render-texture canvas
         /// and world panel into its texture, making or resizing the texture as needed and leaving
         /// it ready to sample, and points each entity's sprite (and a canvas's decal) at it. The

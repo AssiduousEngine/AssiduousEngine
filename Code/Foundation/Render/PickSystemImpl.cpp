@@ -294,15 +294,7 @@ namespace foundation::render
         {
             return;
         }
-        if (m_retire != nullptr)
-        {
-            m_retire->Retire(slot.buffer);
-        }
-        else
-        {
-            m_device->WaitIdle();
-            m_device->DestroyBuffer(slot.buffer);
-        }
+        m_device->DestroyBuffer(slot.buffer);
         slot.buffer = {};
         slot.capacity = 0;
     }

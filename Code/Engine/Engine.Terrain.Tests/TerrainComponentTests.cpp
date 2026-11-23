@@ -15,7 +15,7 @@ import foundation.terrain.resource;
 import foundation.heightfield;
 import foundation.rhi;
 import foundation.rhi.null;
-import foundation.render; // GpuRetireQueue (the in-flight-safe rebuild test)
+import foundation.render;
 import engine.terrain;
 
 using namespace foundation::core;
@@ -140,73 +140,43 @@ TEST_CASE("engine.terrain: the cache keys by UID, never pointer (address-reuse a
     cache.Clear(device);
 }
 
-TEST_CASE("engine.terrain: a version-bump rebuild RETIRES the old texture (in-flight safety)")
+TEST_CASE("engine.terrain: a version-bump rebuild destroys the old texture through the device")
 {
     // A regenerate or type toggle bumps the version: the old view sits in a submitted frame's
-    // descriptor set, so the rebuild routes it through the frame-aged retire queue, never
-    // vkDestroyImageView in place (VUID 01026).
+    // descriptor set, so it is destroyed through the device, which keeps it until that frame has
+    // run (destroying it in place was VUID 01026).
     foundation::rhi::null::NullDevice device{DefaultAllocator()};
-    foundation::render::GpuRetireQueue retire;
-    retire.Initialize(&device, /*framesInFlight*/ 2);
-
     TerrainHeightTextureCache cache;
-    cache.SetRetireQueue(&retire);
 
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
     foundation::rhi::TextureViewHandle v1 = cache.GetOrCreate(device, *grid, grid->Version());
     REQUIRE(v1.IsValid());
-    CHECK(retire.PendingCount() == 0u);
 
     grid->BumpVersion(); // the regen path
     foundation::rhi::TextureViewHandle v2 = cache.GetOrCreate(device, *grid, grid->Version());
     REQUIRE(v2.IsValid());
-    CHECK(retire.PendingCount() == 2u); // old view and old texture aged, not destroyed in place
-    CHECK(cache.Size() == 1u);          // rebuilt in place
+    CHECK_FALSE(device.IsLive(v1)); // the old view went, not leaked
+    CHECK(cache.Size() == 1u);      // rebuilt in place
 
-    // They free only once every in-flight frame has cycled (framesInFlight + 1 ticks).
-    retire.Tick();
-    retire.Tick();
-    CHECK(retire.PendingCount() == 2u);
-    retire.Tick();
-    CHECK(retire.PendingCount() == 0u);
-
-    cache.Clear(device); // with a queue wired, Clear retires too (see the next case)
-    retire.Flush();
+    cache.Clear(device);
+    CHECK_FALSE(device.IsLive(v2));
 }
 
-TEST_CASE("engine.terrain: Clear RETIRES live entries when a queue is wired (scene destroy mid frame)")
+TEST_CASE("engine.terrain: Clear destroys live entries through the device (scene destroy mid frame)")
 {
     // Stopping play-in-editor destroys the run's scenes from a toolbar click, mid frame loop, while
-    // the terrain's height texture is still bound by a submitted frame's descriptor set
-    // (VUID-vkDestroyImageView-imageView-01026 if destroyed in place). Clear routes through the
-    // frame-aged queue like the version-bump rebuild; without a queue it destroys directly.
+    // the terrain's height texture is still bound by a submitted frame's descriptor set. Clear
+    // destroys it through the device, which keeps it until that frame has run.
     foundation::rhi::null::NullDevice device{DefaultAllocator()};
-    foundation::render::GpuRetireQueue retire;
-    retire.Initialize(&device, /*framesInFlight*/ 2);
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
-    {
-        TerrainHeightTextureCache cache;
-        cache.SetRetireQueue(&retire);
-        REQUIRE(cache.GetOrCreate(device, *grid, grid->Version()).IsValid());
-        CHECK(retire.PendingCount() == 0u);
-        cache.Clear(device);
-        CHECK(cache.Size() == 0u);
-        CHECK(retire.PendingCount() == 2u); // the view and the texture aged, not destroyed in place
-        retire.Tick();
-        retire.Tick();
-        CHECK(retire.PendingCount() == 2u);
-        retire.Tick();
-        CHECK(retire.PendingCount() == 0u); // freed once every in-flight frame cycled
-    }
-    {
-        TerrainHeightTextureCache cache; // no queue: direct destroy (tests, device idled)
-        REQUIRE(cache.GetOrCreate(device, *grid, grid->Version()).IsValid());
-        cache.Clear(device);
-        CHECK(cache.Size() == 0u);
-        CHECK(retire.PendingCount() == 0u);
-    }
+    TerrainHeightTextureCache cache;
+    const foundation::rhi::TextureViewHandle view = cache.GetOrCreate(device, *grid, grid->Version());
+    REQUIRE(view.IsValid());
+    cache.Clear(device);
+    CHECK(cache.Size() == 0u);
+    CHECK_FALSE(device.IsLive(view));
 }
 
 TEST_CASE("engine.terrain: ClearGpu frees the height textures while the device is alive")
@@ -220,7 +190,7 @@ TEST_CASE("engine.terrain: ClearGpu frees the height textures while the device i
     engine::terrain::AddTerrainSceneManagers(sceneObj);
     auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
     REQUIRE(mgr != nullptr);
-    mgr->SetRenderContext(&device, 7, nullptr);
+    mgr->SetRenderContext(&device, 7);
 
     // An in-memory terrain: resource and heightfield assigned directly.
     RefPtr<hf::Heightfield> grid =
@@ -252,7 +222,7 @@ TEST_CASE("engine.terrain: a cut heightfield extracts its holed chunks' meshes; 
     engine::terrain::AddTerrainSceneManagers(sceneObj);
     auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
     REQUIRE(mgr != nullptr);
-    mgr->SetRenderContext(&device, 7, nullptr);
+    mgr->SetRenderContext(&device, 7);
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 129, Float2{128.0f, 128.0f}, 0.0f, 10.0f);
     auto res = MakeRef<foundation::terrain::TerrainResource>(DefaultAllocator());
@@ -311,7 +281,7 @@ TEST_CASE("engine.terrain: the extracted snapshot outlives the scene it came fro
         engine::terrain::AddTerrainSceneManagers(sceneObj);
         auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
         REQUIRE(mgr != nullptr);
-        mgr->SetRenderContext(&device, 7, nullptr);
+        mgr->SetRenderContext(&device, 7);
 
         RefPtr<foundation::heightfield::Heightfield> grid =
             MakeRef<foundation::heightfield::Heightfield>(DefaultAllocator(), 65,

@@ -25,7 +25,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :data; // ReflectionProbe, kMaxReflectionProbes, ProbeUpdateMode
-import :resources; // GpuRetireQueue (a resize's old arrays)
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -34,7 +34,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // GPU-side probe record (set-0 t9 StructuredBuffer), 64 bytes. Packed so the forward can, per fragment,
     // pick the probe, box-project the reflection ray, and index its cube-array slice.
     // As lighting.hlsli declares it; Integration.ShaderBlocks checks the two agree.
@@ -80,10 +79,6 @@ export namespace foundation::render
         ~ReflectionProbeSystem() { DestroyResources(); }
 
         Status Initialize();
-
-        /// Wire the frames-in-flight retire queue: a resize retires the old arrays and their views,
-        /// rather than freeing them while a frame in flight may still sample them. Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
         /// Every probe's face resolution from now on (a quality level's environment tier). At the next
         /// BeginFrame the arrays are remade at it, and every probe is captured once more.
@@ -195,11 +190,10 @@ export namespace foundation::render
 
         bool CreateResources();
         // The captured and prefiltered cube arrays and their array views, at m_resolution; and their
-        // release with every slot's face views and bind groups over them (retired through the queue
-        // when wired, else after draining the device).
+        // release with every slot's face views and bind groups over them (the device keeps them while
+        // frames in flight sample them).
         bool CreateArrays();
         void ReleaseArrays();
-        GpuRetireQueue* m_retire = nullptr; // borrowed
         u32 m_resolution = 128;      // the arrays' size from now on (SetResolution)
         u32 m_arraysResolution = 0;  // the size the arrays were made at
 

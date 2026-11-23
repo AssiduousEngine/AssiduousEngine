@@ -33,7 +33,6 @@ namespace foundation::render
 {
     Status MeshRenderer::Initialize()
     {
-
         // set 0: per-view UBO (ViewProj, camera, light range), dynamic offset, Vertex|Fragment;
         // and the light list as a read-only StructuredBuffer (Fragment), bound whole.
         rhi::BindGroupLayoutEntry viewEntry = rhi::BindGroupLayoutEntry::UniformBuffer(
@@ -275,9 +274,7 @@ namespace foundation::render
         ++m_frameSerial;
         PruneStaleMaterialInstances();
         PruneOverrideInstances();
-        TickRetiredBindGroups();    // free per-frame bind groups retired long enough ago to be idle
         m_meshes.Tick();            // and mesh streams of meshes gone or rebuilt
-        m_materials->TickRetired(); // same, for material set-2 groups replaced by rebuilds
         if (maxDraws == 0)
         {
             return;
@@ -334,8 +331,8 @@ namespace foundation::render
 
     // Grow the bone pool to hold `needed` matrices per frame: the next power of two, capped.
     // Safe mid-frame only here, before this frame's block is allocated: the ring has not mapped
-    // yet (lazy), the old buffers retire through the queue, and the mirror's generation bump
-    // makes every set-0 bind group rebuild at record time.
+    // yet (lazy), the old buffers are destroyed (the device keeps them for frames in flight), and the
+    // mirror's generation bump makes every set-0 bind group rebuild at record time.
     bool MeshRenderer::GrowBonePool(u32 needed)
     {
         if (needed > kMaxBoneMatrices)
@@ -368,7 +365,7 @@ namespace foundation::render
         // a mid-frame wait on web pumps the event loop and drops the frame's submit).
         if (m_boneDevice.IsValid())
         {
-            RetireOrDrainBuffer(m_boneDevice);
+            m_device->DestroyBuffer(m_boneDevice);
         }
         rhi::BufferDesc bd{};
         bd.size = want;
@@ -554,22 +551,15 @@ namespace foundation::render
         {
             if (set.instanceBG[r].IsValid())
             {
-                if (m_retire != nullptr)
-                {
-                    m_retire->Retire(set.instanceBG[r]);
-                }
-                else
-                {
-                    m_device->DestroyBindGroup(set.instanceBG[r]);
-                }
+                m_device->DestroyBindGroup(set.instanceBG[r]);
                 set.instanceBG[r] = {};
             }
         }
         set.activeInstanceBG = {};
-        RetireOrDrainBuffer(set.instanceBuf);
-        RetireOrDrainBuffer(set.offsetsBuf);
-        RetireOrDrainBuffer(set.pickOffsetsBuf);
-        RetireOrDrainBuffer(set.setBuf);
+        m_device->DestroyBuffer(set.instanceBuf);
+        m_device->DestroyBuffer(set.offsetsBuf);
+        m_device->DestroyBuffer(set.pickOffsetsBuf);
+        m_device->DestroyBuffer(set.setBuf);
         set.capacity = 0;
         set.offsetsCapacity = 0;
     }
@@ -642,27 +632,6 @@ namespace foundation::render
         }
     }
 
-    // Replace-path release: retire the buffer through the frames-in-flight queue when
-    // wired (web-safe: no mid-frame WaitIdle pumping the browser event loop), otherwise
-    // drain. Nulls the pointer either way.
-    void MeshRenderer::RetireOrDrainBuffer(rhi::BufferHandle& buffer)
-    {
-        if (!buffer.IsValid())
-        {
-            return;
-        }
-        if (m_retire != nullptr)
-        {
-            m_retire->Retire(buffer);
-        }
-        else
-        {
-            m_device->WaitIdle();
-            m_device->DestroyBuffer(buffer);
-        }
-        buffer = {};
-    }
-
     bool MeshRenderer::EnsureRamp(u32 count)
     {
         if (m_rampBuffer.IsValid() && m_pickRampBuffer.IsValid() && count <= m_rampCapacity)
@@ -672,11 +641,11 @@ namespace foundation::render
         // An in-flight frame may still reference the old ramps: retire when wired, otherwise drain.
         if (m_rampBuffer.IsValid())
         {
-            RetireOrDrainBuffer(m_rampBuffer);
+            m_device->DestroyBuffer(m_rampBuffer);
         }
         if (m_pickRampBuffer.IsValid())
         {
-            RetireOrDrainBuffer(m_pickRampBuffer);
+            m_device->DestroyBuffer(m_pickRampBuffer);
         }
         rhi::BufferDesc bd{};
         bd.size = static_cast<u64>(count) * sizeof(GpuDrawOffsets);
@@ -734,38 +703,17 @@ namespace foundation::render
 
         if (!set->instanceBuf.IsValid() || uploadCount > set->capacity)
         {
-            // An in-flight frame may still reference the old buffer and bind groups: retire
-            // when wired (web-safe), otherwise drain once for the whole replacement.
-            if (m_retire == nullptr &&
-                (set->instanceBuf.IsValid() || set->instanceBG[0].IsValid()))
-            {
-                m_device->WaitIdle();
-            }
             for (u32 r = 0; r < kMultiMeshMaxFiF; ++r)
             {
                 if (set->instanceBG[r].IsValid())
                 {
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(set->instanceBG[r]);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(set->instanceBG[r]);
-                    }
+                    m_device->DestroyBindGroup(set->instanceBG[r]);
                     set->instanceBG[r] = {};
                 }
             }
             if (set->instanceBuf.IsValid())
             {
-                if (m_retire != nullptr)
-                {
-                    m_retire->Retire(set->instanceBuf);
-                }
-                else
-                {
-                    m_device->DestroyBuffer(set->instanceBuf);
-                }
+                m_device->DestroyBuffer(set->instanceBuf);
                 set->instanceBuf = {};
             }
             rhi::BufferDesc bd{};
@@ -890,11 +838,11 @@ namespace foundation::render
         {
             if (set->offsetsBuf.IsValid())
             {
-                RetireOrDrainBuffer(set->offsetsBuf);
+                m_device->DestroyBuffer(set->offsetsBuf);
             }
             if (set->pickOffsetsBuf.IsValid())
             {
-                RetireOrDrainBuffer(set->pickOffsetsBuf);
+                m_device->DestroyBuffer(set->pickOffsetsBuf);
             }
             rhi::BufferDesc od{};
             // framesInFlight regions: the offsets are rewritten every frame (dynamic bone bases), so each
@@ -916,7 +864,7 @@ namespace foundation::render
             pd.label = u8"mesh.multimesh.pick-offsets";
             if (!m_device->CreateBuffer(pd, set->pickOffsetsBuf).IsOk())
             {
-                RetireOrDrainBuffer(set->offsetsBuf);
+                m_device->DestroyBuffer(set->offsetsBuf);
                 set->offsetsBuf = {};
                 set->pickOffsetsBuf = {};
                 set->offsetsCapacity = 0;
@@ -2512,18 +2460,18 @@ namespace foundation::render
 
     void MeshRenderer::ReleaseInstance(materials::MaterialInstance& instance)
     {
-        RetireBindGroup(m_materials->DetachBindGroup(&instance));
-        RetireBuffer(m_materials->DetachUniformBuffer(&instance));
-        RetireEffectBuffers(instance);
+        ReleaseBindGroup(m_materials->DetachBindGroup(&instance));
+        ReleaseBuffer(m_materials->DetachUniformBuffer(&instance));
+        ReleaseEffectBuffers(instance);
     }
 
-    void MeshRenderer::RetireEffectBuffers(materials::MaterialInstance& instance)
+    void MeshRenderer::ReleaseEffectBuffers(materials::MaterialInstance& instance)
     {
         Array<rhi::BufferHandle> buffers(*m_allocator);
         m_materials->DetachEffectBuffers(&instance, buffers);
         for (rhi::BufferHandle buffer : buffers)
         {
-            RetireBuffer(buffer);
+            ReleaseBuffer(buffer);
         }
     }
 
@@ -2589,12 +2537,9 @@ namespace foundation::render
         return layout;
     }
 
-    void MeshRenderer::RetireBindGroup(rhi::BindGroupHandle bg)
+    void MeshRenderer::ReleaseBindGroup(rhi::BindGroupHandle bg)
     {
-        if (bg.IsValid())
-        {
-            m_retiredBGs.PushBack(RetiredBG{bg, m_framesInFlight});
-        }
+        m_device->DestroyBindGroup(bg); // kept by the device while a frame in flight uses it
     }
 
     void MeshRenderer::PruneStaleMaterialInstances()
@@ -2606,9 +2551,9 @@ namespace foundation::render
             materials::Material* material = inst->GetMaterial();
             if (material != nullptr && material->RefCount() <= 1)
             {
-                RetireBindGroup(m_materials->DetachBindGroup(inst));
-                RetireBuffer(m_materials->DetachUniformBuffer(inst));
-                RetireEffectBuffers(*inst);
+                ReleaseBindGroup(m_materials->DetachBindGroup(inst));
+                ReleaseBuffer(m_materials->DetachUniformBuffer(inst));
+                ReleaseEffectBuffers(*inst);
                 m_instances.Remove(material->uid);
                 continue; // dropping the UniquePtr slot destroys the instance (bind group already detached)
             }
@@ -2621,46 +2566,9 @@ namespace foundation::render
         m_instanceStorage.Resize(w);
     }
 
-    void MeshRenderer::TickRetiredBindGroups()
+    void MeshRenderer::ReleaseBuffer(rhi::BufferHandle buffer)
     {
-        usize w = 0;
-        for (usize i = 0; i < m_retiredBGs.Size(); ++i)
-        {
-            RetiredBG r = m_retiredBGs[i];
-            if (r.framesLeft <= 1)
-            {
-                m_device->DestroyBindGroup(r.bg);
-            }
-            else
-            {
-                r.framesLeft -= 1;
-                m_retiredBGs[w++] = r;
-            }
-        }
-        m_retiredBGs.Resize(w);
-        w = 0;
-        for (usize i = 0; i < m_retiredBuffers.Size(); ++i)
-        {
-            RetiredBuffer r = m_retiredBuffers[i];
-            if (r.framesLeft <= 1)
-            {
-                m_device->DestroyBuffer(r.buffer);
-            }
-            else
-            {
-                r.framesLeft -= 1;
-                m_retiredBuffers[w++] = r;
-            }
-        }
-        m_retiredBuffers.Resize(w);
-    }
-
-    void MeshRenderer::RetireBuffer(rhi::BufferHandle buffer)
-    {
-        if (buffer.IsValid())
-        {
-            m_retiredBuffers.PushBack(RetiredBuffer{buffer, m_framesInFlight});
-        }
+        m_device->DestroyBuffer(buffer); // kept by the device while a frame in flight uses it
     }
 
     bool MeshRenderer::EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayoutHandle layout,
@@ -2671,7 +2579,7 @@ namespace foundation::render
         {
             return true;
         }
-        RetireBindGroup(bg);
+        ReleaseBindGroup(bg);
         bg = {};
         rhi::BufferHandle buffer = ring.Buffer();
         if (!buffer.IsValid())
@@ -2737,7 +2645,7 @@ namespace foundation::render
             m_viewBG = slot.bg;
             return true;
         }
-        RetireBindGroup(slot.bg);
+        ReleaseBindGroup(slot.bg);
         slot.bg = {};
         m_viewBG = {};
         rhi::BufferHandle viewBuf = m_viewRing.Buffer();
@@ -2964,7 +2872,7 @@ namespace foundation::render
         {
             return true;
         }
-        RetireBindGroup(m_shadowViewBG);
+        ReleaseBindGroup(m_shadowViewBG);
         m_shadowViewBG = {};
         rhi::BufferHandle buf = m_shadowViewRing.Buffer();
         rhi::BufferHandle boneBuf = m_boneDevice; // shared device mirror (same as the forward set 0)
@@ -3089,16 +2997,6 @@ namespace foundation::render
         m_instanceStorage.Clear();
         m_defaultMaterial.Reset();
         m_meshes.Clear();
-        for (RetiredBG& r : m_retiredBGs)
-        {
-            m_device->DestroyBindGroup(r.bg);
-        }
-        m_retiredBGs.Clear();
-        for (RetiredBuffer& r : m_retiredBuffers)
-        {
-            m_device->DestroyBuffer(r.buffer);
-        }
-        m_retiredBuffers.Clear();
         for (ViewBGSlot& slot : m_viewBGs)
         {
             if (slot.bg.IsValid())

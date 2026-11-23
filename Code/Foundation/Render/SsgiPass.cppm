@@ -39,7 +39,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The SSGI passes' push blocks (ssgi, ssgi_down, ssgi_blur and ssgi_resolve .ps.hlsl);
     // Integration.ShaderBlocks checks each against the compiled shader, member by member.
     // Laid out byte for byte as the HLSL SsgiPush.
@@ -225,10 +224,6 @@ export namespace foundation::render
         static u64 Combine(rendergraph::RenderGraph& g, rendergraph::RGHandle a,
                            rendergraph::RGHandle b, rendergraph::RGHandle c);
 
-        // Advance the deferred-free list once per frame (replaced sets must outlive
-        // in-flight frames, as in :ssr).
-        void Tick(u32 frameIndex);
-
         // Downsample bind group (full-res hdr and linear sampler), cached by (hdr view, gen).
         rhi::BindGroupHandle EnsureDownBindGroup(rhi::TextureViewHandle hdr, u64 generation);
 
@@ -270,12 +265,6 @@ export namespace foundation::render
             rhi::TextureViewHandle depth{};
             u64 gen = 0;
         };
-        struct Retired
-        {
-            rhi::BindGroupHandle bg{};
-            u32 left = 0;
-        };
-        static constexpr u32 kRetireFrames = 4;
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
@@ -302,8 +291,6 @@ export namespace foundation::render
         BindGroupCache<5> m_compositeBindGroups;
         u64 m_bindGroupsBuilt = 0;
         rhi::BufferHandle m_dummyShBuffer{}; // bound when the scene has no SH sky (never read)
-        Array<Retired> m_retired;
-        u32 m_lastFrame = 0xFFFFFFFFu;
     };
 
 } // namespace foundation::render

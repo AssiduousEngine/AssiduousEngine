@@ -61,128 +61,6 @@ export namespace foundation::render
         return rhi::TextureFormat::Undefined;
     }
 
-    /// Frames-in-flight deferred GPU destruction: the web-safe alternative to a grow-path
-    /// `WaitIdle` (on web the wait pumps the browser event loop mid-frame, which expires
-    /// the canvas texture and drops the whole frame's submit). A replaced resource is
-    /// retired instead: it stays alive until every frame that could reference it has aged
-    /// out, then frees on Tick().
-    /// One queue per owner (the render subsystem shares one across its systems);
-    /// consumers fall back to WaitIdle when no queue is wired, so standalone and test use
-    /// keeps working.
-    class GpuRetireQueue
-    {
-    public:
-        void Initialize(rhi::Device* device, i32 framesInFlight)
-        {
-            m_device = device;
-            // +1: an entry retired during frame N is safe once N's whole ring has cycled.
-            m_age = Max(framesInFlight, 1) + 1;
-        }
-
-        void Retire(rhi::BufferHandle buffer)
-        {
-            if (buffer.IsValid())
-            {
-                m_entries.PushBack(Entry{{}, {}, {}, buffer, m_age});
-            }
-        }
-        void Retire(rhi::TextureHandle texture)
-        {
-            if (texture.IsValid())
-            {
-                m_entries.PushBack(Entry{texture, {}, {}, {}, m_age});
-            }
-        }
-        void Retire(rhi::TextureViewHandle view)
-        {
-            if (view.IsValid())
-            {
-                m_entries.PushBack(Entry{{}, view, {}, {}, m_age});
-            }
-        }
-        void Retire(rhi::BindGroupHandle bindGroup)
-        {
-            if (bindGroup.IsValid())
-            {
-                m_entries.PushBack(Entry{{}, {}, bindGroup, {}, m_age});
-            }
-        }
-
-        /// Age everything one frame; free what has outlived every in-flight frame.
-        /// Call once per frame, before or after the frame's submits; the +1 margin
-        /// covers either placement.
-        void Tick()
-        {
-            if (m_device == nullptr)
-            {
-                return;
-            }
-            for (usize i = m_entries.Size(); i-- > 0;)
-            {
-                Entry& entry = m_entries[i];
-                if (--entry.framesLeft > 0)
-                {
-                    continue;
-                }
-                Free(entry);
-                m_entries.RemoveAt(i);
-            }
-        }
-
-        /// Destroy everything now (shutdown; the caller has idled the GPU).
-        void Flush()
-        {
-            if (m_device == nullptr)
-            {
-                m_entries.Clear();
-                return;
-            }
-            for (Entry& entry : m_entries)
-            {
-                Free(entry);
-            }
-            m_entries.Clear();
-        }
-
-        [[nodiscard]] usize PendingCount() const { return m_entries.Size(); }
-
-    private:
-        struct Entry
-        {
-            rhi::TextureHandle texture{};
-            rhi::TextureViewHandle view{};
-            rhi::BindGroupHandle bindGroup{};
-            rhi::BufferHandle buffer{};
-            i32 framesLeft = 0;
-        };
-
-        void Free(Entry& entry)
-        {
-            // Views before their textures; bind groups before the buffers they reference.
-            if (entry.view.IsValid())
-            {
-                m_device->DestroyTextureView(entry.view);
-            }
-            if (entry.texture.IsValid())
-            {
-                m_device->DestroyTexture(entry.texture);
-            }
-            if (entry.bindGroup.IsValid())
-            {
-                m_device->DestroyBindGroup(entry.bindGroup);
-            }
-            if (entry.buffer.IsValid())
-            {
-                m_device->DestroyBuffer(entry.buffer);
-            }
-        }
-
-        rhi::Device* m_device = nullptr;
-        i32 m_age = 3;
-        Array<Entry> m_entries;
-    };
-
-
     // A chunked GPU buffer sub-allocator: hands out (buffer, offset) ranges from large shared
     // chunks instead of one buffer per allocation (no per-mesh buffers). A range freed (Free, once
     // the GPU is done with it) is reused by a later allocation that fits; otherwise allocations go
@@ -382,8 +260,9 @@ export namespace foundation::render
         DynamicUniformRing(const DynamicUniformRing&) = delete;
         DynamicUniformRing& operator=(const DynamicUniformRing&) = delete;
 
-        // Ensure each frame region holds at least `slotsPerFrame` slots. Grows by reallocating
-        // (draining the GPU first); never shrinks. Returns false if the buffer can't be created.
+        // Ensure each frame region holds at least `slotsPerFrame` slots. Grows by reallocating (the
+        // device frees the old buffer once no frame in flight uses it); never shrinks. Returns
+        // false if the buffer can't be created.
         bool Reserve(u32 slotsPerFrame)
         {
             if (slotsPerFrame <= m_slotsPerFrame && m_buffer.IsValid())
@@ -395,17 +274,6 @@ export namespace foundation::render
                 slotsPerFrame = 1;
             }
 
-            // An in-flight frame may still reference the old buffer: retire it when a
-            // queue is wired (web-safe), otherwise drain (standalone and test use).
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(m_buffer);
-                m_buffer = {};
-            }
-            else
-            {
-                m_device->WaitIdle();
-            }
             Release();
 
             rhi::BufferDesc bd{};
@@ -535,9 +403,6 @@ export namespace foundation::render
         }
         [[nodiscard]] u32 Generation() const noexcept { return m_generation; } // bumps on realloc
 
-        /// Wire the frames-in-flight retire queue (web-safe grows). Null means drain on grow.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
     private:
         void Release()
         {
@@ -552,7 +417,6 @@ export namespace foundation::render
         rhi::Device* m_device;
         rhi::BufferUsage m_usage;
         const char8_t* m_label;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         rhi::BufferHandle m_buffer{};
         u8* m_mapped = nullptr;
         u32 m_framesInFlight;
@@ -583,8 +447,6 @@ export namespace foundation::render
               m_label(label), m_slotSize(slotSize), m_wanted(minViews < 1 ? 1 : minViews)
         {
         }
-
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_ring.SetRetireQueue(retire); }
 
         /// Starts a frame: the ring holds every view the last frame asked for, and `extraViews`
         /// more the caller knows this frame adds (views that cannot miss a frame).

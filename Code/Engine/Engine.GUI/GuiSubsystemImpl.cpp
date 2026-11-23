@@ -445,7 +445,6 @@ namespace engine::gui
         return placement;
     }
 
-
     REFLECT_ENUM(GuiCanvasRenderMode, "rtti::engine::gui")
     {
         builder.Value("ScreenOverlay", GuiCanvasRenderMode::ScreenOverlay);
@@ -603,9 +602,7 @@ namespace engine::gui
 
     struct GuiSubsystem::RenderState
     {
-
         rhi::Device* Device = nullptr;
-        render::GpuRetireQueue* RetireQueue = nullptr; // borrowed; null means waiting for the GPU
         VgShaderLibrary Shaders;
         UniquePtr<GuiPassRenderer> Renderer;
         // What PrepareOverlay recorded for the screen tier, and for which view.
@@ -644,22 +641,8 @@ namespace engine::gui
             for (const UniquePtr<Target>& target : Targets)
                 Release(*target);
         }
-        // Lets go of `target`'s textures. With a retire queue they live on until the frames in
-        // flight, which may still sample or draw into them, are done; without one the caller has
-        // waited for the GPU.
-        void Retire(Target& target)
-        {
-            if (RetireQueue == nullptr)
-            {
-                Release(target);
-                return;
-            }
-            target.Pass.Retire([this](auto resource) { RetireQueue->Retire(resource); });
-            RetireQueue->Retire(target.Texture);
-            RetireQueue->Retire(target.View);
-            target.Texture = {};
-            target.View = {};
-        }
+        // Lets go of `target`'s textures. Frames in flight may still sample or draw into them: the
+        // device keeps them until those frames are done.
         void Release(Target& target)
         {
             target.Pass.Destroy();
@@ -671,7 +654,8 @@ namespace engine::gui
             target.Texture = {};
         }
         // Returns `root`'s texture at `width` x `height`, making it, or making it again at a new
-        // size. The old texture is retired, because the scene may still sample it.
+        // size. The old texture is destroyed; the device keeps it while the scene's frames in flight
+        // sample it.
         // Returns null when the device makes no texture.
         Target* EnsureTarget(const SceneRoot& root, scene::Scene& scene, scene::EntityHandle entity, u32 width, u32 height,
                              IAllocator& allocator)
@@ -693,11 +677,7 @@ namespace engine::gui
             if (found->Texture.IsValid() && found->Width == width && found->Height == height)
                 return found;
             if (found->Texture.IsValid())
-            {
-                if (RetireQueue == nullptr)
-                    Device->WaitIdle();
-                Retire(*found);
-            }
+                Release(*found);
             if (!Device->CreateTexture(rhi::TextureDesc::RenderTarget(kTextureFormat, width, height, 1, u8"GUI texture"), found->Texture).IsOk())
             {
                 found->Texture = {};
@@ -1701,13 +1681,12 @@ namespace engine::gui
         m_input->ForEachActionRuntime([](foundation::input::ActionRuntime& runtime) { runtime.SetConsumptionMask({}); });
     }
 
-    void GuiSubsystem::EnsureRenderReady(rhi::Device& device, i32 frameCount, render::GpuRetireQueue* retire)
+    void GuiSubsystem::EnsureRenderReady(rhi::Device& device, i32 frameCount)
     {
         if (m_render && m_render->Device != nullptr)
             return;
         m_render = MakeUnique<RenderState>(m_allocator, m_allocator, true);
         m_render->Device = &device;
-        m_render->RetireQueue = retire;
         if (!m_render->Shaders.Load(device, *m_dataFileSystem))
         {
             LOG_ERROR(u8"GUI", u8"no shader compiler and no shader pack: the GUI will not draw");
@@ -2227,9 +2206,8 @@ namespace engine::gui
                     });
         }
         // Removes the textures whose canvas or panel has gone. A sprite or decal in a scene that
-        // still exists lets go of such a texture first; then the texture is retired (without a
-        // retire queue, destroyed after one wait for the GPU).
-        bool waited = false;
+        // still exists lets go of such a texture first; then the texture is destroyed (the device
+        // keeps it while a frame in flight samples it).
         for (usize i = m_render->Targets.Size(); i-- > 0;)
         {
             RenderState::Target& target = *m_render->Targets[i];
@@ -2247,12 +2225,7 @@ namespace engine::gui
                     if (auto* decal = decals->Get(target.Entity); decal != nullptr && decal->texture == target.View)
                         decal->texture = {};
             }
-            if (m_render->RetireQueue == nullptr && !waited)
-            {
-                m_render->Device->WaitIdle();
-                waited = true;
-            }
-            m_render->Retire(target);
+            m_render->Release(target);
             m_render->Targets.RemoveAt(i);
         }
     }

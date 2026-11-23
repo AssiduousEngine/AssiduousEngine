@@ -30,7 +30,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The AO passes' push blocks (ao_gtao, ao_ssao, ao_blur and ao_apply .ps.hlsl: GtaoPush,
     // SsaoPush, BlurPush, ApplyPush); Integration.ShaderBlocks checks each against the compiled
     // shader, member by member.
@@ -175,11 +174,6 @@ export namespace foundation::render
         rhi::RenderPipelineHandle MakePipeline(StringView name, rhi::PipelineLayoutHandle layout,
                                           rhi::TextureFormat fmt = kAoFormat);
 
-        // Advance the deferred-free list once per frame, freeing bind groups retired long enough ago to be
-        // idle. The graph aliases transients, so cached sets are replaced mid-frame; a replaced set goes to
-        // the retire list and is freed after kRetireFrames rather than while it may still be in flight.
-        void Tick(u32 frameIndex);
-
         // Two-texture bind group (t0, t1) and sampler, cached by the t0 view and the combined generation.
         // Every AO pass shares the layout: generation binds depth and normal, blur binds AO and depth, apply
         // binds HDR and AO.
@@ -194,13 +188,6 @@ export namespace foundation::render
             rhi::TextureViewHandle b{};
             u64 gen = 0;
         };
-        struct Retired
-        {
-            rhi::BindGroupHandle bg{};
-            u32 left = 0;
-        };
-        static constexpr u32 kRetireFrames =
-            4; // frames-in-flight headroom before a replaced set is idle
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
@@ -216,8 +203,6 @@ export namespace foundation::render
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::SamplerHandle m_sampler{};
         HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
-        Array<Retired> m_retired;
-        u32 m_lastFrame = 0xFFFFFFFFu;
     };
 
 } // namespace foundation::render

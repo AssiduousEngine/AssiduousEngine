@@ -698,23 +698,15 @@ namespace foundation::render
 
     void IBLSystem::ReleasePrefilter(Context& ctx)
     {
-        if (m_retire != nullptr)
+        if (ctx.m_prefilterView.IsValid())
         {
-            m_retire->Retire(ctx.m_prefilterView);
-            m_retire->Retire(ctx.m_prefilterCube);
+            m_device->DestroyTextureView(ctx.m_prefilterView);
         }
-        else
+        if (ctx.m_prefilterCube.IsValid())
         {
-            m_device->WaitIdle();
-            if (ctx.m_prefilterView.IsValid())
-            {
-                m_device->DestroyTextureView(ctx.m_prefilterView);
-            }
-            if (ctx.m_prefilterCube.IsValid())
-            {
-                m_device->DestroyTexture(ctx.m_prefilterCube);
-            }
+            m_device->DestroyTexture(ctx.m_prefilterCube);
         }
+        
         ctx.m_prefilterView = {};
         ctx.m_prefilterCube = {};
     }

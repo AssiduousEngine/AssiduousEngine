@@ -118,7 +118,7 @@ namespace foundation::render
         {
             return cached;
         }
-        RetireBindGroup(*m_device, m_retire, stale); // a frame in flight may still use it
+        m_device->DestroyBindGroup(stale); // kept by the device while a frame in flight uses it
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
             rhi::BindGroupEntry::TextureEntry(inputs.views[1]),

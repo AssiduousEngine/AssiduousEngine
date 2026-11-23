@@ -33,7 +33,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The cluster build's parameters (cbuffer ClusterBuildParams, cluster_build.cs.hlsl): 16-byte
     // rows of scalars, then two row-major matrices. Integration.ShaderBlocks checks it against the
     // compiled shader, member by member.
@@ -106,16 +105,7 @@ export namespace foundation::render
         ClusterBinding DeclareBuild(rendergraph::RenderGraph& graph, const RenderView& view,
                                     u32 frameIndex, u32 viewIndex);
 
-        /// Wire the frames-in-flight retire queue (web-safe buffer grows). Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept
-        {
-            m_retire = retire;
-            m_paramsRing.SetRetireQueue(retire);
-            m_lightRing.SetRetireQueue(retire);
-        }
-
     private:
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         static constexpr u32 kTileSize = 16;
         static constexpr u32 kSliceCount = 24;
         static constexpr u32 kMaxPerCluster =

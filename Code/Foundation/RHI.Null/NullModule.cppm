@@ -16,7 +16,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi::null
 {
-
     // ---- Stub resource classes ----
 
     class NullBuffer : public Buffer
@@ -667,6 +666,7 @@ export namespace foundation::rhi::null
             const NullTextureView* v = m_views.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
+        bool IsLive(TextureViewHandle view) const override { return m_views.Get(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const NullTextureView* v = m_views.Get(view);

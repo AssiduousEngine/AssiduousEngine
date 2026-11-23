@@ -41,7 +41,6 @@ namespace foundation::render
 {
     Status SsrPass::Initialize()
     {
-
         // Bind-group layout: scene (t0), depth (t1), normal (t2), material (t3), a point sampler (s0) for
         // depth and reconstruction, and a linear sampler (s1) for the glossy color cone gather.
         rhi::BindGroupLayoutEntry ge[] = {
@@ -209,7 +208,7 @@ namespace foundation::render
                         rendergraph::RGHandle depth, rendergraph::RGHandle normal,
                         rendergraph::RGHandle material, rendergraph::RGHandle velocity, u32 w,
                         u32 h, i32 vx, i32 vy, u32 vw, u32 vh, const Float4x4& invProj,
-                        const Float4x4& proj, const Params& p, u32 viewIndex, u32 frameIndex)
+                        const Float4x4& proj, const Params& p, u32 viewIndex)
     {
         if (w == 0 || h == 0)
         {
@@ -248,7 +247,6 @@ namespace foundation::render
         {
             return hdr;
         }
-        Tick(frameIndex);
         const f32 fw = static_cast<f32>(w), fh = static_cast<f32>(h);
         const Float2 vpMin{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
         const Float2 vpSize{static_cast<f32>(vw) / fw, static_cast<f32>(vh) / fh};
@@ -447,29 +445,6 @@ namespace foundation::render
         return k;
     }
 
-    void SsrPass::Tick(u32 frameIndex)
-    {
-        if (frameIndex == m_lastFrame)
-        {
-            return;
-        }
-        m_lastFrame = frameIndex;
-        usize w = 0;
-        for (usize i = 0; i < m_retired.Size(); ++i)
-        {
-            if (m_retired[i].left <= 1)
-            {
-                m_device->DestroyBindGroup(m_retired[i].bg);
-            }
-            else
-            {
-                m_retired[i].left -= 1;
-                m_retired[w++] = m_retired[i];
-            }
-        }
-        m_retired.Resize(w);
-    }
-
     rhi::BindGroupHandle SsrPass::EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
                                              rhi::TextureViewHandle normal, rhi::TextureViewHandle material,
                                              u64 generation)
@@ -487,7 +462,7 @@ namespace foundation::render
             }
             if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
+                m_device->DestroyBindGroup(e->bg);
                 e->bg = {};
             }
         }
@@ -524,7 +499,7 @@ namespace foundation::render
         }
         if (stale.IsValid())
         {
-            m_retired.PushBack(Retired{stale, kRetireFrames}); // a frame in flight may still use it
+            m_device->DestroyBindGroup(stale); // kept by the device while a frame in flight uses it
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
@@ -557,11 +532,6 @@ namespace foundation::render
         }
         m_bindGroups.Clear();
         m_resolveBindGroups.Release([this](rhi::BindGroupHandle bg) { m_device->DestroyBindGroup(bg); });
-        for (auto& r : m_retired)
-        {
-            m_device->DestroyBindGroup(r.bg);
-        }
-        m_retired.Clear();
         for (ViewHistory& hist : m_views)
         {
             DestroyHistory(hist);

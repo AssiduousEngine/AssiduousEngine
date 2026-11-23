@@ -3,7 +3,8 @@
 
 // MultiMesh set lifecycle and the per-item shadow opt-out, the two renderer contracts
 // vegetation stands on: a set unseen for kMultiMeshEvictFrames leaves the renderer's pool
-// (its buffers and bind groups through the retire queue when one is wired), and a RenderData
+// (its buffers and bind groups destroyed through the device, which keeps them while frames in flight
+// use them), and a RenderData
 // with castShadows = false is absent from the shadow caster list.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
@@ -74,7 +75,7 @@ namespace
     }
 }
 
-TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, retired when a queue is wired")
+TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, its GPU objects destroyed")
 {
     Systems s;
     if (!s.Init())
@@ -88,9 +89,6 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     REQUIRE(materialSystem.Initialize(s.device).IsOk());
     MeshRenderer renderer(DefaultAllocator(), s.device, shaderSystem, psoCache, materialSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
-    GpuRetireQueue retire;
-    retire.Initialize(&s.device, 2);
-    renderer.SetRetireQueue(&retire);
 
     RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
     RefPtr<materials::Material> material =
@@ -106,7 +104,8 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     renderer.PrepareFrame(2, 0);
     UploadOne(renderer, seen);
     CHECK(renderer.MultiMeshSetCount() == 2u);
-    const usize pendingAfterUpload = retire.PendingCount();
+    const u32 buffersAfterUpload = s.device.m_buffers.Size();
+    const u32 groupsAfterUpload = s.device.m_bindGroups.Size();
 
     // Set 0x22 keeps being extracted; 0x11 vanishes (its chunk left the camera's range).
     ExtractedScene partial{DefaultAllocator()};
@@ -121,8 +120,9 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     renderer.PrepareFrame(2, 0);
     UploadOne(renderer, partial); // one past the window
     CHECK(renderer.MultiMeshSetCount() == 1u);
-    // Its buffer and the two region bind groups went through the queue, not vkDestroy in place.
-    CHECK(retire.PendingCount() >= pendingAfterUpload + 3u);
+    // Its buffer and the two region bind groups left the device's tables (destroyed, not leaked).
+    CHECK(s.device.m_buffers.Size() < buffersAfterUpload);
+    CHECK(s.device.m_bindGroups.Size() + 2u <= groupsAfterUpload);
 
     // An empty frame still ages: the survivor goes too once unseen long enough.
     ExtractedScene empty{DefaultAllocator()};
@@ -137,8 +137,6 @@ TEST_CASE("multimesh: a set unseen for kMultiMeshEvictFrames leaves the pool, re
     renderer.PrepareFrame(2, 0);
     UploadOne(renderer, seen);
     CHECK(renderer.MultiMeshSetCount() == 2u);
-    retire.Flush();
-    renderer.SetRetireQueue(nullptr);
 }
 
 TEST_CASE("shadows: castShadows = false keeps an Opaque item out of the caster list")

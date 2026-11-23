@@ -32,7 +32,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi
 {
-
     // ---- Backend ----
 
     /// The windowing system that produced a native window's handles. Passed to CreateSurface so the backend
@@ -238,6 +237,9 @@ export namespace foundation::rhi
         [[nodiscard]] virtual const TextureDesc* Describe(TextureHandle texture) const = 0;
         /// What the view was created with; null for a stale handle.
         [[nodiscard]] virtual const TextureViewDesc* Describe(TextureViewHandle view) const = 0;
+        /// Whether `view` names a live view. Never reported as a stale use: a cache keyed on views
+        /// asks it to drop the entries of views their owners have destroyed.
+        [[nodiscard]] virtual bool IsLive(TextureViewHandle view) const = 0;
         /// The texture a view is of; invalid for a stale handle.
         [[nodiscard]] virtual TextureHandle TextureOf(TextureViewHandle view) const = 0;
         /// What the sampler was created with; null for a stale handle.

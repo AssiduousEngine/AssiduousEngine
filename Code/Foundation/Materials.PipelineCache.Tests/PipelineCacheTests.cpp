@@ -68,18 +68,16 @@ TEST_CASE("pso cache: builds + caches a pipeline; shader reload rebuilds via ver
     rhi::RenderPipelineHandle p1 = cache.GetPipeline(config, layout);
     CHECK(p1 == p0);
     CHECK(cache.Size() == 1);
-    CHECK(cache.RetiredCount() == 0);
+    const u32 live = device.m_renderPipelines.Size();
 
-    // reload the shader: the version bumps, so the next GetPipeline rebuilds and retires the old PSO
+    // reload the shader: the version bumps, so the next GetPipeline rebuilds and destroys the old
+    // PSO (the device keeps it while a frame in flight draws with it)
     shaderSystem.InvalidateShader(u8"forward");
     rhi::RenderPipelineHandle p2 = cache.GetPipeline(config, layout);
     REQUIRE(p2.IsValid());
-    CHECK(p2 != p0);                  // rebuilt against the new shader
-    CHECK(cache.Size() == 1);         // same key, replaced in place
-    CHECK(cache.RetiredCount() == 1); // stale pipeline retired, awaiting GPU-safe free
-
-    cache.ReleaseRetired();
-    CHECK(cache.RetiredCount() == 0);
+    CHECK(p2 != p0);          // rebuilt against the new shader
+    CHECK(cache.Size() == 1); // same key, replaced in place
+    CHECK(device.m_renderPipelines.Size() == live); // the stale one left the device's table
 
     // versions are per shader: invalidating another shader rebuilds nothing here
     rhi::RenderPipelineHandle pOther =
@@ -88,7 +86,6 @@ TEST_CASE("pso cache: builds + caches a pipeline; shader reload rebuilds via ver
     shaderSystem.InvalidateShader(u8"other");
     CHECK(cache.GetPipeline(config, layout) == p2);
     CHECK(cache.GetPipeline(PipelineConfig::ForOpaqueMesh(u8"other"), layout) != pOther);
-    cache.ReleaseRetired();
 
     // a distinct render state is a distinct cache entry
     rhi::RenderPipelineHandle pT =
@@ -136,7 +133,7 @@ TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits
     shaderSystem.SetCookedPack(&pack);
     rhi::PipelineLayoutHandle layout{};
     REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
-    PipelineStateCache cache(shaderSystem, device, /*framesInFlight*/ 2);
+    PipelineStateCache cache(shaderSystem, device);
 
     // Two depth passes apart only in their slope bias are two pipelines (the hash left it out, so
     // they were one).
@@ -170,14 +167,11 @@ TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits
     (void)cache.GetPipeline(broken, layout);
     CHECK(cache.BuildAttempts() == tried + 1u);
 
-    // A pipeline a reload superseded lives through the frames in flight, then goes.
+    // A pipeline a reload superseded is destroyed as its replacement is made.
+    const u32 before = device.m_renderPipelines.Size();
     shaderSystem.InvalidateShader(u8"shadow");
     REQUIRE(cache.GetPipeline(caster, layout) != a);
-    CHECK(cache.RetiredCount() == 1u);
-    cache.TickRetired();
-    CHECK(cache.RetiredCount() == 1u); // one frame in flight may still draw with it
-    cache.TickRetired();
-    CHECK(cache.RetiredCount() == 0u);
+    CHECK(device.m_renderPipelines.Size() == before);
 
     cache.Clear();
     device.DestroyPipelineLayout(layout);

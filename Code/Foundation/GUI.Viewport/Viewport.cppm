@@ -182,7 +182,8 @@ export namespace foundation::gui
             {
                 if (m_registered && m_renderer != nullptr)
                 {
-                    m_device->WaitIdle(); // wait, because frames in flight sample it through the old renderer's registration
+                    // Frames in flight may sample it through the old renderer's registration: the
+                    // device keeps what that held until they are done.
                     m_renderer->UnregisterExternalTexture(m_key.Get());
                     m_registered = false;
                 }
@@ -321,8 +322,6 @@ export namespace foundation::gui
                 m_height = height;
                 return;
             }
-            if (m_colorTexture.IsValid() || m_depthTexture.IsValid())
-                m_device->WaitIdle(); // wait, because frames in flight sample the old targets
             if (m_registered && m_renderer != nullptr)
             {
                 m_renderer->UnregisterExternalTexture(m_key.Get());
@@ -388,8 +387,6 @@ export namespace foundation::gui
         }
         void ReleaseTargets()
         {
-            if (m_device != nullptr && (m_colorTexture.IsValid() || m_depthTexture.IsValid()))
-                m_device->WaitIdle();
             if (m_registered && m_renderer != nullptr)
                 m_renderer->UnregisterExternalTexture(m_key.Get());
             m_registered = false;

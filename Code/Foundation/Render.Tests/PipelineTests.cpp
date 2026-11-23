@@ -30,7 +30,6 @@ namespace shaders = foundation::shaders;
 
 namespace
 {
-
     // Engine built-in shaders live as files under the data root's Shaders/;
     // tests wire the same dev file provider the RenderSubsystem does.
     shaders::FileShaderSourceProvider& EngineShaderProvider()
@@ -1413,18 +1412,19 @@ TEST_CASE("ReflectionProbeSystem accumulates per-scene ranges (multi-scene frame
     CHECK(probes.Captures().Size() == 0u);
 
     // Another resolution (a quality level's environment tier): the next frame remakes both arrays at
-    // it, retiring the old ones, and every probe is captured again, once.
-    GpuRetireQueue retire;
-    retire.Initialize(&h.device, /*framesInFlight*/ 2);
-    probes.SetRetireQueue(&retire);
+    // it, destroying the old ones (the device keeps them while frames in flight sample them), and
+    // every probe is captured again, once.
     REQUIRE(h.device.Describe(h.device.TextureOf(probes.PrefilterArrayView()))->width == 128u);
+    const rhi::TextureViewHandle oldPrefilter = probes.PrefilterArrayView();
+    const rhi::TextureViewHandle oldCaptured = probes.CapturedSampleView();
     probes.SetResolution(64);
     probes.BeginFrame();
     probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
     probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
     CHECK(h.device.Describe(h.device.TextureOf(probes.PrefilterArrayView()))->width == 64u);
     CHECK(h.device.Describe(h.device.TextureOf(probes.CapturedSampleView()))->width == 64u);
-    CHECK(retire.PendingCount() == 4u); // the two arrays and their two array views
+    CHECK_FALSE(h.device.IsLive(oldPrefilter)); // the old arrays and their views are gone
+    CHECK_FALSE(h.device.IsLive(oldCaptured));
     CHECK(probes.Captures().Size() == 3u);
     for (const ReflectionProbeSystem::CaptureTask& t : probes.Captures())
     {
@@ -1434,8 +1434,6 @@ TEST_CASE("ReflectionProbeSystem accumulates per-scene ranges (multi-scene frame
     probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
     probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
     CHECK(probes.Captures().Size() == 0u);
-    retire.Flush();
-    probes.SetRetireQueue(nullptr);
 }
 
 TEST_CASE("ReflectionProbeSystem hands the slot of a probe gone to the next probe")
@@ -1629,11 +1627,11 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
     CHECK(ctxB->Generation() > genB);
 
     // Another environment resolution (a quality level's): each context remakes its prefiltered cube
-    // at it, the old one retired rather than freed in flight, and bakes once more; then rests.
-    GpuRetireQueue retire;
-    retire.Initialize(&h.device, /*framesInFlight*/ 2);
-    ibl.SetRetireQueue(&retire);
+    // at it, destroying the old one (the device keeps it while frames in flight sample it), and
+    // bakes once more; then rests.
     REQUIRE(h.device.Describe(h.device.TextureOf(ctxA->PrefilterView()))->width == 256u);
+    const rhi::TextureViewHandle oldA = ctxA->PrefilterView();
+    const rhi::TextureViewHandle oldB = ctxB->PrefilterView();
     ibl.SetPrefilterResolution(128);
     {
         foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
@@ -1644,7 +1642,8 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
     }
     CHECK(h.device.Describe(h.device.TextureOf(ctxA->PrefilterView()))->width == 128u);
     CHECK(h.device.Describe(h.device.TextureOf(ctxB->PrefilterView()))->width == 128u);
-    CHECK(retire.PendingCount() == 4u); // each context's old cube and its view
+    CHECK_FALSE(h.device.IsLive(oldA)); // each context's old cube view is gone
+    CHECK_FALSE(h.device.IsLive(oldB));
     {
         foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
         ibl.BeginFrame(graph);
@@ -1652,8 +1651,6 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
         (void)ibl.Prepare(&sceneB, hdr, sun, graph);
         CHECK(prefilterPasses(graph) == 0u);
     }
-    retire.Flush();
-    ibl.SetRetireQueue(nullptr);
 
     h.device.DestroyTextureView(view);
     h.device.DestroyTexture(tex);

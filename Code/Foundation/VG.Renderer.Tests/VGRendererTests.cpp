@@ -349,19 +349,16 @@ TEST_CASE("vg.renderer: batch eviction retires cached textures until frames age 
     CHECK(cachedAfterDraw >= 2u); // white + the LUT
 
     // The producer announces the LUT's death through the batch's eviction list: the
-    // entry must leave the cache immediately (the address may be recycled this frame)
-    // but its GPU resources retire until every in-flight frame has aged past them.
+    // entry leaves the cache immediately (the address may be recycled this frame) and its
+    // GPU objects are destroyed (the device keeps them while in-flight frames use them).
     const foundation::image::ImageData* lut = ctx.GetBatch().textures[1];
+    const u32 texturesBefore = device.m_textures.Size();
     VGBatch evictionBatch;
     evictionBatch.evictedTextures.PushBack(lut);
     renderer.BeginFrame(1);
     (void)renderer.Prepare(evictionBatch, 1, 800, 600); // empty batch: evictions still apply
     CHECK(renderer.CachedTextureCount() == cachedAfterDraw - 1u);
-    CHECK(renderer.RetiredTextureCount() == 1u);
-
-    renderer.BeginFrame(0);
-    renderer.BeginFrame(1); // frameCount=2: two BeginFrames age the retiree out
-    CHECK(renderer.RetiredTextureCount() == 0u);
+    CHECK(device.m_textures.Size() == texturesBefore - 1u); // the LUT's texture left the device's table
 
     renderer.Dispose();
     device.DestroyShaderModule(vs);
@@ -692,7 +689,6 @@ TEST_CASE("vg.renderer: every blend x draw mode, stencil phase x rule x clip, an
     device.DestroyShaderModule(fs);
     device.DestroyShaderModule(vs);
 }
-
 
 TEST_CASE("vg.renderer: layers draw into targets of their own, then composite into what holds them")
 {

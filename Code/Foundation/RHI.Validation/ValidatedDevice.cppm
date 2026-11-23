@@ -20,7 +20,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi::validation
 {
-
     class ValidatedDevice : public Device
     {
     public:
@@ -445,6 +444,7 @@ export namespace foundation::rhi::validation
                 m_views.ReportStale("Describe", v);
             return desc;
         }
+        bool IsLive(TextureViewHandle v) const override { return m_inner->IsLive(v); }
         TextureHandle TextureOf(TextureViewHandle v) const override
         {
             const TextureHandle texture = m_inner->TextureOf(v);

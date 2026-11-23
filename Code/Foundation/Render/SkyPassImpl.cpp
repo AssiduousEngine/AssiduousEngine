@@ -77,25 +77,6 @@ namespace foundation::render
                              u32 vpH, u32 frameIndex, u32 viewIndex, u64 envUid, u32 samples,
                              rendergraph::RGSubresourceRange colorSub)
     {
-        // Drain retired pipelines once per frame (idle after kRetireFrames); see RetiredPipe.
-        if (frameIndex != m_lastRetireFrame)
-        {
-            m_lastRetireFrame = frameIndex;
-            usize w = 0;
-            for (usize i = 0; i < m_retiredPipes.Size(); ++i)
-            {
-                if (m_retiredPipes[i].left <= 1)
-                {
-                    m_device->DestroyRenderPipeline(m_retiredPipes[i].p);
-                }
-                else
-                {
-                    m_retiredPipes[i].left -= 1;
-                    m_retiredPipes[w++] = m_retiredPipes[i];
-                }
-            }
-            m_retiredPipes.Resize(w);
-        }
         rhi::RenderPipelineHandle pipeline = EnsurePipeline(colorFormat, depthFormat, samples);
         if (!pipeline.IsValid() || !envView.IsValid())
         {
@@ -169,11 +150,9 @@ namespace foundation::render
         }
         if (m_pipeline.IsValid())
         {
-            // A rebuild (shader reload or MSAA sample-count toggle) may retire a pipeline still
-            // referenced by in-flight command buffers, so defer its free by kRetireFrames (drained per
-            // frame in DeclareSky) rather than WaitIdle on the render path, which the web cannot afford.
-            m_retiredPipes.PushBack(RetiredPipe{m_pipeline, kRetireFrames});
-            m_pipeline = {};
+            // A rebuild (shader reload or MSAA sample-count toggle): in-flight command buffers may
+            // still use the old pipeline, which the device keeps until they are done.
+            m_device->DestroyRenderPipeline(m_pipeline);
         }
 
         // 2 targets: color (matches the HDR target) and velocity (camera motion, for TAA). No blend.
@@ -279,14 +258,6 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_pipeline);
             m_pipeline = {};
         }
-        for (RetiredPipe& r : m_retiredPipes)
-        {
-            if (r.p.IsValid())
-            {
-                m_device->DestroyRenderPipeline(r.p);
-            }
-        }
-        m_retiredPipes.Clear();
         if (m_sampler)
         {
             m_device->DestroySampler(m_sampler);

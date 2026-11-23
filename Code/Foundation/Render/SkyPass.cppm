@@ -115,16 +115,6 @@ export namespace foundation::render
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;
         u32 m_pipelineSampleCount = 1; // scene-pass MSAA count the cached pipeline was built for
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        // Deferred pipeline free: a rebuild (shader reload or MSAA-count toggle) retires the old pipeline
-        // here and DeclareSky drains it after kRetireFrames, never freeing one still in-flight.
-        struct RetiredPipe
-        {
-            rhi::RenderPipelineHandle p{};
-            u32 left = 0;
-        };
-        static constexpr u32 kRetireFrames = 3;
-        Array<RetiredPipe> m_retiredPipes;
-        u32 m_lastRetireFrame = 0xFFFFFFFFu;
         rhi::SamplerHandle m_sampler{};
         ViewSlots<Slot> m_slots; // per (view, frame in flight), however many views a frame has
     };

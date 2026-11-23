@@ -273,9 +273,8 @@ export namespace foundation::gui
                 m_baker->AddTarget(data->Renderer);
 
             GuiWindowData* raw = data.Get();
-            // The payload is replaced while frames in flight may use it, so wait for them first.
-            if (window.Data() != nullptr)
-                m_device.Raw()->WaitIdle();
+            // The payload is replaced while frames in flight may use it: the device keeps its GPU
+            // objects until they are done.
             window.SetData(Move(data));
             m_attached.PushBack(Attached{&window, raw});
             AddPane(window, Move(root), Rectangle{});

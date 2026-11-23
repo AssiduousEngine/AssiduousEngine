@@ -32,7 +32,6 @@ namespace foundation::render
 {
     Status AoPass::Initialize()
     {
-
         // Shared bind-group layout: two sampled textures (t0, t1) and a sampler (s0).
         rhi::BindGroupLayoutEntry ge[] = {
             rhi::BindGroupLayoutEntry::SampledTexture(0, rhi::ShaderStage::Fragment),
@@ -128,7 +127,6 @@ namespace foundation::render
         {
             return {};
         }
-        Tick(frameIndex);
         const Float2 texel{1.0f / static_cast<f32>(w), 1.0f / static_cast<f32>(h)};
         // The view's rectangle in full-texture uv: the projection maps it, not the whole texture.
         const f32 fw = static_cast<f32>(w), fh = static_cast<f32>(h);
@@ -351,29 +349,6 @@ namespace foundation::render
         return p;
     }
 
-    void AoPass::Tick(u32 frameIndex)
-    {
-        if (frameIndex == m_lastFrame)
-        {
-            return;
-        }
-        m_lastFrame = frameIndex;
-        usize w = 0;
-        for (usize i = 0; i < m_retired.Size(); ++i)
-        {
-            if (m_retired[i].left <= 1)
-            {
-                m_device->DestroyBindGroup(m_retired[i].bg);
-            }
-            else
-            {
-                m_retired[i].left -= 1;
-                m_retired[w++] = m_retired[i];
-            }
-        }
-        m_retired.Resize(w);
-    }
-
     rhi::BindGroupHandle AoPass::EnsureBindGroup(rhi::TextureViewHandle a, rhi::TextureViewHandle bView,
                                             u64 generation)
     {
@@ -389,9 +364,9 @@ namespace foundation::render
             }
             if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
+                m_device->DestroyBindGroup(e->bg);
                 e->bg = {};
-            } // defer-free (in-flight)
+            }
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(a),
@@ -420,11 +395,6 @@ namespace foundation::render
             }
         }
         m_bindGroups.Clear();
-        for (auto& r : m_retired)
-        {
-            m_device->DestroyBindGroup(r.bg);
-        }
-        m_retired.Clear();
         if (m_gtaoPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_gtaoPipeline);

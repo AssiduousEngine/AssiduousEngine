@@ -28,7 +28,7 @@ import foundation.fonts;          // IFontService
 import foundation.fonts.resource; // Font products (the project's fonts)
 import foundation.texture.resource;
 import foundation.render.api;
-import foundation.render; // GpuRetireQueue
+import foundation.render;
 import foundation.shell;
 import foundation.input;
 import engine.input;
@@ -1076,14 +1076,12 @@ namespace
     };
 }
 
-TEST_CASE("engine.gui: removed and resized textures are retired for the frames in flight, never waited for")
+TEST_CASE("engine.gui: removed and resized textures are destroyed through the device, never waited for")
 {
     WaitCountingDevice device{DefaultAllocator()}; // outlives the GUI that draws on it
-    foundation::render::GpuRetireQueue retire;
-    retire.Initialize(&device, 2);
     {
         Engine engine;
-        engine.gui->EnsureRenderReady(device, 2, &retire);
+        engine.gui->EnsureRenderReady(device, 2);
         REQUIRE(engine.gui->IsRenderReady());
         scene::Scene* level = engine.scenes.CreateScene(u8"level");
         level->AddSystem<engine::render::SpriteComponentManager>();
@@ -1104,31 +1102,26 @@ TEST_CASE("engine.gui: removed and resized textures are retired for the frames i
         engine.gui->RenderTextures(encoder, 0);
         REQUIRE(engine.gui->TextureCount() == 3u);
         const u32 waitsBefore = device.waits;
+        const u32 texturesBefore = device.m_textures.Size();
 
-        // A resize remakes the texture and retires the old one.
+        // A resize remakes the texture and destroys the old one (the device keeps it while the
+        // frames in flight sample it).
         canvases->Get(screens[0])->renderTextureWidth = 128;
         engine.Frame();
         engine.gui->RenderTextures(encoder, 1);
         CHECK(engine.gui->TextureCount() == 3u);
-        const usize afterResize = retire.PendingCount();
-        CHECK(afterResize >= 2u); // the texture and its view, and the pass's own targets if any
+        CHECK(device.m_textures.Size() == texturesBefore); // the old one left the device's table
 
-        // Two removed in one frame: both retired.
+        // Two removed in one frame: both destroyed.
         level->DestroyEntity(screens[1]);
         level->DestroyEntity(screens[2]);
         engine.Frame();
         engine.gui->RenderTextures(encoder, 0);
         CHECK(engine.gui->TextureCount() == 1u);
-        CHECK(retire.PendingCount() == 3u * afterResize);
-        CHECK(device.waits == waitsBefore);
-
-        // Freed once the frames in flight have passed.
-        for (int frame = 0; frame < 3; ++frame)
-            retire.Tick();
-        CHECK(retire.PendingCount() == 0u);
+        CHECK(device.m_textures.Size() + 2u <= texturesBefore);
+        CHECK(device.waits == waitsBefore); // and never a wait for the GPU
         engine.scenes.DestroyScene(level);
     }
-    retire.Flush();
 }
 
 TEST_CASE("engine.gui: a world panel drives its sprite, and the pointer reaches it by a ray: hovered, clicked, the game told")

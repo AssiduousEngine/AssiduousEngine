@@ -27,7 +27,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :bind_group_cache;
-import :resources; // GpuRetireQueue
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -36,7 +36,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The TAA resolve's push block (TaaPush, taa.ps.hlsl); Integration.ShaderBlocks checks it
     // against the compiled shader, member by member.
     struct GpuTaaPush
@@ -73,10 +72,6 @@ export namespace foundation::render
         TaaPass& operator=(const TaaPass&) = delete;
 
         Status Initialize();
-
-        // The queue a replaced bind group is retired into (a frame in flight may still use it);
-        // borrowed. Without one, the GPU is idled before the group is destroyed.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
         [[nodiscard]] rhi::TextureFormat HistoryFormat() const noexcept { return kHistoryFormat; }
 
@@ -125,10 +120,8 @@ export namespace foundation::render
 
         void Shutdown();
 
-
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null: idle the GPU before destroying
         rhi::BindGroupLayoutHandle m_layout{};
         rhi::PipelineLayoutHandle m_pipelineLayout{};
         rhi::RenderPipelineHandle m_pipeline{};

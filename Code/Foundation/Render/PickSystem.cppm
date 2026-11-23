@@ -99,9 +99,6 @@ export namespace foundation::render
         PickSystem(const PickSystem&) = delete;
         PickSystem& operator=(const PickSystem&) = delete;
 
-        // Readback buffers retire through the queue (frames-in-flight safe); null means WaitIdle.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         // Ask for the ids inside `rect` of the view that renders with `viewportKey`. The rect is
         // clamped when the view declares; a rect that clamps to nothing completes with no hits.
         [[nodiscard]] PickRequestId Request(const void* viewportKey, const PickRect& rect);
@@ -167,7 +164,6 @@ export namespace foundation::render
 
         IAllocator* m_allocator;
         rhi::Device* m_device;
-        GpuRetireQueue* m_retire = nullptr;
         u32 m_framesInFlight;
         PickRequestId m_nextId = 1;
         Array<Slot> m_slots;

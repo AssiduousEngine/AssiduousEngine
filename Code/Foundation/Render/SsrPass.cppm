@@ -39,7 +39,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // The SSR passes' push blocks (ssr and ssr_resolve .ps.hlsl); Integration.ShaderBlocks checks
     // each against the compiled shader, member by member.
     // Laid out byte for byte as the HLSL SsrPush (128 bytes, the portable push-constant limit).
@@ -127,7 +126,7 @@ export namespace foundation::render
                    rendergraph::RGHandle depth, rendergraph::RGHandle normal,
                    rendergraph::RGHandle material, rendergraph::RGHandle velocity, u32 w, u32 h,
                    i32 vx, i32 vy, u32 vw, u32 vh, const Float4x4& invProj, const Float4x4& proj,
-                   const Params& p, u32 viewIndex, u32 frameIndex);
+                   const Params& p, u32 viewIndex);
 
         /// Forget history slot `slot`'s accumulated state (the frame handed the slot to another
         /// view, RenderFrame::HistorySlotFor): its next frame starts fresh instead of blending in
@@ -163,10 +162,6 @@ export namespace foundation::render
                            rendergraph::RGHandle b, rendergraph::RGHandle c,
                            rendergraph::RGHandle d);
 
-        // Advance the deferred-free list once per frame (the graph aliases transients, so replaced sets must
-        // outlive in-flight frames before being freed; a raw-pointer cache would be replaced mid-frame).
-        void Tick(u32 frameIndex);
-
         // Four-texture bind group (t0..t3) and sampler, cached by (scene view, combined generation).
         rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
                                         rhi::TextureViewHandle normal, rhi::TextureViewHandle material,
@@ -188,12 +183,6 @@ export namespace foundation::render
             rhi::TextureViewHandle material{};
             u64 gen = 0;
         };
-        struct Retired
-        {
-            rhi::BindGroupHandle bg{};
-            u32 left = 0;
-        };
-        static constexpr u32 kRetireFrames = 4;
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
@@ -209,8 +198,6 @@ export namespace foundation::render
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
         HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
         BindGroupCache<3> m_resolveBindGroups;
-        Array<Retired> m_retired;
-        u32 m_lastFrame = 0xFFFFFFFFu;
     };
 
 } // namespace foundation::render

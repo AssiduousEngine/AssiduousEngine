@@ -23,7 +23,7 @@ import foundation.shaders;
 import foundation.shaders.system;
 import :data;  // ShadowCascades
 import :views;     // ViewCamera
-import :resources; // GpuRetireQueue
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -31,7 +31,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // Unproject an NDC corner (clip xy in [-1,1], z an NDC depth: name it with projection::kNdcDepthNear
     // or kNdcDepthFar, never a literal) to world space via the inverse view-proj.
     [[nodiscard]] inline Float3 UnprojectNDC(const Float4x4& invViewProj, f32 ndcX, f32 ndcY,
@@ -405,9 +404,6 @@ export namespace foundation::render
 
         ~ShadowSystem() { Shutdown(); }
 
-        /// Wire the frames-in-flight retire queue (web-safe atlas grows). Null means drain.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         /// The shaders the atlas tile clear builds from (borrowed). Without them, or when the clear
         /// does not build, the static atlas layer clears whole and every static tile redraws when
         /// one is dirty.
@@ -431,8 +427,9 @@ export namespace foundation::render
 
         /// The sizes the shadow textures take from now on (a quality level's shadows tier): each
         /// cascade's square resolution, and the local-light atlas's tile (the atlas is 4 x 4 tiles).
-        /// A frame slot whose textures are another size recreates them when it next prepares, retiring
-        /// the old through the queue; the cached static atlas tiles redraw (AtlasGeneration).
+        /// A frame slot whose textures are another size recreates them when it next prepares,
+        /// destroying the old (the device keeps them while frames in flight sample them); the cached
+        /// static atlas tiles redraw (AtlasGeneration).
         void SetResolutions(u32 cascade, u32 atlasTile) noexcept
         {
             m_resolution = Clamp(cascade, 256u, 4096u);
@@ -489,7 +486,6 @@ export namespace foundation::render
         rendergraph::RGHandle ImportAtlas(rendergraph::RenderGraph& graph, u32 frameIndex);
 
     private:
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         shaders::ShaderSystem* m_shaders = nullptr; // borrowed; the tile clear's shader
         rhi::PipelineLayoutHandle m_tileClearLayout{};
         rhi::RenderPipelineHandle m_tileClearPipeline{};

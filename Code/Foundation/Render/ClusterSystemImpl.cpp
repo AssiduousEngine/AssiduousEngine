@@ -267,37 +267,16 @@ namespace foundation::render
             return true;
         }
 
-        // Grow this slot. In-flight frames may still read the old buffers and the bind
-        // group over them, so retire them through the queue when one is wired (on web a
-        // mid-frame WaitIdle pumps the event loop, expires the canvas texture and drops
-        // the whole frame's submit); otherwise drain (standalone and test use).
-        const bool replacing = slot.offsets.IsValid() || slot.indices.IsValid();
-        if (replacing && m_retire == nullptr)
-        {
-            m_device->WaitIdle();
-        }
+        // Grow this slot. In-flight frames may still read the old buffers and the bind group over
+        // them: the device keeps them until they are done.
         if (slot.offsets.IsValid())
         {
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(slot.offsets);
-            }
-            else
-            {
-                m_device->DestroyBuffer(slot.offsets);
-            }
+            m_device->DestroyBuffer(slot.offsets);
             slot.offsets = {};
         }
         if (slot.indices.IsValid())
         {
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(slot.indices);
-            }
-            else
-            {
-                m_device->DestroyBuffer(slot.indices);
-            }
+            m_device->DestroyBuffer(slot.indices);
             slot.indices = {};
         }
         rhi::BufferDesc obd{};
@@ -327,14 +306,7 @@ namespace foundation::render
         // The slot's bind group referenced the old buffers; retire or drop it with them.
         if (slot.bindGroup.IsValid())
         {
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(slot.bindGroup);
-            }
-            else
-            {
-                m_device->DestroyBindGroup(slot.bindGroup);
-            }
+            m_device->DestroyBindGroup(slot.bindGroup);
             slot.bindGroup = {};
         }
         slot.bgOffsets = {};

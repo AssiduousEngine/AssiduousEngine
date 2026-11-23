@@ -958,13 +958,6 @@ export namespace engine::terrain
             m_chunkRing.EndFrame();
         }
 
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept
-        {
-            m_retire = retire; // stale height bind groups retire through it too (in-flight safety)
-            m_viewRing.SetRetireQueue(retire);
-            m_chunkRing.SetRetireQueue(retire);
-        }
-
         // The frame's CSM cascade array (null = no caster this frame: the dummy map, sampled as fully lit).
         // RenderFrame hands it to every registered renderer each frame, before PrepareFrame.
         void SetShadowMap(rhi::TextureViewHandle view, u64 generation) override
@@ -1058,7 +1051,6 @@ export namespace engine::terrain
             return false; // a holed chunk without its buffers (a failed upload) draws nothing
         }
 
-
         struct DepthPso
         {
             rhi::RenderPipelineHandle pso{};
@@ -1133,9 +1125,8 @@ export namespace engine::terrain
             }
             if (bg.IsValid())
             {
-                // May sit in a submitted frame's descriptor set: retired (frame-aged), or with no
-                // queue wired, freed after the GPU idles.
-                render::RetireBindGroup(*m_device, m_retire, bg);
+                // May sit in a submitted frame's descriptor set: the device keeps it until that has run.
+                m_device->DestroyBindGroup(bg);
                 bg = {};
             }
             if (!m_viewRing.Buffer().IsValid() || !shadowT1.IsValid())
@@ -1171,7 +1162,7 @@ export namespace engine::terrain
             if (m_chunkBg.IsValid())
             {
                 // May sit in a submitted frame's descriptor set, now that the ring grows.
-                render::RetireBindGroup(*m_device, m_retire, m_chunkBg);
+                m_device->DestroyBindGroup(m_chunkBg); // kept by the device while a frame in flight uses it
                 m_chunkBg = {};
             }
             if (!m_chunkRing.Buffer().IsValid())
@@ -1207,17 +1198,9 @@ export namespace engine::terrain
                 }
                 if (found->bindGroup.IsValid())
                 {
-                    // The old group may sit in a submitted frame's descriptor bindings, so retire
-                    // it (frame-aged) rather than destroy it in place; destroy directly only when
-                    // no queue is wired (Null-device tests).
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(found->bindGroup);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(found->bindGroup);
-                    }
+                    // The old group may sit in a submitted frame's descriptor bindings: the device
+                    // keeps it until that frame has run.
+                    m_device->DestroyBindGroup(found->bindGroup);
                 }
                 m_heightBindGroups.Remove(tex);
             }
@@ -1250,14 +1233,7 @@ export namespace engine::terrain
                 }
                 if (found->bindGroup.IsValid())
                 {
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(found->bindGroup);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(found->bindGroup);
-                    }
+                    m_device->DestroyBindGroup(found->bindGroup);
                 }
                 m_heightHoleBindGroups.Remove(hole);
             }
@@ -1280,7 +1256,7 @@ export namespace engine::terrain
 
         // Set 3 (splat material): the eleven views, the tileScale buffer and the albedo sampler,
         // with dummies for absent slots. Cached per weight view and checked against every view it
-        // was built from; a hot swap retires the stale group through the frame-retire queue.
+        // was built from; a hot swap destroys the stale group (the device keeps it for frames in flight).
         rhi::BindGroupHandle EnsureMaterialBindGroup(const TerrainRenderData& data)
         {
             // Absent slots bind the dummies: zero weights/indices = pure base; white base/array.
@@ -1330,14 +1306,7 @@ export namespace engine::terrain
                 }
                 if (found->bindGroup.IsValid())
                 {
-                    if (m_retire != nullptr)
-                    {
-                        m_retire->Retire(found->bindGroup);
-                    }
-                    else
-                    {
-                        m_device->DestroyBindGroup(found->bindGroup);
-                    }
+                    m_device->DestroyBindGroup(found->bindGroup);
                 }
                 m_materialBindGroups.Remove(wgt);
             }
@@ -1923,7 +1892,6 @@ export namespace engine::terrain
         rhi::TextureViewHandle m_opaqueMaskArrayView{};
         rhi::BufferHandle m_dummyTileBuffer{}; // one f32 = 1.0
         HashMap<rhi::TextureViewHandle, MaterialBindGroup> m_materialBindGroups;
-        render::GpuRetireQueue* m_retire = nullptr; // borrowed (RenderSubsystem owns and ticks it)
         // Shadow receive (set 0: t1 CSM array, s0 comparison sampler).
         rhi::SamplerHandle m_shadowSampler{};
         rhi::TextureHandle m_dummyShadowTex{};      // 1x1 Texture2DArray depth (no-caster fallback)

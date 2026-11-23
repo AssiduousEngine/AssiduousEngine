@@ -35,7 +35,7 @@ export namespace engine::terrain
 
     /// The index buffers of one holed chunk, per LOD: built on the CPU by BuildHoledChunkIndices
     /// when the heightfield's version changes, owned by the manager's TerrainHoledMeshCache, copied
-    /// into the frame arena by value (the buffers outlive the frame through the retire queue). A
+    /// into the frame arena by value (the device keeps the buffers for the frames using them). A
     /// chunk without holes draws the renderer's shared grid.
     struct HoledChunkMesh
     {

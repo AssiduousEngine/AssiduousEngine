@@ -26,7 +26,7 @@ import foundation.shaders.system;
 import :data;
 import :pipeline;
 import :resources;
-import :bind_group_cache; // RetireBindGroup
+import :bind_group_cache;
 
 using namespace foundation::core;
 namespace shaders = foundation::shaders;
@@ -36,7 +36,6 @@ namespace foundation::render
 {
     Status SpriteRenderer::Initialize()
     {
-
         // set 0: view UBO (dynamic offset, VS). set 1: sprite texture and sampler (FS).
         rhi::BindGroupLayoutEntry viewEntry =
             rhi::BindGroupLayoutEntry::UniformBuffer(0, rhi::ShaderStage::Vertex);
@@ -211,7 +210,7 @@ namespace foundation::render
         }
         if (m_viewBg.IsValid())
         {
-            RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
+            m_device->DestroyBindGroup(m_viewBg); // kept by the device while a frame in flight uses it
             m_viewBg = {};
         }
         if (!m_viewRing.Buffer().IsValid())
@@ -254,6 +253,7 @@ namespace foundation::render
         {
             return {};
         }
+        DropGroupsOfDestroyedViews(*m_device, m_texBindGroups);
         m_texBindGroups.InsertOrAssign(tex, bg);
         return bg;
     }

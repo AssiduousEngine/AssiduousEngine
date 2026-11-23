@@ -2322,7 +2322,7 @@ namespace foundation::render
                             m_graph, sceneHdr, postDepth, postNormal, postMaterial, postVelocity,
                             v->Width(), v->Height(), v->ViewportX(), v->ViewportY(), v->ViewportWidth(),
                             v->ViewportHeight(), Inverse(v->Camera().projection),
-                            v->Camera().projection, ssrParams, historySlot, m_frameIndex);
+                            v->Camera().projection, ssrParams, historySlot);
                     }
                     // AO (GTAO or SSAO) from the opaque depth and normal G-buffer, computed before the TAA resolve
                     // and multiplied into the HDR before TAA, so TAA stabilizes it (applying AO after TAA wobbles,

@@ -498,47 +498,10 @@ namespace foundation::render
 
     void ReflectionProbeSystem::ReleaseArrays()
     {
-        // Retired when the queue is wired (frames in flight may still sample them), else drained.
-        const auto dropGroup = [this](rhi::BindGroupHandle& group)
-        {
-            if (group.IsValid() && m_retire != nullptr)
-            {
-                m_retire->Retire(group);
-            }
-            else if (group.IsValid())
-            {
-                m_device->DestroyBindGroup(group);
-            }
-            group = {};
-        };
-        const auto dropView = [this](rhi::TextureViewHandle& view)
-        {
-            if (view.IsValid() && m_retire != nullptr)
-            {
-                m_retire->Retire(view);
-            }
-            else if (view.IsValid())
-            {
-                m_device->DestroyTextureView(view);
-            }
-            view = {};
-        };
-        const auto dropTexture = [this](rhi::TextureHandle& texture)
-        {
-            if (texture.IsValid() && m_retire != nullptr)
-            {
-                m_retire->Retire(texture);
-            }
-            else if (texture.IsValid())
-            {
-                m_device->DestroyTexture(texture);
-            }
-            texture = {};
-        };
-        if (m_retire == nullptr)
-        {
-            m_device->WaitIdle();
-        }
+        // Frames in flight may still sample them: the device keeps them until they are done.
+        const auto dropGroup = [this](rhi::BindGroupHandle& group) { m_device->DestroyBindGroup(group); };
+        const auto dropView = [this](rhi::TextureViewHandle& view) { m_device->DestroyTextureView(view); };
+        const auto dropTexture = [this](rhi::TextureHandle& texture) { m_device->DestroyTexture(texture); };
         for (u32 i = 0; i < kMaxProbes * 6; ++i)
         {
             dropGroup(m_blitFaceBG[i]);

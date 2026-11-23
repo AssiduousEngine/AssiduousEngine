@@ -81,31 +81,20 @@ namespace foundation::render
 
     void ShadowSystem::Release(rhi::TextureHandle& texture, rhi::TextureViewHandle& attach, rhi::TextureViewHandle& sample)
     {
-        // In-flight frames may still sample them, so retire them through the queue when wired
-        // (web-safe: no mid-frame WaitIdle pumping the browser event loop), otherwise drain.
+        // In-flight frames may still sample them: the device keeps them until they are done.
         if (!texture.IsValid())
         {
             return;
         }
-        if (m_retire != nullptr)
+        if (sample.IsValid())
         {
-            m_retire->Retire(sample);
-            m_retire->Retire(attach);
-            m_retire->Retire(texture);
+            m_device->DestroyTextureView(sample);
         }
-        else
+        if (attach.IsValid())
         {
-            m_device->WaitIdle();
-            if (sample.IsValid())
-            {
-                m_device->DestroyTextureView(sample);
-            }
-            if (attach.IsValid())
-            {
-                m_device->DestroyTextureView(attach);
-            }
-            m_device->DestroyTexture(texture);
+            m_device->DestroyTextureView(attach);
         }
+        m_device->DestroyTexture(texture);
         sample = {};
         attach = {};
         texture = {};

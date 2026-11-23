@@ -340,12 +340,11 @@ namespace engine::render
         {
             return;
         }
-        // Dev hot reload (throttled inside the provider). On a reload, idle the GPU so
-        // passes can destroy and rebuild their version-stamped pipelines immediately (a
-        // dev-only hiccup; the material path still goes through the PSO retire ring).
-        if (m_shaders != nullptr && m_shaders->PumpReloads() > 0)
+        // Dev hot reload (throttled inside the provider): passes destroy and rebuild their
+        // version-stamped pipelines; the device keeps the old ones while frames in flight use them.
+        if (m_shaders != nullptr)
         {
-            m_device->WaitIdle();
+            (void)m_shaders->PumpReloads();
         }
         m_sceneCount = 0;
         m_snapshotOwners.Resize(m_scenes.Size()); // per-frame scene tags for snapshot sharing
@@ -355,11 +354,6 @@ namespace engine::render
         // single slot when the job system is absent: the serial fallback).
         const u32 slotCount = HasGlobalJobSystem() ? GlobalJobs().SlotCount() : 1u;
         m_renderCtx.BeginFrame(slotCount);
-        m_retireQueue.Tick(); // free retired GPU resources that have aged past all in-flight frames
-        if (m_psoCache)
-        {
-            m_psoCache->TickRetired(); // and pipelines a shader reload superseded
-        }
         m_frame->SetExposure(m_exposure);
         m_frame->SetTime(m_timeSeconds); // the wind sway clock (prev is last frame's)
         m_frame->SetBloom(m_bloomEnabled ? m_bloomIntensity : 0.0f, m_bloomThreshold, m_bloomKnee);
@@ -705,8 +699,8 @@ namespace engine::render
             return;
         }
         // Stencil attachment for overlay UI (stencil-then-cover fills). Cached at the
-        // target size; a resize retires the old texture (in-flight frames may still
-        // reference it) and recreates. Cleared every frame, so it transitions from Undefined.
+        // target size; a resize destroys the old texture (the device keeps it while a frame in
+        // flight uses it) and recreates. Cleared every frame, so it transitions from Undefined.
         if (!m_overlayDsProbed)
         {
             m_overlayDsFormat = PickStencilFormat(*m_device);
@@ -716,10 +710,8 @@ namespace engine::render
             (!m_overlayDsTexture.IsValid() || m_overlayDsWidth != width ||
              m_overlayDsHeight != height))
         {
-            m_retireQueue.Retire(m_overlayDsView);
-            m_retireQueue.Retire(m_overlayDsTexture);
-            m_overlayDsView = {};
-            m_overlayDsTexture = {};
+            m_device->DestroyTextureView(m_overlayDsView);
+            m_device->DestroyTexture(m_overlayDsTexture);
             rhi::TextureDesc dsDesc{};
             dsDesc.dimension = rhi::TextureDimension::Texture2D;
             dsDesc.format = m_overlayDsFormat;
@@ -735,8 +727,7 @@ namespace engine::render
                                                  m_overlayDsView)
                          .IsOk())
                 {
-                    m_retireQueue.Retire(m_overlayDsTexture);
-                    m_overlayDsTexture = {};
+                    m_device->DestroyTexture(m_overlayDsTexture);
                     m_overlayDsView = {};
                 }
             }
@@ -829,7 +820,7 @@ namespace engine::render
         }
 
         m_psoCache =
-            MakeUnique<materials::PipelineStateCache>(m_allocator, *m_shaders, *m_device, m_framesInFlight);
+            MakeUnique<materials::PipelineStateCache>(m_allocator, *m_shaders, *m_device);
         m_materialSystem = MakeUnique<materials::MaterialSystem>(m_allocator);
         if (!m_materialSystem->Initialize(*m_device).IsOk())
         {
@@ -846,19 +837,12 @@ namespace engine::render
         }
         m_registry.Register(
             m_meshRenderer.Get()); // first, so renderer id 0 (the RenderData default)
-        // Frames-in-flight retire queue: every grow-path replacement retires through it
-        // instead of a mid-frame WaitIdle (which on the web pumps the event loop, expires the
-        // canvas texture, and drops the frame's submit).
-        m_retireQueue.Initialize(m_device, static_cast<i32>(m_framesInFlight));
-        m_meshRenderer->SetRetireQueue(&m_retireQueue);
-
         // Sprites: registered after the mesh renderer (id 1); shares the blended forward pass.
         m_spriteRenderer =
             MakeUnique<SpriteRenderer>(m_allocator, *m_device, *m_shaders, m_framesInFlight);
         if (m_spriteRenderer->Initialize().IsOk())
         {
             m_registry.Register(m_spriteRenderer.Get());
-            m_spriteRenderer->SetRetireQueue(&m_retireQueue);
         }
         else
         {
@@ -883,7 +867,6 @@ namespace engine::render
             }
             if (m_clusterSystem)
             {
-                m_clusterSystem->SetRetireQueue(&m_retireQueue);
             }
         }
 
@@ -907,7 +890,6 @@ namespace engine::render
             }
             if (m_shadowSystem)
             {
-                m_shadowSystem->SetRetireQueue(&m_retireQueue);
                 m_shadowSystem->SetShaderSystem(m_shaders);
                 // A level set before the renderer started (a host's first SetQuality).
                 const ShadowResolution sizes = ShadowResolutionFor(m_quality.shadows);
@@ -923,13 +905,11 @@ namespace engine::render
         }
         if (m_iblSystem)
         {
-            m_iblSystem->SetRetireQueue(&m_retireQueue);
             m_iblSystem->SetPrefilterResolution(EnvironmentResolutionFor(m_quality.environmentResolution));
         }
 
         m_probeSystem =
             MakeUnique<ReflectionProbeSystem>(m_allocator, *m_device, *m_shaders);
-        m_probeSystem->SetRetireQueue(&m_retireQueue);
         m_probeSystem->SetResolution(ProbeResolutionFor(m_quality.environmentResolution)); // made at it
         if (!m_probeSystem->Initialize().IsOk())
         {
@@ -959,7 +939,6 @@ namespace engine::render
         }
         else
         {
-            m_taaPass->SetRetireQueue(&m_retireQueue);
         }
 
         // Ambient occlusion (GTAO or SSAO from the G-buffer). Optional.
@@ -992,7 +971,6 @@ namespace engine::render
         }
         else
         {
-            m_msaaResolvePass->SetRetireQueue(&m_retireQueue);
         }
         // Scene-pass MSAA device ceiling: the max sample count the device supports
         // for color and depth, capped at 4 by the query. Views clamp their authored intent to this. If the
@@ -1027,7 +1005,6 @@ namespace engine::render
         }
         if (m_decalPass)
         {
-            m_decalPass->SetRetireQueue(&m_retireQueue);
         }
 
         // Debug draw (per-view gizmos and screen text). Optional.
@@ -1094,7 +1071,6 @@ namespace engine::render
             }
         }
         m_device->WaitIdle();     // GPU must finish before we free its buffers, PSOs and descriptors
-        m_retireQueue.Flush();    // pending retired resources (GPU idle: free now)
         ReleaseOverlayDepth();
         m_frame.Reset();          // releases the forward pass's per-frame GPU resources
         m_pickSystem.Reset();     // pick readback buffers (device idle above)
@@ -1127,7 +1103,6 @@ namespace engine::render
         if (m_pickSystem.Get() == nullptr)
         {
             m_pickSystem = MakeUnique<PickSystem>(m_allocator, m_allocator, *m_device, m_framesInFlight);
-            m_pickSystem->SetRetireQueue(&m_retireQueue);
         }
         return *m_pickSystem;
     }

@@ -27,7 +27,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::materials
 {
-
     class MaterialSystem final : public IMaterialInstanceSink
     {
     public:
@@ -207,27 +206,6 @@ export namespace foundation::materials
         {
             rhi::BindGroupHandle* bg = m_bindGroups.Find(&instance);
             return (bg != nullptr) ? *bg : rhi::BindGroupHandle{};
-        }
-
-        /// Per-frame: frees retired bind groups once the frame ring has cycled past them.
-        /// The renderer calls this once per frame alongside its own retirement ticks.
-        void TickRetired()
-        {
-            usize w = 0;
-            for (usize i = 0; i < m_retiredBindGroups.Size(); ++i)
-            {
-                RetiredBindGroup r = m_retiredBindGroups[i];
-                if (r.framesLeft <= 1)
-                {
-                    m_device->DestroyBindGroup(r.bg);
-                }
-                else
-                {
-                    r.framesLeft -= 1;
-                    m_retiredBindGroups[w++] = r;
-                }
-            }
-            m_retiredBindGroups.Resize(w);
         }
 
         // Hands the instance's uniform buffer to the caller (removed from the system) without
@@ -621,9 +599,9 @@ export namespace foundation::materials
 
             if (rhi::BindGroupHandle* old = m_bindGroups.Find(&instance))
             {
-                // Deferred free: the replaced group may still be bound by an in-flight frame,
-                // and destroying it now would leave that frame drawing with invalid descriptors.
-                m_retiredBindGroups.PushBack(RetiredBindGroup{*old, kRetireFrames});
+                // The replaced group may still be bound by an in-flight frame: the device keeps it
+                // until that frame has run.
+                m_device->DestroyBindGroup(*old);
                 m_bindGroups.Remove(&instance);
             }
 
@@ -695,11 +673,6 @@ export namespace foundation::materials
             {
                 m_device->DestroyBindGroup(e.value);
             }
-            for (RetiredBindGroup& r : m_retiredBindGroups)
-            {
-                m_device->DestroyBindGroup(r.bg);
-            }
-            m_retiredBindGroups.Clear();
             for (auto& e : m_uniformBuffers)
             {
                 m_device->DestroyBuffer(e.value);
@@ -774,13 +747,6 @@ export namespace foundation::materials
         rhi::Device* m_device = nullptr;
         rhi::Queue* m_queue = nullptr;
         rhi::SamplerHandle m_defaultSampler{};
-        static constexpr u32 kRetireFrames = 3;
-        struct RetiredBindGroup
-        {
-            rhi::BindGroupHandle bg;
-            u32 framesLeft;
-        };
-        Array<RetiredBindGroup> m_retiredBindGroups;
 
         rhi::TextureHandle m_whiteTex{};
         rhi::TextureViewHandle m_whiteView{};

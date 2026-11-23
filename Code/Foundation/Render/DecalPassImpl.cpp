@@ -39,7 +39,6 @@ namespace foundation::render
 {
     Status DecalPass::Initialize()
     {
-
         // set 0: scene depth (t0) and sampler (s0). set 1: per-decal UBO (dynamic). set 2: decal texture.
         rhi::BindGroupLayoutEntry depthEntries[] = {
             rhi::BindGroupLayoutEntry::SampledTexture(0, rhi::ShaderStage::Fragment),
@@ -114,7 +113,6 @@ namespace foundation::render
 
     void DecalPass::BeginFrame(u32 frameIndex)
     {
-        Tick(frameIndex);
         if (!m_reserved)
         {
             m_reserved = m_decalRing.Reserve(kMaxDecalsPerFrame);
@@ -142,10 +140,9 @@ namespace foundation::render
         {
             if (m_pipeline.IsValid())
             {
-                // Rare rebuild (shader reload or MSAA toggle): the old pipeline may be referenced by
-                // in-flight command buffers, so defer its free by kRetireFrames (drained in Tick) rather
-                // than WaitIdle on the render path, which the web cannot afford.
-                m_retired.PushBack(Retired{{}, m_pipeline, kRetireFrames});
+                // Rare rebuild (shader reload or MSAA toggle): in-flight command buffers may still use
+                // the old pipeline, which the device keeps until they are done.
+                m_device->DestroyRenderPipeline(m_pipeline);
             }
             m_pipeline = MakePipeline(samples);
             m_pipelineShaderVersion = shaderVersion;
@@ -307,8 +304,7 @@ namespace foundation::render
         }
         if (m_depthBg.IsValid())
         {
-            m_retired.PushBack(Retired{m_depthBg, {}, kRetireFrames});
-            m_depthBg = {};
+            m_device->DestroyBindGroup(m_depthBg);
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(depth),
@@ -349,38 +345,9 @@ namespace foundation::render
         {
             return {};
         }
+        DropGroupsOfDestroyedViews(*m_device, m_texBindGroups);
         m_texBindGroups.InsertOrAssign(tex, bg);
         return bg;
-    }
-
-    void DecalPass::Tick(u32 frameIndex)
-    {
-        if (frameIndex == m_lastFrame)
-        {
-            return;
-        }
-        m_lastFrame = frameIndex;
-        usize w = 0;
-        for (usize i = 0; i < m_retired.Size(); ++i)
-        {
-            if (m_retired[i].left <= 1)
-            {
-                if (m_retired[i].bg.IsValid())
-                {
-                    m_device->DestroyBindGroup(m_retired[i].bg);
-                }
-                if (m_retired[i].pipeline.IsValid())
-                {
-                    m_device->DestroyRenderPipeline(m_retired[i].pipeline);
-                }
-            }
-            else
-            {
-                m_retired[i].left -= 1;
-                m_retired[w++] = m_retired[i];
-            }
-        }
-        m_retired.Resize(w);
     }
 
     void DecalPass::Shutdown()
@@ -393,18 +360,6 @@ namespace foundation::render
             }
         }
         m_texBindGroups.Clear();
-        for (Retired& r : m_retired)
-        {
-            if (r.bg.IsValid())
-            {
-                m_device->DestroyBindGroup(r.bg);
-            }
-            if (r.pipeline.IsValid())
-            {
-                m_device->DestroyRenderPipeline(r.pipeline);
-            }
-        }
-        m_retired.Clear();
         if (m_depthBg.IsValid())
         {
             m_device->DestroyBindGroup(m_depthBg);

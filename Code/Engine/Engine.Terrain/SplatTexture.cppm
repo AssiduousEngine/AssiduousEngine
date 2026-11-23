@@ -10,7 +10,7 @@
 //   - indices: RGBA8Uint (the 4 palette indices; integer and non-filterable, because filtering
 //     indices interpolates layer ids into garbage; load-only in the shader).
 // Cached by the resource uid and version, as the height-texture cache is: two terrains sharing one
-// weights raster share one texture pair, and a paint (a version bump) retires the old pair and
+// weights raster share one texture pair, and a paint (a version bump) destroys the old pair and
 // re-uploads. The new view ids make the set-3 bind cache rebuild with no extra work (the live
 // repaint path). Both are single-mip.
 
@@ -21,7 +21,7 @@ export module engine.terrain:splattexture;
 
 import foundation.core;
 import foundation.rhi;
-import foundation.render;           // GpuRetireQueue (in-flight-safe destruction)
+import foundation.render;
 import foundation.terrain.resource; // SplatWeights (the CPU top-K rasters)
 
 using namespace foundation::core;
@@ -46,12 +46,6 @@ export namespace engine::terrain
         TerrainSplatTextureCache(const TerrainSplatTextureCache&) = delete;
         TerrainSplatTextureCache& operator=(const TerrainSplatTextureCache&) = delete;
 
-        /// In-flight-safe destruction (wired by the subsystem): a paint's version-bump rebuild
-        /// retires the old textures and views through the frame-aged queue, because a submitted
-        /// frame still samples the old views through the renderer's set-3 bind group. Unwired
-        /// (headless, Null device), it destroys directly.
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         /// The texture pair for `sw` at `version`. Keyed by the resource's uid, never its pointer:
         /// a freed raster's address can be reused by a fresh one at an equal version. Creates,
         /// uploads and caches on a miss; a stale version for the same resource rebuilds in place
@@ -72,7 +66,7 @@ export namespace engine::terrain
                     {
                         return SplatTextureViews{entry.weightView, entry.indexView};
                     }
-                    RetireOrDestroy(device, entry); // stale version: rebuild in place
+                    Destroy(device, entry); // stale version: rebuild in place
                     if (!Build(device, sw, entry))
                     {
                         return SplatTextureViews{};
@@ -95,14 +89,13 @@ export namespace engine::terrain
 
         /// Drops every entry. This runs at scene destroy as well as at shutdown (stopping
         /// play-in-editor destroys the run's scenes mid frame loop), so a live entry may still
-        /// sit in a submitted frame's descriptor set: with a retire queue wired the GPU objects
-        /// age past every in-flight frame before they are freed (VUID 01026); without one
-        /// (Null-device tests) they are destroyed in place.
+        /// sit in a submitted frame's descriptor set: the device keeps the GPU objects until every
+        /// frame in flight is done with them (freeing them in place was VUID 01026).
         void Clear(rhi::Device& device)
         {
             for (Entry& entry : m_entries)
             {
-                RetireOrDestroy(device, entry);
+                Destroy(device, entry);
             }
             m_entries.Clear();
         }
@@ -182,23 +175,6 @@ export namespace engine::terrain
             return true;
         }
 
-        void RetireOrDestroy(rhi::Device& device, Entry& entry)
-        {
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(entry.weightView); // aged past every in-flight frame, then freed
-                m_retire->Retire(entry.weightTexture);
-                m_retire->Retire(entry.indexView);
-                m_retire->Retire(entry.indexTexture);
-                entry.weightView = {};
-                entry.weightTexture = {};
-                entry.indexView = {};
-                entry.indexTexture = {};
-                return;
-            }
-            Destroy(device, entry);
-        }
-
         static void Destroy(rhi::Device& device, Entry& entry)
         {
             if (entry.weightView.IsValid())
@@ -224,7 +200,6 @@ export namespace engine::terrain
         }
 
         Array<Entry> m_entries;
-        render::GpuRetireQueue* m_retire = nullptr; // borrowed (RenderSubsystem owns and ticks it)
     };
 
     /// The palette-array GPU views and the per-layer tileScale buffer for one terrain.
@@ -242,15 +217,14 @@ export namespace engine::terrain
     /// Owns and caches the palette Texture2DArray and tileScale storage buffer per terrain
     /// resource, keyed by TerrainPaletteData::uid and a tile-scale hash (never pointers). A palette
     /// edit re-cooks the terrain into a new TerrainPaletteData (a new uid), which rebuilds; the old
-    /// array is retired (in-flight frames still sample it through the old set-3 group).
+    /// array is destroyed (the device keeps it while in-flight frames sample it through the old
+    /// set-3 group).
     class TerrainPaletteTextureCache
     {
     public:
         TerrainPaletteTextureCache() = default;
         TerrainPaletteTextureCache(const TerrainPaletteTextureCache&) = delete;
         TerrainPaletteTextureCache& operator=(const TerrainPaletteTextureCache&) = delete;
-
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
         [[nodiscard]] PaletteGpu
         GetOrCreate(rhi::Device& device, const foundation::terrain::TerrainPaletteData& data,
@@ -269,7 +243,7 @@ export namespace engine::terrain
                     {
                         return MakeGpu(entry);
                     }
-                    RetireOrDestroy(device, entry);
+                    Destroy(device, entry);
                     if (!Build(device, data, paletteTileScales, entry))
                     {
                         return PaletteGpu{};
@@ -293,14 +267,13 @@ export namespace engine::terrain
 
         /// Drops every entry. This runs at scene destroy as well as at shutdown (stopping
         /// play-in-editor destroys the run's scenes mid frame loop), so a live entry may still
-        /// sit in a submitted frame's descriptor set: with a retire queue wired the GPU objects
-        /// age past every in-flight frame before they are freed (VUID 01026); without one
-        /// (Null-device tests) they are destroyed in place.
+        /// sit in a submitted frame's descriptor set: the device keeps the GPU objects until every
+        /// frame in flight is done with them (freeing them in place was VUID 01026).
         void Clear(rhi::Device& device)
         {
             for (Entry& entry : m_entries)
             {
-                RetireOrDestroy(device, entry);
+                Destroy(device, entry);
             }
             m_entries.Clear();
         }
@@ -485,37 +458,6 @@ export namespace engine::terrain
             return true;
         }
 
-        void RetireOrDestroy(rhi::Device& device, Entry& entry)
-        {
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(entry.arrayView);
-                m_retire->Retire(entry.arrayTexture);
-                m_retire->Retire(entry.normalArrayView);
-                m_retire->Retire(entry.normalTexture);
-                m_retire->Retire(entry.ormArrayView);
-                m_retire->Retire(entry.ormTexture);
-                m_retire->Retire(entry.heightArrayView);
-                m_retire->Retire(entry.heightTexture);
-                m_retire->Retire(entry.maskArrayView);
-                m_retire->Retire(entry.maskTexture);
-                m_retire->Retire(entry.tileScaleBuffer);
-                entry.arrayView = {};
-                entry.arrayTexture = {};
-                entry.normalArrayView = {};
-                entry.normalTexture = {};
-                entry.ormArrayView = {};
-                entry.ormTexture = {};
-                entry.heightArrayView = {};
-                entry.heightTexture = {};
-                entry.maskArrayView = {};
-                entry.maskTexture = {};
-                entry.tileScaleBuffer = {};
-                return;
-            }
-            Destroy(device, entry);
-        }
-
         static void Destroy(rhi::Device& device, Entry& entry)
         {
             const auto view = [&device](rhi::TextureViewHandle& v)
@@ -552,6 +494,5 @@ export namespace engine::terrain
         }
 
         Array<Entry> m_entries;
-        render::GpuRetireQueue* m_retire = nullptr; // borrowed (RenderSubsystem owns and ticks it)
     };
 }

@@ -62,7 +62,6 @@ export namespace engine::particles
         ParticleRenderer(rhi::Device& device, shaders::ShaderSystem& shaders,
                          u32 framesInFlight) noexcept
             : m_device(&device), m_shaders(&shaders),
-              m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight),
               m_instanceRing(device, framesInFlight, sizeof(ParticleBillboardInstance),
                              rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst,
                              u8"particle.instances"),
@@ -78,7 +77,6 @@ export namespace engine::particles
 
         core::Status Initialize()
         {
-
             rhi::BindGroupLayoutEntry viewEntry = rhi::BindGroupLayoutEntry::UniformBuffer(
                 0, rhi::ShaderStage::Vertex | rhi::ShaderStage::Fragment);
             viewEntry.hasDynamicOffset = true;
@@ -257,22 +255,12 @@ export namespace engine::particles
             m_frameInstances = 0; // sum of instances allocated this frame (all systems/views)
             m_frameTrailVerts = 0;
 
-            // Retire scene-depth bind groups created framesInFlight or more frames ago (no longer
-            // in flight).
-            ++m_frameCounter;
-            usize keep = 0;
-            for (usize i = 0; i < m_depthPending.Size(); ++i)
+            // Last frame's scene-depth bind groups: the device keeps them while that frame runs.
+            for (rhi::BindGroupHandle& group : m_depthGroups)
             {
-                if (m_frameCounter >= m_depthPending[i].frame + m_framesInFlight)
-                {
-                    m_device->DestroyBindGroup(m_depthPending[i].bg);
-                }
-                else
-                {
-                    m_depthPending[keep++] = m_depthPending[i];
-                }
+                m_device->DestroyBindGroup(group);
             }
-            m_depthPending.Resize(keep);
+            m_depthGroups.Clear();
         }
 
         void Resolve(const render::RenderRecordContext& ctx, Span<const render::DrawItem> items,
@@ -428,17 +416,6 @@ export namespace engine::particles
             m_viewRing.EndFrame();
         }
 
-        /// Wire the render subsystem's frames-in-flight retire queue: the rings then retire their
-        /// old buffer on growth instead of a mid-frame WaitIdle, which on the web pumps the event
-        /// loop, expires the canvas texture and drops the frame's submit.
-        void SetRetireQueue(render::GpuRetireQueue* retire) noexcept
-        {
-            m_instanceRing.SetRetireQueue(retire);
-            m_trailRing.SetRetireQueue(retire);
-            m_viewRing.SetRetireQueue(retire);
-            m_retire = retire;
-        }
-
         /// View slots the ring holds per frame, and those this frame took (tests pin them).
         [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
         [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
@@ -459,7 +436,7 @@ export namespace engine::particles
             }
             if (m_viewBg.IsValid())
             {
-                render::RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
+                m_device->DestroyBindGroup(m_viewBg); // kept by the device while a frame in flight uses it
                 m_viewBg = {};
             }
             if (!m_viewRing.Buffer().IsValid())
@@ -497,7 +474,7 @@ export namespace engine::particles
             {
                 return {};
             }
-            m_depthPending.PushBack(PendingBg{bg, m_frameCounter});
+            m_depthGroups.PushBack(bg);
             return bg;
         }
 
@@ -521,6 +498,7 @@ export namespace engine::particles
             {
                 return {};
             }
+            render::DropGroupsOfDestroyedViews(*m_device, m_texBindGroups);
             m_texBindGroups.InsertOrAssign(tex, bg);
             return bg;
         }
@@ -817,14 +795,11 @@ export namespace engine::particles
                 m_device->DestroySampler(m_sampler);
                 m_sampler = {};
             }
-            for (PendingBg& p : m_depthPending)
+            for (rhi::BindGroupHandle& group : m_depthGroups)
             {
-                if (p.bg.IsValid())
-                {
-                    m_device->DestroyBindGroup(p.bg);
-                }
+                m_device->DestroyBindGroup(group);
             }
-            m_depthPending.Clear();
+            m_depthGroups.Clear();
             if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
@@ -854,24 +829,15 @@ export namespace engine::particles
             u64 shaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         };
 
-        struct PendingBg
-        {
-            rhi::BindGroupHandle bg;
-            u32 frame;
-        };
-
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        u32 m_framesInFlight = 2;
-        u32 m_frameCounter = 0;
         render::DynamicUniformRing m_instanceRing;
         render::DynamicUniformRing m_trailRing; // trail ribbon vertices (per-frame)
         render::ViewUniformRing m_viewRing;
-        render::GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
         rhi::BindGroupLayoutHandle m_viewLayout{};
         rhi::BindGroupLayoutHandle m_texLayout{};
         rhi::BindGroupLayoutHandle m_depthLayout{}; // set 2: scene depth (soft particles)
-        Array<PendingBg> m_depthPending; // depth bind groups awaiting deferred destroy
+        Array<rhi::BindGroupHandle> m_depthGroups; // this frame's scene-depth bind groups
         rhi::PipelineLayoutHandle m_pipelineLayout{};
         rhi::SamplerHandle m_sampler{};
         rhi::BufferHandle m_indexBuffer{};
@@ -882,8 +848,7 @@ export namespace engine::particles
         rhi::BindGroupHandle m_viewBg{};
         u32 m_viewBgGen = 0;
         // Keyed by view handle, as SpriteRenderer's (a new view never takes an old one's handle).
-        // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
-        // retire through the device as views do.
+        // A destroyed view's group goes when the next group is made (DropGroupsOfDestroyedViews).
         HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle> m_texBindGroups;
         Pipelines
             m_billboard[4]; // one per ParticleBlendMode (Alpha/Additive/Premultiplied/Multiply)

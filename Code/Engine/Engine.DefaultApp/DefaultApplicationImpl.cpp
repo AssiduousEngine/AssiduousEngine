@@ -613,8 +613,7 @@ namespace engine::runtime
         engine::RegisterAllResourceTypes();
         if (GraphicsDevice* gfx = host.Graphics(); gfx != nullptr && gfx->Raw() != nullptr && m_gui != nullptr)
         {
-            m_gui->EnsureRenderReady(*gfx->Raw(), static_cast<core::i32>(gfx->FramesInFlight()),
-                                     m_render != nullptr ? m_render->RetireQueue() : nullptr);
+            m_gui->EnsureRenderReady(*gfx->Raw(), static_cast<core::i32>(gfx->FramesInFlight()));
         }
 
         if (m_borrowedResources == nullptr && m_contentDatabase != nullptr)

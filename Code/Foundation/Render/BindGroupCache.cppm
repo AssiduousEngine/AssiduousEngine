@@ -17,7 +17,6 @@ export module foundation.render:bind_group_cache;
 
 import foundation.core;
 import foundation.rhi;
-import :resources; // GpuRetireQueue
 
 using namespace foundation::core;
 namespace rhi = foundation::rhi;
@@ -60,23 +59,29 @@ export namespace foundation::render
         [[nodiscard]] bool operator==(const BindGroupInputs&) const = default;
     };
 
-    // Disposes of a bind group its owner has replaced, such as one a cache handed back as stale. A
-    // frame still in flight may have recorded it, so it is retired into `retire` and freed once
-    // every such frame has aged out; with no queue wired (a pass used on its own, as the backend
-    // probes do), the GPU is idled first, as GpuRetireQueue's consumers do.
-    inline void RetireBindGroup(rhi::Device& device, GpuRetireQueue* retire, rhi::BindGroupHandle group)
+    // Destroys the groups of `groups` whose view its owner has destroyed, and drops their entries.
+    // A group binds its view for good, so once the view goes, nothing can ask for the group again.
+    inline void DropGroupsOfDestroyedViews(rhi::Device& device,
+                                           HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle>& groups)
     {
-        if (!group.IsValid())
+        for (;;)
         {
-            return;
+            rhi::TextureViewHandle gone{};
+            for (auto& kv : groups)
+            {
+                if (!device.IsLive(kv.key))
+                {
+                    gone = kv.key;
+                    break;
+                }
+            }
+            if (!gone.IsValid())
+            {
+                return;
+            }
+            device.DestroyBindGroup(*groups.Find(gone));
+            groups.Remove(gone);
         }
-        if (retire != nullptr)
-        {
-            retire->Retire(group);
-            return;
-        }
-        device.WaitIdle();
-        device.DestroyBindGroup(group);
     }
 
     // A pass's per-view state, one entry for each (view, frame in flight): a frame's views each get
@@ -120,8 +125,8 @@ export namespace foundation::render
     {
     public:
         // The group built for `key` from exactly `inputs`, or null. A group built for `key` from
-        // anything else is forgotten and handed back in `stale` for the caller to retire
-        // (RetireBindGroup: a frame in flight may still use it).
+        // anything else is forgotten and handed back in `stale` for the caller to destroy (the
+        // device keeps it while a frame in flight uses it).
         [[nodiscard]] rhi::BindGroupHandle Find(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs,
                                            rhi::BindGroupHandle& stale)
         {

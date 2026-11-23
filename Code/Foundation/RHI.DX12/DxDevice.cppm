@@ -54,7 +54,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi::dx12
 {
-
     class DxDeviceImpl : public Device
     {
     public:
@@ -463,6 +462,7 @@ export namespace foundation::rhi::dx12
             const DxTextureViewImpl* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
+        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Get(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const DxTextureViewImpl* v = m_tables.textureViews.Get(view);
@@ -1487,7 +1487,6 @@ export namespace foundation::rhi::dx12
                                                DxTextureImpl* dstTex, u32 dstMip, u32 dstWidth,
                                                u32 dstHeight, DXGI_FORMAT dxgiFormat)
     {
-
         auto* blitRootSig = m_device->blitRootSignature();
         if (!blitRootSig)
             return;

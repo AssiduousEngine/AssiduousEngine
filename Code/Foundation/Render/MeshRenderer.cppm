@@ -44,7 +44,6 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::render
 {
-
     // ---- Pure LOD selection math (unit-testable, no GPU) ----
     // Coverage: the fraction of the viewport half-height the item's bounding-sphere radius
     // spans in this camera. Perspective divides by view depth; ortho is depth-free (both read
@@ -306,9 +305,9 @@ export namespace foundation::render
         void UploadMultiMeshes(Span<const ExtractedScene* const> scenes);
 
         // A MultiMesh set not extracted for this many upload frames releases its GPU buffers and
-        // bind groups (through the retire queue when wired) and leaves the pool: per-chunk
-        // vegetation sets come and go with the camera, and a set seen once must not pin its
-        // buffer for the rest of the run.
+        // bind groups (destroyed through the device, which keeps them for frames in flight) and leaves
+        // the pool: per-chunk vegetation sets come and go with the camera, and a set seen once must
+        // not pin its buffer for the rest of the run.
         static constexpr u32 kMultiMeshEvictFrames = kMeshRendererMultiMeshEvictFrames;
 
         // The variant flags a material's active effects turn on: an effect group is active while
@@ -448,30 +447,13 @@ export namespace foundation::render
 
         void FinishFrame() override;
 
-        /// Wire the frames-in-flight retire queue (web-safe grows for the device buffers
-        /// and the staging rings). Null means drain on grow.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept
-        {
-            m_retire = retire;
-            m_viewRing.SetRetireQueue(retire);
-            m_shadowViewRing.SetRetireQueue(retire);
-            m_objectRing.SetRetireQueue(retire);
-            m_instanceRing.SetRetireQueue(retire);
-            m_offsetsRing.SetRetireQueue(retire);
-            m_lightRing.SetRetireQueue(retire);
-            m_localShadowRing.SetRetireQueue(retire);
-            m_boneRing.SetRetireQueue(retire);
-        }
-
     private:
-        void RetireOrDrainBuffer(rhi::BufferHandle& buffer);
         struct MultiMeshSet; // defined with the pool below
         // Release one set's GPU objects: retired when the queue is wired, destroyed in place
         // otherwise (Null-device tests, shutdown after the device idled).
         void ReleaseMultiMeshSet(MultiMeshSet& set);
         // Sweep sets whose lastFrame is older than kMultiMeshEvictFrames.
         void EvictStaleMultiMeshSets();
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         static constexpr u64 kViewSlot = 256; // dynamic UBO offset alignment (object, shadow view)
         static constexpr u64 kViewDataSlot =
             1024;                              // view UBO slot (GpuView is 656 bytes)
@@ -615,10 +597,10 @@ export namespace foundation::render
         // shared instance when none of its overrides is for `slot`.
         [[nodiscard]] materials::MaterialInstance* InstanceFor(const MeshRenderData& md, u32 slot,
                                                                materials::Material* material);
-        // Retire an instance's bind group and uniform buffers (in-flight frames may still bind them).
+        // Release an instance's bind group and uniform buffers (the device keeps them while in-flight frames bind them).
         void ReleaseInstance(materials::MaterialInstance& instance);
-        // Retire an instance's effect group buffers (materials::MaterialSystem::DetachEffectBuffers).
-        void RetireEffectBuffers(materials::MaterialInstance& instance);
+        // Release an instance's effect group buffers (materials::MaterialSystem::DetachEffectBuffers).
+        void ReleaseEffectBuffers(materials::MaterialInstance& instance);
         // Drop the override instances no draw has used for a while (overrides cleared, entity gone).
         void PruneOverrideInstances();
 
@@ -634,18 +616,16 @@ export namespace foundation::render
 
         // Per-frame bind groups (view, shadow view, object, instance) are rebuilt when their inputs change;
         // the directional shadow view, for example, alternates per in-flight slot, so the view BG rebuilds every
-        // frame. The old bind group may still be referenced by an in-flight command buffer, so it can't be
-        // freed immediately (vkFreeDescriptorSets-00309): retire it and free after the frame ring cycles.
-        void RetireBindGroup(rhi::BindGroupHandle bg);
+        // frame. The old one may still be referenced by an in-flight command buffer: the device keeps it
+        // until that buffer has run.
+        void ReleaseBindGroup(rhi::BindGroupHandle bg);
         // Drop material instances whose material nobody else references (the resource layer
-        // hot-reloaded it away): retire their bind group (it may still be bound by in-flight
-        // frames) and destroy the instance. Without this, stale descriptor sets keep destroyed
+        // hot-reloaded it away): release their bind group (the device keeps it while in-flight
+        // frames bind it) and destroy the instance. Without this, stale descriptor sets keep destroyed
         // texture views referenced forever.
         void PruneStaleMaterialInstances();
 
-        void TickRetiredBindGroups();
-
-        void RetireBuffer(rhi::BufferHandle buffer);
+        void ReleaseBuffer(rhi::BufferHandle buffer);
 
         // (Re)create a bind group over a ring's buffer when the ring (re)allocated. `whole` binds
         // the entire buffer (storage, indexed); otherwise a `bindSize` window (dynamic-offset UBO).
@@ -813,21 +793,6 @@ export namespace foundation::render
         // across frames. Bounded by a size cap: when it overflows, the map clears wholesale
         // (at worst, one frame of selection without hysteresis).
         HashMap<u64, u32> m_lodLast{*m_allocator};
-
-        // Bind groups retired this frame or earlier but possibly still referenced by in-flight command
-        // buffers; freed by TickRetiredBindGroups once the frame ring has cycled (framesLeft hits 0).
-        struct RetiredBG
-        {
-            rhi::BindGroupHandle bg;
-            u32 framesLeft;
-        };
-        Array<RetiredBG> m_retiredBGs{*m_allocator};
-        struct RetiredBuffer
-        {
-            rhi::BufferHandle buffer;
-            u32 framesLeft;
-        };
-        Array<RetiredBuffer> m_retiredBuffers{*m_allocator}; // material uniform buffers of pruned instances
 
         // Per-view set-0 slots (views of different scenes bind different IBL products) and the
         // current view's group (set by EnsureViewBindGroup; read by the Resolve* bodies).

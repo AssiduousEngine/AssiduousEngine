@@ -23,7 +23,7 @@ import foundation.shaders;
 import foundation.shaders.system;
 import :data; // kGNormalFormat, kGVelocityFormat, kGMaterialFormat
 import :bind_group_cache;
-import :resources; // GpuRetireQueue
+import :resources;
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -58,10 +58,6 @@ export namespace foundation::render
 
         Status Initialize();
 
-        // The queue a replaced bind group is retired into (a frame in flight may still use it);
-        // borrowed. Without one, the GPU is idled before the group is destroyed.
-        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
-
         // Declare the first-sample resolve of the MSAA depth and aux into fresh 1x transients.
         // `depthFormat` is the scene depth format (the resolved depth matches it, written via SV_Depth).
         // Returns invalid handles (no pass emitted) if the pipeline is unavailable.
@@ -82,7 +78,6 @@ export namespace foundation::render
 
         rhi::Device* m_device = nullptr;
         shaders::ShaderSystem* m_shaders = nullptr;
-        GpuRetireQueue* m_retire = nullptr; // borrowed; null: idle the GPU before destroying
         rhi::BindGroupLayoutHandle m_layout{};
         rhi::PipelineLayoutHandle m_pipelineLayout{};
         rhi::RenderPipelineHandle m_pipeline{};

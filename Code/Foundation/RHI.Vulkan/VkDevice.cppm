@@ -45,7 +45,6 @@ using namespace foundation::core;
 
 export namespace foundation::rhi::vk
 {
-
     class VkDeviceImpl : public Device
     {
     public:
@@ -612,6 +611,7 @@ export namespace foundation::rhi::vk
             const VkTextureViewImpl* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
+        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Get(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const VkTextureViewImpl* v = m_tables.textureViews.Get(view);

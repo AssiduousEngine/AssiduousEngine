@@ -381,7 +381,6 @@ namespace foundation::render
         {
             return hdr;
         }
-        Tick(frameIndex);
         const f32 fw = static_cast<f32>(w), fh = static_cast<f32>(h);
         const Float2 vpMin{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
         const Float2 vpSize{static_cast<f32>(vw) / fw, static_cast<f32>(vh) / fh};
@@ -752,29 +751,6 @@ namespace foundation::render
         return k;
     }
 
-    void SsgiPass::Tick(u32 frameIndex)
-    {
-        if (frameIndex == m_lastFrame)
-        {
-            return;
-        }
-        m_lastFrame = frameIndex;
-        usize w = 0;
-        for (usize i = 0; i < m_retired.Size(); ++i)
-        {
-            if (m_retired[i].left <= 1)
-            {
-                m_device->DestroyBindGroup(m_retired[i].bg);
-            }
-            else
-            {
-                m_retired[i].left -= 1;
-                m_retired[w++] = m_retired[i];
-            }
-        }
-        m_retired.Resize(w);
-    }
-
     rhi::BindGroupHandle SsgiPass::EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
                                               rhi::TextureViewHandle normal, u64 generation)
     {
@@ -791,7 +767,7 @@ namespace foundation::render
             }
             if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
+                m_device->DestroyBindGroup(e->bg);
                 e->bg = {};
             }
         }
@@ -829,7 +805,7 @@ namespace foundation::render
             }
             if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
+                m_device->DestroyBindGroup(e->bg);
                 e->bg = {};
             }
         }
@@ -865,7 +841,7 @@ namespace foundation::render
             }
             if (e->bg.IsValid())
             {
-                m_retired.PushBack(Retired{e->bg, kRetireFrames});
+                m_device->DestroyBindGroup(e->bg);
                 e->bg = {};
             }
         }
@@ -901,7 +877,7 @@ namespace foundation::render
         }
         if (stale.IsValid())
         {
-            m_retired.PushBack(Retired{stale, kRetireFrames}); // a frame in flight may still use it
+            m_device->DestroyBindGroup(stale); // kept by the device while a frame in flight uses it
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
@@ -960,11 +936,6 @@ namespace foundation::render
             m_device->DestroyBuffer(m_dummyShBuffer);
             m_dummyShBuffer = {};
         }
-        for (auto& r : m_retired)
-        {
-            m_device->DestroyBindGroup(r.bg);
-        }
-        m_retired.Clear();
         for (ViewHistory& hist : m_views)
         {
             DestroyHistory(hist);

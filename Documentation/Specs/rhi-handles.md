@@ -173,6 +173,11 @@ namespace foundation::rhi
 - **`GpuRetireQueue`, the per-pass `Retire*` paths and their `WaitIdle` fallbacks go**: a pass that
   replaces a resource destroys the old one and is done. The web frame drop the queue was written
   for cannot happen, since the device never waits.
+  What stays (H4): the waits that guard something other than a free (a readback mapped on the CPU,
+  ring slots the CPU writes into while the GPU may read them, teardown), and `GpuMesh`'s pool, which
+  holds a mesh's buffers for reuse until the frames in flight are done (reuse writes into them, so the
+  device's deferred free does not cover it). A cache keyed on views asks `Device::IsLive(view)`, a
+  query never reported as a stale use, to drop the groups of views their owners destroyed.
 - **Shutdown** frees everything retired after the device's final idle.
 
 ## Decision 5 - caches key on handles

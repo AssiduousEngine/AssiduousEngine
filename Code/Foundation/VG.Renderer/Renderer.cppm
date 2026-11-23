@@ -273,18 +273,6 @@ export namespace foundation::vg::renderer
         /// Reset per-frame ring-offset state. Call once before the frame's first Prepare.
         void BeginFrame(i32 frameIndex)
         {
-            // Age the retired texture entries (evicted via VGBatch::evictedTextures) and
-            // free the ones every in-flight frame is done with. Immediate disposal at
-            // eviction time would destroy bind groups a submitted frame still references.
-            for (usize i = m_retiredTextures.Size(); i > 0; --i)
-            {
-                RetiredTexture& retired = m_retiredTextures[i - 1];
-                if (--retired.framesLeft <= 0)
-                {
-                    DisposeCachedTexture(*retired.entry);
-                    m_retiredTextures.RemoveAt(i - 1);
-                }
-            }
             m_frameVertexOffsets[static_cast<usize>(frameIndex)] = 0;
             m_frameIndexOffsets[static_cast<usize>(frameIndex)] = 0;
             m_frameUniformSlotCount[static_cast<usize>(frameIndex)] = 0;
@@ -677,14 +665,11 @@ export namespace foundation::vg::renderer
             for (usize i = 0; i < m_textureCache.Size(); ++i)
                 DisposeCachedTexture(*m_textureCache[i]);
             m_textureCache.Clear();
-            for (usize i = 0; i < m_retiredTextures.Size(); ++i)
-                DisposeCachedTexture(*m_retiredTextures[i].entry);
-            m_retiredTextures.Clear();
         }
 
-        /// Drop the cache entry for `key` (an identity, never dereferenced): the GPU
-        /// resources move to the retired list and are freed once every in-flight frame
-        /// has aged past them. External (caller-owned) entries are untouched; their owner
+        /// Drop the cache entry for `key` (an identity, never dereferenced): its GPU objects are
+        /// destroyed, the device keeping them while in-flight frames use them. External
+        /// (caller-owned) entries are untouched; their owner
         /// invalidates them with UnregisterExternalTexture.
         void EvictCachedTexture(const image::ImageData* key)
         {
@@ -694,10 +679,8 @@ export namespace foundation::vg::renderer
             {
                 if (m_textureCache[i]->source != key || m_textureCache[i]->external)
                     continue;
-                RetiredTexture retired;
-                retired.entry = Move(m_textureCache[i]);
-                retired.framesLeft = m_frameCount;
-                m_retiredTextures.PushBack(Move(retired));
+                // A submitted frame may still bind its groups: the device keeps them until it has run.
+                DisposeCachedTexture(*m_textureCache[i]);
                 m_textureCache.RemoveAt(i);
                 return;
             }
@@ -705,7 +688,6 @@ export namespace foundation::vg::renderer
 
         /// Cache introspection (tests and diagnostics).
         [[nodiscard]] usize CachedTextureCount() const { return m_textureCache.Size(); }
-        [[nodiscard]] usize RetiredTextureCount() const { return m_retiredTextures.Size(); }
 
         /// Register a caller-owned rhi::TextureView (e.g. a viewport's offscreen
         /// render target) under an ImageData identity key, so DrawImage(key, ...)
@@ -1279,7 +1261,6 @@ export namespace foundation::vg::renderer
                                         : m_pipeline;
         }
 
-
         /// The fragment-shader and role families that need per-blend pipeline variants
         /// (stencil write pipelines are color-masked and blend-agnostic).
         enum class PipelineKind : u8
@@ -1694,14 +1675,11 @@ export namespace foundation::vg::renderer
                 if (m_textureCache[i]->sourceId == texture->InstanceId())
                     return m_textureCache[i].Get();
                 // Same address, different instance: the cached image was deleted and the
-                // allocator reused its address. Retire the stale entry (GPU resources age
-                // out with the in-flight frames) and build a fresh one below.
+                // allocator reused its address. Dispose of the stale entry (the device keeps its GPU
+                // objects while in-flight frames use them) and build a fresh one below.
                 if (m_textureCache[i]->external)
                     return nullptr; // owner must re-register the external view
-                RetiredTexture retired;
-                retired.entry = Move(m_textureCache[i]);
-                retired.framesLeft = m_frameCount;
-                m_retiredTextures.PushBack(Move(retired));
+                DisposeCachedTexture(*m_textureCache[i]);
                 m_textureCache.RemoveAt(i);
                 break;
             }
@@ -2072,15 +2050,7 @@ export namespace foundation::vg::renderer
         bool m_capacityWarned = false;            // one-shot warn when a batch exceeds the hard ceiling
         bool m_uniformSlotsWarned = false;        // one-shot warn when a frame's uniform slots run out
 
-        // Evicted entries wait here until every in-flight frame has aged past them.
-        struct RetiredTexture
-        {
-            UniquePtr<CachedTexture> entry;
-            i32 framesLeft = 0;
-        };
-
         Array<UniquePtr<CachedTexture>> m_textureCache;
-        Array<RetiredTexture> m_retiredTextures;
         Array<const image::ImageData*> m_batchTextures;
         Array<foundation::vg::VGCommand> m_drawCommands;
         Array<PreparedLayer> m_layers;     // this frame's slices' layers (VGRenderSlice::layerStart)

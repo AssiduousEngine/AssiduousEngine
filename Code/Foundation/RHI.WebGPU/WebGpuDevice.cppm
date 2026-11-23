@@ -363,6 +363,7 @@ export namespace foundation::rhi::webgpu
             const WebGpuTextureView* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
+        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Get(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const WebGpuTextureView* v = m_tables.textureViews.Get(view);
@@ -607,7 +608,6 @@ export namespace foundation::rhi::webgpu
         {
             return ErrorCode::NotSupported;
         }
-
 
         void WaitIdle() override
         {

@@ -382,13 +382,7 @@ export namespace engine::render
         UniquePtr<ShadowSystem> m_shadowSystem;
 
     public:
-        /// The frames-in-flight retire queue external renderers (particles, ...) wire
-        /// their DynamicUniformRings into: grow-path replacements must retire, never
-        /// WaitIdle mid-frame (on the web that drops submits).
-        [[nodiscard]] GpuRetireQueue* RetireQueue() noexcept { return &m_retireQueue; }
-
     private:
-        GpuRetireQueue m_retireQueue; // frames-in-flight deferred GPU destruction (web-safe grows)
         UniquePtr<IBLSystem> m_iblSystem;
         UniquePtr<ReflectionProbeSystem> m_probeSystem;
         UniquePtr<SkyPass> m_skyPass;
@@ -445,8 +439,8 @@ export namespace engine::render
         OverlayRegistry<ISceneOverlay> m_sceneOverlays;   // scene-tier overlay sources (borrowed)
         OverlayRegistry<IScreenOverlay> m_screenOverlays; // window-space overlay sources (borrowed)
         // Screen-overlay stencil attachment (stencil-then-cover UI fills): one cached DS
-        // sized to the last window target (single-window runtime; a size change retires
-        // the old texture through the queue and recreates). An undefined format means no stencil.
+        // sized to the last window target (single-window runtime; a size change destroys
+        // the old texture and recreates). An undefined format means no stencil.
         rhi::TextureHandle m_overlayDsTexture{};
         rhi::TextureViewHandle m_overlayDsView{};
         u32 m_overlayDsWidth = 0;

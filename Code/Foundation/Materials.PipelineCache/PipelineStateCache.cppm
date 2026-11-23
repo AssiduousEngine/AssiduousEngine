@@ -12,8 +12,8 @@
 /// the ShaderSystem version of its shader at build time; GetPipeline compares against
 /// the current version and lazily rebuilds when a shader was invalidated (reloaded).
 /// This costs one HashMap lookup, a key compare and an integer compare per draw, with no
-/// listener bookkeeping. Superseded pipelines are retired and freed by TickRetired() once the
-/// frames in flight have passed.
+/// listener bookkeeping. A superseded pipeline is destroyed at once; the device keeps it while a
+/// frame in flight draws with it.
 
 module;
 #include "Core/Prelude.h"
@@ -32,22 +32,15 @@ namespace rhi = foundation::rhi;
 
 export namespace foundation::materials
 {
-
     class PipelineStateCache
     {
     public:
-        /// `framesInFlight`: how many frames a pipeline superseded by a reload is kept for after
-        /// it (TickRetired), since frames still in flight may draw with it.
-        PipelineStateCache(shaders::ShaderSystem& shaderSystem, rhi::Device& device, u32 framesInFlight = 3) noexcept
-            : m_shaders(&shaderSystem), m_device(&device), m_framesInFlight(framesInFlight == 0 ? 1u : framesInFlight)
+        PipelineStateCache(shaders::ShaderSystem& shaderSystem, rhi::Device& device) noexcept
+            : m_shaders(&shaderSystem), m_device(&device)
         {
         }
 
-        ~PipelineStateCache()
-        {
-            Clear();
-            ReleaseRetired();
-        }
+        ~PipelineStateCache() { Clear(); }
 
         PipelineStateCache(const PipelineStateCache&) = delete;
         PipelineStateCache& operator=(const PipelineStateCache&) = delete;
@@ -78,11 +71,8 @@ export namespace foundation::materials
                     {
                         return e.pipeline; // null: it failed for this version of the shader
                     }
-                    // The shader was reloaded since: the stale pipeline retires, one rebuilds.
-                    if (e.pipeline.IsValid())
-                    {
-                        m_retired.PushBack(Retired{e.pipeline, m_framesInFlight});
-                    }
+                    // The shader was reloaded since: the stale pipeline goes, one rebuilds.
+                    m_device->DestroyRenderPipeline(e.pipeline);
                     e.pipeline = Build(config, layout, colorOverride);
                     e.builtVersion = version;
                     return e.pipeline;
@@ -109,42 +99,6 @@ export namespace foundation::materials
         [[nodiscard]] usize Size() const noexcept { return m_count; }
         /// How many pipelines it has tried to build: a failure kept is not tried again.
         [[nodiscard]] u64 BuildAttempts() const noexcept { return m_builds; }
-        [[nodiscard]] usize RetiredCount() const noexcept { return m_retired.Size(); }
-
-        // Once a frame: frees the pipelines superseded by a reload whose frames in flight have
-        // all completed (framesInFlight of these ticks after).
-        void TickRetired()
-        {
-            for (usize i = 0; i < m_retired.Size();)
-            {
-                if (m_retired[i].framesLeft <= 1)
-                {
-                    if (m_retired[i].pipeline.IsValid())
-                    {
-                        m_device->DestroyRenderPipeline(m_retired[i].pipeline);
-                    }
-                    m_retired.RemoveAtSwap(i);
-                }
-                else
-                {
-                    --m_retired[i].framesLeft;
-                    ++i;
-                }
-            }
-        }
-
-        // Frees every pipeline superseded by a reload now: the GPU is idle (shutdown, a test).
-        void ReleaseRetired()
-        {
-            for (Retired& r : m_retired)
-            {
-                if (r.pipeline.IsValid())
-                {
-                    m_device->DestroyRenderPipeline(r.pipeline);
-                }
-            }
-            m_retired.Clear();
-        }
 
         // Destroys all live pipelines without retiring them; call at shutdown.
         void Clear()
@@ -185,11 +139,6 @@ export namespace foundation::materials
                 named.shaderName = other.shaderName;
                 return named == other;
             }
-        };
-        struct Retired
-        {
-            rhi::RenderPipelineHandle pipeline{};
-            u32 framesLeft = 0;
         };
 
         static u64 KeyOf(const PipelineConfig& config, rhi::PipelineLayoutHandle layout,
@@ -353,11 +302,9 @@ export namespace foundation::materials
 
         shaders::ShaderSystem* m_shaders; // borrowed
         rhi::Device* m_device;            // borrowed
-        u32 m_framesInFlight = 3;
         HashMap<u64, Array<Entry>> m_entries; // by the key's hash; each entry holds the whole key
         usize m_count = 0;
         u64 m_builds = 0;
-        Array<Retired> m_retired; // superseded by a reload, freed by TickRetired once idle
     };
 
 } // namespace foundation::materials
