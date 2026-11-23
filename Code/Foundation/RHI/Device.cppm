@@ -263,6 +263,25 @@ export namespace foundation::rhi
         /// The acceleration structure's GPU address; 0 for a stale handle.
         [[nodiscard]] virtual u64 DeviceAddress(AccelStructHandle accelStruct) const = 0;
 
+        // ---- Debugging ----
+        /// The label a resource was created with; for a stale handle, the one it had (while the device
+        /// still remembers it), else empty.
+        [[nodiscard]] virtual StringView Label(BufferHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(TextureHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(TextureViewHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(SamplerHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(ShaderModuleHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(BindGroupLayoutHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(BindGroupHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(PipelineLayoutHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(PipelineCacheHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(RenderPipelineHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(ComputePipelineHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(MeshPipelineHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(QuerySetHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(AccelStructHandle handle) const = 0;
+        [[nodiscard]] virtual StringView Label(RayTracingPipelineHandle handle) const = 0;
+
         // ---- Resource destruction ----
         /// The handle (and the caller's copy) is stale at once; the buffer is freed when the GPU
         /// can no longer use it (Specs/rhi-handles.md, Decision 4).

@@ -10,12 +10,17 @@
 
 #include "Core/Prelude.h"
 
+#include <cstring>
+
 import foundation.core;
 import foundation.rhi;
 import foundation.rhi.null;
 
 using namespace foundation::core;
 using namespace foundation::rhi;
+
+extern "C" const char* DebugHandleLabel(const char* noun, foundation::core::u32 index,
+                                            foundation::core::u32 generation);
 
 namespace
 {
@@ -223,4 +228,76 @@ TEST_CASE("buffer lifetime: a buffer handle from one device is refused by anothe
     CHECK(b.device->Describe(fromA) == nullptr);
     CHECK(a.device->Describe(fromB) == nullptr);
     CHECK(a.device->Describe(fromA)->size == 32u);
+}
+
+namespace
+{
+    struct StaleLines
+    {
+        int count = 0;
+        const char* needle = "";
+        static bool Sink(void* context, bool error, const char* utf8)
+        {
+            auto* self = static_cast<StaleLines*>(context);
+            if (error && std::strstr(utf8, "[rhi] stale") != nullptr && std::strstr(utf8, self->needle) != nullptr)
+                ++self->count;
+            return true; // swallowed: the test reads them
+        }
+    };
+}
+
+TEST_CASE("buffer lifetime: a resource's label is the device's to tell, and a stale use is reported once, by it")
+{
+    NullDeviceFixture f;
+    BufferDesc desc{};
+    desc.size = 64;
+    desc.usage = BufferUsage::Uniform;
+    desc.label = u8"label.probe.buffer";
+    BufferHandle buffer{};
+    REQUIRE(f.device->CreateBuffer(desc, buffer).IsOk());
+    CHECK(f.device->Label(buffer) == StringView(u8"label.probe.buffer"));
+    const BufferHandle kept = buffer;
+    f.device->DestroyBuffer(buffer);
+    CHECK(f.device->Label(kept) == StringView(u8"label.probe.buffer")); // remembered after the destroy
+
+    StaleLines lines;
+    lines.needle = "label.probe.buffer";
+    SetLogSink(&StaleLines::Sink, &lines);
+    CHECK(f.device->Describe(kept) == nullptr);
+    CHECK(f.device->Map(kept) == nullptr);
+    BufferHandle again = kept;
+    f.device->DestroyBuffer(again); // a second destroy is a stale use too
+    SetLogSink(nullptr, nullptr);
+    CHECK(lines.count == 1); // once per handle, named
+
+    // A label is copied at creation: the caller's string may go.
+    String transient(u8"label.probe.copied");
+    desc.label = transient.AsView();
+    BufferHandle copied{};
+    REQUIRE(f.device->CreateBuffer(desc, copied).IsOk());
+    transient = String(u8"something else");
+    CHECK(f.device->Label(copied) == StringView(u8"label.probe.copied"));
+    f.device->DestroyBuffer(copied);
+}
+
+TEST_CASE("buffer lifetime: a debugger reads a handle's label through Core, by its noun and pool")
+{
+    NullDeviceFixture f;
+    BufferDesc desc{};
+    desc.size = 64;
+    desc.usage = BufferUsage::Uniform;
+    desc.label = u8"debugger.probe";
+    BufferHandle buffer{};
+    REQUIRE(f.device->CreateBuffer(desc, buffer).IsOk());
+    CHECK(StringView(reinterpret_cast<const utf8char*>(DebugHandleLabel("Buffer", buffer.index, buffer.generation))) ==
+          StringView(u8"'debugger.probe'"));
+    const BufferHandle kept = buffer;
+    f.device->DestroyBuffer(buffer);
+    CHECK(StringView(reinterpret_cast<const utf8char*>(DebugHandleLabel("Buffer", kept.index, kept.generation))) ==
+          StringView(u8"stale (was 'debugger.probe')"));
+    // Another type's pool of the same id knows nothing of it.
+    CHECK(StringView(reinterpret_cast<const utf8char*>(DebugHandleLabel("Texture", kept.index, kept.generation))) ==
+          StringView(u8"stale"));
+    // A pool nothing registered answers empty.
+    CHECK(StringView(reinterpret_cast<const utf8char*>(DebugHandleLabel("NoSuchThing", 0, 1u << 24))).IsEmpty());
 }

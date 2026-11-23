@@ -356,7 +356,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(b);
                 return ErrorCode::Unknown;
             }
-            out = m_tables.buffers.Add(b);
+            out = m_tables.buffers.Add(b, d.label);
             if (!out)
             {
                 b->cleanup();
@@ -397,7 +397,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(t);
                 return ErrorCode::Unknown;
             }
-            out = m_tables.textures.Add(t);
+            out = m_tables.textures.Add(t, d.label);
             if (!out)
             {
                 t->cleanup();
@@ -423,7 +423,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(v);
                 return ErrorCode::Unknown;
             }
-            out = m_tables.textureViews.Add(v);
+            out = m_tables.textureViews.Add(v, d.label);
             if (!out)
             {
                 v->cleanup();
@@ -442,7 +442,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(s);
                 return ErrorCode::Unknown;
             }
-            out = m_tables.samplers.Add(s);
+            out = m_tables.samplers.Add(s, d.label);
             if (!out)
             {
                 s->cleanup();
@@ -462,7 +462,22 @@ export namespace foundation::rhi::dx12
             const DxTextureViewImpl* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
-        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Get(view) != nullptr; }
+        StringView Label(BufferHandle handle) const override { return m_tables.buffers.Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_tables.textures.Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_tables.textureViews.Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_tables.samplers.Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_tables.shaderModules.Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_tables.bindGroupLayouts.Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_tables.bindGroups.Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_tables.pipelineLayouts.Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_tables.pipelineCaches.Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_tables.renderPipelines.Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_tables.computePipelines.Label(handle); }
+        StringView Label(MeshPipelineHandle handle) const override { return m_tables.meshPipelines.Label(handle); }
+        StringView Label(QuerySetHandle handle) const override { return m_tables.querySets.Label(handle); }
+        StringView Label(AccelStructHandle handle) const override { return m_tables.accelStructs.Label(handle); }
+        StringView Label(RayTracingPipelineHandle handle) const override { return m_tables.rayTracingPipelines.Label(handle); }
+        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Find(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const DxTextureViewImpl* v = m_tables.textureViews.Get(view);
@@ -530,7 +545,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             m->entryPoint = String(d.entryPoint);
-            return Adopt(m_tables.shaderModules, m, out);
+            return Adopt(m_tables.shaderModules, m, out, d.label);
         }
 
         // ==================================================================
@@ -546,7 +561,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(l);
                 return ErrorCode::Unknown;
             }
-            return Adopt(m_tables.bindGroupLayouts, l, out);
+            return Adopt(m_tables.bindGroupLayouts, l, out, d.label);
         }
 
         Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
@@ -561,7 +576,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             g->layout = d.layout;
-            return Adopt(m_tables.bindGroups, g, out);
+            return Adopt(m_tables.bindGroups, g, out, d.label);
         }
 
         Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayoutHandle& out) override
@@ -575,7 +590,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             setDebugName(l->handle(), d.label);
-            return Adopt(m_tables.pipelineLayouts, l, out);
+            return Adopt(m_tables.pipelineLayouts, l, out, d.label);
         }
 
         Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCacheHandle& out) override
@@ -589,7 +604,7 @@ export namespace foundation::rhi::dx12
             }
             if (c->handle())
                 setDebugName(c->handle(), d.label);
-            return Adopt(m_tables.pipelineCaches, c, out);
+            return Adopt(m_tables.pipelineCaches, c, out, d.label);
         }
 
         Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipelineHandle& out) override
@@ -602,7 +617,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             setDebugName(p->handle(), d.label);
-            return Adopt(m_tables.renderPipelines, p, out);
+            return Adopt(m_tables.renderPipelines, p, out, d.label);
         }
 
         Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipelineHandle& out) override
@@ -615,7 +630,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             setDebugName(p->handle(), d.label);
-            return Adopt(m_tables.computePipelines, p, out);
+            return Adopt(m_tables.computePipelines, p, out, d.label);
         }
 
         // ==================================================================
@@ -636,7 +651,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             setDebugName(p->handle(), d.label);
-            return Adopt(m_tables.meshPipelines, p, out);
+            return Adopt(m_tables.meshPipelines, p, out, d.label);
         }
 
         void DestroyMeshPipeline(MeshPipelineHandle& p) override
@@ -662,7 +677,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(a);
                 return ErrorCode::Unknown;
             }
-            return Adopt(m_tables.accelStructs, a, out);
+            return Adopt(m_tables.accelStructs, a, out, d.label);
         }
 
         void DestroyAccelStruct(AccelStructHandle& a) override
@@ -685,7 +700,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(p);
                 return ErrorCode::Unknown;
             }
-            return Adopt(m_tables.rayTracingPipelines, p, out);
+            return Adopt(m_tables.rayTracingPipelines, p, out, d.label);
         }
 
         void DestroyRayTracingPipeline(RayTracingPipelineHandle& p) override
@@ -786,7 +801,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             setDebugName(q->handle(), d.label);
-            return Adopt(m_tables.querySets, q, out);
+            return Adopt(m_tables.querySets, q, out, d.label);
         }
 
         // ==================================================================
@@ -1387,9 +1402,9 @@ export namespace foundation::rhi::dx12
         }
         // A new object into its table; freed again if the table is full.
         template <typename TTable, typename TImpl, typename THandle>
-        Status Adopt(TTable& table, TImpl* object, THandle& out)
+        Status Adopt(TTable& table, TImpl* object, THandle& out, StringView label)
         {
-            out = table.Add(object);
+            out = table.Add(object, label);
             if (!out)
             {
                 FreeObject<TImpl>(this, object);

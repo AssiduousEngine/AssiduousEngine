@@ -194,6 +194,14 @@ gives the label the resource was created with, and the device's log of a stale u
 pretty printer for gdb and lldb, and a natvis for Visual Studio, show a handle's label and whether
 it is live, through the device the process has.
 
+As built (H5): each device table keeps its objects' labels (copied at creation) and the last 64
+destroyed ones; a stale lookup is logged once per handle, naming the label, and `IsLive` asks
+without logging. A table registers itself with Core's handle labels by noun and pool id, and
+`DebugHandleLabel(noun, index, generation)`, callable from a debugger in a live process, asks
+it. The gdb and lldb printers call it (`scripts/debug/`); a natvis cannot call into the process, so
+Visual Studio's view (`Core/Debug/Core.natvis`) shows the slot, count and pool, the label being a
+call in the Immediate window.
+
 ## Decision 7 - the other ids
 
 `JointId` and `CharacterId` become Core handles over the physics world's slots, so a joint or

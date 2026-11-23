@@ -59,6 +59,14 @@ export namespace foundation::core
         void ReleaseHandlePoolId(TypeId type, u32 id) noexcept;
     }
 
+    /// What a debugger shows beside a handle: its owner's words for it (a resource's label, and
+    /// whether it is live), written into `out` (`size` bytes, terminated). An owner registers one
+    /// for each pool it keeps, by the handle type's noun and the pool's id.
+    using HandleLabelFn = void (*)(void* context, u32 index, u32 generation, char* out, usize size);
+    /// One process-wide table, in Core's implementation unit (fixed: no allocation).
+    void RegisterHandleLabels(const char* noun, u32 poolId, HandleLabelFn describe, void* context) noexcept;
+    void UnregisterHandleLabels(const char* noun, u32 poolId) noexcept;
+
     // =======================================================================
     // HandlePool<Tag, T> - values of T in slots, named by Handle<Tag>.
     //

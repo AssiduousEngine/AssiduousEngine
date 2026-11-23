@@ -6,6 +6,11 @@
 util_add_engine_library(Core ALIAS Foundation::Core)
 target_link_libraries(Core PUBLIC Foundation::Policy)
 
+# Visual Studio's view of Core's handles: every binary that links Core carries it in its PDB.
+if(MSVC)
+    target_link_options(Core PUBLIC "/NATVIS:${CMAKE_CURRENT_SOURCE_DIR}/Debug/Core.natvis")
+endif()
+
 # Classic (non-module) translation units: macro-centric subsystems whose
 # functions need external linkage reachable from any module's GMF (see
 # Debug/Assert.h). Kept minimal.

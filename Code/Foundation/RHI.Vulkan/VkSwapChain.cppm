@@ -580,7 +580,7 @@ export namespace foundation::rhi::vk
             auto* tex = m_allocator->New<VkTextureImpl>();
             tex->initFromExisting(images[i], td);
             m_textures.PushBack(tex);
-            const TextureHandle texHandle = m_tables->textures.Add(tex);
+            const TextureHandle texHandle = m_tables->textures.Add(tex, u8"swap chain image");
             m_textureHandles.PushBack(texHandle);
 
             TextureViewDesc vd{};
@@ -595,7 +595,7 @@ export namespace foundation::rhi::vk
                 return ErrorCode::Unknown;
             }
             m_views.PushBack(view);
-            m_viewHandles.PushBack(m_tables->textureViews.Add(view));
+            m_viewHandles.PushBack(m_tables->textureViews.Add(view, u8"swap chain image/view"));
 
             if (m_alternate != TextureFormat::Undefined)
             {
@@ -608,7 +608,7 @@ export namespace foundation::rhi::vk
                     return ErrorCode::Unknown;
                 }
                 m_alternateViews.PushBack(alternate);
-                m_alternateHandles.PushBack(m_tables->textureViews.Add(alternate));
+                m_alternateHandles.PushBack(m_tables->textureViews.Add(alternate, u8"swap chain image/alternate view"));
             }
         }
         return ErrorCode::Ok;

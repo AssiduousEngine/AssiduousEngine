@@ -134,7 +134,8 @@ namespace
         static bool Sink(void* context, bool, const char* utf8)
         {
             auto* self = static_cast<LineCapture*>(context);
-            if (std::strstr(utf8, self->needle) != nullptr)
+            // The layer's own lines: the device under it reports a stale use once too ("[rhi] ...").
+            if (std::strncmp(utf8, "[Validation]", 12) == 0 && std::strstr(utf8, self->needle) != nullptr)
                 ++self->matching;
             return true;
         }

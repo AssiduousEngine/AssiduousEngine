@@ -491,19 +491,19 @@ export namespace foundation::rhi::null
         PresentMode refusedPresentMode = PresentMode::Immediate;
 
         SubmissionTracker m_tracker{m_allocator};
-        ResourceTable<BufferTag, NullBuffer> m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
-        ResourceTable<TextureTag, NullTexture> m_textures{m_allocator, m_tracker, &FreeTexture, this};
+        ResourceTable<BufferTag, NullBuffer> m_buffers{m_allocator, m_tracker, &FreeBuffer, this, "Buffer"};
+        ResourceTable<TextureTag, NullTexture> m_textures{m_allocator, m_tracker, &FreeTexture, this, "Texture"};
         ResourceTable<TextureViewTag, NullTextureView> m_views{m_allocator, m_tracker, &FreeObject<NullTextureView>,
-                                                               this};
-        ResourceTable<SamplerTag, NullSampler> m_samplers{m_allocator, m_tracker, &FreeObject<NullSampler>, this};
-        ResourceTable<ShaderModuleTag, NullShaderModule> m_shaderModules{m_allocator, m_tracker, &FreeObject<NullShaderModule>, this};
-        ResourceTable<BindGroupLayoutTag, NullBindGroupLayout> m_bindGroupLayouts{m_allocator, m_tracker, &FreeObject<NullBindGroupLayout>, this};
-        ResourceTable<BindGroupTag, NullBindGroup> m_bindGroups{m_allocator, m_tracker, &FreeObject<NullBindGroup>, this};
-        ResourceTable<PipelineLayoutTag, NullPipelineLayout> m_pipelineLayouts{m_allocator, m_tracker, &FreeObject<NullPipelineLayout>, this};
-        ResourceTable<PipelineCacheTag, NullPipelineCache> m_pipelineCaches{m_allocator, m_tracker, &FreeObject<NullPipelineCache>, this};
-        ResourceTable<RenderPipelineTag, NullRenderPipeline> m_renderPipelines{m_allocator, m_tracker, &FreeObject<NullRenderPipeline>, this};
-        ResourceTable<ComputePipelineTag, NullComputePipeline> m_computePipelines{m_allocator, m_tracker, &FreeObject<NullComputePipeline>, this};
-        ResourceTable<QuerySetTag, NullQuerySet> m_querySets{m_allocator, m_tracker, &FreeObject<NullQuerySet>, this};
+                                                               this, "TextureView"};
+        ResourceTable<SamplerTag, NullSampler> m_samplers{m_allocator, m_tracker, &FreeObject<NullSampler>, this, "Sampler"};
+        ResourceTable<ShaderModuleTag, NullShaderModule> m_shaderModules{m_allocator, m_tracker, &FreeObject<NullShaderModule>, this, "ShaderModule"};
+        ResourceTable<BindGroupLayoutTag, NullBindGroupLayout> m_bindGroupLayouts{m_allocator, m_tracker, &FreeObject<NullBindGroupLayout>, this, "BindGroupLayout"};
+        ResourceTable<BindGroupTag, NullBindGroup> m_bindGroups{m_allocator, m_tracker, &FreeObject<NullBindGroup>, this, "BindGroup"};
+        ResourceTable<PipelineLayoutTag, NullPipelineLayout> m_pipelineLayouts{m_allocator, m_tracker, &FreeObject<NullPipelineLayout>, this, "PipelineLayout"};
+        ResourceTable<PipelineCacheTag, NullPipelineCache> m_pipelineCaches{m_allocator, m_tracker, &FreeObject<NullPipelineCache>, this, "PipelineCache"};
+        ResourceTable<RenderPipelineTag, NullRenderPipeline> m_renderPipelines{m_allocator, m_tracker, &FreeObject<NullRenderPipeline>, this, "RenderPipeline"};
+        ResourceTable<ComputePipelineTag, NullComputePipeline> m_computePipelines{m_allocator, m_tracker, &FreeObject<NullComputePipeline>, this, "ComputePipeline"};
+        ResourceTable<QuerySetTag, NullQuerySet> m_querySets{m_allocator, m_tracker, &FreeObject<NullQuerySet>, this, "QuerySet"};
 
         static void FreeTexture(void* context, void* object)
         {
@@ -601,7 +601,7 @@ export namespace foundation::rhi::null
             auto* b = m_allocator.New<NullBuffer>();
             b->desc = d;
             b->allocate(d.size);
-            out = m_buffers.Add(b);
+            out = m_buffers.Add(b, d.label);
             if (!out.IsValid())
             {
                 m_allocator.Delete(b);
@@ -635,7 +635,7 @@ export namespace foundation::rhi::null
             auto* t = m_allocator.New<NullTexture>();
             t->desc = d;
             m_counters.TextureMade(EstimateTextureBytes(d), CountsAsRenderTarget(d));
-            out = m_textures.Add(t);
+            out = m_textures.Add(t, d.label);
             return ErrorCode::Ok;
         }
         Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
@@ -646,14 +646,14 @@ export namespace foundation::rhi::null
             auto* v = m_allocator.New<NullTextureView>();
             v->desc = d;
             v->texture = tex;
-            out = m_views.Add(v);
+            out = m_views.Add(v, d.label);
             return ErrorCode::Ok;
         }
         Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
             auto* s = m_allocator.New<NullSampler>();
             s->desc = d;
-            out = m_samplers.Add(s);
+            out = m_samplers.Add(s, d.label);
             return ErrorCode::Ok;
         }
         const TextureDesc* Describe(TextureHandle texture) const override
@@ -666,7 +666,22 @@ export namespace foundation::rhi::null
             const NullTextureView* v = m_views.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
-        bool IsLive(TextureViewHandle view) const override { return m_views.Get(view) != nullptr; }
+        StringView Label(BufferHandle handle) const override { return m_buffers.Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_textures.Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_views.Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_samplers.Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_shaderModules.Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_bindGroupLayouts.Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_bindGroups.Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_pipelineLayouts.Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_pipelineCaches.Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_renderPipelines.Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_computePipelines.Label(handle); }
+        StringView Label(MeshPipelineHandle) const override { return {}; } // none made here
+        StringView Label(QuerySetHandle handle) const override { return m_querySets.Label(handle); }
+        StringView Label(AccelStructHandle) const override { return {}; } // none made here
+        StringView Label(RayTracingPipelineHandle) const override { return {}; } // none made here
+        bool IsLive(TextureViewHandle view) const override { return m_views.Find(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const NullTextureView* v = m_views.Get(view);
@@ -681,7 +696,7 @@ export namespace foundation::rhi::null
         {
             auto* module = m_allocator.New<NullShaderModule>();
             module->entryPoint = String(d.entryPoint);
-            out = m_shaderModules.Add(module);
+            out = m_shaderModules.Add(module, d.label);
             return ErrorCode::Ok;
         }
         Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayoutHandle& out) override
@@ -692,7 +707,7 @@ export namespace foundation::rhi::null
                 entry.label = {};
                 layout->entries.PushBack(entry);
             }
-            out = m_bindGroupLayouts.Add(layout);
+            out = m_bindGroupLayouts.Add(layout, d.label);
             return ErrorCode::Ok;
         }
         Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
@@ -702,7 +717,7 @@ export namespace foundation::rhi::null
                 return ErrorCode::InvalidArgument;
             auto* group = m_allocator.New<NullBindGroup>();
             group->layout = d.layout;
-            out = m_bindGroups.Add(group);
+            out = m_bindGroups.Add(group, d.label);
             return ErrorCode::Ok;
         }
         StringView EntryPointOf(ShaderModuleHandle module) const override
@@ -732,24 +747,24 @@ export namespace foundation::rhi::null
             return q != nullptr ? &q->desc : nullptr;
         }
         u64 DeviceAddress(AccelStructHandle) const override { return 0; }
-        Status CreatePipelineLayout(const PipelineLayoutDesc&, PipelineLayoutHandle& out) override
+        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayoutHandle& out) override
         {
-            out = m_pipelineLayouts.Add(m_allocator.New<NullPipelineLayout>());
+            out = m_pipelineLayouts.Add(m_allocator.New<NullPipelineLayout>(), d.label);
             return ErrorCode::Ok;
         }
-        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCacheHandle& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCacheHandle& out) override
         {
-            out = m_pipelineCaches.Add(m_allocator.New<NullPipelineCache>());
+            out = m_pipelineCaches.Add(m_allocator.New<NullPipelineCache>(), d.label);
             return ErrorCode::Ok;
         }
-        Status CreateRenderPipeline(const RenderPipelineDesc&, RenderPipelineHandle& out) override
+        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipelineHandle& out) override
         {
-            out = m_renderPipelines.Add(m_allocator.New<NullRenderPipeline>());
+            out = m_renderPipelines.Add(m_allocator.New<NullRenderPipeline>(), d.label);
             return ErrorCode::Ok;
         }
-        Status CreateComputePipeline(const ComputePipelineDesc&, ComputePipelineHandle& out) override
+        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipelineHandle& out) override
         {
-            out = m_computePipelines.Add(m_allocator.New<NullComputePipeline>());
+            out = m_computePipelines.Add(m_allocator.New<NullComputePipeline>(), d.label);
             return ErrorCode::Ok;
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
@@ -767,7 +782,7 @@ export namespace foundation::rhi::null
             auto* q = m_allocator.New<NullQuerySet>();
             q->desc = d;
             q->desc.label = {};
-            out = m_querySets.Add(q);
+            out = m_querySets.Add(q, d.label);
             return ErrorCode::Ok;
         }
         Status CreateSwapChain(Surface*, const SwapChainDesc& d, SwapChain*& out) override
@@ -789,12 +804,12 @@ export namespace foundation::rhi::null
             sc->m_width = swaps ? d.height : d.width;
             sc->m_height = swaps ? d.width : d.height;
             sc->m_count = d.bufferCount;
-            sc->texHandle = m_textures.Add(&sc->tex);
+            sc->texHandle = m_textures.Add(&sc->tex, u8"swap chain image");
             sc->view.texture = sc->texHandle;
             sc->alternateView.texture = sc->texHandle;
-            sc->viewHandle = m_views.Add(&sc->view);
+            sc->viewHandle = m_views.Add(&sc->view, u8"swap chain image/view");
             if (sc->m_alternate != TextureFormat::Undefined)
-                sc->alternateHandle = m_views.Add(&sc->alternateView);
+                sc->alternateHandle = m_views.Add(&sc->alternateView, u8"swap chain image/alternate view");
             out = sc;
             return ErrorCode::Ok;
         }

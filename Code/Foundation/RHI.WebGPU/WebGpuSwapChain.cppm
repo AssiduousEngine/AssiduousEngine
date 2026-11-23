@@ -214,13 +214,13 @@ export namespace foundation::rhi::webgpu
             m_haveImage = true;
             // Handles to this image alone: the next acquire takes them back, so nothing keyed on
             // them (a cached bind group) is handed the next image's view.
-            m_textureHandle = m_tables->textures.Add(&m_currentTexture);
+            m_textureHandle = m_tables->textures.Add(&m_currentTexture, u8"swap chain image");
             m_currentView.texture = m_textureHandle;
             m_currentAlternateView.texture = m_textureHandle;
-            m_viewHandle = m_tables->textureViews.Add(&m_currentView);
+            m_viewHandle = m_tables->textureViews.Add(&m_currentView, u8"swap chain image/view");
             if (AlternateViewFormat() != TextureFormat::Undefined)
             {
-                m_alternateHandle = m_tables->textureViews.Add(&m_currentAlternateView);
+                m_alternateHandle = m_tables->textureViews.Add(&m_currentAlternateView, u8"swap chain image/alternate view");
             }
             ++m_frameIndex;
 #if PLATFORM_WEB

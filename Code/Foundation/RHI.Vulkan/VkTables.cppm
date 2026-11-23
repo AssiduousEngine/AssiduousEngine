@@ -74,21 +74,21 @@ export namespace foundation::rhi::vk
     struct VkTables
     {
         VkTables(IAllocator& allocator, SubmissionTracker& tracker, void* context, const VkTableFrees& frees) noexcept
-            : buffers(allocator, tracker, frees.buffer, context),
-              textures(allocator, tracker, frees.texture, context),
-              textureViews(allocator, tracker, frees.textureView, context),
-              samplers(allocator, tracker, frees.sampler, context),
-              shaderModules(allocator, tracker, frees.shaderModule, context),
-              bindGroupLayouts(allocator, tracker, frees.bindGroupLayout, context),
-              bindGroups(allocator, tracker, frees.bindGroup, context),
-              pipelineLayouts(allocator, tracker, frees.pipelineLayout, context),
-              pipelineCaches(allocator, tracker, frees.pipelineCache, context),
-              renderPipelines(allocator, tracker, frees.renderPipeline, context),
-              computePipelines(allocator, tracker, frees.computePipeline, context),
-              meshPipelines(allocator, tracker, frees.meshPipeline, context),
-              querySets(allocator, tracker, frees.querySet, context),
-              accelStructs(allocator, tracker, frees.accelStruct, context),
-              rayTracingPipelines(allocator, tracker, frees.rayTracingPipeline, context)
+            : buffers(allocator, tracker, frees.buffer, context, "Buffer"),
+              textures(allocator, tracker, frees.texture, context, "Texture"),
+              textureViews(allocator, tracker, frees.textureView, context, "TextureView"),
+              samplers(allocator, tracker, frees.sampler, context, "Sampler"),
+              shaderModules(allocator, tracker, frees.shaderModule, context, "ShaderModule"),
+              bindGroupLayouts(allocator, tracker, frees.bindGroupLayout, context, "BindGroupLayout"),
+              bindGroups(allocator, tracker, frees.bindGroup, context, "BindGroup"),
+              pipelineLayouts(allocator, tracker, frees.pipelineLayout, context, "PipelineLayout"),
+              pipelineCaches(allocator, tracker, frees.pipelineCache, context, "PipelineCache"),
+              renderPipelines(allocator, tracker, frees.renderPipeline, context, "RenderPipeline"),
+              computePipelines(allocator, tracker, frees.computePipeline, context, "ComputePipeline"),
+              meshPipelines(allocator, tracker, frees.meshPipeline, context, "MeshPipeline"),
+              querySets(allocator, tracker, frees.querySet, context, "QuerySet"),
+              accelStructs(allocator, tracker, frees.accelStruct, context, "AccelStruct"),
+              rayTracingPipelines(allocator, tracker, frees.rayTracingPipeline, context, "RayTracingPipeline")
         {
         }
 

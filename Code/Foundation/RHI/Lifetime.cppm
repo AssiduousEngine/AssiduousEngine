@@ -16,9 +16,12 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Debug/Assert.h"
 
+#include <cstdio>
+
 export module foundation.rhi:lifetime;
 
 import foundation.core;
+import :log;
 
 using namespace foundation::core;
 
@@ -196,20 +199,30 @@ export namespace foundation::rhi
         Array<Entry> m_retired;
     };
 
-    /// The objects a backend's handles of one type name. Add stores an object and names it; Get
-    /// answers it, or null for a stale handle; Retire makes the handle stale at once and gives the
-    /// object to the tracker, which frees it with `free` when the GPU is done with it.
+    /// The objects a backend's handles of one type name, with the label each was made with. Add
+    /// stores an object and names it; Get answers it, or null for a stale handle, which it reports
+    /// once per handle with the label the object had (Find answers without reporting); Retire makes
+    /// the handle stale at once and gives the object to the tracker, which frees it with `free`
+    /// when the GPU is done with it. The table registers itself with Core's handle labels, so a
+    /// debugger shows a handle's label (DebugHandleLabel).
     template <typename Tag, typename Impl>
     class ResourceTable
     {
     public:
+        /// `noun` names the handle type in reports and to debuggers ("Buffer"): a string literal.
         ResourceTable(IAllocator& allocator, SubmissionTracker& tracker, SubmissionTracker::FreeFn free,
-                      void* context) noexcept
-            : m_allocator(&allocator), m_pool(allocator), m_tracker(&tracker), m_free(free), m_context(context)
+                      void* context, const char* noun) noexcept
+            : m_allocator(&allocator), m_pool(allocator), m_tracker(&tracker), m_free(free), m_context(context),
+              m_noun(noun), m_reported(allocator)
         {
+            RegisterHandleLabels(m_noun, m_pool.PoolId(), &DescribeForDebugger, this);
         }
 
-        ~ResourceTable() { FreeAll(); }
+        ~ResourceTable()
+        {
+            UnregisterHandleLabels(m_noun, m_pool.PoolId());
+            FreeAll();
+        }
 
         /// Frees every object still in the table and makes its handles stale: the device is idle
         /// and going. A backend whose objects need the native device to free them calls it before
@@ -219,19 +232,11 @@ export namespace foundation::rhi
             Array<Handle<Tag>> live(*m_allocator);
             {
                 ScopedLock lock(m_mutex);
-                m_pool.ForEach([&live](Handle<Tag> handle, Impl*&) { live.PushBack(handle); });
+                m_pool.ForEach([&live](Handle<Tag> handle, Entry&) { live.PushBack(handle); });
             }
             for (Handle<Tag> handle : live)
             {
-                Impl* object = nullptr;
-                {
-                    ScopedLock lock(m_mutex);
-                    if (Impl* const* held = m_pool.Get(handle))
-                    {
-                        object = *held;
-                        (void)m_pool.Free(handle);
-                    }
-                }
+                Impl* object = Take(handle);
                 if (object != nullptr)
                 {
                     m_free(m_context, object);
@@ -242,34 +247,60 @@ export namespace foundation::rhi
         ResourceTable(const ResourceTable&) = delete;
         ResourceTable& operator=(const ResourceTable&) = delete;
 
-        [[nodiscard]] Handle<Tag> Add(Impl* object)
+        [[nodiscard]] Handle<Tag> Add(Impl* object, StringView label = {})
         {
             ScopedLock lock(m_mutex);
-            return m_pool.Allocate(object);
+            return m_pool.Allocate(Entry{object, String(label, *m_allocator)});
         }
 
+        /// The object, or null; a stale handle (once assigned, since destroyed or another device's)
+        /// is reported, once per handle.
         [[nodiscard]] Impl* Get(Handle<Tag> handle) const noexcept
         {
-            Impl* const* object = m_pool.Get(handle);
-            return object != nullptr ? *object : nullptr;
+            const Entry* entry = m_pool.Get(handle);
+            if (entry != nullptr)
+            {
+                return entry->object;
+            }
+            if (handle.IsValid())
+            {
+                ReportStale(handle);
+            }
+            return nullptr;
         }
 
-        /// Stale at once; freed when the GPU is done. False for a handle that is not live, and the
-        /// caller's copy is made invalid either way.
+        /// As Get, without reporting a stale handle: for a question that expects one (is it live?).
+        [[nodiscard]] Impl* Find(Handle<Tag> handle) const noexcept
+        {
+            const Entry* entry = m_pool.Get(handle);
+            return entry != nullptr ? entry->object : nullptr;
+        }
+
+        /// The label the object was made with; for a stale handle, the label it had when it was
+        /// destroyed (the last kDestroyedLabels kept), else empty.
+        [[nodiscard]] StringView Label(Handle<Tag> handle) const
+        {
+            ScopedLock lock(m_mutex);
+            if (const Entry* entry = m_pool.Get(handle))
+            {
+                return entry->label.AsView();
+            }
+            const String* destroyed = DestroyedLabel(handle);
+            return destroyed != nullptr ? destroyed->AsView() : StringView{};
+        }
+
+        /// Stale at once; freed when the GPU is done. False for a handle that is not live (reported
+        /// as a stale use), and the caller's copy is made invalid either way.
         bool Retire(Handle<Tag>& handle)
         {
-            Impl* object = nullptr;
-            {
-                ScopedLock lock(m_mutex);
-                if (Impl* const* held = m_pool.Get(handle))
-                {
-                    object = *held;
-                    (void)m_pool.Free(handle);
-                }
-            }
-            handle = Handle<Tag>::Invalid();
+            const Handle<Tag> named = handle;
+            Impl* object = Take(handle);
             if (object == nullptr)
             {
+                if (named.IsValid())
+                {
+                    ReportStale(named);
+                }
                 return false;
             }
             m_tracker->Retire(object, m_free, m_context);
@@ -279,14 +310,36 @@ export namespace foundation::rhi
         /// Takes an object the table does not own back out of it at once, without retiring it (a
         /// swap chain's own textures, which go with the swap chain): the handle is stale, and the
         /// object is the caller's again. Null for a handle that is not live.
-        Impl* Remove(Handle<Tag>& handle)
+        Impl* Remove(Handle<Tag>& handle) { return Take(handle); }
+
+        [[nodiscard]] u32 Size() const noexcept { return m_pool.Size(); }
+
+    private:
+        struct Entry
+        {
+            Impl* object = nullptr;
+            String label;
+        };
+        static constexpr u32 kDestroyedLabels = 64;
+        static constexpr u32 kReportedKept = 256;
+        struct Destroyed
+        {
+            u64 key = 0;
+            String label;
+        };
+
+        // Out of the pool: the handle goes stale, its label is kept a while.
+        Impl* Take(Handle<Tag>& handle)
         {
             Impl* object = nullptr;
             {
                 ScopedLock lock(m_mutex);
-                if (Impl* const* held = m_pool.Get(handle))
+                if (Entry* held = m_pool.Get(handle))
                 {
-                    object = *held;
+                    object = held->object;
+                    Destroyed& slot = m_destroyed[m_destroyedCursor++ % kDestroyedLabels];
+                    slot.key = handle.Key();
+                    slot.label = Move(held->label);
                     (void)m_pool.Free(handle);
                 }
             }
@@ -294,14 +347,75 @@ export namespace foundation::rhi
             return object;
         }
 
-        [[nodiscard]] u32 Size() const noexcept { return m_pool.Size(); }
+        [[nodiscard]] const String* DestroyedLabel(Handle<Tag> handle) const noexcept
+        {
+            for (const Destroyed& d : m_destroyed)
+            {
+                if (d.key == handle.Key() && !d.label.IsEmpty())
+                {
+                    return &d.label;
+                }
+            }
+            return nullptr;
+        }
 
-    private:
+        void ReportStale(Handle<Tag> handle) const noexcept
+        {
+            String label(*m_allocator);
+            {
+                ScopedLock lock(m_mutex);
+                for (u64 key : m_reported)
+                {
+                    if (key == handle.Key())
+                    {
+                        return; // once per handle
+                    }
+                }
+                if (m_reported.Size() < kReportedKept)
+                {
+                    m_reported.PushBack(handle.Key());
+                }
+                else
+                {
+                    m_reported[m_reportedCursor++ % kReportedKept] = handle.Key();
+                }
+                if (const String* destroyed = DestroyedLabel(handle))
+                {
+                    label = *destroyed;
+                }
+            }
+            LogErrorf("[rhi] stale %s handle used (slot %u, count %u, pool %u), last created as '%s'", m_noun,
+                      handle.index, handle.Count(), handle.PoolId(),
+                      label.IsEmpty() ? "(destroyed long ago, or another device's)"
+                                      : reinterpret_cast<const char*>(label.CStr()));
+        }
+
+        static void DescribeForDebugger(void* context, u32 index, u32 generation, char* out, usize size)
+        {
+            const auto* self = static_cast<const ResourceTable*>(context);
+            const Handle<Tag> handle{index, generation};
+            ScopedLock lock(self->m_mutex);
+            const Entry* entry = self->m_pool.Get(handle);
+            const String* label = entry != nullptr ? &entry->label : self->DestroyedLabel(handle);
+            const char* text = label != nullptr ? reinterpret_cast<const char*>(label->CStr()) : "";
+            if (entry != nullptr)
+                std::snprintf(out, size, "'%s'", text);
+            else if (label != nullptr)
+                std::snprintf(out, size, "stale (was '%s')", text);
+            else
+                std::snprintf(out, size, "stale");
+        }
+
         IAllocator* m_allocator;
-        mutable Mutex m_mutex; // Add and Retire; Get takes none (the pool's lookups are lock-free)
-        HandlePool<Tag, Impl*> m_pool;
+        mutable Mutex m_mutex; // Add, Retire, labels and reports; Get takes none (lock-free lookups)
+        HandlePool<Tag, Entry> m_pool;
         SubmissionTracker* m_tracker;
         SubmissionTracker::FreeFn m_free;
         void* m_context;
+        const char* m_noun;
+        Destroyed m_destroyed[kDestroyedLabels];
+        u32 m_destroyedCursor = 0;
+        mutable Array<u64> m_reported; // handles already reported stale
+        mutable u32 m_reportedCursor = 0;
     };
 }

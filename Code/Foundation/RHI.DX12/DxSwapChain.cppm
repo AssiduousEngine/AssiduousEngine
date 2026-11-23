@@ -193,7 +193,7 @@ export namespace foundation::rhi::dx12
                 tex->initFromExisting(resource, td);
                 resource->Release(); // initFromExisting AddRef'd
                 m_textures.PushBack(tex);
-                const TextureHandle texHandle = m_tables->textures.Add(tex);
+                const TextureHandle texHandle = m_tables->textures.Add(tex, u8"swap chain image");
                 m_textureHandles.PushBack(texHandle);
 
                 auto* view = m_allocator->New<DxTextureViewImpl>();
@@ -204,7 +204,7 @@ export namespace foundation::rhi::dx12
                 vd.arrayLayerCount = 1;
                 view->init(m_d3dDevice, tex, texHandle, vd, m_srvHeap, m_rtvHeap, m_dsvHeap);
                 m_views.PushBack(view);
-                m_viewHandles.PushBack(m_tables->textureViews.Add(view));
+                m_viewHandles.PushBack(m_tables->textureViews.Add(view, u8"swap chain image/view"));
 
                 if (m_alternate != TextureFormat::Undefined)
                 {
@@ -213,7 +213,7 @@ export namespace foundation::rhi::dx12
                     ad.format = m_alternate;
                     alternate->init(m_d3dDevice, tex, texHandle, ad, m_srvHeap, m_rtvHeap, m_dsvHeap);
                     m_alternateViews.PushBack(alternate);
-                    m_alternateHandles.PushBack(m_tables->textureViews.Add(alternate));
+                    m_alternateHandles.PushBack(m_tables->textureViews.Add(alternate, u8"swap chain image/alternate view"));
                 }
             }
             return ErrorCode::Ok;

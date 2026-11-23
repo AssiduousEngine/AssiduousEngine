@@ -291,7 +291,7 @@ export namespace foundation::rhi::webgpu
             if (!status.IsOk())
                 return status;
             auto* buffer = static_cast<WebGpuBuffer*>(made);
-            out = m_tables.buffers.Add(buffer);
+            out = m_tables.buffers.Add(buffer, bufferDesc.label);
             if (!out)
             {
                 buffer->Release();
@@ -328,7 +328,7 @@ export namespace foundation::rhi::webgpu
         Status CreateTexture(const TextureDesc& textureDesc, TextureHandle& out) override
         {
             const Status status = CreateInTable<WebGpuTexture>(
-                m_tables.textures, out, [&](WebGpuTexture& t) { return t.Initialize(*m_api, m_device, textureDesc); });
+                m_tables.textures, out, textureDesc.label, [&](WebGpuTexture& t) { return t.Initialize(*m_api, m_device, textureDesc); });
             if (status.IsOk())
             {
                 // WebGPU does not say what it allocated: the description's size.
@@ -346,12 +346,12 @@ export namespace foundation::rhi::webgpu
                 return ErrorCode::InvalidArgument;
             }
             return CreateInTable<WebGpuTextureView>(
-                m_tables.textureViews, out, [&](WebGpuTextureView& v) { return v.Initialize(*m_api, owner, texture, viewDesc); });
+                m_tables.textureViews, out, viewDesc.label, [&](WebGpuTextureView& v) { return v.Initialize(*m_api, owner, texture, viewDesc); });
         }
         Status CreateSampler(const SamplerDesc& samplerDesc, SamplerHandle& out) override
         {
             return CreateInTable<WebGpuSampler>(
-                m_tables.samplers, out, [&](WebGpuSampler& smp) { return smp.Initialize(*m_api, m_device, samplerDesc); });
+                m_tables.samplers, out, samplerDesc.label, [&](WebGpuSampler& smp) { return smp.Initialize(*m_api, m_device, samplerDesc); });
         }
         const TextureDesc* Describe(TextureHandle texture) const override
         {
@@ -363,7 +363,22 @@ export namespace foundation::rhi::webgpu
             const WebGpuTextureView* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
-        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Get(view) != nullptr; }
+        StringView Label(BufferHandle handle) const override { return m_tables.buffers.Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_tables.textures.Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_tables.textureViews.Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_tables.samplers.Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_tables.shaderModules.Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_tables.bindGroupLayouts.Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_tables.bindGroups.Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_tables.pipelineLayouts.Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_tables.pipelineCaches.Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_tables.renderPipelines.Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_tables.computePipelines.Label(handle); }
+        StringView Label(MeshPipelineHandle handle) const override { return m_tables.meshPipelines.Label(handle); }
+        StringView Label(QuerySetHandle handle) const override { return m_tables.querySets.Label(handle); }
+        StringView Label(AccelStructHandle handle) const override { return m_tables.accelStructs.Label(handle); }
+        StringView Label(RayTracingPipelineHandle handle) const override { return m_tables.rayTracingPipelines.Label(handle); }
+        bool IsLive(TextureViewHandle view) const override { return m_tables.textureViews.Find(view) != nullptr; }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
             const WebGpuTextureView* v = m_tables.textureViews.Get(view);
@@ -377,7 +392,7 @@ export namespace foundation::rhi::webgpu
         Status CreateShaderModule(const ShaderModuleDesc& moduleDesc, ShaderModuleHandle& out) override
         {
             return CreateInTable<WebGpuShaderModule>(
-                m_tables.shaderModules, out,
+                m_tables.shaderModules, out, moduleDesc.label,
                 [&](WebGpuShaderModule& m)
                 {
                     m.entryPoint = String(moduleDesc.entryPoint);
@@ -388,13 +403,13 @@ export namespace foundation::rhi::webgpu
                                      BindGroupLayoutHandle& out) override
         {
             return CreateInTable<WebGpuBindGroupLayout>(
-                m_tables.bindGroupLayouts, out, [&](WebGpuBindGroupLayout& l)
+                m_tables.bindGroupLayouts, out, layoutDesc.label, [&](WebGpuBindGroupLayout& l)
                 { return l.Initialize(*m_api, m_device, layoutDesc); });
         }
         Status CreateBindGroup(const BindGroupDesc& groupDesc, BindGroupHandle& out) override
         {
             return CreateInTable<WebGpuBindGroup>(
-                m_tables.bindGroups, out,
+                m_tables.bindGroups, out, groupDesc.label,
                 [&](WebGpuBindGroup& g)
                 {
                     g.tables = &m_tables;
@@ -406,13 +421,13 @@ export namespace foundation::rhi::webgpu
                                     PipelineLayoutHandle& out) override
         {
             return CreateInTable<WebGpuPipelineLayout>(
-                m_tables.pipelineLayouts, out, [&](WebGpuPipelineLayout& l)
+                m_tables.pipelineLayouts, out, layoutDesc.label, [&](WebGpuPipelineLayout& l)
                 { return l.Initialize(*m_api, m_device, &m_tables, layoutDesc, EmulatesPushConstants()); });
         }
-        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCacheHandle& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc& cacheDesc, PipelineCacheHandle& out) override
         {
             // No cache object in WebGPU; an empty stand-in serves callers.
-            return CreateInTable<WebGpuPipelineCache>(m_tables.pipelineCaches, out,
+            return CreateInTable<WebGpuPipelineCache>(m_tables.pipelineCaches, out, cacheDesc.label,
                                                       [](WebGpuPipelineCache&) { return Status(ErrorCode::Ok); });
         }
         StringView EntryPointOf(ShaderModuleHandle module) const override
@@ -451,14 +466,14 @@ export namespace foundation::rhi::webgpu
                                     RenderPipelineHandle& out) override
         {
             return CreateInTable<WebGpuRenderPipeline>(
-                m_tables.renderPipelines, out, [&](WebGpuRenderPipeline& p)
+                m_tables.renderPipelines, out, pipelineDesc.label, [&](WebGpuRenderPipeline& p)
                 { return p.Initialize(*m_api, m_device, &m_tables, pipelineDesc); });
         }
         Status CreateComputePipeline(const ComputePipelineDesc& pipelineDesc,
                                      ComputePipelineHandle& out) override
         {
             return CreateInTable<WebGpuComputePipeline>(
-                m_tables.computePipelines, out, [&](WebGpuComputePipeline& p)
+                m_tables.computePipelines, out, pipelineDesc.label, [&](WebGpuComputePipeline& p)
                 { return p.Initialize(*m_api, m_device, &m_tables, pipelineDesc); });
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
@@ -479,7 +494,7 @@ export namespace foundation::rhi::webgpu
         Status CreateQuerySet(const QuerySetDesc& setDesc, QuerySetHandle& out) override
         {
             return CreateInTable<WebGpuQuerySet>(
-                m_tables.querySets, out, [&](WebGpuQuerySet& q) { return q.Initialize(*m_api, m_device, setDesc); });
+                m_tables.querySets, out, setDesc.label, [&](WebGpuQuerySet& q) { return q.Initialize(*m_api, m_device, setDesc); });
         }
         Status CreateSwapChain(Surface* surface, const SwapChainDesc& swapDesc,
                                SwapChain*& out) override
@@ -666,7 +681,7 @@ export namespace foundation::rhi::webgpu
 
         /// As CreateResource, into `table`: `out` is the new object's handle, invalid on failure.
         template <typename TResource, typename TTable, typename THandle, typename TInit>
-        Status CreateInTable(TTable& table, THandle& out, TInit&& initialize)
+        Status CreateInTable(TTable& table, THandle& out, StringView label, TInit&& initialize)
         {
             out = THandle::Invalid();
             auto* resource = m_allocator.New<TResource>();
@@ -676,7 +691,7 @@ export namespace foundation::rhi::webgpu
                 FreeObject<TResource>(this, resource);
                 return status;
             }
-            out = table.Add(resource);
+            out = table.Add(resource, label);
             if (!out)
             {
                 FreeObject<TResource>(this, resource);

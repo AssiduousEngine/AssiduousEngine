@@ -444,6 +444,21 @@ export namespace foundation::rhi::validation
                 m_views.ReportStale("Describe", v);
             return desc;
         }
+        StringView Label(BufferHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(TextureHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(TextureViewHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(SamplerHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(ShaderModuleHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(BindGroupLayoutHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(BindGroupHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(PipelineLayoutHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(PipelineCacheHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(RenderPipelineHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(ComputePipelineHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(MeshPipelineHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(QuerySetHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(AccelStructHandle handle) const override { return m_inner->Label(handle); }
+        StringView Label(RayTracingPipelineHandle handle) const override { return m_inner->Label(handle); }
         bool IsLive(TextureViewHandle v) const override { return m_inner->IsLive(v); }
         TextureHandle TextureOf(TextureViewHandle v) const override
         {
