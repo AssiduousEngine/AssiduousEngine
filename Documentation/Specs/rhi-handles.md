@@ -82,11 +82,15 @@ explicit and only add a check.
 - **`HandlePool<Tag, T>`**: `Allocate(T) -> Handle`, `Get(Handle) -> T*` (null when the handle is
   invalid or its generation is not the slot's), `Free(Handle)` (bumps the slot's generation, so
   every copy of the handle goes stale at once), iteration over what is live. Storage is in fixed
-  pages, so a lookup never sees storage move while another thread allocates. A generation that
-  would wrap retires its slot rather than reuse it.
+  pages, so a lookup never sees storage move while another thread allocates.
+- **A pool stamps its id into the handles it makes**: the generation's top 8 bits are the pool's
+  id, its low 24 the slot's count. A handle from one pool fails the generation compare in any other
+  pool of its type, in every build and at no cost, so a buffer of one device used on another, or a
+  joint of one scene's physics world used in another's, is caught as a stale handle is. A slot
+  whose 24-bit count would wrap (16,777,216 reuses) is retired rather than reused.
 - The owner's allocator is threaded, as everywhere.
-- `RGHandle` and `VoiceHandle` move onto it in H6; `EntityHandle` stays the scene's, whose index
-  and generation the scene's own tables manage, unless the move proves free.
+- `RGHandle` and `VoiceHandle` move onto it in H6. `EntityHandle` stays the scene's own (user,
+  2026-11-22); whether it moves later is in `Plans/backlog-0.2.md`.
 
 ## Decision 2 - which RHI objects are handles
 
@@ -141,7 +145,10 @@ namespace foundation::rhi
 ## Decision 4 - the device owns the tables and frames in flight
 
 - **Each backend's device keeps a `HandlePool` per type** of its own objects (the Vulkan device's
-  pool holds `VkBufferImpl`), shared code in `foundation.rhi` doing the pooling.
+  pool holds `VkBufferImpl`), so a lookup reaches the backend's object with no cast, and each
+  device's pools carry its id (Decision 1), so a handle used on the wrong device fails its lookup.
+  One table shared by the backends was weighed and not taken: it would catch the same mistake, but
+  at the cost of a cast on every lookup and one lock across devices (user, 2026-11-22).
 - **`Destroy*(handle)` makes the handle stale at once and retires the object**: the device frees
   it when the GPU has finished every submission made before the destroy, which it tracks by the
   queue's submission fences (a timeline semaphore on Vulkan, the fence on Direct3D 12). WebGPU's
@@ -176,8 +183,8 @@ get a handle the crowd's wrapper maps to Detour's index, for the same reason. `B
 ## Phases
 
 - **H0 - Core handles.** `Handle<Tag>` and `HandlePool<Tag, T>` in Core with their tests: stale
-  after free, every copy stale, generation wrap retires the slot, pages never move, iteration,
-  allocator threaded.
+  after free, every copy stale, a handle from another pool fails, the count's wrap retires the slot,
+  pages never move, iteration, allocator threaded.
 - **H1 - buffers, end to end.** `BufferHandle` through the interface, Null, Vulkan, Direct3D 12,
   WebGPU, Validation and Capture, and every caller; the device's retirement by submission for
   buffers; WebGPU's lifetime checked in the browser and on wgpu-native. Tests: a stale buffer
@@ -204,9 +211,9 @@ command recording within the noise.
 - **Recording threads look up handles while others create**: the pool's pages never move, and a
   slot's generation is read before its object, so a lookup racing a free sees a stale handle, not a
   half-freed object. Creating and destroying take the device's lock, as today.
-- **A handle names a resource of one device**: two devices do not share tables, and a handle from
-  one used on the other fails its lookup or names the wrong object; the handle's type cannot say
-  which device it came from. The Validation layer checks it.
+- **A handle names a resource of one device**: two devices do not share tables, and the pool's id
+  in the generation makes a handle from one fail its lookup on the other (Decision 1). The 8 bits
+  allow 255 pools of a type alive at once (0 is never a pool's id).
 - **The migration touches every renderer, so each phase keeps the tree green** by converting a
   type and all its callers together, never leaving a type half pointers and half handles.
 - **Performance**: a lookup is an index and a generation compare per resource a command binds;
@@ -215,11 +222,8 @@ command recording within the noise.
 
 ## Open questions
 
-1. **Whether `EntityHandle` moves onto Core's handle** too (Decision 1): the same shape, but the
-   scene's tables carry more per slot; moved if it is free, kept otherwise.
-2. **One shared table or one per backend device**: per device (proposed), as each backend stores
-   its own object type; one shared table of base pointers would allow a cross-device check at the
-   cost of a cast on every lookup.
+None. Decided 2026-11-22: `EntityHandle` stays as it is, a review noted in the 0.2 backlog; each
+backend device keeps its own tables, with the pool's id in every handle's generation.
 
 ## Tests (the contract)
 

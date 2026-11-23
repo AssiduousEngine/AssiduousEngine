@@ -579,3 +579,12 @@ in a futex wait, on master after the behavior rename (which does not touch Core)
 attached to (ptrace scope), so the test case is unknown; five reruns with `-s -d` passed. Find it
 by running the suite in a loop under `timeout` with `-s` until it hangs, then read the last test
 case printed; the threading tests are the first suspects.
+
+## Review EntityHandle against Core's handle (user 2026-11-22)
+
+The RHI handles spec (`Specs/rhi-handles.md`) adds one generational handle and pool to Core and
+moves the RHI, physics, navigation, audio and render graph ids onto it; `EntityHandle` stays the
+scene's own for now (user, 2026-11-22). Review later whether it moves too: the scene's tables carry
+more per slot (the entity's name, hierarchy and active state), so it moves only if Core's pool can
+hold that at no cost to the scene's iteration, and the scene gains the pool's id stamp (a handle
+from one scene failing in another, which `WeakSceneRef` covers for scripts today).
