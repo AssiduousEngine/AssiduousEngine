@@ -208,9 +208,11 @@ command recording within the noise.
 
 ## Gotchas
 
-- **Recording threads look up handles while others create**: the pool's pages never move, and a
-  slot's generation is read before its object, so a lookup racing a free sees a stale handle, not a
-  half-freed object. Creating and destroying take the device's lock, as today.
+- **Recording threads look up handles while others create**: the pool's pages never move and each
+  is published once, so a lookup is safe while the owner allocates. Destroying a resource a command
+  is still being recorded with is the caller's mistake, as today; the device's retirement (Decision
+  4) keeps the backend object alive past it in any case. Creating and destroying take the device's
+  lock, as today.
 - **A handle names a resource of one device**: two devices do not share tables, and the pool's id
   in the generation makes a handle from one fail its lookup on the other (Decision 1). The 8 bits
   allow 255 pools of a type alive at once (0 is never a pool's id).
