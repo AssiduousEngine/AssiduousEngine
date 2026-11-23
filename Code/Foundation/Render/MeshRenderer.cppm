@@ -33,6 +33,7 @@ import :views;
 import :pipeline;
 import :cluster_system;
 import :resources;
+import :instance_table; // GpuInstance
 import :bind_group_cache; // ViewSlots
 import :gpu_mesh;
 
@@ -103,12 +104,6 @@ export namespace foundation::render
     static_assert(sizeof(GpuView) == 656, "cbuffer View layout drift");
     static_assert(offsetof(GpuView, jitter) == 576);
     static_assert(offsetof(GpuView, prevJitter) == 584);
-    struct GpuInstance
-    {
-        Float4x4 world;
-        Float4x4 prevWorld;
-        Color tint;
-    }; // 144 (StructuredBuffer element)
     // An instanced draw's set (cbuffer InstanceSet, instance_fade.hlsli; set 1 beside the instances
     // in the forward, shadow and pick passes): its distance fade's window (FadeEnd <= 0 for none), its
     // instance count (each instance's rank in the fade is (index + 0.5) / count), and the entity a
@@ -171,8 +166,6 @@ export namespace foundation::render
     // GPU-layout contract: these mirror HLSL cbuffer and StructuredBuffer elements and use the packed
     // Float4x4 (64B, tight). A stray SIMD Matrix4 (also 64B, but 16-byte aligned) would shift members
     // through padding; the guards pin the exact byte layout the shaders expect.
-    static_assert(sizeof(GpuInstance) == 144,
-                  "StructuredBuffer<GpuInstance> element layout drift");
     // The pick pass's set-0 view (cbuffer PickView in pick_ids.vs): the cropped VP, the WIND clock
     // and the camera the instance fade measures from. A MultiMesh set's own id is its InstanceSet's.
     struct GpuPickView

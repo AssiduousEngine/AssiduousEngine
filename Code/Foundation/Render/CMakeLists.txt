@@ -34,6 +34,7 @@ target_sources(Render
             Views.cppm
             ExtractContext.cppm
             Resources.cppm
+            InstanceTable.cppm
             Pipeline.cppm
             GpuMesh.cppm
             MeshRenderer.cppm

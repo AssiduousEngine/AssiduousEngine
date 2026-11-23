@@ -8,6 +8,7 @@ add_executable(Render.Tests
     PoseSelectionTests.cpp
     LodSelectionTests.cpp
     ReplaceInFlightTests.cpp
+    InstanceTableTests.cpp
     PickingTests.cpp
     MultiMeshLifecycleTests.cpp WindTests.cpp DebugScreenTextTests.cpp BindGroupCacheTests.cpp)
 

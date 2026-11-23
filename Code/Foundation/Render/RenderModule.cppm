@@ -19,6 +19,7 @@ export import :data;
 export import :views;
 export import :extract_ctx;
 export import :resources;
+export import :instance_table;
 export import :pipeline;
 export import :gpu_mesh;
 export import :mesh_renderer;
