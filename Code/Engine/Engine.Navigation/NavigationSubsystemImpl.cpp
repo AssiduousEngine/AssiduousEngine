@@ -117,7 +117,7 @@ namespace engine::navigation
                             {
                                 draw.DrawLine(position, agent.target, pathColor);
                             }
-                            if (agent.agentId < 0)
+                            if (!agent.agentId.IsValid())
                             {
                                 return;
                             }

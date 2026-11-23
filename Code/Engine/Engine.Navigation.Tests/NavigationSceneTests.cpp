@@ -121,7 +121,7 @@ TEST_CASE("navigation.scene: a MoveEntity agent navigates across a zone to its t
 
     // Registered with the zone and given a crowd slot.
     CHECK(agent->zoneIndex >= 0);
-    CHECK(agent->agentId >= 0);
+    CHECK(agent->agentId.IsValid());
 
     // The scene system's crowd/query allocations roll up under the Navigation memory tag.
     CHECK(MemoryTagBytes(RegisterMemoryTag("Navigation")) > 0u);
@@ -189,7 +189,7 @@ TEST_CASE("navigation.scene: a zone's navmesh reloaded mid-run: the agent carrie
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(agent->agentId >= 0);
+    REQUIRE(agent->agentId.IsValid());
 
     agent->navigate(5.0f, 0.0f, 0.0f);
     for (int step = 0; step < 45; ++step) // part of the way
@@ -337,8 +337,8 @@ TEST_CASE("navigation.scene: per-agent speed applies live and stopDistance arriv
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(slow->agentId >= 0);
-    REQUIRE(arrive->agentId >= 0);
+    REQUIRE(slow->agentId.IsValid());
+    REQUIRE(arrive->agentId.IsValid());
 
     slow->setSpeed(0.8f); // live change: the tick pushes it into the crowd
     slow->navigate(5.0f, 0.0f, -2.0f);
@@ -453,7 +453,7 @@ TEST_CASE("navigation.scene: an agent that cannot join the navmesh says so")
     scene.Start();
     logger.RemoveSink(&warnings);
 
-    CHECK(agents->Get(good)->agentId >= 0);
+    CHECK(agents->Get(good)->agentId.IsValid());
     CHECK(agents->Get(outside)->zoneIndex < 0);
     (void)floating; // Detour gives it a slot, in a state that never moves: the warning says so
     REQUIRE(warnings.messages.Size() == 2);
@@ -532,7 +532,7 @@ TEST_CASE("navigation.scene: a zone's maxAgents is how many agents its crowd mov
         scene.UpdateTransforms();
         scene.Start();
         i32 n = 0;
-        agents->ForEach([&](NavAgentComponent& a, scene::EntityHandle) { n += a.agentId >= 0 ? 1 : 0; });
+        agents->ForEach([&](NavAgentComponent& a, scene::EntityHandle) { n += a.agentId.IsValid() ? 1 : 0; });
         scene.Stop();
         return n;
     };
@@ -604,7 +604,7 @@ TEST_CASE("navigation.scene: a warped agent is where it was sent, and walks on f
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(agent->agentId >= 0);
+    REQUIRE(agent->agentId.IsValid());
 
     // Walking east, it is warped to the far corner: there next tick, stopped.
     agent->navigate(5.0f, 0.0f, 0.0f);
@@ -614,7 +614,7 @@ TEST_CASE("navigation.scene: a warped agent is where it was sent, and walks on f
     }
     agent->warp(6.0f, 0.0f, 6.0f);
     scene.Update(1.0f / 30.0f);
-    CHECK(agent->agentId >= 0); // back in its crowd
+    CHECK(agent->agentId.IsValid()); // back in its crowd
     Float3 at = scene.GetWorldPosition(agentEntity);
     CHECK(std::abs(at.x - 6.0f) < 0.3f);
     CHECK(std::abs(at.z - 6.0f) < 0.3f);
@@ -680,7 +680,7 @@ TEST_CASE("navigation.scene: an agent moved by a velocity goes at once, at that 
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(agent->agentId >= 0);
+    REQUIRE(agent->agentId.IsValid());
 
     // East at 1.5 m/s: moving within a few frames, then 1.5 m a second.
     const f32 dt = 1.0f / 30.0f;
@@ -865,7 +865,7 @@ TEST_CASE("navigation.scene: an agent added later joins its crowd, and a destroy
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(agents->Get(first)->agentId >= 0);
+    REQUIRE(agents->Get(first)->agentId.IsValid());
 
     scene.DestroyEntity(first);
     scene.Update(1.0f / 30.0f); // its slot is given back
@@ -877,7 +877,7 @@ TEST_CASE("navigation.scene: an agent added later joins its crowd, and a destroy
     scene.Update(1.0f / 30.0f); // it joins
     NavAgentComponent* agent = agents->Get(second);
     REQUIRE(agent != nullptr);
-    CHECK(agent->agentId >= 0);
+    CHECK(agent->agentId.IsValid());
 
     agent->navigate(5.0f, 0.0f, 2.0f);
     for (int step = 0; step < 360 && !agents->Get(second)->finished; ++step)
@@ -936,8 +936,8 @@ TEST_CASE("navigation.scene: an agent destroyed as its zone reloads leaves the o
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(agents->Get(first)->agentId == 0);
-    REQUIRE(agents->Get(second)->agentId == 1);
+    REQUIRE(agents->Get(first)->agentId.index == 0);
+    REQUIRE(agents->Get(second)->agentId.index == 1);
 
     agents->Get(second)->navigate(5.0f, 0.0f, -3.0f);
     for (int step = 0; step < 10; ++step)
@@ -951,7 +951,7 @@ TEST_CASE("navigation.scene: an agent destroyed as its zone reloads leaves the o
     REQUIRE(manager.Reload(zoneInstance->Id()));
     scene.Update(1.0f / 30.0f);
     REQUIRE(agents->Get(second) != nullptr);
-    CHECK(agents->Get(second)->agentId == 0); // the rebuilt crowd's first slot
+    CHECK(agents->Get(second)->agentId.index == 0); // the rebuilt crowd's first slot
 
     for (int step = 0; step < 360 && !agents->Get(second)->finished; ++step)
     {
@@ -1001,7 +1001,7 @@ TEST_CASE("navigation.scene: a target off the navmesh finishes the agent as fail
     scene.UpdateTransforms();
     scene.Start();
     scene.SetSimulationEnabled(true);
-    REQUIRE(agent->agentId >= 0);
+    REQUIRE(agent->agentId.IsValid());
 
     agent->navigate(300.0f, 0.0f, 300.0f); // nowhere near the zone's ground
     for (int step = 0; step < 30; ++step)

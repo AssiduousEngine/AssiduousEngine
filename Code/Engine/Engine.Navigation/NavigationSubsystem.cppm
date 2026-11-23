@@ -103,7 +103,7 @@ export namespace engine::navigation
                     (void)agents->TakeReleased(); // their crowds are gone with the zones
                     agents->ForEach([](NavAgentComponent& a, scene::EntityHandle)
                                     {
-                                        a.agentId = -1;
+                                        a.agentId = {};
                                         a.zoneIndex = -1;
                                         a.registered = false;
                                         a.hasTarget = false;
@@ -158,7 +158,7 @@ export namespace engine::navigation
                     {
                         Warp(a, entity);
                     }
-                    if (a.zoneIndex < 0 || a.agentId < 0)
+                    if (a.zoneIndex < 0 || !a.agentId.IsValid())
                     {
                         return;
                     }
@@ -214,7 +214,7 @@ export namespace engine::navigation
             agents->ForEach(
                 [this](NavAgentComponent& a, scene::EntityHandle entity)
                 {
-                    if (a.zoneIndex < 0 || a.agentId < 0)
+                    if (a.zoneIndex < 0 || !a.agentId.IsValid())
                     {
                         return;
                     }
@@ -381,11 +381,11 @@ export namespace engine::navigation
         void Warp(NavAgentComponent& a, scene::EntityHandle entity)
         {
             a.warpRequested = false;
-            if (a.zoneIndex >= 0 && a.agentId >= 0)
+            if (a.zoneIndex >= 0 && a.agentId.IsValid())
             {
                 m_zones[static_cast<usize>(a.zoneIndex)].crowd->RemoveAgent(a.agentId);
             }
-            a.agentId = -1;
+            a.agentId = {};
             a.zoneIndex = FindZoneContaining(a.warpTo);
             Transform t = m_scene->GetLocalTransform(entity);
             t.position = a.warpTo;
@@ -398,7 +398,7 @@ export namespace engine::navigation
             }
             RuntimeZone& rz = m_zones[static_cast<usize>(a.zoneIndex)];
             a.agentId = AddToCrowd(rz, a, a.warpTo);
-            if (a.agentId >= 0)
+            if (a.agentId.IsValid())
             {
                 // Where the crowd placed it: the navmesh under the point, not the point itself.
                 t.position = TransformPoint(rz.crowd->AgentPosition(a.agentId), rz.world);
@@ -406,8 +406,9 @@ export namespace engine::navigation
             }
         }
 
-        // An agent into a zone's crowd at `worldPos` with its own steering profile; its slot, or -1.
-        i32 AddToCrowd(RuntimeZone& rz, NavAgentComponent& a, Float3 worldPos)
+        // An agent into a zone's crowd at `worldPos` with its own steering profile; its id, invalid
+        // when the crowd took none.
+        nav::NavigationAgentId AddToCrowd(RuntimeZone& rz, NavAgentComponent& a, Float3 worldPos)
         {
             nav::NavigationAgentParams ap;
             ap.radius = a.radius;
@@ -439,7 +440,7 @@ export namespace engine::navigation
             a.registered = true;
             const Float3 worldPos = m_scene->GetWorldPosition(entity);
             a.zoneIndex = FindZoneContaining(worldPos);
-            a.agentId = -1;
+            a.agentId = {};
             if (a.zoneIndex < 0)
             {
                 // Said, not silent: an agent that never moves is otherwise a mystery.
@@ -450,7 +451,7 @@ export namespace engine::navigation
             }
             RuntimeZone& rz = m_zones[static_cast<usize>(a.zoneIndex)];
             a.agentId = AddToCrowd(rz, a, worldPos);
-            if (a.agentId < 0)
+            if (!a.agentId.IsValid())
             {
                 LOG_WARNING(u8"Navigation",
                             u8"agent '{}' at ({}, {}, {}): the zone's crowd is full; it will not move",

@@ -1107,7 +1107,17 @@ namespace foundation::navigation
 
     struct NavigationCrowd::Impl
     {
+        explicit Impl(IAllocator& allocator) : agents(allocator) {}
+
         dtCrowd* crowd = nullptr;
+        HandlePool<NavigationAgentTag, i32> agents; // each live agent's index in the Detour crowd
+
+        // The agent's Detour index, or -1 for an id that is not live (removed, or another crowd's).
+        [[nodiscard]] i32 Find(NavigationAgentId id) const noexcept
+        {
+            const i32* index = agents.Get(id);
+            return index != nullptr ? *index : -1;
+        }
 
         ~Impl()
         {
@@ -1120,7 +1130,7 @@ namespace foundation::navigation
 
     NavigationCrowd::NavigationCrowd(IAllocator& allocator, const NavigationMesh& mesh,
                                      i32 maxAgents, f32 maxAgentRadius)
-        : m_impl(MakeUnique<Impl>(allocator))
+        : m_impl(MakeUnique<Impl>(allocator, allocator))
     {
         dtNavMesh* navMesh = static_cast<dtNavMesh*>(mesh.NativeHandle());
         if (navMesh == nullptr || maxAgents <= 0)
@@ -1161,11 +1171,11 @@ namespace foundation::navigation
         }
     }
 
-    i32 NavigationCrowd::AddAgent(Float3 position, const NavigationAgentParams& params)
+    NavigationAgentId NavigationCrowd::AddAgent(Float3 position, const NavigationAgentParams& params)
     {
         if (m_impl->crowd == nullptr)
         {
-            return -1;
+            return {};
         }
         dtCrowdAgentParams ap;
         std::memset(&ap, 0, sizeof(ap));
@@ -1179,11 +1189,13 @@ namespace foundation::navigation
         ap.obstacleAvoidanceType = 3;
         ap.updateFlags = UpdateFlags(params);
         const float pos[3] = {position.x, position.y, position.z};
-        return m_impl->crowd->addAgent(pos, &ap);
+        const i32 index = m_impl->crowd->addAgent(pos, &ap);
+        return index >= 0 ? m_impl->agents.Allocate(index) : NavigationAgentId{};
     }
 
-    NavigationAgentState NavigationCrowd::AgentState(i32 agentId) const
+    NavigationAgentState NavigationCrowd::AgentState(NavigationAgentId id) const
     {
+        const i32 agentId = m_impl->Find(id);
         NavigationAgentState out;
         if (m_impl->crowd == nullptr || agentId < 0)
         {
@@ -1218,8 +1230,9 @@ namespace foundation::navigation
         return out;
     }
 
-    void NavigationCrowd::SetAgentParams(i32 agentId, const NavigationAgentParams& params)
+    void NavigationCrowd::SetAgentParams(NavigationAgentId id, const NavigationAgentParams& params)
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd == nullptr || agentId < 0)
         {
             return;
@@ -1240,16 +1253,19 @@ namespace foundation::navigation
         m_impl->crowd->updateAgentParameters(agentId, &ap);
     }
 
-    void NavigationCrowd::RemoveAgent(i32 agentId)
+    void NavigationCrowd::RemoveAgent(NavigationAgentId id)
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd != nullptr && agentId >= 0)
         {
             m_impl->crowd->removeAgent(agentId);
+            (void)m_impl->agents.Free(id);
         }
     }
 
-    bool NavigationCrowd::SetTarget(i32 agentId, Float3 target)
+    bool NavigationCrowd::SetTarget(NavigationAgentId id, Float3 target)
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd == nullptr || agentId < 0)
         {
             return false;
@@ -1267,8 +1283,9 @@ namespace foundation::navigation
         return m_impl->crowd->requestMoveTarget(agentId, ref, nearest);
     }
 
-    bool NavigationCrowd::SetVelocity(i32 agentId, Float3 velocity)
+    bool NavigationCrowd::SetVelocity(NavigationAgentId id, Float3 velocity)
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd == nullptr || agentId < 0)
         {
             return false;
@@ -1277,8 +1294,9 @@ namespace foundation::navigation
         return m_impl->crowd->requestMoveVelocity(agentId, v);
     }
 
-    void NavigationCrowd::ClearTarget(i32 agentId)
+    void NavigationCrowd::ClearTarget(NavigationAgentId id)
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd != nullptr && agentId >= 0)
         {
             m_impl->crowd->resetMoveTarget(agentId);
@@ -1293,8 +1311,9 @@ namespace foundation::navigation
         }
     }
 
-    Float3 NavigationCrowd::AgentPosition(i32 agentId) const
+    Float3 NavigationCrowd::AgentPosition(NavigationAgentId id) const
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd == nullptr || agentId < 0)
         {
             return Float3{0, 0, 0};
@@ -1307,8 +1326,9 @@ namespace foundation::navigation
         return Float3{agent->npos[0], agent->npos[1], agent->npos[2]};
     }
 
-    Float3 NavigationCrowd::AgentVelocity(i32 agentId) const
+    Float3 NavigationCrowd::AgentVelocity(NavigationAgentId id) const
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd == nullptr || agentId < 0)
         {
             return Float3{0, 0, 0};
@@ -1321,8 +1341,9 @@ namespace foundation::navigation
         return Float3{agent->vel[0], agent->vel[1], agent->vel[2]};
     }
 
-    bool NavigationCrowd::IsAgentValid(i32 agentId) const
+    bool NavigationCrowd::IsAgentValid(NavigationAgentId id) const
     {
+        const i32 agentId = m_impl->Find(id);
         if (m_impl->crowd == nullptr || agentId < 0)
         {
             return false;
