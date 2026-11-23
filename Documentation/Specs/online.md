@@ -141,10 +141,130 @@ and none has a defined behaviour for a missing platform that a game can rely on.
   stores stats at a rate the backend allows; a per-run `OnlineScriptBinding` among the run's
   services, holding the run's pending handlers (dropped, never called, when the run's scripts
   stop, as `Http`'s are); and the `Online` script facade over it. The subsystem is what falls
-  back: it takes the backend the enabled plugin providing `online.backend` registers, and makes a
-  Local one itself when there is none.
+  back: it takes the backend the enabled plugin providing `online.backend` hands over through
+  `OnlineBackends` (Decision 1b), and makes a Local one itself when there is none.
 
 A native game part uses the same subsystem through C++ (`Function` handlers), never a backend.
+
+## Decision 1a - the backend interface
+
+`foundation.online` holds the interface a backend implements and the queue it answers through. A
+sketch of the shape, the names to be settled in O0:
+
+```cpp
+namespace foundation::online
+{
+    enum class OnlineResult : u8 { Ok, Unsupported, Offline, NotFound, InvalidArgument, RateLimited, BackendError };
+    enum class OnlineCapability : u32 { Achievements = 1, Stats = 2, Leaderboards = 4, CloudSaves = 8, Presence = 16, Dlc = 32 };
+    enum class LeaderboardRange : u8 { Top, AroundMe, Friends };
+    using RequestId = u64;
+
+    struct OnlineUser { String id; String name; };
+    struct StatValue { String id; f64 value = 0.0; bool integer = true; };
+    struct LeaderboardEntry { i32 rank = 0; String name; i64 score = 0; bool isPlayer = false; };
+
+    // A completion: the request it answers, how it went, and what it carries (the entries of a
+    // fetch, the bytes of a cloud read), posted from any thread, delivered only by Pump.
+    struct OnlineCompletion { RequestId request = 0; OnlineResult result = OnlineResult::Ok; String message; Variant payload; };
+
+    class OnlineRequests
+    {
+    public:
+        void Complete(OnlineCompletion completion);                     // any thread
+        void Pump(const Function<void(OnlineCompletion&)>& deliver);    // the game's thread
+    };
+
+    class IOnlineBackend
+    {
+    public:
+        virtual ~IOnlineBackend() = default;
+        [[nodiscard]] virtual StringView Name() const noexcept = 0;     // "local", "steam"
+        [[nodiscard]] virtual u32 Capabilities() const noexcept = 0;    // OnlineCapability bits
+        // Offline when the platform cannot start (no client, an unknown app id); `requests`
+        // outlives the backend.
+        [[nodiscard]] virtual OnlineResult Start(const OnlineDefinitions& definitions, OnlineRequests& requests) = 0;
+        virtual void Stop() = 0;
+        // The platform's callbacks dispatched, on the game's thread, before the requests pump.
+        virtual void Pump() = 0;
+
+        // What the backend holds, answered at once.
+        [[nodiscard]] virtual Optional<OnlineUser> User() const = 0;
+        [[nodiscard]] virtual bool IsUnlocked(StringView achievement) const = 0;
+        [[nodiscard]] virtual f32 Progress(StringView achievement) const = 0;
+        [[nodiscard]] virtual Optional<StatValue> Stat(StringView stat) const = 0;
+        [[nodiscard]] virtual bool OwnsDlc(StringView dlc) const = 0;
+
+        // What may wait: each completes `request` through the queue, exactly once.
+        virtual void Unlock(RequestId request, StringView achievement) = 0;
+        virtual void SetProgress(RequestId request, StringView achievement, f32 current) = 0;
+        virtual void StoreStats(RequestId request, Span<const StatValue> stats) = 0;
+        virtual void SubmitScore(RequestId request, StringView board, i64 score) = 0;
+        virtual void FetchScores(RequestId request, StringView board, LeaderboardRange range, i32 start, i32 count) = 0;
+        virtual void ReadCloudFile(RequestId request, StringView name) = 0;
+        virtual void WriteCloudFile(RequestId request, StringView name, Span<const byte> bytes) = 0;
+        virtual void ResetForDevelopment(RequestId request) = 0;
+
+        // Presence is set and forgotten: no answer to wait for.
+        virtual void SetPresence(StringView key, StringView value) = 0;
+        virtual void ClearPresence() = 0;
+    };
+}
+```
+
+- **Every method is pure**: a backend answers each operation, and one it does not support completes
+  `Unsupported` (or reads its fallback) by its own code, so what a backend lacks is written down in
+  it, not inherited by accident. `Capabilities()` says the same thing in advance.
+- **The subsystem makes the request ids**, not the backend, so ids are unique across a backend
+  replaced by a reload, and it routes each completion to the run that asked (its
+  `OnlineScriptBinding`) or to a native caller's `Function`. A completion for a run that has
+  stopped is dropped.
+- **The thread rule is the queue's**: a backend may complete from any thread (Steam does not; a
+  future one might), and nothing reaches a handler except through `Pump` on the game's thread.
+- **Each frame**, the subsystem calls the backend's `Pump` (Steam dispatches its callbacks there,
+  completing requests), then the queue's, delivering what completed.
+
+## Decision 1b - how a plugin hands over its backend
+
+`foundation.online` also holds the service a backend plugin finds, so the plugin links only
+`foundation.online`:
+
+```cpp
+class OnlineBackends final : public foundation::runtime::IRegistrationRecorder
+{
+public:
+    using Make = Function<UniquePtr<IOnlineBackend>(IAllocator&)>;
+    // The backend this process uses; false when one is provided already (the slot makes that a
+    // manifest error first).
+    [[nodiscard]] bool Provide(StringView name, Make make);
+};
+```
+
+- **The engine offers it to every host that runs games** (the player, the editor, the headless
+  tools that play), as `EnginePluginServices` is offered: `host.Provide(backends)` and the loader's
+  recorder, so what a plugin provides is recorded and taken back when it unloads.
+- **The plugin provides a maker, not a backend**, from its Engine part's `Load`, capturing its typed
+  settings:
+
+```cpp
+void Load(foundation::runtime::PluginContext& context)
+{
+    const steam::SteamSettings* settings = context.Settings<steam::SteamSettings>();
+    if (auto* backends = context.Find<foundation::online::OnlineBackends>(); backends != nullptr && settings != nullptr)
+    {
+        (void)backends->Provide(u8"steam", [settings](IAllocator& allocator) { return steam::MakeBackend(allocator, *settings); });
+    }
+}
+```
+
+- **The subsystem makes the backend when the application starts**, and makes Local when nothing was
+  provided. In the editor, a plugin that loads later (enabled while the project is open, or
+  reloaded) is taken up at once: the subsystem stops the old backend, drops every pending handler,
+  and starts the new one. When the plugin unloads, the recorder takes its maker back and the
+  subsystem stops its backend first, then goes on with Local in the editor. A shipped player never
+  loses its backend while it runs.
+- **Tests use the same door**: the fake backend is provided through `OnlineBackends` by a test
+  package that provides `online.backend`, so the subsystem, the facade and Local are proved through
+  the route a real plugin takes.
 
 ## Decision 2 - asynchronous by request, answers on the game thread
 
@@ -186,7 +306,8 @@ silent success.
 What a game has (its achievements with names, descriptions, hidden flags and progress targets; its
 stats with kind, default and bounds; its leaderboards with sort order and score format; its DLC with
 names) is an **Online Definitions** asset, set as the project's (a `onlineDefinitionsId` project
-setting, as the default input map is). It cooks to a product every host loads. The Local backend
+setting, as the default input map is). It cooks to a product every host loads, `OnlineDefinitions`,
+a `foundation.online` type, so a backend reads it without the asset pipeline. The Local backend
 works from it (it knows the names and targets without a platform), the editor edits it as a page,
 an agent writes it through the asset tools, and an id a call names that the definitions lack
 answers `notFound` in every backend, so a typo shows on Local before it reaches Steam.
@@ -269,7 +390,7 @@ the tree (a platform SDK under its own licence):
 
 - **O0 - the service and the Local backend.** `foundation.online`: `IOnlineBackend`, the value
   types, result codes and capabilities, the request queue (completions to handlers on the pumping
-  thread, cancel); `foundation.online.local`: the Local backend over a file and a definitions
+  thread, cancel), and `OnlineBackends` (Decisions 1a and 1b); `foundation.online.local`: the Local backend over a file and a definitions
   object, tested through the interface as any backend would be. Tests: every
   operation's answer, unsupported and notFound answers, cancel, the file round trip, handlers only
   ever called from the pump.
