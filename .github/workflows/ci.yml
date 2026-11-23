@@ -15,7 +15,7 @@ permissions:
 
 on:
   push:
-    branches: [master, rhi-handles]
+    branches: [master]
     paths-ignore: ['**/*.md', 'Documentation/**', 'comments-cleanup.md']
   pull_request:
     branches: [master]
