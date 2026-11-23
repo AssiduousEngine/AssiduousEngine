@@ -17,6 +17,7 @@ export import :buffer;
 export import :texture;
 export import :texture_view;
 export import :sampler;
+export import :tables;
 export import :shader_module;
 export import :bind_group_layout;
 export import :bind_group;

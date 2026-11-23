@@ -239,9 +239,9 @@ namespace foundation::render
         return p;
     }
 
-    rhi::BindGroup* BloomPass::EnsureBindGroup(rhi::TextureView* view, u64 generation)
+    rhi::BindGroup* BloomPass::EnsureBindGroup(rhi::TextureViewHandle view, u64 generation)
     {
-        if (view == nullptr)
+        if (!view.IsValid())
         {
             return nullptr;
         }
@@ -291,10 +291,10 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_upPipeline);
             m_upPipeline = nullptr;
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_pipelineLayout != nullptr)
         {

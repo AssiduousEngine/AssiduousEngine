@@ -191,7 +191,7 @@ namespace foundation::render
         {
             DestroyExternalBindGroups(*ctx);
             ctx->m_externalUid = sky.textureUid;
-            if (sky.texture != nullptr)
+            if (sky.texture.IsValid())
             {
                 if (sky.textureIsCube)
                 {
@@ -248,7 +248,7 @@ namespace foundation::render
         td.label = u8"ibl.equirect";
         if (!m_device->CreateTexture(td, m_equirectTex).IsOk())
         {
-            m_equirectTex = nullptr;
+            m_equirectTex = {};
             return;
         }
         rhi::TextureViewDesc vd{};
@@ -316,7 +316,7 @@ namespace foundation::render
         td.label = u8"ibl.srcCube";
         if (!m_device->CreateTexture(td, m_srcCube).IsOk())
         {
-            m_srcCube = nullptr;
+            m_srcCube = {};
             return;
         }
         rhi::TextureViewDesc vd{};
@@ -366,7 +366,7 @@ namespace foundation::render
 
     void IBLSystem::Upload(rhi::CommandEncoder& enc)
     {
-        if (m_equirectPending && m_equirectTex != nullptr && m_equirectStaging.IsValid())
+        if (m_equirectPending && m_equirectTex.IsValid() && m_equirectStaging.IsValid())
         {
             enc.TransitionTexture(m_equirectTex, rhi::ResourceState::Undefined,
                                   rhi::ResourceState::CopyDst);
@@ -379,7 +379,7 @@ namespace foundation::render
                                   rhi::ResourceState::ShaderRead);
             m_equirectPending = false;
         }
-        if (m_cubemapPending && m_srcCube != nullptr && m_cubemapStaging.IsValid())
+        if (m_cubemapPending && m_srcCube.IsValid() && m_cubemapStaging.IsValid())
         {
             enc.TransitionTexture(m_srcCube, rhi::ResourceState::Undefined,
                                   rhi::ResourceState::CopyDst);
@@ -706,17 +706,17 @@ namespace foundation::render
         else
         {
             m_device->WaitIdle();
-            if (ctx.m_prefilterView != nullptr)
+            if (ctx.m_prefilterView.IsValid())
             {
                 m_device->DestroyTextureView(ctx.m_prefilterView);
             }
-            if (ctx.m_prefilterCube != nullptr)
+            if (ctx.m_prefilterCube.IsValid())
             {
                 m_device->DestroyTexture(ctx.m_prefilterCube);
             }
         }
-        ctx.m_prefilterView = nullptr;
-        ctx.m_prefilterCube = nullptr;
+        ctx.m_prefilterView = {};
+        ctx.m_prefilterCube = {};
     }
 
     bool IBLSystem::CreateContextResources(Context& ctx)
@@ -846,30 +846,30 @@ namespace foundation::render
         if (ctx.m_prefilterView)
         {
             m_device->DestroyTextureView(ctx.m_prefilterView);
-            ctx.m_prefilterView = nullptr;
+            ctx.m_prefilterView = {};
         }
         if (ctx.m_prefilterCube)
         {
             m_device->DestroyTexture(ctx.m_prefilterCube);
-            ctx.m_prefilterCube = nullptr;
+            ctx.m_prefilterCube = {};
         }
         for (u32 m = 0; m < kEnvMips; ++m)
         {
             if (ctx.m_envMipView[m])
             {
                 m_device->DestroyTextureView(ctx.m_envMipView[m]);
-                ctx.m_envMipView[m] = nullptr;
+                ctx.m_envMipView[m] = {};
             }
         }
         if (ctx.m_envSampleView)
         {
             m_device->DestroyTextureView(ctx.m_envSampleView);
-            ctx.m_envSampleView = nullptr;
+            ctx.m_envSampleView = {};
         }
         if (ctx.m_envCube)
         {
             m_device->DestroyTexture(ctx.m_envCube);
-            ctx.m_envCube = nullptr;
+            ctx.m_envCube = {};
         }
     }
 
@@ -1145,7 +1145,7 @@ namespace foundation::render
         {
             return false;
         }
-        if (m_equirectSampler == nullptr)
+        if (!m_equirectSampler.IsValid())
         {
             rhi::SamplerDesc ss{};
             ss.minFilter = rhi::FilterMode::Linear;
@@ -1199,12 +1199,12 @@ namespace foundation::render
         if (m_srcCubeView)
         {
             m_device->DestroyTextureView(m_srcCubeView);
-            m_srcCubeView = nullptr;
+            m_srcCubeView = {};
         }
         if (m_srcCube)
         {
             m_device->DestroyTexture(m_srcCube);
-            m_srcCube = nullptr;
+            m_srcCube = {};
         }
         m_cubemapPending = false;
     }
@@ -1224,12 +1224,12 @@ namespace foundation::render
         if (m_equirectView)
         {
             m_device->DestroyTextureView(m_equirectView);
-            m_equirectView = nullptr;
+            m_equirectView = {};
         }
         if (m_equirectTex)
         {
             m_device->DestroyTexture(m_equirectTex);
-            m_equirectTex = nullptr;
+            m_equirectTex = {};
         }
         m_equirectPending = false;
     }
@@ -1266,7 +1266,7 @@ namespace foundation::render
         if (m_equirectSampler)
         {
             m_device->DestroySampler(m_equirectSampler);
-            m_equirectSampler = nullptr;
+            m_equirectSampler = {};
         }
         if (m_shPipeline)
         {
@@ -1278,15 +1278,15 @@ namespace foundation::render
             m_device->DestroyBindGroup(m_dummyEnvBindGroup);
             m_dummyEnvBindGroup = nullptr;
         }
-        if (m_dummyEnvView != nullptr)
+        if (m_dummyEnvView.IsValid())
         {
             m_device->DestroyTextureView(m_dummyEnvView);
-            m_dummyEnvView = nullptr;
+            m_dummyEnvView = {};
         }
-        if (m_dummyEnvCube != nullptr)
+        if (m_dummyEnvCube.IsValid())
         {
             m_device->DestroyTexture(m_dummyEnvCube);
-            m_dummyEnvCube = nullptr;
+            m_dummyEnvCube = {};
         }
         if (m_envPipeline)
         {
@@ -1346,17 +1346,17 @@ namespace foundation::render
         if (m_sampler)
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_brdfView)
         {
             m_device->DestroyTextureView(m_brdfView);
-            m_brdfView = nullptr;
+            m_brdfView = {};
         }
         if (m_brdfLut)
         {
             m_device->DestroyTexture(m_brdfLut);
-            m_brdfLut = nullptr;
+            m_brdfLut = {};
         }
     }
 }

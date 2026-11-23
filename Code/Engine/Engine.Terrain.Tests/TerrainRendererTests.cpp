@@ -58,8 +58,8 @@ namespace
     {
         shaders::Compiler* compiler = nullptr;
         rhi::null::NullDevice device{DefaultAllocator()};
-        rhi::Texture* color = nullptr;
-        rhi::TextureView* colorView = nullptr;
+        rhi::TextureHandle color{};
+        rhi::TextureViewHandle colorView{};
         rhi::CommandPool* pool = nullptr;
         rhi::CommandEncoder* encoder = nullptr;
 
@@ -127,7 +127,7 @@ namespace
     // Populate one whole-terrain render item from a heightfield (what the manager's extract does).
     void FillTerrainRenderData(engine::terrain::TerrainRenderData& rd, const hf::Heightfield& h,
                                Span<const tmodel::TerrainChunk> chunks,
-                               const tmodel::TerrainQuadtree& tree, rhi::TextureView* heightView,
+                               const tmodel::TerrainQuadtree& tree, rhi::TextureViewHandle heightView,
                                u16 rendererId)
     {
         static const f32 thresholds[] = {1.0f, 0.25f, 0.08f, 0.03f, 0.012f, 0.005f, 0.002f};
@@ -180,8 +180,8 @@ TEST_CASE("terrain renderer: visible chunks draw (extract -> Resolve -> per-LOD 
                tmodel::ChunksPerSide(h->Size()));
 
     engine::terrain::TerrainHeightTextureCache heightCache;
-    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
-    REQUIRE(heightView != nullptr);
+    rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView.IsValid());
 
     ExtractedScene scene{DefaultAllocator()};
     engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
@@ -245,8 +245,8 @@ TEST_CASE("terrain renderer: in a multisampled view its prepass and colour pipel
         MESSAGE("DXC unavailable; skipping");
         return;
     }
-    rhi::Texture* color = nullptr;
-    rhi::TextureView* colorView = nullptr;
+    rhi::TextureHandle color{};
+    rhi::TextureViewHandle colorView{};
     rhi::CommandPool* pool = nullptr;
     rhi::CommandEncoder* encoder = nullptr;
     REQUIRE(device.CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::BGRA8Unorm, 256, 256), color)
@@ -278,8 +278,8 @@ TEST_CASE("terrain renderer: in a multisampled view its prepass and colour pipel
         tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                    tmodel::ChunksPerSide(h->Size()));
         engine::terrain::TerrainHeightTextureCache heightCache;
-        rhi::TextureView* heightView = heightCache.GetOrCreate(device, *h, 1);
-        REQUIRE(heightView != nullptr);
+        rhi::TextureViewHandle heightView = heightCache.GetOrCreate(device, *h, 1);
+        REQUIRE(heightView.IsValid());
         ExtractedScene scene{DefaultAllocator()};
         engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
         FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tree,
@@ -347,8 +347,8 @@ TEST_CASE("terrain renderer: a frame that outgrows the view ring draws everythin
     tmodel::TerrainQuadtree tree;
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tmodel::ChunksPerSide(h->Size()));
     engine::terrain::TerrainHeightTextureCache heightCache;
-    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
-    REQUIRE(heightView != nullptr);
+    rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView.IsValid());
 
     constexpr u32 kTerrains = 60;
     ExtractedScene scene{DefaultAllocator()};
@@ -415,8 +415,8 @@ TEST_CASE("terrain renderer: a chunk cut everywhere draws nothing; a holed chunk
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
     engine::terrain::TerrainHeightTextureCache heightCache;
-    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
-    REQUIRE(heightView != nullptr);
+    rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView.IsValid());
     engine::terrain::TerrainHoledMeshCache holedCache;
     const Span<const engine::terrain::HoledChunkMesh> holed = holedCache.GetOrBuild(
         harness.device, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, 1);
@@ -471,8 +471,8 @@ TEST_CASE("terrain renderer: nothing drawn when the terrain is off-screen")
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
     engine::terrain::TerrainHeightTextureCache heightCache;
-    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
-    REQUIRE(heightView != nullptr);
+    rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView.IsValid());
 
     ExtractedScene scene{DefaultAllocator()};
     engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
@@ -518,8 +518,8 @@ TEST_CASE("terrain renderer: null-view depth passes cast at the COARSEST chunk L
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
     engine::terrain::TerrainHeightTextureCache heightCache;
-    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
-    REQUIRE(heightView != nullptr);
+    rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView.IsValid());
 
     engine::terrain::TerrainRenderData rd{};
     FillTerrainRenderData(rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
@@ -601,8 +601,8 @@ TEST_CASE("terrain renderer: foreign renderer items in the span are skipped, nev
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
     engine::terrain::TerrainHeightTextureCache heightCache;
-    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
-    REQUIRE(heightView != nullptr);
+    rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView.IsValid());
 
     engine::terrain::TerrainRenderData rd{};
     FillTerrainRenderData(rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},

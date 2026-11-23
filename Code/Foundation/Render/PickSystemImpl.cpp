@@ -440,8 +440,8 @@ namespace foundation::render
                                   b.SetCopyExecute(
                                       [ids, rect, rowStride, buffer, g](rhi::CommandEncoder& enc)
                                       {
-                                          rhi::Texture* src = g->GetTexture(ids);
-                                          if (src == nullptr || !buffer.IsValid())
+                                          rhi::TextureHandle src = g->GetTexture(ids);
+                                          if (!src.IsValid() || !buffer.IsValid())
                                           {
                                               return;
                                           }

@@ -19,9 +19,9 @@ namespace rhi = foundation::rhi;
 
 namespace
 {
-    // Distinct stand-in addresses: the cache only compares and returns them.
+    // Distinct stand-ins: the cache only compares and returns them.
     alignas(8) u8 g_slots[16][8];
-    [[nodiscard]] rhi::TextureView* View(int i) { return reinterpret_cast<rhi::TextureView*>(g_slots[i]); }
+    [[nodiscard]] rhi::TextureViewHandle View(int i) { return rhi::TextureViewHandle{static_cast<u32>(i), 1}; }
     [[nodiscard]] rhi::BindGroup* Group(int i) { return reinterpret_cast<rhi::BindGroup*>(g_slots[8 + i]); }
 
     // TAA's inputs: jittered colour, motion, depth.
@@ -39,8 +39,8 @@ namespace
 TEST_CASE("bind group cache: a group is rebuilt when any input changed, not only the first")
 {
     BindGroupCache<3> cache;
-    rhi::TextureView* historyA = View(6);
-    rhi::TextureView* historyB = View(7);
+    rhi::TextureViewHandle historyA = View(6);
+    rhi::TextureViewHandle historyB = View(7);
     rhi::BindGroup* stale = nullptr;
 
     // Frame 0 reads history A: colour 0, motion 1 (the first frame's), depth 3.
@@ -73,7 +73,7 @@ TEST_CASE("bind group cache: a group is rebuilt when any input changed, not only
 
     // An input missing: no group can be built.
     BindGroupInputs<3> missing = steady;
-    missing.Set(1, nullptr, 0);
+    missing.Set(1, {}, 0);
     CHECK_FALSE(missing.Complete());
     CHECK(steady.Complete());
 
@@ -90,7 +90,7 @@ TEST_CASE("bind group cache: a group is rebuilt when any input changed, not only
 TEST_CASE("bind group cache: the bound buffer and its generation are inputs too")
 {
     BindGroupCache<3> cache;
-    rhi::TextureView* history = View(6);
+    rhi::TextureViewHandle history = View(6);
     rhi::BindGroup* stale = nullptr;
     rhi::BufferHandle skyA{4, 1}; // two distinct handles; the cache only compares them
     rhi::BufferHandle skyB{5, 1};

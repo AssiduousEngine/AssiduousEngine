@@ -52,8 +52,8 @@ export namespace foundation::vg::renderer
             desc.depth = 1;
             desc.usage = rhi::TextureUsage::DepthStencil;
             desc.sampleCount = sampleCount;
-            rhi::Texture* probe = nullptr;
-            if (device.CreateTexture(desc, probe).IsOk() && probe != nullptr)
+            rhi::TextureHandle probe{};
+            if (device.CreateTexture(desc, probe).IsOk() && probe.IsValid())
             {
                 device.DestroyTexture(probe);
                 return format;
@@ -623,21 +623,21 @@ export namespace foundation::vg::renderer
                 const LayerTarget& target = m_layerTargets[static_cast<usize>(targetIndex)];
                 encoder.TransitionTexture(target.color, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::RenderTarget);
-                if (target.msaa != nullptr)
+                if (target.msaa.IsValid())
                     encoder.TransitionTexture(target.msaa, rhi::ResourceState::Undefined,
                                               rhi::ResourceState::RenderTarget);
-                if (target.depthStencil != nullptr)
+                if (target.depthStencil.IsValid())
                     encoder.TransitionTexture(target.depthStencil, rhi::ResourceState::Undefined,
                                               rhi::ResourceState::DepthStencilWrite);
                 rhi::RenderPassDesc desc{};
                 rhi::ColorAttachment color{};
-                color.view = target.msaaView != nullptr ? target.msaaView : target.colorView;
-                color.resolveTarget = target.msaaView != nullptr ? target.colorView : nullptr;
+                color.view = target.msaaView.IsValid() ? target.msaaView : target.colorView;
+                color.resolveTarget = target.msaaView.IsValid() ? target.colorView : rhi::TextureViewHandle{};
                 color.loadOp = rhi::LoadOp::Clear;
-                color.storeOp = target.msaaView != nullptr ? rhi::StoreOp::DontCare : rhi::StoreOp::Store;
+                color.storeOp = target.msaaView.IsValid() ? rhi::StoreOp::DontCare : rhi::StoreOp::Store;
                 color.clearValue = rhi::ClearColor{0.0f, 0.0f, 0.0f, 0.0f};
                 desc.colorAttachments.Add(color);
-                if (target.depthStencilView != nullptr)
+                if (target.depthStencilView.IsValid())
                 {
                     rhi::DepthStencilAttachment ds{};
                     ds.view = target.depthStencilView;
@@ -718,9 +718,9 @@ export namespace foundation::vg::renderer
         /// hits a stale GPU texture in the cache.
         /// Re-registering an existing key rebinds it to the new view (bind groups
         /// are torn down and rebuilt lazily).
-        void RegisterExternalTexture(const image::ImageData* key, rhi::TextureView* view)
+        void RegisterExternalTexture(const image::ImageData* key, rhi::TextureViewHandle view)
         {
-            if (key == nullptr || view == nullptr || m_device == nullptr)
+            if (key == nullptr || !view.IsValid() || m_device == nullptr)
                 return;
 
             for (usize i = 0; i < m_textureCache.Size(); ++i)
@@ -736,7 +736,7 @@ export namespace foundation::vg::renderer
                 }
                 c.view = view;
                 c.external = true;
-                c.gpuTexture = nullptr;
+                c.gpuTexture = {};
                 c.sourceId = key->InstanceId(); // explicit re-register refreshes identity
                 return;
             }
@@ -872,9 +872,9 @@ export namespace foundation::vg::renderer
             m_boxShadowPipeline = nullptr;
             m_pipelineLayout = nullptr;
             m_bindGroupLayout = nullptr;
-            m_sampler = nullptr;
-            m_samplerRepeat = nullptr;
-            m_samplerMirror = nullptr;
+            m_sampler = {};
+            m_samplerRepeat = {};
+            m_samplerMirror = {};
             m_initialized = false;
             m_device = nullptr;
         }
@@ -1022,8 +1022,8 @@ export namespace foundation::vg::renderer
         {
             const image::ImageData* source = nullptr;
             u64 sourceId = 0; // ImageData::InstanceId(), guards against address reuse
-            rhi::Texture* gpuTexture = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureHandle gpuTexture{};
+            rhi::TextureViewHandle view{};
             // Per (frame, spread): slot = frame * kSpreadCount + spread. Spread picks
             // the LUT sampler, and the sampler lives in the bind group.
             Array<rhi::BindGroup*> bindGroups;
@@ -1052,12 +1052,12 @@ export namespace foundation::vg::renderer
         // frame has finished on the GPU).
         struct LayerTarget
         {
-            rhi::Texture* color = nullptr; // single-sampled, sampled by the composite
-            rhi::TextureView* colorView = nullptr;
-            rhi::Texture* msaa = nullptr; // when the renderer draws multisampled (resolved into color)
-            rhi::TextureView* msaaView = nullptr;
-            rhi::Texture* depthStencil = nullptr; // when the renderer's pipelines carry one
-            rhi::TextureView* depthStencilView = nullptr;
+            rhi::TextureHandle color{}; // single-sampled, sampled by the composite
+            rhi::TextureViewHandle colorView{};
+            rhi::TextureHandle msaa{}; // when the renderer draws multisampled (resolved into color)
+            rhi::TextureViewHandle msaaView{};
+            rhi::TextureHandle depthStencil{}; // when the renderer's pipelines carry one
+            rhi::TextureViewHandle depthStencilView{};
             rhi::BindGroup* bindGroup = nullptr; // the frame's uniforms, colorView, clamp sampler
             u32 width = 0, height = 0;
             i32 frame = 0;
@@ -1164,7 +1164,7 @@ export namespace foundation::vg::renderer
             return m_device->CreateSampler(desc, m_samplerMirror);
         }
 
-        [[nodiscard]] rhi::Sampler* SamplerForSpread(vg::VGGradientSpread spread) const
+        [[nodiscard]] rhi::SamplerHandle SamplerForSpread(vg::VGGradientSpread spread) const
         {
             switch (spread)
             {
@@ -1724,7 +1724,7 @@ export namespace foundation::vg::renderer
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
             td.label = u8"VGRenderer cached texture";
 
-            rhi::Texture* gpuTexture = nullptr;
+            rhi::TextureHandle gpuTexture{};
             if (!m_device->CreateTexture(td, gpuTexture).IsOk())
                 return nullptr;
 
@@ -1744,7 +1744,7 @@ export namespace foundation::vg::renderer
 
             rhi::TextureViewDesc vd{};
             vd.format = fmt;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             if (!m_device->CreateTextureView(gpuTexture, vd, view).IsOk())
             {
                 m_device->DestroyTexture(gpuTexture);
@@ -1773,7 +1773,7 @@ export namespace foundation::vg::renderer
                 return;
 
             CachedTexture* cached = GetOrCreateCachedTexture(texture);
-            if (cached == nullptr || cached->view == nullptr)
+            if (cached == nullptr || !cached->view.IsValid())
                 return;
             const usize slot =
                 static_cast<usize>(frameIndex) * kSpreadCount + static_cast<usize>(spread);
@@ -1981,17 +1981,17 @@ export namespace foundation::vg::renderer
         {
             if (target.bindGroup != nullptr)
                 m_device->DestroyBindGroup(target.bindGroup);
-            if (target.depthStencilView != nullptr)
+            if (target.depthStencilView.IsValid())
                 m_device->DestroyTextureView(target.depthStencilView);
-            if (target.depthStencil != nullptr)
+            if (target.depthStencil.IsValid())
                 m_device->DestroyTexture(target.depthStencil);
-            if (target.msaaView != nullptr)
+            if (target.msaaView.IsValid())
                 m_device->DestroyTextureView(target.msaaView);
-            if (target.msaa != nullptr)
+            if (target.msaa.IsValid())
                 m_device->DestroyTexture(target.msaa);
-            if (target.colorView != nullptr)
+            if (target.colorView.IsValid())
                 m_device->DestroyTextureView(target.colorView);
-            if (target.color != nullptr)
+            if (target.color.IsValid())
                 m_device->DestroyTexture(target.color);
             target = LayerTarget{};
         }
@@ -2054,9 +2054,9 @@ export namespace foundation::vg::renderer
         rhi::RenderPipeline* m_clippedWriteEvenOdd = nullptr;
         rhi::RenderPipeline* m_clipApplyPipeline = nullptr; // winding to clip mask
         rhi::RenderPipeline* m_clipClearPipeline = nullptr; // clip mask eraser
-        rhi::Sampler* m_sampler = nullptr; // clamp: images and pad gradients
-        rhi::Sampler* m_samplerRepeat = nullptr;
-        rhi::Sampler* m_samplerMirror = nullptr;
+        rhi::SamplerHandle m_sampler{}; // clamp: images and pad gradients
+        rhi::SamplerHandle m_samplerRepeat{};
+        rhi::SamplerHandle m_samplerMirror{};
 
         Array<rhi::BufferHandle> m_vertexBuffers;
         Array<rhi::BufferHandle> m_indexBuffers;

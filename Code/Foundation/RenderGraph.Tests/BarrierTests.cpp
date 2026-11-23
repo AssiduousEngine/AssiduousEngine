@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Validates the BarrierSolver directly via a recording mock encoder and plain RHI textures
-// (rhi::Texture is concrete, so no texture mock is needed; its pointer identity
-// is what the solver keys on).
+// Validates the BarrierSolver directly via a recording mock encoder and made-up texture handles
+// (the solver keys on a handle and never looks it up; a resource carries its texture's mip and
+// layer counts).
 
 #include <doctest/doctest.h>
 
@@ -50,21 +50,21 @@ namespace
             return nullptr;
         }
         void CopyBufferToBuffer(rhi::BufferHandle, u64, rhi::BufferHandle, u64, u64) override {}
-        void CopyBufferToTexture(rhi::BufferHandle, rhi::Texture*,
+        void CopyBufferToTexture(rhi::BufferHandle, rhi::TextureHandle,
                                  const rhi::BufferTextureCopyRegion&) override
         {
         }
-        void CopyTextureToBuffer(rhi::Texture*, rhi::BufferHandle,
+        void CopyTextureToBuffer(rhi::TextureHandle, rhi::BufferHandle,
                                  const rhi::BufferTextureCopyRegion&) override
         {
         }
-        void CopyTextureToTexture(rhi::Texture*, rhi::Texture*,
+        void CopyTextureToTexture(rhi::TextureHandle, rhi::TextureHandle,
                                   const rhi::TextureCopyRegion&) override
         {
         }
-        void Blit(rhi::Texture*, rhi::Texture*) override {}
-        void GenerateMipmaps(rhi::Texture*) override {}
-        void ResolveTexture(rhi::Texture*, rhi::Texture*) override {}
+        void Blit(rhi::TextureHandle, rhi::TextureHandle) override {}
+        void GenerateMipmaps(rhi::TextureHandle) override {}
+        void ResolveTexture(rhi::TextureHandle, rhi::TextureHandle) override {}
         void ResetQuerySet(rhi::QuerySet*, u32, u32) override {}
         void WriteTimestamp(rhi::QuerySet*, u32) override {}
         void BeginPipelineStatisticsQuery(rhi::QuerySet*, u32) override {}
@@ -76,13 +76,26 @@ namespace
         rhi::CommandBuffer* Finish() override { return nullptr; }
     };
 
-    rhi::Texture MakeTexture(RS initialState, u32 mips = 1, u32 layers = 1)
+    // A texture as the solver sees it: a handle no other test texture has, and its counts.
+    struct TestTexture
     {
-        rhi::Texture tex;
+        rhi::TextureHandle handle{};
+        rhi::TextureDesc desc{};
+    };
+    TestTexture MakeTexture(u32 mips = 1, u32 layers = 1)
+    {
+        static u32 next = 0;
+        TestTexture tex;
+        tex.handle.index = next++;
+        tex.handle.generation = 1;
         tex.desc.mipLevelCount = mips;
         tex.desc.arrayLayerCount = layers;
-        tex.initialState = initialState;
         return tex;
+    }
+    void Use(RenderGraphResource& res, const TestTexture& tex)
+    {
+        res.texture = tex.handle;
+        res.TakeExtent(&tex.desc);
     }
 
     RGResourceAccess Access(u32 index, AT type, RGSubresourceRange sub = {})
@@ -95,13 +108,13 @@ TEST_CASE("barriers: same texture via two handles emits one transition")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture shadow = MakeTexture(RS::Undefined);
+    TestTexture shadow = MakeTexture();
 
     RenderGraphResource res0(u8"ShadowWrite", RGResourceType::Texture,
                              RGResourceLifetime::Imported);
-    res0.texture = &shadow;
+    Use(res0, shadow);
     RenderGraphResource res1(u8"ShadowRead", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res1.texture = &shadow; // same GPU texture
+    Use(res1, shadow); // same GPU texture
     RenderGraphResource* resources[] = {&res0, &res1};
     const Span<RenderGraphResource* const> span(resources, 2);
 
@@ -119,17 +132,17 @@ TEST_CASE("barriers: same texture via two handles emits one transition")
     REQUIRE(encoder.textureBarriers.Size() == 1u);
     CHECK(encoder.textureBarriers[0].oldState == RS::DepthStencilWrite);
     CHECK(encoder.textureBarriers[0].newState == RS::ShaderRead);
-    CHECK(encoder.textureBarriers[0].texture == &shadow);
+    CHECK(encoder.textureBarriers[0].texture == shadow.handle);
 }
 
 TEST_CASE("barriers: single handle read-after-write")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined);
+    TestTexture tex = MakeTexture();
 
     RenderGraphResource res(u8"Color", RGResourceType::Texture, RGResourceLifetime::Transient);
-    res.texture = &tex;
+    Use(res, tex);
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
     solver.Reset(span);
@@ -152,10 +165,10 @@ TEST_CASE("barriers: compute write then render read")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined);
+    TestTexture tex = MakeTexture();
 
     RenderGraphResource res(u8"Volume", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
     solver.Reset(span);
@@ -178,10 +191,10 @@ TEST_CASE("barriers: final transition uses texture-keyed state")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined);
+    TestTexture tex = MakeTexture();
 
     RenderGraphResource res(u8"Backbuffer", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.finalState = RS::Present;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -203,10 +216,10 @@ TEST_CASE("barriers: none when already in the correct state")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined);
+    TestTexture tex = MakeTexture();
 
     RenderGraphResource res(u8"Tex", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::ShaderRead;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -223,10 +236,10 @@ TEST_CASE("barriers: per-layer writes emit individual barriers")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 4); // 4 cascades
+    TestTexture tex = MakeTexture(1, 4); // 4 cascades
 
     RenderGraphResource res(u8"ShadowArray", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::ShaderRead;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -254,10 +267,10 @@ TEST_CASE("barriers: non-uniform whole-resource read emits per-subresource")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 2);
+    TestTexture tex = MakeTexture(1, 2);
 
     RenderGraphResource res(u8"Tex", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::ShaderRead;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -282,10 +295,10 @@ TEST_CASE("barriers: all layers written collapses to uniform")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 2);
+    TestTexture tex = MakeTexture(1, 2);
 
     RenderGraphResource res(u8"Tex", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::ShaderRead;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -320,10 +333,10 @@ TEST_CASE("barriers: SampleDepth on a written cascade array reads as DepthStenci
     // not ShaderRead. After all layers are written uniform, the read is a whole-resource barrier.
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 4); // 4 cascades
+    TestTexture tex = MakeTexture(1, 4); // 4 cascades
 
     RenderGraphResource res(u8"ShadowArray", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::DepthStencilRead;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -352,10 +365,10 @@ TEST_CASE("barriers: per-mip different states")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 4, 1);
+    TestTexture tex = MakeTexture(4, 1);
 
     RenderGraphResource res(u8"Tex", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::Undefined;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -381,10 +394,10 @@ TEST_CASE("barriers: readable-after-write is subresource aware")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 4);
+    TestTexture tex = MakeTexture(1, 4);
 
     RenderGraphResource res(u8"Tex", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::ShaderRead;
     res.readableAfterWrite = true;
     RenderGraphResource* resources[] = {&res};
@@ -409,10 +422,10 @@ TEST_CASE("barriers: final transition non-uniform emits per-subresource")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 2);
+    TestTexture tex = MakeTexture(1, 2);
 
     RenderGraphResource res(u8"Swapchain", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::Undefined;
     res.finalState = RS::Present;
     RenderGraphResource* resources[] = {&res};
@@ -448,10 +461,10 @@ TEST_CASE("barriers: non-overlapping subresource access emits no false barrier")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 4);
+    TestTexture tex = MakeTexture(1, 4);
 
     RenderGraphResource res(u8"Array", RGResourceType::Texture, RGResourceLifetime::Imported);
-    res.texture = &tex;
+    Use(res, tex);
     res.lastKnownState = RS::ShaderRead;
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
@@ -473,13 +486,13 @@ TEST_CASE("barriers: persistent resource preserves per-subresource state")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined, 1, 2);
+    TestTexture tex = MakeTexture(1, 2);
 
     RenderGraphResource res(u8"Persistent", RGResourceType::Texture,
                             RGResourceLifetime::Persistent);
-    res.texture = &tex;
-    res.persistentData = MakeUnique<PersistentResource>(DefaultAllocator(), &tex,
-                                                        static_cast<rhi::TextureView*>(nullptr));
+    Use(res, tex);
+    res.persistentData = MakeUnique<PersistentResource>(DefaultAllocator(), tex.handle,
+                                                        rhi::TextureViewHandle{});
     res.persistentData->firstFrame = false;
     res.persistentData->lastKnownState = RS::ShaderRead;
     RenderGraphResource* resources[] = {&res};
@@ -499,11 +512,11 @@ TEST_CASE("barriers: transient first access emits Undefined -> RenderTarget")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined);
+    TestTexture tex = MakeTexture();
 
     RenderGraphResource res(u8"PipelineOutput", RGResourceType::Texture,
                             RGResourceLifetime::Transient);
-    res.texture = &tex;
+    Use(res, tex);
     RenderGraphResource* resources[] = {&res};
     const Span<RenderGraphResource* const> span(resources, 1);
     solver.Reset(span);
@@ -521,13 +534,13 @@ TEST_CASE("barriers: transient reused across frames starts from Undefined")
 {
     BarrierSolver solver;
     MockEncoder encoder;
-    rhi::Texture tex = MakeTexture(RS::Undefined); // same pooled texture both frames
+    TestTexture tex = MakeTexture(); // same pooled texture both frames
 
     // Frame 1
     {
         RenderGraphResource res(u8"PipelineOutput", RGResourceType::Texture,
                                 RGResourceLifetime::Transient);
-        res.texture = &tex;
+        Use(res, tex);
         RenderGraphResource* resources[] = {&res};
         const Span<RenderGraphResource* const> span(resources, 1);
         solver.Reset(span);
@@ -550,7 +563,7 @@ TEST_CASE("barriers: transient reused across frames starts from Undefined")
     {
         RenderGraphResource res(u8"PipelineOutput", RGResourceType::Texture,
                                 RGResourceLifetime::Transient);
-        res.texture = &tex;
+        Use(res, tex);
         RenderGraphResource* resources[] = {&res};
         const Span<RenderGraphResource* const> span(resources, 1);
         solver.Reset(span);

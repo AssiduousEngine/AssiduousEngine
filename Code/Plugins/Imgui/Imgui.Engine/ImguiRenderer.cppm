@@ -226,10 +226,10 @@ export namespace imgui
         // Records ImDrawData in a render pass of its own on `target`, loaded and drawn on top of the
         // scene, for an application with no render subsystem whose overlays would draw it. `enc` is
         // the frame's primary encoder; the font upload and buffer fills happen on it before the pass.
-        void Render(rhi::CommandEncoder& enc, rhi::TextureView* target, rhi::TextureFormat targetFormat, u32 width, u32 height,
+        void Render(rhi::CommandEncoder& enc, rhi::TextureViewHandle target, rhi::TextureFormat targetFormat, u32 width, u32 height,
                     const ImDrawData* drawData, u32 frameIndex)
         {
-            if (target == nullptr || width == 0 || height == 0)
+            if (!target.IsValid() || width == 0 || height == 0)
             {
                 return;
             }
@@ -339,7 +339,7 @@ export namespace imgui
 
         void EnsureFontUploaded(rhi::CommandEncoder& enc)
         {
-            if (m_fontUploaded || m_fontTex == nullptr || !m_fontStaging.IsValid())
+            if (m_fontUploaded || !m_fontTex.IsValid() || !m_fontStaging.IsValid())
             {
                 return;
             }
@@ -535,7 +535,7 @@ export namespace imgui
             if (m_sampler)
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
             if (m_fontStaging)
             {
@@ -545,12 +545,12 @@ export namespace imgui
             if (m_fontView)
             {
                 m_device->DestroyTextureView(m_fontView);
-                m_fontView = nullptr;
+                m_fontView = {};
             }
             if (m_fontTex)
             {
                 m_device->DestroyTexture(m_fontTex);
-                m_fontTex = nullptr;
+                m_fontTex = {};
             }
             if (m_pipelineLayout)
             {
@@ -574,10 +574,10 @@ export namespace imgui
         rhi::TextureFormat m_pipelineFormat = rhi::TextureFormat::Undefined;
         rhi::TextureFormat m_pipelineDepthStencil = rhi::TextureFormat::Undefined;
 
-        rhi::Texture* m_fontTex = nullptr;
-        rhi::TextureView* m_fontView = nullptr;
+        rhi::TextureHandle m_fontTex{};
+        rhi::TextureViewHandle m_fontView{};
         rhi::BufferHandle m_fontStaging{};
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         u32 m_fontW = 0, m_fontH = 0;
         bool m_fontUploaded = false;
 #if PLATFORM_WEB

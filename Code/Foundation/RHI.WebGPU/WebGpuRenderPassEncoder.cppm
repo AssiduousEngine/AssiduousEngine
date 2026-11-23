@@ -24,6 +24,7 @@ import :buffer;
 import :render_pipeline;
 import :render_bundle_encoder;
 import :push_constant_emulator;
+import :tables;
 
 using namespace foundation::core;
 
@@ -32,8 +33,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuRenderPassEncoder final : public RenderPassEncoder
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up.
-        const WebGpuBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts; set by the command encoder
 
         // `width` x `height`: the pass's render area (its attachments' size), which scissors are
@@ -86,14 +87,14 @@ export namespace foundation::rhi::webgpu
         void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
             m_api->wgpuRenderPassEncoderSetVertexBuffer(
-                m_encoder, slot, WgpuBufferOf(buffers, buffer), offset,
+                m_encoder, slot, WgpuOf(tables, buffer), offset,
                 WGPU_WHOLE_SIZE);
         }
 
         void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
             m_api->wgpuRenderPassEncoderSetIndexBuffer(
-                m_encoder, WgpuBufferOf(buffers, buffer),
+                m_encoder, WgpuOf(tables, buffer),
                 format == IndexFormat::UInt16 ? WGPUIndexFormat_Uint16 : WGPUIndexFormat_Uint32,
                 offset, WGPU_WHOLE_SIZE);
         }
@@ -157,7 +158,7 @@ export namespace foundation::rhi::webgpu
         void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             FlushPushConstants();
-            const WGPUBuffer handle = WgpuBufferOf(buffers, buffer);
+            const WGPUBuffer handle = WgpuOf(tables, buffer);
             for (u32 i = 0; i < drawCount; ++i) // core WebGPU: one draw per indirect call
             {
                 m_api->wgpuRenderPassEncoderDrawIndirect(m_encoder, handle,
@@ -170,7 +171,7 @@ export namespace foundation::rhi::webgpu
         void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             FlushPushConstants();
-            const WGPUBuffer handle = WgpuBufferOf(buffers, buffer);
+            const WGPUBuffer handle = WgpuOf(tables, buffer);
             for (u32 i = 0; i < drawCount; ++i)
             {
                 m_api->wgpuRenderPassEncoderDrawIndexedIndirect(

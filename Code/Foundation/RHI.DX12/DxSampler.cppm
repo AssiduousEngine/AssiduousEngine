@@ -26,6 +26,7 @@ export namespace foundation::rhi::dx12
         Status init(ID3D12Device* device, const SamplerDesc& d,
                     DxDescriptorHeapAllocator* samplerHeap)
         {
+            desc = d;
             m_samplerHeap = samplerHeap;
 
             bool isComparison = d.compare.HasValue();
@@ -87,7 +88,7 @@ export namespace foundation::rhi::dx12
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE handle() const { return m_handle; }
         /// What it was made from: its descriptor is a function of this, so two samplers of one
         /// description share a shader-visible table.
-        [[nodiscard]] const D3D12_SAMPLER_DESC& desc() const { return m_desc; }
+        [[nodiscard]] const D3D12_SAMPLER_DESC& nativeDesc() const { return m_desc; }
 
     private:
         D3D12_SAMPLER_DESC m_desc{};

@@ -55,8 +55,8 @@ namespace
 
     struct Target
     {
-        rhi::Texture* texture = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle texture{};
+        rhi::TextureViewHandle view{};
     };
 
     Target MakeTarget(rhi::Device& device, rhi::TextureFormat format, u32 size, rhi::TextureUsage usage)

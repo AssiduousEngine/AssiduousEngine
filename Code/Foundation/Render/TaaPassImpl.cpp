@@ -70,7 +70,7 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        auto sampler = [this](rhi::FilterMode f, rhi::Sampler*& out)
+        auto sampler = [this](rhi::FilterMode f, rhi::SamplerHandle& out)
         {
             rhi::SamplerDesc s{};
             s.minFilter = f;
@@ -160,7 +160,7 @@ namespace foundation::render
         push.vpMin = Float2{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
         push.vpSize = Float2{static_cast<f32>(vw == 0 ? w : vw) / fw, static_cast<f32>(vh == 0 ? h : vh) / fh};
 
-        rhi::TextureView* histPrevView = hist.view[prev];
+        rhi::TextureViewHandle histPrevView = hist.view[prev];
         graph.AddRenderPass(
             u8"taa",
             [this, &graph, current, motion, depth, histPrev, resolved, histCur, histPrevView,
@@ -203,7 +203,7 @@ namespace foundation::render
 
     bool TaaPass::EnsureHistory(ViewHistory& hist, u32 w, u32 h)
     {
-        if (hist.tex[0] != nullptr && hist.w == w && hist.h == h)
+        if (hist.tex[0].IsValid() && hist.w == w && hist.h == h)
         {
             return true;
         }
@@ -221,7 +221,7 @@ namespace foundation::render
             td.label = u8"taa.history";
             if (!m_device->CreateTexture(td, hist.tex[i]).IsOk())
             {
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -230,7 +230,7 @@ namespace foundation::render
             vd.dimension = rhi::TextureViewDimension::Texture2D;
             if (!m_device->CreateTextureView(hist.tex[i], vd, hist.view[i]).IsOk())
             {
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -250,12 +250,12 @@ namespace foundation::render
             if (hist.view[i])
             {
                 m_device->DestroyTextureView(hist.view[i]);
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
             }
             if (hist.tex[i])
             {
                 m_device->DestroyTexture(hist.tex[i]);
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
             }
         }
         hist.w = hist.h = 0;
@@ -293,9 +293,9 @@ namespace foundation::render
         return p;
     }
 
-    rhi::BindGroup* TaaPass::EnsureBindGroup(rhi::TextureView* histPrev, const BindInputs& inputs)
+    rhi::BindGroup* TaaPass::EnsureBindGroup(rhi::TextureViewHandle histPrev, const BindInputs& inputs)
     {
-        if (histPrev == nullptr || !inputs.Complete())
+        if (!histPrev.IsValid() || !inputs.Complete())
         {
             return nullptr;
         }
@@ -338,15 +338,15 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_pipeline);
             m_pipeline = nullptr;
         }
-        if (m_pointSampler != nullptr)
+        if (m_pointSampler.IsValid())
         {
             m_device->DestroySampler(m_pointSampler);
-            m_pointSampler = nullptr;
+            m_pointSampler = {};
         }
-        if (m_linearSampler != nullptr)
+        if (m_linearSampler.IsValid())
         {
             m_device->DestroySampler(m_linearSampler);
-            m_linearSampler = nullptr;
+            m_linearSampler = {};
         }
         if (m_pipelineLayout != nullptr)
         {

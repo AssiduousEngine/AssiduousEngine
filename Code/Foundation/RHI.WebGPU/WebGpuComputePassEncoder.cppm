@@ -16,6 +16,7 @@ import :bind_group;
 import :buffer;
 import :compute_pipeline;
 import :push_constant_emulator;
+import :tables;
 
 using namespace foundation::core;
 
@@ -24,8 +25,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuComputePassEncoder final : public ComputePassEncoder
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up.
-        const WebGpuBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts; set by the command encoder
 
         void Begin(const WebGpuApi& api, WGPUDevice device, WGPUComputePassEncoder encoder)
@@ -76,7 +77,7 @@ export namespace foundation::rhi::webgpu
         {
             FlushPushConstants();
             m_api->wgpuComputePassEncoderDispatchWorkgroupsIndirect(
-                m_encoder, WgpuBufferOf(buffers, buffer), offset);
+                m_encoder, WgpuOf(tables, buffer), offset);
             if (counters)
                 counters->Dispatches();
         }

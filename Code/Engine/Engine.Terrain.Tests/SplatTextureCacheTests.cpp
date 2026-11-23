@@ -53,8 +53,8 @@ TEST_CASE("splat cache: GetOrCreate caches the PAIR by uid+version; a bump retir
     (void)terrain::PaintTopK(*sw, 0.5f, 0.5f, 0.5f, 0.5f, 3u, 1.0f);
 
     const engine::terrain::SplatTextureViews v1 = cache.GetOrCreate(device, *sw, sw->Version());
-    REQUIRE(v1.weightView != nullptr);
-    REQUIRE(v1.indexView != nullptr);
+    REQUIRE(v1.weightView.IsValid());
+    REQUIRE(v1.indexView.IsValid());
     CHECK(v1.weightView != v1.indexView);
     CHECK(cache.Size() == 1u);
     // The same uid and version return the same views (no rebuild).
@@ -68,7 +68,7 @@ TEST_CASE("splat cache: GetOrCreate caches the PAIR by uid+version; a bump retir
     // retired (not destroyed), since a submitted frame still samples them through the set-3 group.
     sw->BumpVersion();
     const engine::terrain::SplatTextureViews v2 = cache.GetOrCreate(device, *sw, sw->Version());
-    REQUIRE(v2.weightView != nullptr);
+    REQUIRE(v2.weightView.IsValid());
     CHECK(v2.weightView != v1.weightView);
     CHECK(v2.indexView != v1.indexView);
     CHECK(cache.Size() == 1u);          // still one entry (rebuilt in place)
@@ -93,8 +93,8 @@ TEST_CASE("splat cache: keyed by uid, so two distinct rasters never alias")
 
     const engine::terrain::SplatTextureViews va = cache.GetOrCreate(device, *a, a->Version());
     const engine::terrain::SplatTextureViews vb = cache.GetOrCreate(device, *b, b->Version());
-    REQUIRE(va.weightView != nullptr);
-    REQUIRE(vb.weightView != nullptr);
+    REQUIRE(va.weightView.IsValid());
+    REQUIRE(vb.weightView.IsValid());
     CHECK(va.weightView != vb.weightView);
     CHECK(va.indexView != vb.indexView);
     CHECK(cache.Size() == 2u);
@@ -110,8 +110,8 @@ TEST_CASE("splat cache: an empty raster yields no textures")
     terrain::SplatWeights empty; // default = 0x0
     const engine::terrain::SplatTextureViews views =
         cache.GetOrCreate(device, empty, empty.Version());
-    CHECK(views.weightView == nullptr);
-    CHECK(views.indexView == nullptr);
+    CHECK(!views.weightView.IsValid());
+    CHECK(!views.indexView.IsValid());
     CHECK(cache.Size() == 0u);
 }
 
@@ -132,7 +132,7 @@ TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit 
 
     const engine::terrain::PaletteGpu p1 =
         cache.GetOrCreate(device, *data, Span<const f32>{scales.Data(), scales.Size()});
-    REQUIRE(p1.arrayView != nullptr);
+    REQUIRE(p1.arrayView.IsValid());
     REQUIRE(p1.tileScaleBuffer.IsValid());
     CHECK(p1.generation == 1u);
     CHECK(cache.Size() == 1u);
@@ -149,7 +149,7 @@ TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit 
     scales[1] = 16.0f;
     const engine::terrain::PaletteGpu p2 =
         cache.GetOrCreate(device, *data, Span<const f32>{scales.Data(), scales.Size()});
-    REQUIRE(p2.arrayView != nullptr);
+    REQUIRE(p2.arrayView.IsValid());
     CHECK(p2.generation == 2u);
     CHECK(cache.Size() == 1u);
     CHECK(retire.PendingCount() == 3u); // old array texture, view and tileScale buffer
@@ -159,7 +159,7 @@ TEST_CASE("palette cache: keyed by data uid + the tile-scale hash; a scale edit 
     CHECK(recooked->uid != data->uid);
     const engine::terrain::PaletteGpu p3 =
         cache.GetOrCreate(device, *recooked, Span<const f32>{scales.Data(), scales.Size()});
-    REQUIRE(p3.arrayView != nullptr);
+    REQUIRE(p3.arrayView.IsValid());
     CHECK(p3.arrayView != p2.arrayView);
     CHECK(cache.Size() == 2u);
 
@@ -177,7 +177,7 @@ TEST_CASE("palette cache: invalid palette data yields nothing")
     engine::terrain::TerrainPaletteTextureCache cache;
     terrain::TerrainPaletteData bad; // zero-sized = invalid
     const engine::terrain::PaletteGpu p = cache.GetOrCreate(device, bad, Span<const f32>{});
-    CHECK(p.arrayView == nullptr);
+    CHECK(!p.arrayView.IsValid());
     CHECK(!p.tileScaleBuffer.IsValid());
     CHECK(cache.Size() == 0u);
 }

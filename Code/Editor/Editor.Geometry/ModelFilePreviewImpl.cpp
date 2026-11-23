@@ -437,7 +437,7 @@ namespace editor
             const bool allMaterials = !model->importMaterials;
             const bool allTextures = !model->importTextures;
             Array<const Object*> droppedMaterials;
-            Array<foundation::rhi::TextureView*> droppedTextures;
+            Array<foundation::rhi::TextureViewHandle> droppedTextures;
             usize texturesFound = 0; // left out and found, drawn on the GPU or not (a test has no device)
             for (const pipeline::ImportPlanEntry& entry : model->selection.entries)
             {
@@ -453,7 +453,7 @@ namespace editor
                     if (RefPtr<foundation::resource::ResourceHandle> found = open.FindPart(entry.sourceName.AsView(), foundation::texture::Texture::StaticType()))
                     {
                         ++texturesFound;
-                        if (auto* texture = Cast<foundation::texture::Texture>(found->Get()); texture != nullptr && texture->View() != nullptr)
+                        if (auto* texture = Cast<foundation::texture::Texture>(found->Get()); texture != nullptr && texture->View().IsValid())
                             droppedTextures.PushBack(texture->View());
                     }
                 }
@@ -509,7 +509,7 @@ namespace editor
 
         // `material` without the textures the import leaves out (every one when `all`), as a copy
         // made once per change; null when it uses none of them.
-        RefPtr<foundation::materials::Material> Without(const foundation::materials::Material& material, bool all, const Array<foundation::rhi::TextureView*>& dropped)
+        RefPtr<foundation::materials::Material> Without(const foundation::materials::Material& material, bool all, const Array<foundation::rhi::TextureViewHandle>& dropped)
         {
             for (const Stripped& made : stripped)
                 if (made.from == &material)
@@ -518,17 +518,17 @@ namespace editor
             for (usize i = 0; i < material.PropertyCount(); ++i)
             {
                 const foundation::materials::MaterialPropertyDef& property = material.GetProperty(i);
-                foundation::rhi::TextureView* texture = property.IsTexture() ? material.GetDefaultTexture(i) : nullptr;
-                if (texture == nullptr)
+                foundation::rhi::TextureViewHandle texture = property.IsTexture() ? material.GetDefaultTexture(i) : foundation::rhi::TextureViewHandle{};
+                if (!texture.IsValid())
                     continue;
                 bool drop = all;
-                for (foundation::rhi::TextureView* each : dropped)
+                for (foundation::rhi::TextureViewHandle each : dropped)
                     drop = drop || each == texture;
                 if (!drop)
                     continue;
                 if (!copy)
                     copy = material.Clone(*allocator);
-                copy->SetDefaultTexture(property.name, nullptr); // drawn with the renderer's plain fallback
+                copy->SetDefaultTexture(property.name, {}); // drawn with the renderer's plain fallback
             }
             stripped.PushBack(Stripped{&material, copy});
             return copy;

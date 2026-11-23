@@ -99,15 +99,15 @@ namespace
                 rhi::TextureFormat::RGBA8UnormSrgb, kSize, kSize);
             cd.usage = cd.usage | rhi::TextureUsage::CopySrc;
             cd.alternateViewFormat = encoded ? rhi::TextureFormat::RGBA8Unorm : rhi::TextureFormat::Undefined;
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(cd, target).IsOk());
             rhi::TextureViewDesc targetViewDesc{};
             targetViewDesc.format = drawFormat;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, targetViewDesc, targetView).IsOk());
 
-            rhi::Texture* msaa = nullptr;
-            rhi::TextureView* msaaView = nullptr;
+            rhi::TextureHandle msaa{};
+            rhi::TextureViewHandle msaaView{};
             if (sampleCount > 1)
             {
                 rhi::TextureDesc md = rhi::TextureDesc::RenderTarget(drawFormat, kSize, kSize, sampleCount);
@@ -124,9 +124,9 @@ namespace
             dd.depth = 1;
             dd.usage = rhi::TextureUsage::DepthStencil;
             dd.sampleCount = sampleCount;
-            rhi::Texture* depthStencil = nullptr;
+            rhi::TextureHandle depthStencil{};
             REQUIRE(device.CreateTexture(dd, depthStencil).IsOk());
-            rhi::TextureView* dsView = nullptr;
+            rhi::TextureViewHandle dsView{};
             REQUIRE(device.CreateTextureView(depthStencil, rhi::TextureViewDesc{}, dsView).IsOk());
 
             rhi::CommandPool* pool = nullptr;
@@ -152,7 +152,7 @@ namespace
             renderer.RenderLayers(*encoder, 0, slice); // their own passes, before the target's
             encoder->TransitionTexture(target, rhi::ResourceState::Undefined,
                                        rhi::ResourceState::RenderTarget);
-            if (msaa != nullptr)
+            if (msaa.IsValid())
             {
                 encoder->TransitionTexture(msaa, rhi::ResourceState::Undefined,
                                            rhi::ResourceState::RenderTarget);
@@ -161,10 +161,10 @@ namespace
                                        rhi::ResourceState::DepthStencilWrite);
             rhi::RenderPassDesc rp{};
             rhi::ColorAttachment color{};
-            color.view = msaaView != nullptr ? msaaView : targetView;
-            color.resolveTarget = msaaView != nullptr ? targetView : nullptr;
+            color.view = msaaView.IsValid() ? msaaView : targetView;
+            color.resolveTarget = msaaView.IsValid() ? targetView : rhi::TextureViewHandle{};
             color.loadOp = rhi::LoadOp::Clear;
-            color.storeOp = msaaView != nullptr ? rhi::StoreOp::DontCare : rhi::StoreOp::Store;
+            color.storeOp = msaaView.IsValid() ? rhi::StoreOp::DontCare : rhi::StoreOp::Store;
             color.clearValue = rhi::ClearColor::Black();
             rp.colorAttachments.Add(color);
             rhi::DepthStencilAttachment ds{};
@@ -197,11 +197,11 @@ namespace
             device.DestroyCommandPool(pool);
             device.DestroyTextureView(dsView);
             device.DestroyTexture(depthStencil);
-            if (msaaView != nullptr)
+            if (msaaView.IsValid())
             {
                 device.DestroyTextureView(msaaView);
             }
-            if (msaa != nullptr)
+            if (msaa.IsValid())
             {
                 device.DestroyTexture(msaa);
             }

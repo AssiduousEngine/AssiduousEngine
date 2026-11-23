@@ -168,11 +168,11 @@ namespace
         td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc |
                    rhi::TextureUsage::Sampled;
         td.label = u8"screenshot.probe";
-        rhi::Texture* texture = nullptr;
+        rhi::TextureHandle texture{};
         REQUIRE(device.CreateTexture(td, texture).IsOk());
         rhi::TextureViewDesc vd{};
         vd.format = format;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         REQUIRE(device.CreateTextureView(texture, vd, view).IsOk());
 
         rhi::CommandPool* pool = nullptr;

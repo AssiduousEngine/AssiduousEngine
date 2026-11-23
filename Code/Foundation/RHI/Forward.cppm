@@ -13,6 +13,12 @@ export namespace foundation::rhi
     // stale once the resource is destroyed, and failing on another device.
     struct BufferTag;
     using BufferHandle = foundation::core::Handle<BufferTag>;
+    struct TextureTag;
+    using TextureHandle = foundation::core::Handle<TextureTag>;
+    struct TextureViewTag;
+    using TextureViewHandle = foundation::core::Handle<TextureViewTag>;
+    struct SamplerTag;
+    using SamplerHandle = foundation::core::Handle<SamplerTag>;
 
     class Backend;
     class Adapter;

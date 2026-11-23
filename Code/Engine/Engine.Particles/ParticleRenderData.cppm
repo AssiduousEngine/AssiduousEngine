@@ -75,7 +75,7 @@ export namespace engine::particles
     {
         const ParticleBillboardInstance* instances = nullptr;
         u32 count = 0;
-        rhi::TextureView* texture = nullptr;
+        rhi::TextureViewHandle texture{};
         ParticleBlendMode blend = ParticleBlendMode::Alpha; // selects the renderer's blend PSO
     };
     static_assert(std::is_trivially_destructible_v<ParticleBillboardRenderData>);
@@ -97,7 +97,7 @@ export namespace engine::particles
         ParticleTrailRenderData() noexcept { particleKind = 1; }
         const TrailVertex* vertices = nullptr;
         u32 vertexCount = 0;
-        rhi::TextureView* texture = nullptr;
+        rhi::TextureViewHandle texture{};
         ParticleBlendMode blend = ParticleBlendMode::Alpha;
     };
     static_assert(std::is_trivially_destructible_v<ParticleTrailRenderData>);

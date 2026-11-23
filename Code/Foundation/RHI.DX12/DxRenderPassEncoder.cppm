@@ -25,6 +25,7 @@ import :texture_view;
 import :descriptor_staging;
 import :gpu_descriptor_heap;
 import :mesh_pipeline;
+import :tables;
 
 using namespace foundation::core;
 
@@ -62,7 +63,7 @@ export namespace foundation::rhi::dx12
     struct DxRenderPassContext
     {
         ID3D12GraphicsCommandList* cmdList = nullptr;
-        const DxBufferTable* buffers = nullptr; // the device's buffers, its handles looked up in
+        const DxTables* tables = nullptr; // the device's tables, its handles looked up in
         DxDescriptorStaging* srvStaging = nullptr;
         DxGpuDescriptorHeap* gpuSrvHeap = nullptr;
         DxGpuDescriptorHeap* gpuSamplerHeap = nullptr;
@@ -217,7 +218,7 @@ export namespace foundation::rhi::dx12
 
         void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf || slot >= 8)
                 return;
 
@@ -238,7 +239,7 @@ export namespace foundation::rhi::dx12
 
         void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -306,7 +307,7 @@ export namespace foundation::rhi::dx12
         void DrawIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -326,7 +327,7 @@ export namespace foundation::rhi::dx12
         void DrawIndexedIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -398,7 +399,7 @@ export namespace foundation::rhi::dx12
         void DrawMeshTasksIndirect(BufferHandle buffer, u64 offset, u32 drawCount, u32 stride) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(drawCount);
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 
@@ -420,8 +421,8 @@ export namespace foundation::rhi::dx12
                                         u64 countOffset, u32 maxDrawCount, u32 /*stride*/) override
         {
             if (m_ctx.counters) m_ctx.counters->Draws(maxDrawCount); // the count is on the GPU: at most this many
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
-            auto* dxCountBuf = LookUp(m_ctx.buffers, countBuffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
+            auto* dxCountBuf = LookUp(m_ctx.tables, countBuffer);
             if (!dxBuf || !dxCountBuf)
                 return;
 
@@ -470,20 +471,22 @@ export namespace foundation::rhi::dx12
             for (usize i = 0; i < colorAtts.Size(); ++i)
             {
                 const auto& ca = colorAtts[i];
-                if (!ca.resolveTarget)
+                if (!ca.resolveTarget.IsValid())
                     continue;
 
-                auto* srcView = static_cast<DxTextureViewImpl*>(ca.view);
-                auto* dstView = static_cast<DxTextureViewImpl*>(ca.resolveTarget);
+                auto* srcView = LookUp(m_ctx.tables, ca.view);
+                auto* dstView = LookUp(m_ctx.tables, ca.resolveTarget);
                 if (!srcView || !dstView)
                     continue;
 
-                auto* srcTex = srcView->dxTexture();
-                auto* dstTex = dstView->dxTexture();
+                auto* srcTex = LookUp(m_ctx.tables, srcView->texture);
+                auto* dstTex = LookUp(m_ctx.tables, dstView->texture);
+                if (!srcTex || !dstTex)
+                    continue;
 
                 TextureFormat format = srcView->Format();
                 if (format == TextureFormat::Undefined)
-                    format = srcView->dxTexture()->desc.format;
+                    format = srcTex->desc.format;
                 DXGI_FORMAT dxgiFormat = toDxgiFormat(format);
 
                 // Transition src to resolve source, dst to resolve dest.

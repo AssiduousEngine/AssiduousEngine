@@ -28,9 +28,9 @@ TEST_CASE("render.retire: entries age out after framesInFlight + 1 ticks")
     rhi::BufferHandle buffer{};
     REQUIRE(device.CreateBuffer(bd, buffer).IsOk());
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8Unorm, 4, 4);
-    rhi::Texture* texture = nullptr;
+    rhi::TextureHandle texture{};
     REQUIRE(device.CreateTexture(td, texture).IsOk());
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(texture, rhi::TextureViewDesc{}, view).IsOk());
 
     queue.Retire(view);
@@ -128,12 +128,12 @@ TEST_CASE("shadows: a new resolution remakes each slot's textures, retiring the 
     shadows.SetRetireQueue(&queue);
 
     // The sizes before the levels: 1024 cascades, a 2048 atlas of 512 tiles.
-    rhi::TextureView* cascades = shadows.PrepareFrame(0, 1);
-    REQUIRE(cascades != nullptr);
-    CHECK(cascades->texture->desc.width == 1024u);
-    rhi::TextureView* atlas = shadows.PrepareAtlas(0);
-    REQUIRE(atlas != nullptr);
-    CHECK(atlas->texture->desc.width == 2048u);
+    rhi::TextureViewHandle cascades = shadows.PrepareFrame(0, 1);
+    REQUIRE(cascades.IsValid());
+    CHECK(device.Describe(device.TextureOf(cascades))->width == 1024u);
+    rhi::TextureViewHandle atlas = shadows.PrepareAtlas(0);
+    REQUIRE(atlas.IsValid());
+    CHECK(device.Describe(device.TextureOf(atlas))->width == 2048u);
     CHECK(shadows.AtlasTileCapacity() == 16u);
     const u64 atlasGeneration = shadows.AtlasGeneration();
     CHECK(queue.PendingCount() == 0u);
@@ -146,12 +146,12 @@ TEST_CASE("shadows: a new resolution remakes each slot's textures, retiring the 
     shadows.SetResolutions(512, 256);
     CHECK(shadows.Resolution() == 512u);
     CHECK(shadows.AtlasResolution() == 1024u);
-    rhi::TextureView* smaller = shadows.PrepareFrame(0, 1);
-    REQUIRE(smaller != nullptr);
-    CHECK(smaller->texture->desc.width == 512u);
-    rhi::TextureView* smallerAtlas = shadows.PrepareAtlas(0);
-    REQUIRE(smallerAtlas != nullptr);
-    CHECK(smallerAtlas->texture->desc.width == 1024u);
+    rhi::TextureViewHandle smaller = shadows.PrepareFrame(0, 1);
+    REQUIRE(smaller.IsValid());
+    CHECK(device.Describe(device.TextureOf(smaller))->width == 512u);
+    rhi::TextureViewHandle smallerAtlas = shadows.PrepareAtlas(0);
+    REQUIRE(smallerAtlas.IsValid());
+    CHECK(device.Describe(device.TextureOf(smallerAtlas))->width == 1024u);
     CHECK(shadows.AtlasTileCapacity() == 16u);
     CHECK(shadows.AtlasGeneration() != atlasGeneration); // the cached static tiles redraw
     CHECK(queue.PendingCount() == 6u); // each old texture and its two views, retired
@@ -159,7 +159,7 @@ TEST_CASE("shadows: a new resolution remakes each slot's textures, retiring the 
     // Only the cascades change: the atlas, at the same tile, stays.
     const u64 kept = shadows.AtlasGeneration();
     shadows.SetResolutions(768, 256);
-    CHECK(shadows.PrepareFrame(0, 1)->texture->desc.width == 768u);
+    CHECK(device.Describe(device.TextureOf(shadows.PrepareFrame(0, 1)))->width == 768u);
     CHECK(shadows.PrepareAtlas(0) == smallerAtlas);
     CHECK(shadows.AtlasGeneration() == kept);
     queue.Flush();

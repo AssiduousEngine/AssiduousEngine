@@ -623,8 +623,8 @@ export namespace foundation::ui::runtime
             rtDesc.depth = 1;
             rtDesc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             rtDesc.label = u8"icon bake";
-            rhi::Texture* rt = nullptr;
-            rhi::TextureView* rtView = nullptr;
+            rhi::TextureHandle rt{};
+            rhi::TextureViewHandle rtView{};
             if (!device->CreateTexture(rtDesc, rt).IsOk() ||
                 !device->CreateTextureView(rt, rhi::TextureViewDesc{}, rtView).IsOk())
             {

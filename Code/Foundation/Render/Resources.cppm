@@ -51,8 +51,8 @@ export namespace foundation::render
             desc.depth = 1;
             desc.usage = rhi::TextureUsage::DepthStencil;
             desc.sampleCount = 1;
-            rhi::Texture* probe = nullptr;
-            if (device.CreateTexture(desc, probe).IsOk() && probe != nullptr)
+            rhi::TextureHandle probe{};
+            if (device.CreateTexture(desc, probe).IsOk() && probe.IsValid())
             {
                 device.DestroyTexture(probe);
                 return format;
@@ -83,28 +83,28 @@ export namespace foundation::render
         {
             if (buffer.IsValid())
             {
-                m_entries.PushBack(Entry{nullptr, nullptr, nullptr, buffer, m_age});
+                m_entries.PushBack(Entry{{}, {}, nullptr, buffer, m_age});
             }
         }
-        void Retire(rhi::Texture* texture)
+        void Retire(rhi::TextureHandle texture)
         {
-            if (texture != nullptr)
+            if (texture.IsValid())
             {
-                m_entries.PushBack(Entry{texture, nullptr, nullptr, {}, m_age});
+                m_entries.PushBack(Entry{texture, {}, nullptr, {}, m_age});
             }
         }
-        void Retire(rhi::TextureView* view)
+        void Retire(rhi::TextureViewHandle view)
         {
-            if (view != nullptr)
+            if (view.IsValid())
             {
-                m_entries.PushBack(Entry{nullptr, view, nullptr, {}, m_age});
+                m_entries.PushBack(Entry{{}, view, nullptr, {}, m_age});
             }
         }
         void Retire(rhi::BindGroup* bindGroup)
         {
             if (bindGroup != nullptr)
             {
-                m_entries.PushBack(Entry{nullptr, nullptr, bindGroup, {}, m_age});
+                m_entries.PushBack(Entry{{}, {}, bindGroup, {}, m_age});
             }
         }
 
@@ -149,8 +149,8 @@ export namespace foundation::render
     private:
         struct Entry
         {
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureHandle texture{};
+            rhi::TextureViewHandle view{};
             rhi::BindGroup* bindGroup = nullptr;
             rhi::BufferHandle buffer{};
             i32 framesLeft = 0;
@@ -159,11 +159,11 @@ export namespace foundation::render
         void Free(Entry& entry)
         {
             // Views before their textures; bind groups before the buffers they reference.
-            if (entry.view != nullptr)
+            if (entry.view.IsValid())
             {
                 m_device->DestroyTextureView(entry.view);
             }
-            if (entry.texture != nullptr)
+            if (entry.texture.IsValid())
             {
                 m_device->DestroyTexture(entry.texture);
             }

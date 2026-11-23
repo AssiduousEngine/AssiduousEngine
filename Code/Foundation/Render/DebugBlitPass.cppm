@@ -135,9 +135,9 @@ export namespace foundation::render
                         [this, &graph, src, pipeline, viewIndex, frameIndex, push,
                          srcIsDepth](rhi::RenderPassEncoder& rp)
                         {
-                            rhi::TextureView* view = srcIsDepth ? graph.GetDepthOnlyTextureView(src)
+                            rhi::TextureViewHandle view = srcIsDepth ? graph.GetDepthOnlyTextureView(src)
                                                                 : graph.GetTextureView(src);
-                            if (view == nullptr)
+                            if (!view.IsValid())
                             {
                                 view = graph.GetTextureView(src);
                             }
@@ -231,9 +231,9 @@ export namespace foundation::render
             return entry->pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* srcView, u64 generation)
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle srcView, u64 generation)
         {
-            if (srcView == nullptr)
+            if (!srcView.IsValid())
             {
                 return nullptr;
             }
@@ -303,7 +303,7 @@ export namespace foundation::render
         struct Slot
         {
             rhi::BindGroup* group = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             u64 generation = 0;
         };
         ViewSlots<Slot> m_slots;

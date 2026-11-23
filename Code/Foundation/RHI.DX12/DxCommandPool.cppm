@@ -17,6 +17,7 @@ import :conversions;
 import :command_buffer;
 import :buffer;
 import :descriptor_staging;
+import :tables;
 
 using namespace foundation::core;
 
@@ -94,9 +95,9 @@ export namespace foundation::rhi::dx12
         [[nodiscard]] DxDescriptorStaging* srvStaging() { return &m_srvStaging; }
         [[nodiscard]] IAllocator& allocator() const { return *m_allocPtr; }
 
-        /// The device's buffers (its encoders look their handles up in it) and the tracker its
+        /// The device's tables (its encoders look their handles up in them) and the tracker its
         /// recordings are counted by.
-        const DxBufferTable* buffers = nullptr;
+        const DxTables* tables = nullptr;
         SubmissionTracker* tracker = nullptr;
 
         /// A recording this pool began (an encoder's, its bundles'); ended at its submit, or by the

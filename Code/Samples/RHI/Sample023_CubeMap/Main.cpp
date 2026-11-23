@@ -54,9 +54,9 @@ private:
     // Skybox resources
     rhi::ShaderModule* m_skyboxVs = nullptr;
     rhi::ShaderModule* m_skyboxPs = nullptr;
-    rhi::Texture* m_cubeTexture = nullptr;
-    rhi::TextureView* m_cubeView = nullptr;
-    rhi::Sampler* m_linearSampler = nullptr;
+    rhi::TextureHandle m_cubeTexture{};
+    rhi::TextureViewHandle m_cubeView{};
+    rhi::SamplerHandle m_linearSampler{};
     rhi::BindGroupLayout* m_skyboxBgl = nullptr;
     rhi::BindGroup* m_skyboxBg = nullptr;
     rhi::PipelineLayout* m_skyboxPl = nullptr;
@@ -65,9 +65,9 @@ private:
     // Shadow comparison resources
     rhi::ShaderModule* m_shadowVs = nullptr;
     rhi::ShaderModule* m_shadowPs = nullptr;
-    rhi::Texture* m_depthTexture = nullptr;
-    rhi::TextureView* m_depthView = nullptr;
-    rhi::Sampler* m_comparisonSampler = nullptr;
+    rhi::TextureHandle m_depthTexture{};
+    rhi::TextureViewHandle m_depthView{};
+    rhi::SamplerHandle m_comparisonSampler{};
     rhi::BufferHandle m_quadVb{};
     rhi::BindGroupLayout* m_shadowBgl = nullptr;
     rhi::BindGroup* m_shadowBg = nullptr;

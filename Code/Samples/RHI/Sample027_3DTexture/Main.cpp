@@ -53,14 +53,14 @@ private:
     rhi::ShaderModule* m_ps = nullptr;
 
     // 3D volume texture
-    rhi::Texture* m_volumeTexture = nullptr;
-    rhi::TextureView* m_volumeView = nullptr;
+    rhi::TextureHandle m_volumeTexture{};
+    rhi::TextureViewHandle m_volumeView{};
 
     // 1D LUT texture
-    rhi::Texture* m_lutTexture = nullptr;
-    rhi::TextureView* m_lutView = nullptr;
+    rhi::TextureHandle m_lutTexture{};
+    rhi::TextureViewHandle m_lutView{};
 
-    rhi::Sampler* m_sampler = nullptr;
+    rhi::SamplerHandle m_sampler{};
     rhi::BindGroupLayout* m_bgl = nullptr;
     rhi::BindGroup* m_bg = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;

@@ -308,7 +308,7 @@ export namespace engine::render
 
         void BeginRendering(rhi::CommandEncoder& encoder, u32 frameIndex) override;
 
-        void RenderScene(scene::Scene& scene, rhi::TextureView* target,
+        void RenderScene(scene::Scene& scene, rhi::TextureViewHandle target,
                          rhi::TextureFormat targetFormat, u32 width, u32 height,
                          ViewportRect viewport = {}, const CameraOverride* cameraOverride = nullptr,
                          const TargetState& targetState = {},
@@ -335,9 +335,9 @@ export namespace engine::render
         // Window-space overlays: one shared Load-op pass against `target` (in RenderTarget
         // state; left there), every registered source in OverlayOrder. The host calls this once
         // per window target after the scene composed (after EndRendering).
-        void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
+        void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureViewHandle target,
                             rhi::TextureFormat targetFormat, u32 width, u32 height,
-                            u32 frameIndex, rhi::TextureView* encodedTarget = nullptr,
+                            u32 frameIndex, rhi::TextureViewHandle encodedTarget = {},
                             Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f},
                             ContentRotation preRotation = ContentRotation::None) override;
 
@@ -447,8 +447,8 @@ export namespace engine::render
         // Screen-overlay stencil attachment (stencil-then-cover UI fills): one cached DS
         // sized to the last window target (single-window runtime; a size change retires
         // the old texture through the queue and recreates). An undefined format means no stencil.
-        rhi::Texture* m_overlayDsTexture = nullptr;
-        rhi::TextureView* m_overlayDsView = nullptr;
+        rhi::TextureHandle m_overlayDsTexture{};
+        rhi::TextureViewHandle m_overlayDsView{};
         u32 m_overlayDsWidth = 0;
         u32 m_overlayDsHeight = 0;
         rhi::TextureFormat m_overlayDsFormat = rhi::TextureFormat::Undefined;

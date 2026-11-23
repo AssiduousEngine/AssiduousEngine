@@ -339,7 +339,7 @@ namespace foundation::render
         rpc2.debug = p.debug;
         rpc2.ghostReject = p.ghostReject;
 
-        rhi::TextureView* histPrevView = hist.view[prev];
+        rhi::TextureViewHandle histPrevView = hist.view[prev];
         graph.AddRenderPass(
             u8"ssr.resolve",
             [this, &graph, refl, histPrev, velocity, hdr, out, histCur, histPrevView,
@@ -381,7 +381,7 @@ namespace foundation::render
 
     bool SsrPass::EnsureHistory(ViewHistory& hist, u32 w, u32 h)
     {
-        if (hist.tex[0] != nullptr && hist.w == w && hist.h == h)
+        if (hist.tex[0].IsValid() && hist.w == w && hist.h == h)
         {
             return true;
         }
@@ -396,7 +396,7 @@ namespace foundation::render
             td.label = u8"ssr.history";
             if (!m_device->CreateTexture(td, hist.tex[i]).IsOk())
             {
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -405,7 +405,7 @@ namespace foundation::render
             vd.dimension = rhi::TextureViewDimension::Texture2D;
             if (!m_device->CreateTextureView(hist.tex[i], vd, hist.view[i]).IsOk())
             {
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -425,12 +425,12 @@ namespace foundation::render
             if (hist.view[i])
             {
                 m_device->DestroyTextureView(hist.view[i]);
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
             }
             if (hist.tex[i])
             {
                 m_device->DestroyTexture(hist.tex[i]);
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
             }
         }
         hist.w = hist.h = 0;
@@ -470,11 +470,11 @@ namespace foundation::render
         m_retired.Resize(w);
     }
 
-    rhi::BindGroup* SsrPass::EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                             rhi::TextureView* normal, rhi::TextureView* material,
+    rhi::BindGroup* SsrPass::EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                             rhi::TextureViewHandle normal, rhi::TextureViewHandle material,
                                              u64 generation)
     {
-        if (scene == nullptr || depth == nullptr || normal == nullptr || material == nullptr)
+        if (!scene.IsValid() || !depth.IsValid() || !normal.IsValid() || !material.IsValid())
         {
             return nullptr;
         }
@@ -511,9 +511,9 @@ namespace foundation::render
         return bg;
     }
 
-    rhi::BindGroup* SsrPass::EnsureResolveBindGroup(rhi::TextureView* histPrev, const ResolveInputs& inputs)
+    rhi::BindGroup* SsrPass::EnsureResolveBindGroup(rhi::TextureViewHandle histPrev, const ResolveInputs& inputs)
     {
-        if (histPrev == nullptr || !inputs.Complete())
+        if (!histPrev.IsValid() || !inputs.Complete())
         {
             return nullptr;
         }
@@ -577,15 +577,15 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_resolvePipeline);
             m_resolvePipeline = nullptr;
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
-        if (m_linearSampler != nullptr)
+        if (m_linearSampler.IsValid())
         {
             m_device->DestroySampler(m_linearSampler);
-            m_linearSampler = nullptr;
+            m_linearSampler = {};
         }
         if (m_pipelineLayout != nullptr)
         {

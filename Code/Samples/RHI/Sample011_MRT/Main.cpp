@@ -44,13 +44,13 @@ private:
     rhi::ShaderModule *m_gbVs = nullptr, *m_gbPs = nullptr, *m_compVs = nullptr,
                       *m_compPs = nullptr;
     rhi::BufferHandle m_vb{}, m_ib{};
-    rhi::Sampler* m_sampler = nullptr;
+    rhi::SamplerHandle m_sampler{};
     rhi::PipelineLayout *m_gbPl = nullptr, *m_compPl = nullptr;
     rhi::RenderPipeline *m_gbPipe = nullptr, *m_compPipe = nullptr;
     rhi::BindGroupLayout* m_compBgl = nullptr;
     rhi::BindGroup* m_compBg = nullptr;
-    rhi::Texture *m_colorRT = nullptr, *m_brightRT = nullptr;
-    rhi::TextureView *m_colorRTView = nullptr, *m_brightRTView = nullptr;
+    rhi::TextureHandle m_colorRT{}, m_brightRT{};
+    rhi::TextureViewHandle m_colorRTView{}, m_brightRTView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -66,22 +66,22 @@ void MRTSample::createRenderTargets()
     if (m_colorRTView)
     {
         m_device->DestroyTextureView(m_colorRTView);
-        m_colorRTView = nullptr;
+        m_colorRTView = {};
     }
     if (m_colorRT)
     {
         m_device->DestroyTexture(m_colorRT);
-        m_colorRT = nullptr;
+        m_colorRT = {};
     }
     if (m_brightRTView)
     {
         m_device->DestroyTextureView(m_brightRTView);
-        m_brightRTView = nullptr;
+        m_brightRTView = {};
     }
     if (m_brightRT)
     {
         m_device->DestroyTexture(m_brightRT);
-        m_brightRT = nullptr;
+        m_brightRT = {};
     }
 
     rhi::TextureDesc td{};

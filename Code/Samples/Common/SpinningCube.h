@@ -118,8 +118,8 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
             device->CreateRenderPipeline(rpd, m_pipeline);
         }
 
-        void Render(rhi::CommandEncoder& enc, rhi::TextureView* colorView,
-                    rhi::TextureView* depthView, u32 w, u32 h, rhi::ClearColor clear,
+        void Render(rhi::CommandEncoder& enc, rhi::TextureViewHandle colorView,
+                    rhi::TextureViewHandle depthView, u32 w, u32 h, rhi::ClearColor clear,
                     const Float4x4& mvp, i32 frameIndex)
         {
             if (m_pipeline == nullptr)

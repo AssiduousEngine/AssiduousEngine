@@ -148,7 +148,7 @@ export namespace samples::framework
         void RequestScreenshot(StringView path = {});
         /// Records the armed screenshot's copy of `backbuffer` (the swapchain's current image, in
         /// RenderTarget) into `encoder`, leaving it as it found it.
-        void CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::Texture* backbuffer);
+        void CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::TextureHandle backbuffer);
         /// Whether a screenshot waits on frames being drawn: one armed, or a --screenshot run not
         /// yet done (it counts drawn frames). A sample that skips idle frames draws while it does.
         [[nodiscard]] bool ScreenshotPending() const noexcept
@@ -460,7 +460,7 @@ export namespace samples::framework
         m_screenshot.Request(file.AsView());
     }
 
-    inline void SampleApp::CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::Texture* backbuffer)
+    inline void SampleApp::CaptureBackbuffer(rhi::CommandEncoder& encoder, rhi::TextureHandle backbuffer)
     {
         ++m_renderedFrames;
         // The --screenshot run: from the due frame, one file a frame until --screenshot-count are

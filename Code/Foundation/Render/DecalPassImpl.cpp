@@ -85,7 +85,7 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        auto mkSampler = [this](rhi::FilterMode f, rhi::Sampler*& out)
+        auto mkSampler = [this](rhi::FilterMode f, rhi::SamplerHandle& out)
         {
             rhi::SamplerDesc s{};
             s.minFilter = f;
@@ -165,7 +165,7 @@ namespace foundation::render
         Array<Draw> viewDraws;
         for (const DecalInstance& d : decals)
         {
-            if (d.texture == nullptr)
+            if (!d.texture.IsValid())
             {
                 continue;
             }
@@ -295,9 +295,9 @@ namespace foundation::render
         return m_uboBg;
     }
 
-    rhi::BindGroup* DecalPass::EnsureDepthBindGroup(rhi::TextureView* depth, u64 generation)
+    rhi::BindGroup* DecalPass::EnsureDepthBindGroup(rhi::TextureViewHandle depth, u64 generation)
     {
-        if (depth == nullptr)
+        if (!depth.IsValid())
         {
             return nullptr;
         }
@@ -327,24 +327,15 @@ namespace foundation::render
         return m_depthBg;
     }
 
-    rhi::BindGroup* DecalPass::EnsureTextureBindGroup(rhi::TextureView* tex)
+    rhi::BindGroup* DecalPass::EnsureTextureBindGroup(rhi::TextureViewHandle tex)
     {
-        if (tex == nullptr)
+        if (!tex.IsValid())
         {
             return nullptr;
         }
-        if (TexBindGroup* found = m_texBindGroups.Find(tex))
+        if (rhi::BindGroup** found = m_texBindGroups.Find(tex))
         {
-            if (found->viewId == tex->uniqueId)
-            {
-                return found->bindGroup;
-            }
-            // Address reuse: the cached group references a destroyed view, so rebuild.
-            if (found->bindGroup != nullptr)
-            {
-                m_device->DestroyBindGroup(found->bindGroup);
-            }
-            m_texBindGroups.Remove(tex);
+            return *found;
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(tex),
@@ -358,7 +349,7 @@ namespace foundation::render
         {
             return nullptr;
         }
-        m_texBindGroups.InsertOrAssign(tex, TexBindGroup{bg, tex->uniqueId});
+        m_texBindGroups.InsertOrAssign(tex, bg);
         return bg;
     }
 
@@ -396,9 +387,9 @@ namespace foundation::render
     {
         for (auto& kv : m_texBindGroups)
         {
-            if (kv.value.bindGroup != nullptr)
+            if (kv.value != nullptr)
             {
-                m_device->DestroyBindGroup(kv.value.bindGroup);
+                m_device->DestroyBindGroup(kv.value);
             }
         }
         m_texBindGroups.Clear();
@@ -429,15 +420,15 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_pipeline);
             m_pipeline = nullptr;
         }
-        if (m_texSampler != nullptr)
+        if (m_texSampler.IsValid())
         {
             m_device->DestroySampler(m_texSampler);
-            m_texSampler = nullptr;
+            m_texSampler = {};
         }
-        if (m_depthSampler != nullptr)
+        if (m_depthSampler.IsValid())
         {
             m_device->DestroySampler(m_depthSampler);
-            m_depthSampler = nullptr;
+            m_depthSampler = {};
         }
         if (m_pipelineLayout != nullptr)
         {

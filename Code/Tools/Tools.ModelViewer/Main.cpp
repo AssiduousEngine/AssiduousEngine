@@ -1179,7 +1179,7 @@ namespace
             if (!m_capture.Armed() || m_device == nullptr)
                 return;
             auto* view = Cast<gui::Viewport>(m_viewport->View().Get());
-            if (view == nullptr || view->ColorTexture() == nullptr || view->RenderWidth() == 0)
+            if (view == nullptr || !view->ColorTexture().IsValid() || view->RenderWidth() == 0)
                 return;
             (void)m_capture.Record(*m_device, encoder, view->ColorTexture(), view->ColorFormat(), view->RenderWidth(),
                                    view->RenderHeight(), rhi::ResourceState::ShaderRead);

@@ -232,9 +232,9 @@ export namespace foundation::render
             return entry->pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* srcView, u64 generation)
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle srcView, u64 generation)
         {
-            if (srcView == nullptr)
+            if (!srcView.IsValid())
             {
                 return nullptr;
             }
@@ -289,10 +289,10 @@ export namespace foundation::render
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
                 m_pipelineLayout = nullptr;
             }
-            if (m_sampler != nullptr)
+            if (m_sampler.IsValid())
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
             if (m_layout != nullptr)
             {
@@ -307,13 +307,13 @@ export namespace foundation::render
         rhi::BindGroupLayout* m_layout = nullptr;
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         PipelineEntry m_pipelines[kMaxPipelineFormats] = {};
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         // Per (view, frame in flight), however many views a frame has: one bind group and the source
         // view and generation it was built from.
         struct Slot
         {
             rhi::BindGroup* group = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             u64 generation = 0;
         };
         ViewSlots<Slot> m_slots;

@@ -53,9 +53,9 @@ TEST_CASE("rhi.validation: catches invalid usage (null texture)")
 
     // The validation layer rejects a null texture (and logs a diagnostic) instead
     // of forwarding it to the backend.
-    TextureView* view = nullptr;
-    CHECK_FALSE(device->CreateTextureView(nullptr, TextureViewDesc{}, view).IsOk());
-    CHECK(view == nullptr);
+    TextureViewHandle view{};
+    CHECK_FALSE(device->CreateTextureView({}, TextureViewDesc{}, view).IsOk());
+    CHECK(!view.IsValid());
 
     device->Destroy();
     vb->Destroy();
@@ -156,11 +156,11 @@ TEST_CASE("rhi.validation: a device destroyed with live textures names them by t
     td.format = TextureFormat::RGBA8Unorm;
     td.usage = TextureUsage::Sampled;
     td.label = u8"leak.probe.texture";
-    Texture* leaked = nullptr;
+    TextureHandle leaked{};
     REQUIRE(device->CreateTexture(td, leaked).IsOk());
-    TextureView* leakedView = nullptr;
+    TextureViewHandle leakedView{};
     REQUIRE(device->CreateTextureView(leaked, TextureViewDesc{}, leakedView).IsOk());
-    Texture* freed = nullptr;
+    TextureHandle freed{};
     td.label = u8"freed.texture";
     REQUIRE(device->CreateTexture(td, freed).IsOk());
     device->DestroyTexture(freed); // a destroyed one is forgotten, never reported
@@ -171,13 +171,47 @@ TEST_CASE("rhi.validation: a device destroyed with live textures names them by t
     device->Destroy(); // the texture and its view are still alive: both named
     SetLogSink(nullptr, nullptr);
     CHECK(capture.matching == 2);
-    // The leak was on purpose; hand the two null objects back to their allocator through a
-    // sibling null device so the sanitizer lanes stay quiet.
-    Device* janitor = nullptr;
-    REQUIRE(inner->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, janitor).IsOk());
-    janitor->DestroyTextureView(leakedView);
-    janitor->DestroyTexture(leaked);
-    janitor->Destroy();
+    // The leak was on purpose; the null device frees what its tables still hold as it goes.
+    vb->Destroy();
+}
+
+TEST_CASE("rhi.validation: a destroyed texture view's handle used again is reported with its label")
+{
+    Backend* inner = nullptr;
+    REQUIRE(null::CreateNullBackend(inner).IsOk());
+    Backend* vb = validation::CreateValidatedBackend(inner, DefaultAllocator());
+    REQUIRE(vb != nullptr);
+    Device* device = nullptr;
+    REQUIRE(vb->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+
+    TextureDesc td{};
+    td.width = 4;
+    td.height = 4;
+    td.format = TextureFormat::RGBA8Unorm;
+    td.usage = TextureUsage::Sampled;
+    td.label = u8"stale.probe.texture";
+    TextureHandle texture{};
+    REQUIRE(device->CreateTexture(td, texture).IsOk());
+    TextureViewHandle view{};
+    REQUIRE(device->CreateTextureView(texture, TextureViewDesc{}, view).IsOk());
+    const TextureViewHandle keptView = view;
+    const TextureHandle keptTexture = texture;
+    device->DestroyTextureView(view);
+    device->DestroyTexture(texture);
+
+    LineCapture capture;
+    capture.needle = "stale.probe.texture"; // the view is named after its texture
+    SetLogSink(&LineCapture::Sink, &capture);
+    CHECK(device->Describe(keptView) == nullptr);
+    CHECK_FALSE(device->TextureOf(keptView).IsValid());
+    CHECK(device->Describe(keptTexture) == nullptr);
+    TextureViewHandle again{};
+    CHECK_FALSE(device->CreateTextureView(keptTexture, TextureViewDesc{}, again).IsOk());
+    SetLogSink(nullptr, nullptr);
+    CHECK(capture.matching == 4); // each call, named
+    CHECK_FALSE(again.IsValid());
+
+    device->Destroy();
     vb->Destroy();
 }
 
@@ -335,13 +369,13 @@ TEST_CASE("rhi.validation: a view in a texture's sRGB or UNORM twin needs the te
 
     // Without the declaration, a UNORM view of an sRGB texture is refused.
     TextureDesc plain = TextureDesc::RenderTarget(TextureFormat::RGBA8UnormSrgb, 4, 4);
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(plain, texture).IsOk());
     TextureViewDesc unorm{};
     unorm.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     CHECK_FALSE(device->CreateTextureView(texture, unorm, view).IsOk());
-    CHECK(view == nullptr);
+    CHECK(!view.IsValid());
     device->DestroyTexture(texture);
 
     // Declared, it is made, and so is a view in the texture's own format.
@@ -349,7 +383,7 @@ TEST_CASE("rhi.validation: a view in a texture's sRGB or UNORM twin needs the te
     twin.alternateViewFormat = TextureFormat::RGBA8Unorm;
     REQUIRE(device->CreateTexture(twin, texture).IsOk());
     CHECK(device->CreateTextureView(texture, unorm, view).IsOk());
-    TextureView* own = nullptr;
+    TextureViewHandle own{};
     CHECK(device->CreateTextureView(texture, TextureViewDesc{}, own).IsOk());
     device->DestroyTextureView(view);
     device->DestroyTextureView(own);
@@ -358,9 +392,9 @@ TEST_CASE("rhi.validation: a view in a texture's sRGB or UNORM twin needs the te
     // A destroyed texture is reported, and its freed desc is not read for the twin check.
     REQUIRE(device->CreateTexture(plain, texture).IsOk());
     device->DestroyTexture(texture);
-    TextureView* stale = nullptr;
+    TextureViewHandle stale{};
     (void)device->CreateTextureView(texture, unorm, stale); // no read of freed memory (ASAN checks)
-    if (stale != nullptr)
+    if (stale.IsValid())
         device->DestroyTextureView(stale);
 
     // An alternate that is not the twin is refused at creation.

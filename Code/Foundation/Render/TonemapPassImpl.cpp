@@ -104,8 +104,8 @@ namespace foundation::render
         const bool flipSceneY = sceneYFlipped && m_device->NeedsClipSpaceYFlip();
         // Auto-exposure and grading are optional: unbound slots fall back to the HDR view (any
         // valid texture; the shader gates on the flags, never the binding).
-        const bool autoOn = autoExposure.view != nullptr && autoExposure.enabled;
-        const bool gradeOn = grading.view != nullptr && grading.lutSize >= 2.0f;
+        const bool autoOn = autoExposure.view.IsValid() && autoExposure.enabled;
+        const bool gradeOn = grading.view.IsValid() && grading.lutSize >= 2.0f;
         // Encode for display once: an sRGB target encodes on write and a float target is linear
         // (encoded wherever it is shown), so only a plain UNORM target takes the display
         // encoding as the shader writes it. Writing it to an sRGB swapchain would encode it twice.
@@ -132,10 +132,10 @@ namespace foundation::render
         push.fade = copyOnly ? Float4{0.0f, 0.0f, 0.0f, 0.0f} : fade; // the copy's image is already faded
 
         const rhi::LoadOp load = clearColor ? rhi::LoadOp::Clear : rhi::LoadOp::Load;
-        rhi::TextureView* autoView = autoOn ? autoExposure.view : nullptr;
+        rhi::TextureViewHandle autoView = autoOn ? autoExposure.view : rhi::TextureViewHandle{};
         const u64 autoGen = autoOn ? autoExposure.generation : 0;
         const rendergraph::RGHandle autoHandle = autoExposure.handle;
-        rhi::TextureView* lutView = gradeOn ? grading.view : nullptr;
+        rhi::TextureViewHandle lutView = gradeOn ? grading.view : rhi::TextureViewHandle{};
         const u64 lutUid = gradeOn ? grading.uid : 0;
         graph.AddRenderPass(
             u8"tonemap",
@@ -146,7 +146,7 @@ namespace foundation::render
                 b.ReadTexture(hdr);
                 b.ReadTexture(bloom);
                 b.ReadTexture(ao);
-                if (autoView != nullptr && autoHandle.IsValid())
+                if (autoView.IsValid() && autoHandle.IsValid())
                 {
                     b.ReadTexture(autoHandle); // orders after the exposure measure pass
                 }
@@ -156,17 +156,17 @@ namespace foundation::render
                     [this, &graph, hdr, bloom, ao, pipeline, viewUse, frameIndex, push, autoView, autoGen,
                      lutView, lutUid](rhi::RenderPassEncoder& rp)
                     {
-                        rhi::TextureView* hdrView = graph.GetTextureView(hdr);
+                        rhi::TextureViewHandle hdrView = graph.GetTextureView(hdr);
                         const u64 hdrGen = graph.GetTextureGeneration(hdr);
                         BindInputs inputs;
                         inputs.Set(0, hdrView, hdrGen);
                         inputs.Set(1, graph.GetTextureView(bloom), graph.GetTextureGeneration(bloom));
                         inputs.Set(2, graph.GetTextureView(ao), graph.GetTextureGeneration(ao));
                         // Unused bindings take the HDR view, as the layout needs a texture there.
-                        inputs.Set(3, autoView != nullptr ? autoView : hdrView,
-                                   autoView != nullptr ? autoGen : hdrGen);
-                        inputs.Set(4, lutView != nullptr ? lutView : hdrView,
-                                   lutView != nullptr ? lutUid : hdrGen);
+                        inputs.Set(3, autoView.IsValid() ? autoView : hdrView,
+                                   autoView.IsValid() ? autoGen : hdrGen);
+                        inputs.Set(4, lutView.IsValid() ? lutView : hdrView,
+                                   lutView.IsValid() ? lutUid : hdrGen);
                         rhi::BindGroup* bg = EnsureBindGroup(viewUse, frameIndex, inputs);
                         if (bg == nullptr)
                         {
@@ -312,10 +312,10 @@ namespace foundation::render
             m_device->DestroyPipelineLayout(m_pipelineLayout);
             m_pipelineLayout = nullptr;
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_layout != nullptr)
         {

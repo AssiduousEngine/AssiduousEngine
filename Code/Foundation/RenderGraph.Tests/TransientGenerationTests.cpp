@@ -22,8 +22,8 @@ namespace
     struct Harness
     {
         rhi::null::NullDevice device{DefaultAllocator()};
-        rhi::Texture* bb = nullptr;
-        rhi::TextureView* bbView = nullptr;
+        rhi::TextureHandle bb{};
+        rhi::TextureViewHandle bbView{};
         rhi::CommandPool* pool = nullptr;
         rhi::CommandEncoder* enc = nullptr;
 
@@ -68,7 +68,7 @@ namespace
     // One frame: a transient HDR target written by one pass and read by a backbuffer pass (so it is
     // not culled). Captures the transient's generation and view inside the writing pass's execute.
     void RunFrame(RenderGraph& graph, Harness& h, i32 frameIndex, u64& outGen,
-                  rhi::TextureView*& outView)
+                  rhi::TextureViewHandle& outView)
     {
         graph.SetOutputSize(64, 64);
         graph.BeginFrame(frameIndex);
@@ -108,13 +108,13 @@ TEST_CASE("rg.transient: generation is non-zero and stable across pool reuse")
     RenderGraph graph(DefaultAllocator(), &h.device);
 
     u64 gen0 = 0, gen1 = 0;
-    rhi::TextureView* v0 = nullptr;
-    rhi::TextureView* v1 = nullptr;
+    rhi::TextureViewHandle v0{};
+    rhi::TextureViewHandle v1{};
     RunFrame(graph, h, 0, gen0, v0);
     RunFrame(graph, h, 1, gen1, v1);
 
     CHECK(gen0 != 0); // a freshly allocated transient gets a real id
-    CHECK(v0 != nullptr);
+    CHECK(v0.IsValid());
     CHECK(gen1 == gen0); // same desc, so pool reuse, the same physical texture and a stable generation
     CHECK(v1 == v0);     // the same pooled view comes back (the case the cache optimizes for)
 }
@@ -198,8 +198,8 @@ TEST_CASE("rg.graph: an imported target takes its final state right after its la
     // not only at the end of the graph.
     Harness h;
     REQUIRE(h.Init());
-    rhi::Texture* rt = nullptr;
-    rhi::TextureView* rtView = nullptr;
+    rhi::TextureHandle rt{};
+    rhi::TextureViewHandle rtView{};
     REQUIRE(h.device
                 .CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8Unorm, 32, 32),
                                rt)

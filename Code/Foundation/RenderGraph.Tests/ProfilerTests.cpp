@@ -50,11 +50,11 @@ TEST_CASE("rg.profiler: pass names are interned once and kept")
 TEST_CASE("rg.profiler: while armed, each executed pass is a CPU scope of the frame")
 {
     rhi::null::NullDevice device{DefaultAllocator()};
-    rhi::Texture* target = nullptr;
+    rhi::TextureHandle target{};
     REQUIRE(device.CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::BGRA8Unorm, 16, 16), target).IsOk());
     rhi::TextureViewDesc vd{};
     vd.format = rhi::TextureFormat::BGRA8Unorm;
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(target, vd, view).IsOk());
     rhi::CommandPool* pool = nullptr;
     REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());

@@ -26,15 +26,15 @@ export namespace foundation::rendergraph
     public:
         static constexpr i32 kSlotCount = 2; // current and one previous
 
-        PersistentResource(rhi::Texture* texture, rhi::TextureView* view) noexcept
+        PersistentResource(rhi::TextureHandle texture, rhi::TextureViewHandle view) noexcept
         {
             m_textures[0] = texture;
             m_views[0] = view;
         }
 
         // Ping-pong (double-buffered) variant.
-        PersistentResource(rhi::Texture* tex0, rhi::Texture* tex1, rhi::TextureView* view0,
-                           rhi::TextureView* view1) noexcept
+        PersistentResource(rhi::TextureHandle tex0, rhi::TextureHandle tex1, rhi::TextureViewHandle view0,
+                           rhi::TextureViewHandle view1) noexcept
             : m_isPingPong(true)
         {
             m_textures[0] = tex0;
@@ -43,20 +43,20 @@ export namespace foundation::rendergraph
             m_views[1] = view1;
         }
 
-        [[nodiscard]] rhi::Texture* CurrentTexture() const noexcept
+        [[nodiscard]] rhi::TextureHandle CurrentTexture() const noexcept
         {
             return m_textures[m_currentIndex];
         }
-        [[nodiscard]] rhi::TextureView* CurrentView() const noexcept
+        [[nodiscard]] rhi::TextureViewHandle CurrentView() const noexcept
         {
             return m_views[m_currentIndex];
         }
-        [[nodiscard]] rhi::Texture* PreviousTexture() const noexcept
+        [[nodiscard]] rhi::TextureHandle PreviousTexture() const noexcept
         {
             return m_isPingPong ? m_textures[(m_currentIndex + kSlotCount - 1) % kSlotCount]
                                 : m_textures[m_currentIndex];
         }
-        [[nodiscard]] rhi::TextureView* PreviousView() const noexcept
+        [[nodiscard]] rhi::TextureViewHandle PreviousView() const noexcept
         {
             return m_isPingPong ? m_views[(m_currentIndex + kSlotCount - 1) % kSlotCount]
                                 : m_views[m_currentIndex];
@@ -72,7 +72,7 @@ export namespace foundation::rendergraph
         }
 
         // Re-point the active slot (e.g. when the external texture is recreated on resize).
-        void UpdateTexture(rhi::Texture* texture, rhi::TextureView* view) noexcept
+        void UpdateTexture(rhi::TextureHandle texture, rhi::TextureViewHandle view) noexcept
         {
             m_textures[m_currentIndex] = texture;
             m_views[m_currentIndex] = view;
@@ -86,8 +86,8 @@ export namespace foundation::rendergraph
         Array<rhi::ResourceState> subresourceStates;
 
     private:
-        rhi::Texture* m_textures[kSlotCount] = {};
-        rhi::TextureView* m_views[kSlotCount] = {};
+        rhi::TextureHandle m_textures[kSlotCount] = {};
+        rhi::TextureViewHandle m_views[kSlotCount] = {};
         i32 m_currentIndex = 0;
         bool m_isPingPong = false;
     };

@@ -311,7 +311,7 @@ export namespace engine::particles
             // opaque depth (already DepthStencilRead). Fresh per Resolve, retired after
             // framesInFlight frames.
             rhi::BindGroup* depthBg = AcquireDepthBindGroup(
-                ctx.sceneDepthView != nullptr ? ctx.sceneDepthView : m_whiteView);
+                ctx.sceneDepthView.IsValid() ? ctx.sceneDepthView : m_whiteView);
             if (depthBg == nullptr)
             {
                 return;
@@ -394,7 +394,7 @@ export namespace engine::particles
                         }
                         rhi::RenderPipeline* pso = EnsurePipeline(ctx.colorFormat, head->blend);
                         rhi::BindGroup* texBg = EnsureTextureBindGroup(
-                            head->texture != nullptr ? head->texture : m_whiteView);
+                            head->texture.IsValid() ? head->texture : m_whiteView);
                         if (pso != nullptr && texBg != nullptr && off > 0)
                         {
                             render::ResolvedDraw d{};
@@ -482,9 +482,9 @@ export namespace engine::particles
 
         // A fresh scene-depth bind group over `depth` (set 2). Tracked for deferred destruction so an
         // in-flight frame never references a freed set. Cheap (one bind group per Resolve).
-        rhi::BindGroup* AcquireDepthBindGroup(rhi::TextureView* depth)
+        rhi::BindGroup* AcquireDepthBindGroup(rhi::TextureViewHandle depth)
         {
-            if (depth == nullptr)
+            if (!depth.IsValid())
             {
                 return nullptr;
             }
@@ -501,24 +501,15 @@ export namespace engine::particles
             return bg;
         }
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureView* tex)
+        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureViewHandle tex)
         {
-            if (tex == nullptr)
+            if (!tex.IsValid())
             {
                 return nullptr;
             }
-            if (TexBindGroup* found = m_texBindGroups.Find(tex))
+            if (rhi::BindGroup** found = m_texBindGroups.Find(tex))
             {
-                if (found->viewId == tex->uniqueId)
-                {
-                    return found->bindGroup;
-                }
-                // Address reuse: the cached group references a destroyed view, so rebuild it.
-                if (found->bindGroup != nullptr)
-                {
-                    m_device->DestroyBindGroup(found->bindGroup);
-                }
-                m_texBindGroups.Remove(tex);
+                return *found;
             }
             rhi::BindGroupEntry ent[] = {rhi::BindGroupEntry::TextureEntry(tex),
                                          rhi::BindGroupEntry::SamplerEntry(m_sampler)};
@@ -530,7 +521,7 @@ export namespace engine::particles
             {
                 return nullptr;
             }
-            m_texBindGroups.InsertOrAssign(tex, TexBindGroup{bg, tex->uniqueId});
+            m_texBindGroups.InsertOrAssign(tex, bg);
             return bg;
         }
 
@@ -668,7 +659,7 @@ export namespace engine::particles
             MemCopy(tr.ptr, b->vertices, static_cast<usize>(count) * sizeof(TrailVertex));
             rhi::RenderPipeline* pso = EnsureTrailPipeline(ctx.colorFormat, b->blend);
             rhi::BindGroup* texBg =
-                EnsureTextureBindGroup(b->texture != nullptr ? b->texture : m_whiteView);
+                EnsureTextureBindGroup(b->texture.IsValid() ? b->texture : m_whiteView);
             if (pso == nullptr || texBg == nullptr)
             {
                 // Logged, not silent: a missing pipeline (such as a DX12 input-layout refusal over
@@ -769,9 +760,9 @@ export namespace engine::particles
         {
             for (auto& kv : m_texBindGroups)
             {
-                if (kv.value.bindGroup != nullptr)
+                if (kv.value != nullptr)
                 {
-                    m_device->DestroyBindGroup(kv.value.bindGroup);
+                    m_device->DestroyBindGroup(kv.value);
                 }
             }
             m_texBindGroups.Clear();
@@ -811,20 +802,20 @@ export namespace engine::particles
                 m_device->DestroyBuffer(m_indexBuffer);
                 m_indexBuffer = {};
             }
-            if (m_whiteView != nullptr)
+            if (m_whiteView.IsValid())
             {
                 m_device->DestroyTextureView(m_whiteView);
-                m_whiteView = nullptr;
+                m_whiteView = {};
             }
-            if (m_whiteTex != nullptr)
+            if (m_whiteTex.IsValid())
             {
                 m_device->DestroyTexture(m_whiteTex);
-                m_whiteTex = nullptr;
+                m_whiteTex = {};
             }
-            if (m_sampler != nullptr)
+            if (m_sampler.IsValid())
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
             for (PendingBg& p : m_depthPending)
             {
@@ -882,22 +873,18 @@ export namespace engine::particles
         rhi::BindGroupLayout* m_depthLayout = nullptr; // set 2: scene depth (soft particles)
         Array<PendingBg> m_depthPending; // depth bind groups awaiting deferred destroy
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         rhi::BufferHandle m_indexBuffer{};
-        rhi::Texture* m_whiteTex = nullptr; // 1x1 white default (untextured particles)
-        rhi::TextureView* m_whiteView = nullptr;
+        rhi::TextureHandle m_whiteTex{}; // 1x1 white default (untextured particles)
+        rhi::TextureViewHandle m_whiteView{};
         bool m_loggedTrailPipelineMiss = false;     // once-per-renderer diagnostics
         bool m_loggedBillboardPipelineMiss = false;
         rhi::BindGroup* m_viewBg = nullptr;
         u32 m_viewBgGen = 0;
-        // Keyed by view pointer, validated by TextureView::uniqueId on every hit (address reuse of
-        // destroyed dynamic textures; see SpriteRenderer::TexBindGroup).
-        struct TexBindGroup
-        {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 viewId = 0;
-        };
-        HashMap<rhi::TextureView*, TexBindGroup> m_texBindGroups;
+        // Keyed by view handle, as SpriteRenderer's (a new view never takes an old one's handle).
+        // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
+        // retire through the device as views do.
+        HashMap<rhi::TextureViewHandle, rhi::BindGroup*> m_texBindGroups;
         Pipelines
             m_billboard[4]; // one per ParticleBlendMode (Alpha/Additive/Premultiplied/Multiply)
         rhi::BufferHandle m_trailIndexBuffer{}; // identity indices [0,1,2,...] for trail draws

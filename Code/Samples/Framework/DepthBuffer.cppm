@@ -17,8 +17,8 @@ export namespace samples::framework
 
     struct DepthBuffer
     {
-        rhi::Texture* texture = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle texture{};
+        rhi::TextureViewHandle view{};
         rhi::TextureFormat format = rhi::TextureFormat::Depth24PlusStencil8;
 
         Status Recreate(rhi::Device* device, u32 width, u32 height, u32 sampleCount = 1)
@@ -50,12 +50,12 @@ export namespace samples::framework
             if (view)
             {
                 device->DestroyTextureView(view);
-                view = nullptr;
+                view = {};
             }
             if (texture)
             {
                 device->DestroyTexture(texture);
-                texture = nullptr;
+                texture = {};
             }
         }
     };

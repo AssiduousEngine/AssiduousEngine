@@ -47,37 +47,29 @@ export namespace foundation::rhi
         }
     };
 
-    /// GPU texture (1D, 2D or 3D, with mip levels and array layers).
+    /// GPU texture (1D, 2D or 3D, with mip levels and array layers): a backend's object, named by
+    /// a TextureHandle.
     class Texture
     {
     public:
         virtual ~Texture() = default;
 
         TextureDesc desc{};
-        ResourceState initialState = ResourceState::Undefined;
     };
 
-    /// Next monotonic TextureView::uniqueId (thread-safe; ids never repeat). Defined in
-    /// ResourcesImpl.cpp so the <atomic> it needs stays out of this interface unit, where it
-    /// would make GCC emit an unreadable gcm cluster for consumers.
-    [[nodiscard]] u64 NextTextureViewUniqueId() noexcept;
-
-    /// A view into a subset of a texture's mip levels and array layers.
+    /// A view into a subset of a texture's mip levels and array layers: a backend's object, named
+    /// by a TextureViewHandle.
     class TextureView
     {
     public:
         virtual ~TextureView() = default;
 
         TextureViewDesc desc{};
-        Texture* texture = nullptr;
-        // Monotonic creation stamp. A destroyed view's address can be reused by the very next
-        // allocation, so any cache keyed by TextureView* must validate this id on a hit;
-        // trusting the raw pointer can hand out descriptors of a destroyed view, and sampling a
-        // dead image view loses the device.
-        u64 uniqueId = NextTextureViewUniqueId();
+        TextureHandle texture{};
     };
 
-    /// Texture sampler (filtering, addressing, comparison).
+    /// Texture sampler (filtering, addressing, comparison): a backend's object, named by a
+    /// SamplerHandle.
     class Sampler
     {
     public:

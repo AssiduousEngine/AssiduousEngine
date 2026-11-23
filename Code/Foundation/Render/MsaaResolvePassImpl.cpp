@@ -112,7 +112,7 @@ namespace foundation::render
         {
             return nullptr;
         }
-        rhi::TextureView* depth = inputs.views[3];
+        rhi::TextureViewHandle depth = inputs.views[3];
         rhi::BindGroup* stale = nullptr;
         if (rhi::BindGroup* cached = m_bindGroups.Find(depth, inputs, stale))
         {

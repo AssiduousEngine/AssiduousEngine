@@ -6,7 +6,7 @@
 // Computes and emits resource barriers between passes. State is tracked at two
 // levels: per-resource-handle (buffers; convenience for textures) and per-
 // Texture with per-subresource granularity (source of truth for textures, keyed
-// by the GPU texture pointer so the same texture unifies across handles).
+// by the GPU texture's handle so the same texture unifies across graph handles).
 
 module;
 #include "Core/Prelude.h"
@@ -55,10 +55,8 @@ export namespace foundation::rendergraph
                 if (res->lifetime == RGResourceLifetime::Persistent &&
                     res->persistentData.Get() != nullptr)
                 {
-                    initialState = res->persistentData->firstFrame
-                                       ? (res->texture != nullptr ? res->texture->initialState
-                                                                  : rhi::ResourceState::Undefined)
-                                       : res->persistentData->lastKnownState;
+                    initialState = res->persistentData->firstFrame ? rhi::ResourceState::Undefined
+                                                                   : res->persistentData->lastKnownState;
                 }
                 else if (res->lifetime == RGResourceLifetime::Imported)
                 {
@@ -74,7 +72,7 @@ export namespace foundation::rendergraph
 
                 m_resourceStates.InsertOrAssign(i, initialState);
 
-                if (res->resourceType == RGResourceType::Texture && res->texture != nullptr)
+                if (res->resourceType == RGResourceType::Texture && res->texture.IsValid())
                 {
                     if (SubresourceStateTracker** existing = m_textureStates.Find(res->texture))
                     {
@@ -92,8 +90,8 @@ export namespace foundation::rendergraph
                     }
                     else
                     {
-                        const u32 mipCount = res->texture->desc.mipLevelCount;
-                        const u32 layerCount = res->texture->desc.arrayLayerCount;
+                        const u32 mipCount = res->TotalMipLevels();
+                        const u32 layerCount = res->TotalArrayLayers();
                         SubresourceStateTracker* tracker =
                             DefaultAllocator().New<SubresourceStateTracker>(mipCount, layerCount,
                                                                             initialState);
@@ -141,7 +139,7 @@ export namespace foundation::rendergraph
                 const rhi::ResourceState requiredState = access.ToResourceState();
                 const bool accessIsReadWrite = IsRead(access.type) && IsWrite(access.type);
 
-                if (res->resourceType == RGResourceType::Texture && res->texture != nullptr)
+                if (res->resourceType == RGResourceType::Texture && res->texture.IsValid())
                 {
                     SubresourceStateTracker** found = m_textureStates.Find(res->texture);
                     if (found == nullptr)
@@ -206,7 +204,7 @@ export namespace foundation::rendergraph
                 {
                     continue;
                 }
-                if (res->resourceType != RGResourceType::Texture || res->texture == nullptr)
+                if (res->resourceType != RGResourceType::Texture || !res->texture.IsValid())
                 {
                     continue;
                 }
@@ -268,7 +266,7 @@ export namespace foundation::rendergraph
                     continue;
                 }
 
-                if (res->resourceType == RGResourceType::Texture && res->texture != nullptr)
+                if (res->resourceType == RGResourceType::Texture && res->texture.IsValid())
                 {
                     SubresourceStateTracker** found = m_textureStates.Find(res->texture);
                     if (found == nullptr)
@@ -319,9 +317,9 @@ export namespace foundation::rendergraph
             return rhi::ResourceState::Undefined;
         }
 
-        [[nodiscard]] rhi::ResourceState GetTextureState(rhi::Texture* texture)
+        [[nodiscard]] rhi::ResourceState GetTextureState(rhi::TextureHandle texture)
         {
-            if (texture == nullptr)
+            if (!texture.IsValid())
             {
                 return rhi::ResourceState::Undefined;
             }
@@ -333,9 +331,9 @@ export namespace foundation::rendergraph
             return rhi::ResourceState::Undefined;
         }
 
-        [[nodiscard]] SubresourceStateTracker* GetTextureTracker(rhi::Texture* texture)
+        [[nodiscard]] SubresourceStateTracker* GetTextureTracker(rhi::TextureHandle texture)
         {
-            if (texture == nullptr)
+            if (!texture.IsValid())
             {
                 return nullptr;
             }
@@ -346,7 +344,7 @@ export namespace foundation::rendergraph
     private:
         void QueueFinalTransition(i32 index, RenderGraphResource* res)
         {
-            if (res == nullptr || !res->finalState.HasValue() || res->texture == nullptr)
+            if (res == nullptr || !res->finalState.HasValue() || !res->texture.IsValid())
             {
                 return;
             }
@@ -361,7 +359,7 @@ export namespace foundation::rendergraph
             m_resourceStates.InsertOrAssign(index, finalState);
         }
 
-        void EmitTextureBarriers(SubresourceStateTracker& tracker, rhi::Texture* texture,
+        void EmitTextureBarriers(SubresourceStateTracker& tracker, rhi::TextureHandle texture,
                                  RGSubresourceRange subresource, rhi::ResourceState requiredState,
                                  bool accessIsReadWrite)
         {
@@ -459,7 +457,7 @@ export namespace foundation::rendergraph
         }
 
         HashMap<i32, rhi::ResourceState> m_resourceStates;
-        HashMap<rhi::Texture*, SubresourceStateTracker*> m_textureStates;
+        HashMap<rhi::TextureHandle, SubresourceStateTracker*> m_textureStates;
         Array<rhi::TextureBarrier> m_textureBarriers;
         Array<rhi::BufferBarrier> m_bufferBarriers;
     };

@@ -207,8 +207,8 @@ export namespace foundation::render
 
         struct ViewHistory
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 w = 0, h = 0, cur = 0;
@@ -230,14 +230,14 @@ export namespace foundation::render
         void Tick(u32 frameIndex);
 
         // Downsample bind group (full-res hdr and linear sampler), cached by (hdr view, gen).
-        rhi::BindGroup* EnsureDownBindGroup(rhi::TextureView* hdr, u64 generation);
+        rhi::BindGroup* EnsureDownBindGroup(rhi::TextureViewHandle hdr, u64 generation);
 
         // Trace bind group (scene, depth, normal and 2 samplers), cached by (scene view, gen).
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                        rhi::TextureView* normal, u64 generation);
+        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                        rhi::TextureViewHandle normal, u64 generation);
 
         // Blur bind group (raw gi, depth and point sampler), cached by (gi view, gen).
-        rhi::BindGroup* EnsureBlurBindGroup(rhi::TextureView* gi, rhi::TextureView* depth,
+        rhi::BindGroup* EnsureBlurBindGroup(rhi::TextureViewHandle gi, rhi::TextureViewHandle depth,
                                             u64 generation);
 
         // Resolve bind group (gi, history, velocity, hdr, albedo, normal, sky SH and 2 samplers), one
@@ -247,7 +247,7 @@ export namespace foundation::render
         // own: the composite binds this frame's history view, which the next frame's accumulate
         // binds with other inputs, so in one cache each would throw the other's group away every frame.
         using ResolveInputs = BindGroupInputs<5>;
-        rhi::BindGroup* EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureView* histPrev,
+        rhi::BindGroup* EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureViewHandle histPrev,
                                                const ResolveInputs& inputs);
 
         void Shutdown();
@@ -255,8 +255,8 @@ export namespace foundation::render
         struct Entry
         {
             rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* depth = nullptr;
-            rhi::TextureView* normal = nullptr;
+            rhi::TextureViewHandle depth{};
+            rhi::TextureViewHandle normal{};
             u64 gen = 0;
         };
         struct DownEntry
@@ -267,7 +267,7 @@ export namespace foundation::render
         struct BlurEntry
         {
             rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* depth = nullptr;
+            rhi::TextureViewHandle depth{};
             u64 gen = 0;
         };
         struct Retired
@@ -292,12 +292,12 @@ export namespace foundation::render
         rhi::PipelineLayout* m_resolvePipelineLayout = nullptr;
         rhi::RenderPipeline* m_resolvePipeline = nullptr; // temporal resolve and composite
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_sampler = nullptr;       // point: depth and reconstruction
-        rhi::Sampler* m_linearSampler = nullptr; // linear: radiance gather
+        rhi::SamplerHandle m_sampler{};       // point: depth and reconstruction
+        rhi::SamplerHandle m_linearSampler{}; // linear: radiance gather
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
-        HashMap<rhi::TextureView*, Entry> m_bindGroups;
-        HashMap<rhi::TextureView*, DownEntry> m_downBindGroups;
-        HashMap<rhi::TextureView*, BlurEntry> m_blurBindGroups;
+        HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
+        HashMap<rhi::TextureViewHandle, DownEntry> m_downBindGroups;
+        HashMap<rhi::TextureViewHandle, BlurEntry> m_blurBindGroups;
         BindGroupCache<5> m_resolveBindGroups;
         BindGroupCache<5> m_compositeBindGroups;
         u64 m_bindGroupsBuilt = 0;

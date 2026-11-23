@@ -106,7 +106,7 @@ export namespace foundation::render
         struct Result
         {
             rendergraph::RGHandle handle{};
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             u64 generation = 0; // bumps when the underlying texture changes (bind-group key)
         };
         [[nodiscard]] Result DeclareExposure(rendergraph::RenderGraph& graph,
@@ -152,7 +152,7 @@ export namespace foundation::render
             push.historyValid = state.valid ? 1.0f : 0.0f;
             push.pad0 = 0.0f;
             push.pad1 = 0.0f;
-            rhi::TextureView* prevView = state.view[prev];
+            rhi::TextureViewHandle prevView = state.view[prev];
             // Per-(view, frame) slots (as in FxaaPass): prevView ping-pongs every frame, so
             // a per-view-only slot mismatches every frame and EnsureBindGroup would free a
             // set the previous frame's in-flight command buffer still references
@@ -217,8 +217,8 @@ export namespace foundation::render
     private:
         struct ViewState
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 cur = 0;
@@ -239,7 +239,7 @@ export namespace foundation::render
 
         bool EnsureState(ViewState& state)
         {
-            if (state.tex[0] != nullptr)
+            if (state.tex[0].IsValid())
             {
                 return true;
             }
@@ -253,7 +253,7 @@ export namespace foundation::render
                 td.label = u8"exposure.adapted";
                 if (!m_device->CreateTexture(td, state.tex[i]).IsOk())
                 {
-                    state.tex[i] = nullptr;
+                    state.tex[i] = {};
                     DestroyState(state);
                     return false;
                 }
@@ -262,7 +262,7 @@ export namespace foundation::render
                 vd.dimension = rhi::TextureViewDimension::Texture2D;
                 if (!m_device->CreateTextureView(state.tex[i], vd, state.view[i]).IsOk())
                 {
-                    state.view[i] = nullptr;
+                    state.view[i] = {};
                     DestroyState(state);
                     return false;
                 }
@@ -278,15 +278,15 @@ export namespace foundation::render
         {
             for (u32 i = 0; i < 2; ++i)
             {
-                if (state.view[i] != nullptr)
+                if (state.view[i].IsValid())
                 {
                     m_device->DestroyTextureView(state.view[i]);
-                    state.view[i] = nullptr;
+                    state.view[i] = {};
                 }
-                if (state.tex[i] != nullptr)
+                if (state.tex[i].IsValid())
                 {
                     m_device->DestroyTexture(state.tex[i]);
-                    state.tex[i] = nullptr;
+                    state.tex[i] = {};
                 }
             }
             state.valid = false;
@@ -333,10 +333,10 @@ export namespace foundation::render
             return m_pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* hdrView,
-                                        rhi::TextureView* prevView, u64 generation)
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle hdrView,
+                                        rhi::TextureViewHandle prevView, u64 generation)
         {
-            if (hdrView == nullptr || prevView == nullptr)
+            if (!hdrView.IsValid() || !prevView.IsValid())
             {
                 return nullptr;
             }
@@ -389,10 +389,10 @@ export namespace foundation::render
                 m_device->DestroyRenderPipeline(m_pipeline);
                 m_pipeline = nullptr;
             }
-            if (m_sampler != nullptr)
+            if (m_sampler.IsValid())
             {
                 m_device->DestroySampler(m_sampler);
-                m_sampler = nullptr;
+                m_sampler = {};
             }
             if (m_pipelineLayout != nullptr)
             {
@@ -409,8 +409,8 @@ export namespace foundation::render
         struct Entry
         {
             rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* hdr = nullptr;
-            rhi::TextureView* prev = nullptr;
+            rhi::TextureViewHandle hdr{};
+            rhi::TextureViewHandle prev{};
             u64 gen = 0;
         };
 
@@ -421,7 +421,7 @@ export namespace foundation::render
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         rhi::RenderPipeline* m_pipeline = nullptr;
         u64 m_pipelineShaderVersion = 0;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         Array<ViewState> m_views;   // per history slot
         ViewSlots<Entry> m_bindGroups; // per (history slot, frame in flight)
     };

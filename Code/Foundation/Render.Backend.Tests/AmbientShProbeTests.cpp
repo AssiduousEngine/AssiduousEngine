@@ -130,11 +130,11 @@ TEST_CASE("ambient SH: a sky of z^2 lights a surface facing +z twice as much as 
         td.height = kSize;
         td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
         td.label = u8"ambientshprobe.target";
-        rhi::Texture* target = nullptr;
+        rhi::TextureHandle target{};
         REQUIRE(device->CreateTexture(td, target).IsOk());
         rhi::TextureViewDesc vd{};
         vd.format = rhi::TextureFormat::RGBA8Unorm;
-        rhi::TextureView* targetView = nullptr;
+        rhi::TextureViewHandle targetView{};
         REQUIRE(device->CreateTextureView(target, vd, targetView).IsOk());
         rhi::CommandPool* pool = nullptr;
         REQUIRE(device->CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());

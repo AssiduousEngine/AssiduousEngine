@@ -41,10 +41,10 @@ namespace
         td.height = 4;
         td.usage = rhi::TextureUsage::Sampled;
         td.label = u8"dx.limits.texture";
-        rhi::Texture* texture = nullptr;
+        rhi::TextureHandle texture{};
         REQUIRE(device.CreateTexture(td, texture).IsOk());
         rhi::SamplerDesc sd{};
-        rhi::Sampler* sampler = nullptr;
+        rhi::SamplerHandle sampler{};
         REQUIRE(device.CreateSampler(sd, sampler).IsOk());
         rhi::BindGroupLayout* layout = TextureAndSampler(device);
 
@@ -52,14 +52,14 @@ namespace
         // heap handed out a null handle, and the view was written through it). 2049 groups on one
         // sampler: one more than the shader-visible sampler heap has slots (each group took its own).
         constexpr u32 kGroups = 4097;
-        Array<rhi::TextureView*> views;
+        Array<rhi::TextureViewHandle> views;
         Array<rhi::BindGroup*> groups;
         bool allMade = true;
         for (u32 i = 0; i < kGroups; ++i)
         {
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             if (!device.CreateTextureView(texture, vd, view).IsOk())
             {
                 allMade = false;
@@ -84,7 +84,7 @@ namespace
 
         for (rhi::BindGroup* group : groups)
             device.DestroyBindGroup(group);
-        for (rhi::TextureView* view : views)
+        for (rhi::TextureViewHandle view : views)
             device.DestroyTextureView(view);
         device.DestroyBindGroupLayout(layout);
         device.DestroySampler(sampler);
@@ -130,19 +130,19 @@ TEST_CASE("dx12: a sampler updated in a group with a shared table moves it to it
     td.width = 4;
     td.height = 4;
     td.usage = rhi::TextureUsage::Sampled;
-    rhi::Texture* texture = nullptr;
+    rhi::TextureHandle texture{};
     REQUIRE(device->CreateTexture(td, texture).IsOk());
     rhi::TextureViewDesc vd{};
     vd.format = rhi::TextureFormat::RGBA8Unorm;
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(texture, vd, view).IsOk());
     rhi::SamplerDesc linear{};
-    rhi::Sampler* sampler = nullptr;
+    rhi::SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(linear, sampler).IsOk());
     rhi::SamplerDesc point{};
     point.minFilter = rhi::FilterMode::Nearest;
     point.magFilter = rhi::FilterMode::Nearest;
-    rhi::Sampler* other = nullptr;
+    rhi::SamplerHandle other{};
     REQUIRE(device->CreateSampler(point, other).IsOk());
     rhi::BindGroupLayout* layout = TextureAndSampler(*device);
     rhi::BindGroupEntry entries[] = {rhi::BindGroupEntry::TextureEntry(view), rhi::BindGroupEntry::SamplerEntry(sampler)};

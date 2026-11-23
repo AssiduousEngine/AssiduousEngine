@@ -18,6 +18,7 @@ import :bind_group;
 import :compute_pipeline;
 import :pipeline_layout;
 import :query_set;
+import :tables;
 
 using namespace foundation::core;
 
@@ -27,8 +28,8 @@ export namespace foundation::rhi::vk
     class VkComputePassEncoderImpl : public ComputePassEncoder
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up as it records.
-        const VkBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up as it records.
+        const VkTables* tables = nullptr;
         VkComputePassEncoderImpl(VkCommandBuffer cmdBuf) : m_cmdBuf(cmdBuf) {}
 
         /// The device's counts this pass bumps (Device::Counters); set by the command encoder.
@@ -73,7 +74,7 @@ export namespace foundation::rhi::vk
 
         void DispatchIndirect(BufferHandle buffer, u64 offset) override
         {
-            auto* vkBuf = LookUp(buffers, buffer);
+            auto* vkBuf = LookUp(tables, buffer);
             if (vkBuf)
                 vkCmdDispatchIndirect(m_cmdBuf, vkBuf->handle(), offset);
             if (vkBuf && m_counters)

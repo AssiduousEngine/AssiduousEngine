@@ -30,16 +30,16 @@ namespace rhi = foundation::rhi;
 
 namespace foundation::render
 {
-    rhi::TextureView* ShadowSystem::PrepareFrame(u32 frameIndex, u32 viewCount)
+    rhi::TextureViewHandle ShadowSystem::PrepareFrame(u32 frameIndex, u32 viewCount)
     {
         const u32 slot = frameIndex % m_framesInFlight;
         const u32 views =
             (viewCount < 1) ? 1u : (viewCount > kMaxShadowViews ? kMaxShadowViews : viewCount);
         const u32 layers = views * kCascadeCount;
-        return EnsureTexture(slot, layers) ? m_sampleViews[slot] : nullptr;
+        return EnsureTexture(slot, layers) ? m_sampleViews[slot] : rhi::TextureViewHandle{};
     }
 
-    rhi::TextureView* ShadowSystem::SampleView(u32 frameIndex) const noexcept
+    rhi::TextureViewHandle ShadowSystem::SampleView(u32 frameIndex) const noexcept
     {
         return m_sampleViews[frameIndex % m_framesInFlight];
     }
@@ -48,7 +48,7 @@ namespace foundation::render
                                                      u32 frameIndex)
     {
         const u32 slot = frameIndex % m_framesInFlight;
-        if (m_textures[slot] == nullptr)
+        if (!m_textures[slot].IsValid())
         {
             return {};
         } // PrepareFrame creates it (sized for the views)
@@ -59,16 +59,16 @@ namespace foundation::render
         return h;
     }
 
-    rhi::TextureView* ShadowSystem::PrepareAtlas(u32 frameIndex)
+    rhi::TextureViewHandle ShadowSystem::PrepareAtlas(u32 frameIndex)
     {
         const u32 slot = frameIndex % m_framesInFlight;
-        return EnsureAtlas(slot) ? m_atlasSampleViews[slot] : nullptr;
+        return EnsureAtlas(slot) ? m_atlasSampleViews[slot] : rhi::TextureViewHandle{};
     }
 
     rendergraph::RGHandle ShadowSystem::ImportAtlas(rendergraph::RenderGraph& graph, u32 frameIndex)
     {
         const u32 slot = frameIndex % m_framesInFlight;
-        if (m_atlasTextures[slot] == nullptr)
+        if (!m_atlasTextures[slot].IsValid())
         {
             return {};
         }
@@ -79,11 +79,11 @@ namespace foundation::render
         return h;
     }
 
-    void ShadowSystem::Release(rhi::Texture*& texture, rhi::TextureView*& attach, rhi::TextureView*& sample)
+    void ShadowSystem::Release(rhi::TextureHandle& texture, rhi::TextureViewHandle& attach, rhi::TextureViewHandle& sample)
     {
         // In-flight frames may still sample them, so retire them through the queue when wired
         // (web-safe: no mid-frame WaitIdle pumping the browser event loop), otherwise drain.
-        if (texture == nullptr)
+        if (!texture.IsValid())
         {
             return;
         }
@@ -96,24 +96,24 @@ namespace foundation::render
         else
         {
             m_device->WaitIdle();
-            if (sample != nullptr)
+            if (sample.IsValid())
             {
                 m_device->DestroyTextureView(sample);
             }
-            if (attach != nullptr)
+            if (attach.IsValid())
             {
                 m_device->DestroyTextureView(attach);
             }
             m_device->DestroyTexture(texture);
         }
-        sample = nullptr;
-        attach = nullptr;
-        texture = nullptr;
+        sample = {};
+        attach = {};
+        texture = {};
     }
 
     bool ShadowSystem::EnsureTexture(u32 slot, u32 layerCount)
     {
-        if (m_textures[slot] != nullptr && m_layerCounts[slot] >= layerCount &&
+        if (m_textures[slot].IsValid() && m_layerCounts[slot] >= layerCount &&
             m_slotResolutions[slot] == m_resolution)
         {
             return true;
@@ -129,7 +129,7 @@ namespace foundation::render
         td.label = u8"shadow.cascades";
         if (!m_device->CreateTexture(td, m_textures[slot]).IsOk())
         {
-            m_textures[slot] = nullptr;
+            m_textures[slot] = {};
             return false;
         }
 
@@ -161,7 +161,7 @@ namespace foundation::render
 
     bool ShadowSystem::EnsureAtlas(u32 slot)
     {
-        if (m_atlasTextures[slot] != nullptr && m_atlasSlotTiles[slot] == m_atlasTile)
+        if (m_atlasTextures[slot].IsValid() && m_atlasSlotTiles[slot] == m_atlasTile)
         {
             return true;
         }
@@ -175,7 +175,7 @@ namespace foundation::render
         td.label = u8"shadow.atlas";
         if (!m_device->CreateTexture(td, m_atlasTextures[slot]).IsOk())
         {
-            m_atlasTextures[slot] = nullptr;
+            m_atlasTextures[slot] = {};
             return false;
         }
         rhi::TextureViewDesc av{};
@@ -271,35 +271,35 @@ namespace foundation::render
         }
         for (u32 i = 0; i < kMaxFramesInFlight; ++i)
         {
-            if (m_sampleViews[i] != nullptr)
+            if (m_sampleViews[i].IsValid())
             {
                 m_device->DestroyTextureView(m_sampleViews[i]);
-                m_sampleViews[i] = nullptr;
+                m_sampleViews[i] = {};
             }
-            if (m_attachViews[i] != nullptr)
+            if (m_attachViews[i].IsValid())
             {
                 m_device->DestroyTextureView(m_attachViews[i]);
-                m_attachViews[i] = nullptr;
+                m_attachViews[i] = {};
             }
-            if (m_textures[i] != nullptr)
+            if (m_textures[i].IsValid())
             {
                 m_device->DestroyTexture(m_textures[i]);
-                m_textures[i] = nullptr;
+                m_textures[i] = {};
             }
-            if (m_atlasSampleViews[i] != nullptr)
+            if (m_atlasSampleViews[i].IsValid())
             {
                 m_device->DestroyTextureView(m_atlasSampleViews[i]);
-                m_atlasSampleViews[i] = nullptr;
+                m_atlasSampleViews[i] = {};
             }
-            if (m_atlasAttachViews[i] != nullptr)
+            if (m_atlasAttachViews[i].IsValid())
             {
                 m_device->DestroyTextureView(m_atlasAttachViews[i]);
-                m_atlasAttachViews[i] = nullptr;
+                m_atlasAttachViews[i] = {};
             }
-            if (m_atlasTextures[i] != nullptr)
+            if (m_atlasTextures[i].IsValid())
             {
                 m_device->DestroyTexture(m_atlasTextures[i]);
-                m_atlasTextures[i] = nullptr;
+                m_atlasTextures[i] = {};
             }
         }
     }

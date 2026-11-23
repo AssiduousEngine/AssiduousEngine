@@ -111,34 +111,34 @@ export namespace foundation::rhi::validation
             }
             Status r = m_inner->CreateBuffer(d, out);
             if (r == ErrorCode::Ok && out)
-            {
-                m_liveBuffers.PushBack(out);
-                m_bufferLabels.InsertOrAssign(KeyOf(out), d.label.IsEmpty() ? String(u8"(unlabelled)") : String(d.label));
-            }
+                m_buffers.Made(out, d.label);
             return r;
         }
 
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
         {
-            if (!checkAlive("CreateTexture", out)) return ErrorCode::Unknown;
-            if (d.width == 0 || d.height == 0) { LogError("[Validation] CreateTexture: width or height is 0"); out = nullptr; return ErrorCode::InvalidArgument; }
+            out = TextureHandle::Invalid();
+            if (!checkAlive("CreateTexture")) return ErrorCode::Unknown;
+            if (d.width == 0 || d.height == 0) { LogError("[Validation] CreateTexture: width or height is 0"); return ErrorCode::InvalidArgument; }
             // The one alternate view format a backend can honour is the format's sRGB or UNORM twin.
             if (d.alternateViewFormat != TextureFormat::Undefined && d.alternateViewFormat != SrgbTwin(d.format))
             {
                 LogError("[Validation] CreateTexture: alternateViewFormat must be the format's sRGB or UNORM twin");
-                out = nullptr;
                 return ErrorCode::InvalidArgument;
             }
             Status r = m_inner->CreateTexture(d, out);
-            if (r == ErrorCode::Ok && out) { m_liveTextures.PushBack(out); Remember(out, d.label); }
+            if (r == ErrorCode::Ok && out)
+                m_textures.Made(out, d.label);
             return r;
         }
 
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
-            if (!checkAlive("CreateSampler", out)) return ErrorCode::Unknown;
+            out = SamplerHandle::Invalid();
+            if (!checkAlive("CreateSampler")) return ErrorCode::Unknown;
             Status r = m_inner->CreateSampler(d, out);
-            if (r == ErrorCode::Ok && out) m_liveSamplers.PushBack(out);
+            if (r == ErrorCode::Ok && out)
+                m_samplers.Made(out, d.label);
             return r;
         }
 
@@ -200,7 +200,7 @@ export namespace foundation::rhi::validation
                     case BindingType::SampledTexture:
                     case BindingType::StorageTextureReadOnly:
                     case BindingType::StorageTextureReadWrite:
-                        if (entry.textureView == nullptr)
+                        if (!entry.textureView)
                             {
                                 const String label8 = String(d.label);
                                 LogErrorf("[Validation] CreateBindGroup('%s'): entry [%u] "
@@ -208,11 +208,15 @@ export namespace foundation::rhi::validation
                                           reinterpret_cast<const char*>(label8.CStr()),
                                           entryIdx);
                             }
+                        else if (!Live(m_views, entry.textureView, "CreateBindGroup"))
+                            LogErrorf("[Validation] CreateBindGroup: entry [%u] names a destroyed texture view", entryIdx);
                         break;
                     case BindingType::Sampler:
                     case BindingType::ComparisonSampler:
-                        if (entry.sampler == nullptr)
+                        if (!entry.sampler)
                             LogErrorf("[Validation] CreateBindGroup: entry [%u] expects a sampler but Sampler is null", entryIdx);
+                        else if (!Live(m_samplers, entry.sampler, "CreateBindGroup"))
+                            LogErrorf("[Validation] CreateBindGroup: entry [%u] names a destroyed sampler", entryIdx);
                         break;
                     case BindingType::AccelerationStructure:
                         if (entry.accelStruct == nullptr)
@@ -275,35 +279,26 @@ export namespace foundation::rhi::validation
             return r;
         }
 
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
-            if (!checkAlive("CreateTextureView", out)) return ErrorCode::Unknown;
-            if (!tex)
-            {
-                LogError("[Validation] CreateTextureView: texture is null");
-                out = nullptr;
+            out = TextureViewHandle::Invalid();
+            if (!checkAlive("CreateTextureView")) return ErrorCode::Unknown;
+            if (!Live(m_textures, tex, "CreateTextureView"))
                 return ErrorCode::InvalidArgument;
-            }
-            // Use-after-destroy detection.
-            bool tracked = false;
-            for (usize i = 0; i < m_liveTextures.Size(); ++i) { if (m_liveTextures[i] == tex) { tracked = true; break; } }
-            if (!tracked) LogError("[Validation] CreateTextureView: texture has been destroyed or was not created by this device");
-            // A view in the texture's sRGB or UNORM twin needs the texture to have declared it. Only
-            // a texture this device tracks is read: a destroyed one's desc is freed memory.
-            if (tracked && d.format != TextureFormat::Undefined && d.format != tex->desc.format &&
-                d.format == SrgbTwin(tex->desc.format) && tex->desc.alternateViewFormat != d.format)
+            // A view in the texture's sRGB or UNORM twin needs the texture to have declared it.
+            const TextureDesc* texDesc = m_inner->Describe(tex);
+            if (d.format != TextureFormat::Undefined && d.format != texDesc->format &&
+                d.format == SrgbTwin(texDesc->format) && texDesc->alternateViewFormat != d.format)
             {
                 LogError("[Validation] CreateTextureView: a view in the texture's sRGB or UNORM twin needs "
                          "TextureDesc::alternateViewFormat");
-                out = nullptr;
                 return ErrorCode::InvalidArgument;
             }
             Status r = m_inner->CreateTextureView(tex, d, out);
             if (r == ErrorCode::Ok && out)
             {
-                m_liveTextureViews.PushBack(out);
                 // A view is named after its texture: a leaked view then says whose it is.
-                Remember(out, Format(u8"{}/view", LabelOf(tex)).AsView());
+                m_views.Made(out, Format(u8"{}/view", m_textures.LabelOf(tex)).AsView());
             }
             return r;
         }
@@ -448,48 +443,66 @@ export namespace foundation::rhi::validation
         if (!x) return;                                                                            \
         if (!removeFromList(list, x))                                                              \
             LogWarning("[Validation] " #method ": resource was not tracked (double-destroy or wrong device?)"); \
-        (void)m_labels.Remove(static_cast<const void*>(x));                                        \
         m_inner->method(x);                                                                        \
         x = nullptr;                                                                               \
     }
 
-        void DestroyBuffer(BufferHandle& x) override
+        void DestroyBuffer(BufferHandle& x) override { Destroy(m_buffers, x, "DestroyBuffer", &Device::DestroyBuffer); }
+        void DestroyTexture(TextureHandle& x) override { Destroy(m_textures, x, "DestroyTexture", &Device::DestroyTexture); }
+        void DestroyTextureView(TextureViewHandle& x) override
         {
-            if (!x) return;
-            if (!removeFromList(m_liveBuffers, x))
-                LogErrorf("[Validation] DestroyBuffer: stale or foreign buffer handle (slot %u, count %u)", x.index, x.Count());
-            // Its label kept a while, so a stale use of the handle is reported by name.
-            if (const String* label = m_bufferLabels.Find(KeyOf(x)))
-            {
-                DestroyedLabel& slot = m_destroyedBufferLabels[m_destroyedCursor++ % kDestroyedLabelCount];
-                slot.key = KeyOf(x);
-                slot.label = *label;
-            }
-            (void)m_bufferLabels.Remove(KeyOf(x));
-            m_inner->DestroyBuffer(x);
-            x = BufferHandle::Invalid();
+            Destroy(m_views, x, "DestroyTextureView", &Device::DestroyTextureView);
         }
+        void DestroySampler(SamplerHandle& x) override { Destroy(m_samplers, x, "DestroySampler", &Device::DestroySampler); }
         const BufferDesc* Describe(BufferHandle b) const override
         {
             const BufferDesc* desc = m_inner->Describe(b);
             if (desc == nullptr && b)
-                ReportStale("Describe", b);
+                m_buffers.ReportStale("Describe", b);
+            return desc;
+        }
+        const TextureDesc* Describe(TextureHandle t) const override
+        {
+            const TextureDesc* desc = m_inner->Describe(t);
+            if (desc == nullptr && t)
+                m_textures.ReportStale("Describe", t);
+            return desc;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle v) const override
+        {
+            const TextureViewDesc* desc = m_inner->Describe(v);
+            if (desc == nullptr && v)
+                m_views.ReportStale("Describe", v);
+            return desc;
+        }
+        TextureHandle TextureOf(TextureViewHandle v) const override
+        {
+            const TextureHandle texture = m_inner->TextureOf(v);
+            if (!texture && v)
+                m_views.ReportStale("TextureOf", v);
+            return texture;
+        }
+        const SamplerDesc* Describe(SamplerHandle s) const override
+        {
+            const SamplerDesc* desc = m_inner->Describe(s);
+            if (desc == nullptr && s)
+                m_samplers.ReportStale("Describe", s);
             return desc;
         }
         void* Map(BufferHandle b) override
         {
-            if (!Live(b, "Map"))
+            if (!Live(m_buffers, b, "Map"))
                 return nullptr;
             return m_inner->Map(b);
         }
         void Unmap(BufferHandle b) override
         {
-            if (Live(b, "Unmap"))
+            if (Live(m_buffers, b, "Unmap"))
                 m_inner->Unmap(b);
         }
         void FlushRange(BufferHandle b, u64 offset, u64 size) override
         {
-            if (!Live(b, "FlushRange"))
+            if (!Live(m_buffers, b, "FlushRange"))
                 return;
             const BufferDesc* desc = m_inner->Describe(b);
             if (offset + size > desc->size)
@@ -498,9 +511,6 @@ export namespace foundation::rhi::validation
                           static_cast<unsigned long long>(desc->size));
             m_inner->FlushRange(b, offset, size);
         }
-        V_DESTROY(Texture, DestroyTexture, m_liveTextures)
-        V_DESTROY(TextureView, DestroyTextureView, m_liveTextureViews)
-        V_DESTROY(Sampler, DestroySampler, m_liveSamplers)
         V_DESTROY(ShaderModule, DestroyShaderModule, m_liveShaderModules)
         V_DESTROY(BindGroupLayout, DestroyBindGroupLayout, m_liveBindGroupLayouts)
         V_DESTROY(BindGroup, DestroyBindGroup, m_liveBindGroups)
@@ -598,6 +608,12 @@ export namespace foundation::rhi::validation
             }
             return true;
         }
+        bool checkAlive(const char* method)
+        {
+            if (m_destroyed)
+                LogErrorf("[Validation] %s: device destroyed", method);
+            return !m_destroyed;
+        }
 
         template <typename T>
         bool removeFromList(Array<T>& list, const T& item)
@@ -613,48 +629,110 @@ export namespace foundation::rhi::validation
             return false;
         }
 
-        // The creation label of a tracked resource (buffers, textures, views), so a leak report
-        // names what leaked instead of a handle nobody can chase.
-        // A buffer handle's key in the label map: its slot and generation.
-        [[nodiscard]] static u64 KeyOf(BufferHandle b) noexcept { return (u64{b.index} << 32) | b.generation; }
-        [[nodiscard]] StringView BufferLabelOf(BufferHandle b) const
+        // What a device's handles of one type name: the live ones with their creation labels, for
+        // leak reports, and the labels of the last ones destroyed, so a stale use soon after is
+        // reported by name.
+        template <typename Tag>
+        class HandleRecords
         {
-            if (const String* label = m_bufferLabels.Find(KeyOf(b)))
-                return label->AsView();
-            for (const DestroyedLabel& destroyed : m_destroyedBufferLabels)
-                if (destroyed.key == KeyOf(b) && !destroyed.label.IsEmpty())
-                    return destroyed.label.AsView();
-            return StringView(u8"(destroyed long ago, or another device's)");
-        }
-        void ReportStale(const char* method, BufferHandle b) const
-        {
-            LogErrorf("[Validation] %s: stale buffer handle (slot %u, count %u), last created as '%s'", method,
-                      b.index, b.Count(), reinterpret_cast<const char*>(BufferLabelOf(b).Data()));
-        }
-        // Whether `b` names a live buffer; reported when it does not.
-        [[nodiscard]] bool Live(BufferHandle b, const char* method) const
-        {
-            if (!b)
+        public:
+            using HandleType = Handle<Tag>;
+            explicit HandleRecords(const char* noun) noexcept : m_noun(noun) {}
+
+            void Made(HandleType handle, StringView label)
             {
-                LogErrorf("[Validation] %s: buffer handle is null", method);
+                m_live.PushBack(handle);
+                m_labels.InsertOrAssign(KeyOf(handle), label.IsEmpty() ? String(u8"(unlabelled)") : String(label));
+            }
+            /// False when `handle` was not live here (destroyed already, or another device's).
+            bool Destroyed(HandleType handle)
+            {
+                bool found = false;
+                for (usize i = 0; i < m_live.Size(); ++i)
+                {
+                    if (m_live[i] == handle)
+                    {
+                        m_live.RemoveAt(i);
+                        found = true;
+                        break;
+                    }
+                }
+                if (const String* label = m_labels.Find(KeyOf(handle)))
+                {
+                    DestroyedLabel& slot = m_destroyed[m_destroyedCursor++ % kDestroyedLabelCount];
+                    slot.key = KeyOf(handle);
+                    slot.label = *label;
+                }
+                (void)m_labels.Remove(KeyOf(handle));
+                return found;
+            }
+            [[nodiscard]] StringView LabelOf(HandleType handle) const
+            {
+                if (const String* label = m_labels.Find(KeyOf(handle)))
+                    return label->AsView();
+                for (const DestroyedLabel& destroyed : m_destroyed)
+                    if (destroyed.key == KeyOf(handle) && !destroyed.label.IsEmpty())
+                        return destroyed.label.AsView();
+                return StringView(u8"(destroyed long ago, or another device's)");
+            }
+            void ReportStale(const char* method, HandleType handle) const
+            {
+                LogErrorf("[Validation] %s: stale %s handle (slot %u, count %u), last created as '%s'", method, m_noun,
+                          handle.index, handle.Count(), reinterpret_cast<const char*>(LabelOf(handle).Data()));
+            }
+            void ReportLeaks() const
+            {
+                if (m_live.IsEmpty())
+                    return;
+                LogWarningf("[Validation] Device destroyed with %zu live %s(s)", m_live.Size(), m_noun);
+                for (HandleType handle : m_live)
+                    LogWarningf("[Validation]   live %s: %s", m_noun, reinterpret_cast<const char*>(LabelOf(handle).Data()));
+            }
+            [[nodiscard]] const char* Noun() const noexcept { return m_noun; }
+
+        private:
+            [[nodiscard]] static u64 KeyOf(HandleType h) noexcept { return (u64{h.index} << 32) | h.generation; }
+            static constexpr u32 kDestroyedLabelCount = 1024;
+            struct DestroyedLabel
+            {
+                u64 key = 0;
+                String label;
+            };
+            const char* m_noun;
+            Array<HandleType> m_live;
+            HashMap<u64, String> m_labels; // a live handle's creation label, by KeyOf
+            DestroyedLabel m_destroyed[kDestroyedLabelCount];
+            u32 m_destroyedCursor = 0;
+        };
+
+        // Whether `handle` names a live resource; reported when it does not.
+        template <typename Tag>
+        [[nodiscard]] bool Live(const HandleRecords<Tag>& records, Handle<Tag> handle, const char* method) const
+        {
+            if (!handle)
+            {
+                LogErrorf("[Validation] %s: %s handle is null", method, records.Noun());
                 return false;
             }
-            if (m_inner->Describe(b) == nullptr)
+            if (m_inner->Describe(handle) == nullptr)
             {
-                ReportStale(method, b);
+                records.ReportStale(method, handle);
                 return false;
             }
             return true;
         }
 
-        void Remember(const void* resource, StringView label)
+        template <typename Tag>
+        void Destroy(HandleRecords<Tag>& records, Handle<Tag>& handle, const char* method,
+                     void (Device::*destroy)(Handle<Tag>&))
         {
-            m_labels.InsertOrAssign(resource, label.IsEmpty() ? String(u8"(unlabelled)") : String(label));
-        }
-        [[nodiscard]] StringView LabelOf(const void* resource) const
-        {
-            const String* label = m_labels.Find(resource);
-            return label != nullptr ? label->AsView() : StringView(u8"(unlabelled)");
+            if (!handle)
+                return;
+            if (!records.Destroyed(handle))
+                LogErrorf("[Validation] %s: stale or foreign %s handle (slot %u, count %u)", method, records.Noun(),
+                          handle.index, handle.Count());
+            (m_inner->*destroy)(handle);
+            handle = Handle<Tag>::Invalid();
         }
 
         void reportLeaks()
@@ -664,22 +742,11 @@ export namespace foundation::rhi::validation
                 if (count > 0)
                     LogWarningf("[Validation] Device destroyed with %zu live %s(s)", count, name);
             };
-            // Name every leaked buffer, texture and view: the label is what a reader can grep.
-            auto names = [this](const char* name, const auto& list)
-            {
-                for (usize i = 0; i < list.Size(); ++i)
-                    LogWarningf("[Validation]   live %s: %s", name,
-                                reinterpret_cast<const char*>(LabelOf(list[i]).Data()));
-            };
-            report("Buffer", m_liveBuffers.Size());
-            for (usize i = 0; i < m_liveBuffers.Size(); ++i)
-                LogWarningf("[Validation]   live Buffer: %s",
-                            reinterpret_cast<const char*>(BufferLabelOf(m_liveBuffers[i]).Data()));
-            report("Texture", m_liveTextures.Size());
-            names("Texture", m_liveTextures);
-            report("TextureView", m_liveTextureViews.Size());
-            names("TextureView", m_liveTextureViews);
-            report("Sampler", m_liveSamplers.Size());
+            // Every leaked handle by name: the label is what a reader can grep.
+            m_buffers.ReportLeaks();
+            m_textures.ReportLeaks();
+            m_views.ReportLeaks();
+            m_samplers.ReportLeaks();
             report("ShaderModule", m_liveShaderModules.Size());
             report("BindGroupLayout", m_liveBindGroupLayouts.Size());
             report("BindGroup", m_liveBindGroups.Size());
@@ -707,21 +774,10 @@ export namespace foundation::rhi::validation
         };
         Array<QueueWrap> m_queueWrappers;
 
-        Array<BufferHandle> m_liveBuffers;
-        Array<Texture*> m_liveTextures;
-        Array<TextureView*> m_liveTextureViews;
-        HashMap<u64, String> m_bufferLabels; // a live buffer's creation label, by KeyOf (leak and stale reports)
-        // The labels of the last buffers destroyed, by KeyOf: a stale use soon after names them.
-        static constexpr u32 kDestroyedLabelCount = 1024;
-        struct DestroyedLabel
-        {
-            u64 key = 0;
-            String label;
-        };
-        DestroyedLabel m_destroyedBufferLabels[kDestroyedLabelCount];
-        u32 m_destroyedCursor = 0;
-        HashMap<const void*, String> m_labels; // creation labels of the three above (leak reports)
-        Array<Sampler*> m_liveSamplers;
+        HandleRecords<BufferTag> m_buffers{"Buffer"};
+        HandleRecords<TextureTag> m_textures{"Texture"};
+        HandleRecords<TextureViewTag> m_views{"TextureView"};
+        HandleRecords<SamplerTag> m_samplers{"Sampler"};
         Array<ShaderModule*> m_liveShaderModules;
         Array<BindGroupLayout*> m_liveBindGroupLayouts;
         Array<BindGroup*> m_liveBindGroups;

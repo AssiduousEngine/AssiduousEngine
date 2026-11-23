@@ -198,9 +198,9 @@ export namespace foundation::gui
 
         /// Registers `view` as the texture for an image the GUI draws by `key` (an image source the
         /// caller's resource provider answers). Every renderer is told, including those made later.
-        void RegisterTexture(const image::ImageData* key, rhi::TextureView* view)
+        void RegisterTexture(const image::ImageData* key, rhi::TextureViewHandle view)
         {
-            if (key == nullptr || view == nullptr)
+            if (key == nullptr || !view.IsValid())
                 return;
             UnregisterTexture(key);
             m_textures.PushBack(Texture{key, view});
@@ -243,7 +243,7 @@ export namespace foundation::gui
         struct Texture
         {
             const image::ImageData* Key = nullptr;
-            rhi::TextureView* View = nullptr;
+            rhi::TextureViewHandle View{};
         };
 
         [[nodiscard]] Entry* Find(const GuiPassView& view) noexcept

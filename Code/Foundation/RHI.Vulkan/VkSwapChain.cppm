@@ -17,6 +17,7 @@ import :adapter;
 import :surface;
 import :texture;
 import :texture_view;
+import :tables;
 
 using namespace foundation::core;
 
@@ -103,9 +104,10 @@ export namespace foundation::rhi::vk
     {
     public:
         Status init(VkDevice device, VkPhysicalDevice physDevice, VkSurfaceKHR surface,
-                    const SwapChainDesc& desc, VkDeviceImpl* owner, IAllocator& allocator,
+                    const SwapChainDesc& desc, VkDeviceImpl* owner, VkTables& tables, IAllocator& allocator,
                     bool mutableFormat)
         {
+            m_tables = &tables;
             m_device = device;
             m_physDevice = physDevice;
             m_surface = surface;
@@ -128,21 +130,22 @@ export namespace foundation::rhi::vk
         u32 CurrentImageIndex() const override { return m_currentImageIndex; }
 
         Status AcquireNextImage() override;
-        Texture* CurrentTexture() override
+        TextureHandle CurrentTexture() override
         {
-            return m_currentImageIndex < m_textures.Size() ? m_textures[m_currentImageIndex]
-                                                           : nullptr;
+            return m_currentImageIndex < m_textureHandles.Size() ? m_textureHandles[m_currentImageIndex]
+                                                                 : TextureHandle::Invalid();
         }
-        TextureView* CurrentTextureView() override
+        TextureViewHandle CurrentTextureView() override
         {
-            return m_currentImageIndex < m_views.Size() ? m_views[m_currentImageIndex] : nullptr;
+            return m_currentImageIndex < m_viewHandles.Size() ? m_viewHandles[m_currentImageIndex]
+                                                              : TextureViewHandle::Invalid();
         }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
         ContentRotation PreRotation() const override { return m_rotation; }
-        TextureView* CurrentAlternateTextureView() override
+        TextureViewHandle CurrentAlternateTextureView() override
         {
-            return m_currentImageIndex < m_alternateViews.Size() ? m_alternateViews[m_currentImageIndex]
-                                                                 : nullptr;
+            return m_currentImageIndex < m_alternateHandles.Size() ? m_alternateHandles[m_currentImageIndex]
+                                                                   : TextureViewHandle::Invalid();
         }
         Status Present(Queue* queue) override;
         Status Resize(u32 w, u32 h) override;
@@ -183,6 +186,12 @@ export namespace foundation::rhi::vk
         Array<VkTextureImpl*> m_textures;
         Array<VkTextureViewImpl*> m_views;
         Array<VkTextureViewImpl*> m_alternateViews; // in m_alternate, when honoured
+        // The device's handles to the images and views, which stay the swap chain's: taken back
+        // out of its tables as they go, not retired (a rebuild or teardown waits for the GPU).
+        VkTables* m_tables = nullptr;
+        Array<TextureHandle> m_textureHandles;
+        Array<TextureViewHandle> m_viewHandles;
+        Array<TextureViewHandle> m_alternateHandles;
         bool m_mutableFormat = false;                // VK_KHR_swapchain_mutable_format enabled
         TextureFormat m_requestedAlternate = TextureFormat::Undefined;
         // The format first asked for: a rebuild asks it again, so it negotiates as the first did and
@@ -571,6 +580,8 @@ export namespace foundation::rhi::vk
             auto* tex = m_allocator->New<VkTextureImpl>();
             tex->initFromExisting(images[i], td);
             m_textures.PushBack(tex);
+            const TextureHandle texHandle = m_tables->textures.Add(tex);
+            m_textureHandles.PushBack(texHandle);
 
             TextureViewDesc vd{};
             vd.format = texFmt;
@@ -578,24 +589,26 @@ export namespace foundation::rhi::vk
             vd.mipLevelCount = 1;
             vd.arrayLayerCount = 1;
             auto* view = m_allocator->New<VkTextureViewImpl>();
-            if (view->init(m_device, tex, vd) != ErrorCode::Ok)
+            if (view->init(m_device, tex, texHandle, vd) != ErrorCode::Ok)
             {
                 m_allocator->Delete(view);
                 return ErrorCode::Unknown;
             }
             m_views.PushBack(view);
+            m_viewHandles.PushBack(m_tables->views.Add(view));
 
             if (m_alternate != TextureFormat::Undefined)
             {
                 TextureViewDesc ad = vd;
                 ad.format = m_alternate;
                 auto* alternate = m_allocator->New<VkTextureViewImpl>();
-                if (alternate->init(m_device, tex, ad) != ErrorCode::Ok)
+                if (alternate->init(m_device, tex, texHandle, ad) != ErrorCode::Ok)
                 {
                     m_allocator->Delete(alternate);
                     return ErrorCode::Unknown;
                 }
                 m_alternateViews.PushBack(alternate);
+                m_alternateHandles.PushBack(m_tables->views.Add(alternate));
             }
         }
         return ErrorCode::Ok;
@@ -627,6 +640,15 @@ export namespace foundation::rhi::vk
 
     inline void VkSwapChainImpl::cleanupImages()
     {
+        for (TextureViewHandle& h : m_viewHandles)
+            (void)m_tables->views.Remove(h);
+        m_viewHandles.Clear();
+        for (TextureViewHandle& h : m_alternateHandles)
+            (void)m_tables->views.Remove(h);
+        m_alternateHandles.Clear();
+        for (TextureHandle& h : m_textureHandles)
+            (void)m_tables->textures.Remove(h);
+        m_textureHandles.Clear();
         for (auto* v : m_views)
         {
             v->cleanup(m_device);

@@ -113,15 +113,15 @@ export namespace foundation::texture
         {
             if (m_device != nullptr)
             {
-                if (m_view != nullptr)
+                if (m_view.IsValid())
                 {
                     m_device->DestroyTextureView(m_view);
                 }
-                if (m_sampler != nullptr)
+                if (m_sampler.IsValid())
                 {
                     m_device->DestroySampler(m_sampler);
                 }
-                if (m_texture != nullptr)
+                if (m_texture.IsValid())
                 {
                     m_device->DestroyTexture(m_texture);
                 }
@@ -130,8 +130,8 @@ export namespace foundation::texture
         Texture(const Texture&) = delete;
         Texture& operator=(const Texture&) = delete;
 
-        void Adopt(rhi::Device* device, rhi::Texture* texture, rhi::TextureView* view,
-                   rhi::Sampler* sampler, u32 width, u32 height, rhi::TextureFormat format,
+        void Adopt(rhi::Device* device, rhi::TextureHandle texture, rhi::TextureViewHandle view,
+                   rhi::SamplerHandle sampler, u32 width, u32 height, rhi::TextureFormat format,
                    bool isCube = false) noexcept
         {
             m_device = device;
@@ -150,12 +150,17 @@ export namespace foundation::texture
         /// True when the default view is a cube (shape Cubemap, six faces).
         [[nodiscard]] bool IsCube() const noexcept { return m_isCube; }
 
-        [[nodiscard]] rhi::Texture* GpuTexture() const noexcept { return m_texture; }
-        [[nodiscard]] rhi::TextureView* View() const noexcept
+        [[nodiscard]] rhi::TextureHandle GpuTexture() const noexcept { return m_texture; }
+        /// What the GPU texture was created with; null without one.
+        [[nodiscard]] const rhi::TextureDesc* GpuDesc() const noexcept
+        {
+            return m_device != nullptr ? m_device->Describe(m_texture) : nullptr;
+        }
+        [[nodiscard]] rhi::TextureViewHandle View() const noexcept
         {
             return m_view;
         } // default sampled view (full mips)
-        [[nodiscard]] rhi::Sampler* Sampler() const noexcept { return m_sampler; }
+        [[nodiscard]] rhi::SamplerHandle Sampler() const noexcept { return m_sampler; }
         [[nodiscard]] u32 Width() const noexcept { return m_width; }
         [[nodiscard]] u32 Height() const noexcept { return m_height; }
         [[nodiscard]] rhi::TextureFormat Format() const noexcept { return m_format; }
@@ -168,9 +173,9 @@ export namespace foundation::texture
         }
 
         rhi::Device* m_device = nullptr;    // non-owning
-        rhi::Texture* m_texture = nullptr;  // owned (destroyed via device)
-        rhi::TextureView* m_view = nullptr; // owned (default sampled view)
-        rhi::Sampler* m_sampler = nullptr;  // owned
+        rhi::TextureHandle m_texture{};  // owned (destroyed via device)
+        rhi::TextureViewHandle m_view{}; // owned (default sampled view)
+        rhi::SamplerHandle m_sampler{};  // owned
         u32 m_width = 0;
         u32 m_height = 0;
         rhi::TextureFormat m_format = rhi::TextureFormat::RGBA8Unorm;
@@ -390,7 +395,7 @@ export namespace foundation::texture
             desc.mipLevelCount = res->mipLevels;
             desc.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
 
-            rhi::Texture* texture = nullptr;
+            rhi::TextureHandle texture{};
             if (!m_device->CreateTexture(desc, texture).IsOk())
             {
                 return RefPtr<Object>{};
@@ -404,7 +409,7 @@ export namespace foundation::texture
                                   : rhi::TextureViewDimension::Texture2D;
             vd.mipLevelCount = res->mipLevels;
             vd.arrayLayerCount = isCube ? 6u : res->depthOrArrayLayers;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             if (!m_device->CreateTextureView(texture, vd, view).IsOk())
             {
                 m_device->DestroyTexture(texture);
@@ -444,7 +449,7 @@ export namespace foundation::texture
             sd.addressV = ToAddressMode(res->wrapV);
             sd.addressW = ToAddressMode(res->wrapW);
             sd.maxAnisotropy = static_cast<u16>(res->anisotropy < 1.0f ? 1.0f : res->anisotropy);
-            rhi::Sampler* sampler = nullptr;
+            rhi::SamplerHandle sampler{};
             (void)m_device->CreateSampler(sd, sampler);
 
             RefPtr<Texture> product = MakeRef<Texture>((*m_allocator));
@@ -467,7 +472,7 @@ export namespace foundation::texture
                                                                    record.height, 1,
                                                                    u8"RenderTexture");
             desc.usage = desc.usage | rhi::TextureUsage::CopySrc | rhi::TextureUsage::CopyDst;
-            rhi::Texture* texture = nullptr;
+            rhi::TextureHandle texture{};
             if (!m_device->CreateTexture(desc, texture).IsOk())
             {
                 return RefPtr<Object>{};
@@ -475,7 +480,7 @@ export namespace foundation::texture
             rhi::TextureViewDesc vd{};
             vd.format = record.format;
             vd.dimension = rhi::TextureViewDimension::Texture2D;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureViewHandle view{};
             if (!m_device->CreateTextureView(texture, vd, view).IsOk())
             {
                 m_device->DestroyTexture(texture);
@@ -504,7 +509,7 @@ export namespace foundation::texture
             sd.addressU = rhi::AddressMode::ClampToEdge;
             sd.addressV = rhi::AddressMode::ClampToEdge;
             sd.addressW = rhi::AddressMode::ClampToEdge;
-            rhi::Sampler* sampler = nullptr;
+            rhi::SamplerHandle sampler{};
             (void)m_device->CreateSampler(sd, sampler);
 
             RefPtr<Texture> product = MakeRef<Texture>((*m_allocator));

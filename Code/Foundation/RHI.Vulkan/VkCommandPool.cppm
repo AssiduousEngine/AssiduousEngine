@@ -16,6 +16,7 @@ import :adapter;
 import :command_buffer;
 import :buffer;
 import :query_set; // kPipelineStatisticsFlags (a bundle inherits them)
+import :tables;
 
 using namespace foundation::core;
 
@@ -118,9 +119,9 @@ export namespace foundation::rhi::vk
 
         // Stored so the encoder can access it.
         VkDeviceImpl* ownerDevice = nullptr;
-        /// The device's buffers (its encoders look their handles up in it) and the tracker its
+        /// The device's tables (its encoders look their handles up in them) and the tracker its
         /// recordings are counted by.
-        const VkBufferTable* buffers = nullptr;
+        const VkTables* tables = nullptr;
         SubmissionTracker* tracker = nullptr;
 
         /// A recording this pool began (an encoder's, its bundles'); ended at its submit, or by the

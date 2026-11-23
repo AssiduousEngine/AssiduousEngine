@@ -214,8 +214,8 @@ TEST_CASE("material resource: a bound material keeps its textures loaded through
         REQUIRE(mat);
         const isize slot = mat->GetPropertyIndex(u8"albedoMap");
         REQUIRE(slot >= 0);
-        rhi::TextureView* view = mat->GetDefaultTexture(static_cast<usize>(slot));
-        REQUIRE(view != nullptr);
+        rhi::TextureViewHandle view = mat->GetDefaultTexture(static_cast<usize>(slot));
+        REQUIRE(view.IsValid());
 
         // Only the material is held: its texture stays, and so does the view it draws with.
         for (int i = 0; i < 16; ++i)

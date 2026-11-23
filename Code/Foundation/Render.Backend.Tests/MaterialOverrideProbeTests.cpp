@@ -157,11 +157,11 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"override.target";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
             rhi::CommandPool* pool = nullptr;
             REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
@@ -255,9 +255,9 @@ namespace
             otherMiddle->overrides = greenOverrides.Data();
             otherMiddle->overrideCount = 1;
             otherMiddle->overrideVersion = 7;
-            rhi::Texture* otherTarget = nullptr;
+            rhi::TextureHandle otherTarget{};
             REQUIRE(device.CreateTexture(td, otherTarget).IsOk());
-            rhi::TextureView* otherView = nullptr;
+            rhi::TextureViewHandle otherView{};
             REQUIRE(device.CreateTextureView(otherTarget, vd, otherView).IsOk());
             ViewSettings otherSettings = settings;
             otherSettings.targetTexture = otherTarget;

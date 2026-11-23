@@ -76,7 +76,7 @@ TEST_CASE("rg.graph: import target with final state")
     RenderGraph graph(DefaultAllocator(), nullptr);
     graph.BeginFrame(0);
     const RGHandle handle =
-        graph.ImportTarget(u8"Backbuffer", nullptr, nullptr, rhi::ResourceState::Present);
+        graph.ImportTarget(u8"Backbuffer", rhi::TextureHandle{}, rhi::TextureViewHandle{}, rhi::ResourceState::Present);
     CHECK(handle.IsValid());
 }
 
@@ -84,7 +84,7 @@ TEST_CASE("rg.graph: reset keeps persistent, drops transient")
 {
     RenderGraph graph(DefaultAllocator(), nullptr);
     graph.BeginFrame(0);
-    graph.RegisterPersistent(u8"Shadow", nullptr, nullptr);
+    graph.RegisterPersistent(u8"Shadow", {}, {});
     graph.CreateTransient(u8"Temp", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
 
     graph.Reset();

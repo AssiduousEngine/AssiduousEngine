@@ -60,8 +60,8 @@ private:
     rhi::BindGroup* m_rtBindGroup = nullptr;
 
     // RT output texture.
-    rhi::Texture* m_outputTexture = nullptr;
-    rhi::TextureView* m_outputTextureView = nullptr;
+    rhi::TextureHandle m_outputTexture{};
+    rhi::TextureViewHandle m_outputTextureView{};
     rhi::ResourceState m_outputTextureState = rhi::ResourceState::Undefined;
 
     // SBT layout info (cached for traceRays).
@@ -507,8 +507,8 @@ void RayTracingSample::OnResize(foundation::core::u32 w, foundation::core::u32 h
     if (m_outputTexture)
         m_device->DestroyTexture(m_outputTexture);
     m_rtBindGroup = nullptr;
-    m_outputTextureView = nullptr;
-    m_outputTexture = nullptr;
+    m_outputTextureView = {};
+    m_outputTexture = {};
 
     // Recreate output texture at new size.
     rhi::TextureDesc td{};

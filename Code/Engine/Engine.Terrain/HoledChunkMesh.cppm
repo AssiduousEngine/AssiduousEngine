@@ -183,7 +183,7 @@ export namespace engine::terrain
     public:
         void SetRetireQueue(render::GpuRetireQueue* retire) noexcept { m_retire = retire; }
 
-        [[nodiscard]] rhi::TextureView* GetOrCreate(rhi::Device& device,
+        [[nodiscard]] rhi::TextureViewHandle GetOrCreate(rhi::Device& device,
                                                     const foundation::heightfield::Heightfield& hf,
                                                     u64 version)
         {
@@ -200,7 +200,7 @@ export namespace engine::terrain
                 RetireOrDestroy(device, entry);
                 if (!Build(device, hf, entry))
                 {
-                    return nullptr;
+                    return {};
                 }
                 entry.version = version;
                 return entry.view;
@@ -210,7 +210,7 @@ export namespace engine::terrain
             fresh.version = version;
             if (!Build(device, hf, fresh))
             {
-                return nullptr;
+                return {};
             }
             m_entries.PushBack(fresh);
             return m_entries[m_entries.Size() - 1].view;
@@ -232,8 +232,8 @@ export namespace engine::terrain
         {
             u64 key = 0;
             u64 version = 0;
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureHandle texture{};
+            rhi::TextureViewHandle view{};
         };
 
         [[nodiscard]] static bool Build(rhi::Device& device,
@@ -246,17 +246,17 @@ export namespace engine::terrain
             td.height = n;
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
             td.label = u8"terrain.holes";
-            if (!device.CreateTexture(td, out.texture).IsOk() || out.texture == nullptr)
+            if (!device.CreateTexture(td, out.texture).IsOk() || !out.texture.IsValid())
             {
                 return false;
             }
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::R8Unorm;
             vd.dimension = rhi::TextureViewDimension::Texture2D;
-            if (!device.CreateTextureView(out.texture, vd, out.view).IsOk() || out.view == nullptr)
+            if (!device.CreateTextureView(out.texture, vd, out.view).IsOk() || !out.view.IsValid())
             {
                 device.DestroyTexture(out.texture);
-                out.texture = nullptr;
+                out.texture = {};
                 return false;
             }
             if (rhi::Queue* queue = device.GetQueue(rhi::QueueType::Graphics))
@@ -280,28 +280,28 @@ export namespace engine::terrain
         {
             if (m_retire != nullptr)
             {
-                if (entry.view != nullptr)
+                if (entry.view.IsValid())
                 {
                     m_retire->Retire(entry.view);
                 }
-                if (entry.texture != nullptr)
+                if (entry.texture.IsValid())
                 {
                     m_retire->Retire(entry.texture);
                 }
             }
             else
             {
-                if (entry.view != nullptr)
+                if (entry.view.IsValid())
                 {
                     device.DestroyTextureView(entry.view);
                 }
-                if (entry.texture != nullptr)
+                if (entry.texture.IsValid())
                 {
                     device.DestroyTexture(entry.texture);
                 }
             }
-            entry.view = nullptr;
-            entry.texture = nullptr;
+            entry.view = {};
+            entry.texture = {};
         }
 
         Array<Entry> m_entries;

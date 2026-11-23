@@ -331,7 +331,7 @@ TEST_CASE("engine.gui: the provider answers documents, sheets, vector images and
     CHECK_FALSE(provider.LoadText(Braced(menu).AsView(), text)); // no resource manager yet
     provider.SetResourceManager(project.resources.Get());
     Array<const foundation::image::ImageData*> told;
-    provider.SetTextureSink([&](const foundation::image::ImageData* key, rhi::TextureView* view) { told.PushBack(view != nullptr ? key : nullptr); });
+    provider.SetTextureSink([&](const foundation::image::ImageData* key, rhi::TextureViewHandle view) { told.PushBack(view.IsValid() ? key : nullptr); });
 
     REQUIRE(provider.LoadText(Braced(menu).AsView(), text));
     CHECK(text.AsView() == StringView(u8"<Panel id=\"menu\"/>"));
@@ -1035,7 +1035,7 @@ TEST_CASE("engine.gui: a render-texture canvas draws into a texture of its own, 
     rhi::null::NullCommandEncoder encoder;
     engine.gui->RenderTextures(encoder, 0);
     CHECK(engine.gui->TextureCount() == 1u);
-    REQUIRE(c->renderTextureView != nullptr);
+    REQUIRE(c->renderTextureView.IsValid());
     CHECK(sprite.texture == c->renderTextureView);
     CHECK(c->renderRoot->GetViewportSize().x == doctest::Approx(128.0f));
     const u64 passes = encoder.counters->Snapshot().renderPasses;
@@ -1050,7 +1050,7 @@ TEST_CASE("engine.gui: a render-texture canvas draws into a texture of its own, 
     CHECK(FindById(*root, u8"monitor") != nullptr);
     engine.gui->RenderTextures(encoder, 1);
     CHECK(engine.gui->TextureCount() == 0u);
-    CHECK(sprite.texture == nullptr);
+    CHECK(!sprite.texture.IsValid());
 
     // Drawn into a texture again, then despawned: the texture is removed.
     c->renderMode = engine::gui::GuiCanvasRenderMode::RenderTexture;
@@ -1552,8 +1552,8 @@ TEST_CASE("engine.gui: an editor's preview builds in the GUI's context, a sheet 
     REQUIRE(preview);
     CHECK(engine.gui->ScreenRoot()->ChildCount() == 3u); // the preview is not in a tier; the root holds only the guide, the stack and the overlays
 
-    rhi::Texture* texture = nullptr;
-    rhi::TextureView* target = nullptr;
+    rhi::TextureHandle texture{};
+    rhi::TextureViewHandle target{};
     REQUIRE(device.CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8UnormSrgb, 320, 200), texture).IsOk());
     REQUIRE(device.CreateTextureView(texture, rhi::TextureViewDesc{}, target).IsOk());
     rhi::null::NullCommandEncoder encoder;

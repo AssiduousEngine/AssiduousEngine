@@ -247,15 +247,15 @@ namespace samples
             {
                 rhi::Device& device = *gfx->Raw();
                 device.WaitIdle(); // GPU must finish before freeing the shared texture
-                if (m_texView != nullptr)
+                if (m_texView.IsValid())
                 {
                     device.DestroyTextureView(m_texView);
-                    m_texView = nullptr;
+                    m_texView = {};
                 }
-                if (m_tex != nullptr)
+                if (m_tex.IsValid())
                 {
                     device.DestroyTexture(m_tex);
-                    m_tex = nullptr;
+                    m_tex = {};
                 }
             }
             engine::runtime::DefaultApplication::OnShutdown(host);
@@ -443,7 +443,7 @@ namespace samples
 
         void BuildDecalAndSprites()
         {
-            if (m_texView == nullptr)
+            if (!m_texView.IsValid())
             {
                 return; // texture creation failed; the decal and sprites stay absent
             }
@@ -709,7 +709,7 @@ namespace samples
             vd.format = rhi::TextureFormat::RGBA8Unorm;
             if (!device->CreateTextureView(m_tex, vd, m_texView).IsOk())
             {
-                m_texView = nullptr;
+                m_texView = {};
                 return;
             }
             if (rhi::Queue* q = device->GetQueue(rhi::QueueType::Graphics))
@@ -1034,8 +1034,8 @@ namespace samples
         scene::EntityHandle m_sparksEntity{};
         particles::ParticleEffect m_fountain;
         particles::ParticleEffect m_sparks;
-        rhi::Texture* m_tex = nullptr; // freed in OnShutdown, so teardown is validation-clean
-        rhi::TextureView* m_texView = nullptr;
+        rhi::TextureHandle m_tex{}; // freed in OnShutdown, so teardown is validation-clean
+        rhi::TextureViewHandle m_texView{};
         FlyCamera m_fly;
         core::f32 m_time = 0.0f;
         core::f32 m_floorMetallic = 0.0f;  // floor material values the panel tweaks, to judge SSR

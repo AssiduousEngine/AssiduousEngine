@@ -729,7 +729,7 @@ TEST_CASE("extract: authored (sRGB) colours reach render data decoded to linear"
     auto* cameras = scene.AddSystem<CameraComponentManager>();
     auto* env = scene.AddSystem<EnvironmentSystem>();
     RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
-    rhi::TextureView* fakeView = reinterpret_cast<rhi::TextureView*>(0x1); // extract only stores it
+    const rhi::TextureViewHandle fakeView{1, 1}; // extract only stores it
 
     InstancedMeshComponent& set = sets->Add(scene.CreateEntity(u8"set"));
     set.mesh = cube;
@@ -808,7 +808,7 @@ TEST_CASE("ExtractEnvironmentInto carries the sky texture product (uid identity,
     // A cube-shaped product (no GPU objects needed: identity and shape are what extraction reads).
     RefPtr<foundation::texture::Texture> sky =
         MakeRef<foundation::texture::Texture>(DefaultAllocator());
-    sky->Adopt(nullptr, nullptr, nullptr, nullptr, 64, 64, rhi::TextureFormat::RGBA8Unorm,
+    sky->Adopt({}, {}, {}, {}, 64, 64, rhi::TextureFormat::RGBA8Unorm,
                /*isCube*/ true);
     env->Environment().skyTexture =
         sky.Get(); // direct override (the picker and serialized path bind by guid)
@@ -940,7 +940,7 @@ TEST_CASE("extract: postTonemap sprites land in the WorldUI category (authored c
     scene.AddSystem<SpriteComponentManager>();
     const scene::EntityHandle e = scene.CreateEntity(u8"panel");
     SpriteComponent& sprite = scene.GetSystem<SpriteComponentManager>()->Add(e);
-    rhi::TextureView* fakeView = reinterpret_cast<rhi::TextureView*>(0x1); // extract only stores it
+    const rhi::TextureViewHandle fakeView{1, 1}; // extract only stores it
     sprite.texture = fakeView;
     sprite.postTonemap = true;
     sprite.orientation = SpriteOrientation::EntityOriented;
@@ -1686,17 +1686,17 @@ namespace
     RefPtr<foundation::texture::Texture> MakeTargetTexture(rhi::Device& device, u32 width,
                                                            u32 height)
     {
-        rhi::Texture* gpu = nullptr;
+        rhi::TextureHandle gpu{};
         REQUIRE(device
                     .CreateTexture(rhi::TextureDesc::RenderTarget(
                                        rhi::TextureFormat::RGBA8UnormSrgb, width, height),
                                    gpu)
                     .IsOk());
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         REQUIRE(device.CreateTextureView(gpu, rhi::TextureViewDesc{}, view).IsOk());
         RefPtr<foundation::texture::Texture> texture =
             MakeRef<foundation::texture::Texture>(DefaultAllocator());
-        texture->Adopt(&device, gpu, view, nullptr, width, height,
+        texture->Adopt(&device, gpu, view, {}, width, height,
                        rhi::TextureFormat::RGBA8UnormSrgb);
         return texture;
     }
@@ -1781,28 +1781,28 @@ TEST_CASE("extract: target cameras render at their texture's aspect, active and 
     CHECK(views.IsEmpty());
 
     // An imported image (sampled, not a render target) and a depth texture are refused.
-    rhi::Texture* image = nullptr;
+    rhi::TextureHandle image{};
     rhi::TextureDesc imageDesc{};
     imageDesc.format = rhi::TextureFormat::RGBA8UnormSrgb;
     imageDesc.width = 64;
     imageDesc.height = 64;
     imageDesc.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
     REQUIRE(device.CreateTexture(imageDesc, image).IsOk());
-    rhi::TextureView* imageView = nullptr;
+    rhi::TextureViewHandle imageView{};
     REQUIRE(device.CreateTextureView(image, rhi::TextureViewDesc{}, imageView).IsOk());
     RefPtr<foundation::texture::Texture> imported = MakeRef<foundation::texture::Texture>(DefaultAllocator());
-    imported->Adopt(&device, image, imageView, nullptr, 64, 64, rhi::TextureFormat::RGBA8UnormSrgb);
+    imported->Adopt(&device, image, imageView, {}, 64, 64, rhi::TextureFormat::RGBA8UnormSrgb);
     monitorCam.target = imported;
     CollectTargetCameras(scene, 6, views);
     CHECK(views.IsEmpty());
 
-    rhi::Texture* depth = nullptr;
+    rhi::TextureHandle depth{};
     rhi::TextureDesc depthDesc = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::Depth32Float, 64, 64);
     REQUIRE(device.CreateTexture(depthDesc, depth).IsOk());
-    rhi::TextureView* depthView = nullptr;
+    rhi::TextureViewHandle depthView{};
     REQUIRE(device.CreateTextureView(depth, rhi::TextureViewDesc{}, depthView).IsOk());
     RefPtr<foundation::texture::Texture> depthTarget = MakeRef<foundation::texture::Texture>(DefaultAllocator());
-    depthTarget->Adopt(&device, depth, depthView, nullptr, 64, 64, rhi::TextureFormat::Depth32Float);
+    depthTarget->Adopt(&device, depth, depthView, {}, 64, 64, rhi::TextureFormat::Depth32Float);
     monitorCam.target = depthTarget;
     CollectTargetCameras(scene, 6, views);
     CHECK(views.IsEmpty());
@@ -1872,7 +1872,7 @@ TEST_CASE("ResolveScenePost: auto-exposure window resolves EV stops to linear cl
         PostProcessSettings d;
         const ViewPostConfig vp = ResolveScenePost(d);
         CHECK_FALSE(vp.autoExposure);
-        CHECK(vp.gradingLut == nullptr);
+        CHECK(!vp.gradingLut.IsValid());
         CHECK(Near(vp.gradingLutSize, 0.0f));
     }
     // The clamp window is authored in relative EV; the config carries linear multipliers.
@@ -1897,7 +1897,7 @@ TEST_CASE("ResolveScenePost: auto-exposure window resolves EV stops to linear cl
         s.gradingLut.SetId(Guid{0x1, 0x2}); // unbound: Get() == nullptr headlessly
         s.gradingIntensity = 0.5f;
         const ViewPostConfig vp = ResolveScenePost(s);
-        CHECK(vp.gradingLut == nullptr);
+        CHECK(!vp.gradingLut.IsValid());
         CHECK(Near(vp.gradingLutSize, 0.0f));
     }
 }
@@ -2503,13 +2503,13 @@ TEST_CASE("render: the screen overlay pass draws through the target's UNORM view
 
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8UnormSrgb, 8, 8);
     td.alternateViewFormat = rhi::TextureFormat::RGBA8Unorm;
-    rhi::Texture* target = nullptr;
+    rhi::TextureHandle target{};
     REQUIRE(device.CreateTexture(td, target).IsOk());
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(target, rhi::TextureViewDesc{}, view).IsOk());
     rhi::TextureViewDesc unormDesc{};
     unormDesc.format = rhi::TextureFormat::RGBA8Unorm;
-    rhi::TextureView* unorm = nullptr;
+    rhi::TextureViewHandle unorm{};
     REQUIRE(device.CreateTextureView(target, unormDesc, unorm).IsOk());
     rhi::CommandPool* pool = nullptr;
     REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
@@ -2551,9 +2551,9 @@ TEST_CASE("render: a subsystem never initialized lets its overlay depth target g
         RenderSubsystem sub{DefaultAllocator(), device, 2, dataFs};
         RecordingOverlay overlay;
         sub.RegisterOverlay(&overlay);
-        rhi::Texture* target = nullptr;
+        rhi::TextureHandle target{};
         REQUIRE(device.CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA8Unorm, 8, 8), target).IsOk());
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         REQUIRE(device.CreateTextureView(target, rhi::TextureViewDesc{}, view).IsOk());
         rhi::CommandPool* pool = nullptr;
         REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());

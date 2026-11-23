@@ -245,11 +245,11 @@ export namespace foundation::render
 
         // The directional shadow map sampled in the forward shader this frame (the ShadowSystem's
         // texture when a caster exists, else null for the 1x1 dummy). Set by RenderFrame before PrepareFrame.
-        void SetShadowMap(rhi::TextureView* view, u64 generation) override;
+        void SetShadowMap(rhi::TextureViewHandle view, u64 generation) override;
 
         // The local-light (spot and point) shadow atlas sampled this frame (the ShadowSystem's atlas when
         // any local caster exists, else null for the 1x1 dummy). Set by RenderFrame before PrepareFrame.
-        void SetShadowAtlas(rhi::TextureView* view, u64 generation, u32 passCount) override;
+        void SetShadowAtlas(rhi::TextureViewHandle view, u64 generation, u32 passCount) override;
 
         // Reflection-probe capture faces re-emit the draws (one forward pass each); count them into the ring.
         void SetCaptureFacePasses(u32 passes) override { m_captureFacePasses = passes; }
@@ -272,7 +272,7 @@ export namespace foundation::render
         // This frame's reflection probes: the captured cube-array view (set-0 t8) and the probe buffer
         // (each probe's box, slice and intensity) for the forward's local-reflection path. A null view
         // binds the dummy cube array with count 0, and the forward keeps the global IBL reflection.
-        void SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count) override;
+        void SetProbes(rhi::TextureViewHandle cubeArray, rhi::BufferHandle probeBuffer, u32 count) override;
 
         // Upload this frame's local-shadow entries into the local-shadow ring (bound whole at set 0;
         // the shader reads LocalShadows[LocalShadowBase + shadowIndex]). Called once per frame (after
@@ -836,13 +836,13 @@ export namespace foundation::render
         {
             rhi::BindGroup* bg = nullptr;
             u32 viewGen = 0, lightGen = 0, localGen = 0, boneGen = 0;
-            rhi::TextureView* shadow = nullptr;
+            rhi::TextureViewHandle shadow{};
             u64 shadowGen = 0;
-            rhi::TextureView* atlas = nullptr;
+            rhi::TextureViewHandle atlas{};
             u64 atlasGen = 0;
             u64 iblGen = 0;
-            rhi::TextureView* prefilter = nullptr;
-            rhi::TextureView* probeCube = nullptr;
+            rhi::TextureViewHandle prefilter{};
+            rhi::TextureViewHandle probeCube{};
             rhi::BufferHandle probeBuf{};
         };
         Array<ViewBGSlot> m_viewBGs{*m_allocator};
@@ -856,16 +856,15 @@ export namespace foundation::render
         rhi::BufferHandle m_noFadeSetBuf{};
         // The set-0 bind group spans the view UBO, light buffer, shadow map and sampler; rebuild it when any
         // of those change (rings roll over, or the active shadow map view changes).
-        // The set-0 shadow binding is cached by (view pointer, ShadowSystem generation): a freed shadow
-        // texture's view address can be reused by a recreated one (atlas or resolution changes), so the
-        // generation, not the pointer alone, invalidates the bind group. ClusterBinding::version and
-        // ShadowSystem::Generation() follow the same rule.
+        // The set-0 shadow binding is cached by (view handle, ShadowSystem generation): the generation
+        // also changes when the shadow maps are remade (atlas or resolution changes).
+        // ClusterBinding::version and ShadowSystem::Generation() follow the same rule.
         // Shadow set-0 resources: the comparison sampler and a 1x1 dummy map; m_activeShadowView points at
         // the real ShadowSystem map (set each frame) or the dummy.
-        rhi::Sampler* m_shadowSampler = nullptr;
-        rhi::Texture* m_dummyShadowTex = nullptr;
-        rhi::TextureView* m_dummyShadowView = nullptr;
-        rhi::TextureView* m_activeShadowView = nullptr;
+        rhi::SamplerHandle m_shadowSampler{};
+        rhi::TextureHandle m_dummyShadowTex{};
+        rhi::TextureViewHandle m_dummyShadowView{};
+        rhi::TextureViewHandle m_activeShadowView{};
         // The dummy shadow and atlas depth textures are bound (and statically sampled by the mesh shader) on
         // frames with no real caster, but live outside the render graph, so the barrier solver never
         // transitions them out of UNDEFINED. Transition them once to DepthStencilRead the first frame we
@@ -874,9 +873,9 @@ export namespace foundation::render
         u64 m_activeShadowGen = 0;
         // Local-light (spot and point) shadow atlas (t2) and per-light entries (t3). The atlas view, its
         // generation and the local-shadow ring generation extend the set-0 bind-group cache key.
-        rhi::Texture* m_dummyAtlasTex = nullptr;
-        rhi::TextureView* m_dummyAtlasView = nullptr;
-        rhi::TextureView* m_activeAtlasView = nullptr;
+        rhi::TextureHandle m_dummyAtlasTex{};
+        rhi::TextureViewHandle m_dummyAtlasView{};
+        rhi::TextureViewHandle m_activeAtlasView{};
         u64 m_activeAtlasGen = 0;
         u32 m_localShadowBase = 0;      // this frame's base into m_localShadowRing
         u32 m_localShadowPassCount = 0; // # atlas depth passes (caster re-emits) this frame
@@ -939,20 +938,20 @@ export namespace foundation::render
         // IBL: SH9 diffuse buffer (t5), prefiltered specular cube (t6), BRDF LUT (t7) and a
         // linear env sampler (s1), all set 0. Neutral 1x1 dummies are bound when no environment is active.
         static constexpr u64 kShBytes = sizeof(f32) * 4 * 9; // 9 RGB SH coefficients as float4
-        rhi::Sampler* m_envSampler = nullptr;
+        rhi::SamplerHandle m_envSampler{};
         rhi::BufferHandle m_dummyShBuffer{};
-        rhi::Texture* m_dummyCube = nullptr;
-        rhi::TextureView* m_dummyCubeView = nullptr;
-        rhi::Texture* m_dummyBrdf = nullptr;
-        rhi::TextureView* m_dummyBrdfView = nullptr;
+        rhi::TextureHandle m_dummyCube{};
+        rhi::TextureViewHandle m_dummyCubeView{};
+        rhi::TextureHandle m_dummyBrdf{};
+        rhi::TextureViewHandle m_dummyBrdfView{};
 
         // Reflection probes: prefiltered cube array (t8), probe-metadata SRV (t9) and probe count.
         static constexpr u64 kProbeBufferBytes =
             64u * 16u; // sizeof(GpuProbe)=64 * kMaxReflectionProbes=16
-        rhi::Texture* m_dummyProbeCube = nullptr;
-        rhi::TextureView* m_dummyProbeCubeView = nullptr;
+        rhi::TextureHandle m_dummyProbeCube{};
+        rhi::TextureViewHandle m_dummyProbeCubeView{};
         rhi::BufferHandle m_dummyProbeBuffer{}; // 1 zeroed record for the no-probe path
-        rhi::TextureView* m_activeProbeCube = nullptr;
+        rhi::TextureViewHandle m_activeProbeCube{};
         rhi::BufferHandle m_activeProbeBuffer{};
         u32 m_activeProbeCount = 0;
 

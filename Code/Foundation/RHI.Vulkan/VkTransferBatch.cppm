@@ -19,6 +19,7 @@ import :buffer;
 import :texture;
 import :fence;
 import :queue_timeline;
+import :tables;
 
 using namespace foundation::core;
 
@@ -28,8 +29,8 @@ export namespace foundation::rhi::vk
     class VkTransferBatchImpl : public TransferBatch
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up as it records.
-        const VkBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up as it records.
+        const VkTables* tables = nullptr;
         /// Its queue's timeline, which its submissions signal like the queue's own.
         VkQueueTimeline* timeline = nullptr;
         VkTransferBatchImpl(VkDevice device, VkQueue queue, u32 queueFamilyIndex,
@@ -56,7 +57,7 @@ export namespace foundation::rhi::vk
             m_stagingOffset = (m_stagingOffset + data.Size() + 15) & ~static_cast<u64>(15);
         }
 
-        void WriteTexture(Texture* dst, Span<const u8> data, const TextureDataLayout& layout,
+        void WriteTexture(TextureHandle dst, Span<const u8> data, const TextureDataLayout& layout,
                           Extent3D extent, u32 mipLevel, u32 arrayLayer) override
         {
             u64 needed = m_stagingOffset + data.Size();
@@ -194,7 +195,7 @@ export namespace foundation::rhi::vk
         };
         struct TexCopy
         {
-            Texture* dst;
+            TextureHandle dst;
             u64 stagingOffset;
             u32 mipLevel;
             u32 arrayLayer;
@@ -310,7 +311,7 @@ export namespace foundation::rhi::vk
 
             for (const auto& c : m_bufferCopies)
             {
-                auto* dst = LookUp(buffers, c.dst);
+                auto* dst = LookUp(tables, c.dst);
                 if (!dst)
                     continue;
                 VkBufferCopy r{};
@@ -322,7 +323,7 @@ export namespace foundation::rhi::vk
 
             for (const auto& c : m_textureCopies)
             {
-                auto* dst = static_cast<VkTextureImpl*>(c.dst);
+                auto* dst = LookUp(tables, c.dst);
                 if (!dst)
                     continue;
                 auto aspect = getAspectMask(dst->desc.format);

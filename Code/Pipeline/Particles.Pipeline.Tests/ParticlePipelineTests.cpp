@@ -167,7 +167,7 @@ TEST_CASE("particles.pipeline: Build resolves a texture path ref -> cooked GUID 
     // and the factory bound it to a live, hot-reload-following Proxy<Texture>.
     Proxy<foundation::texture::Texture> tex = res->SystemTexture(0);
     REQUIRE(tex);
-    CHECK(tex->GpuTexture() != nullptr);
+    CHECK(tex->GpuTexture().IsValid());
 
     FileDelete(u8"scratch_pfx_ref_db/smoketex.rasset");
     FileDelete(u8"scratch_pfx_ref_db/smoketex.data.bin");

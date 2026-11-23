@@ -38,8 +38,8 @@ private:
     rhi::BufferHandle m_vb{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::Texture* m_offscreenTex = nullptr;
-    rhi::TextureView* m_offscreenView = nullptr;
+    rhi::TextureHandle m_offscreenTex{};
+    rhi::TextureViewHandle m_offscreenView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;

@@ -200,7 +200,7 @@ TEST_CASE("resource-ref: sprite + decal texture refs round-trip by guid")
     CHECK(sc->textureAsset.id == spriteTex);
     CHECK(sc->size.x == doctest::Approx(2.0f));
     CHECK(sc->additive);
-    CHECK(sc->texture == nullptr); // the raw view override is runtime-only
+    CHECK(!sc->texture.IsValid()); // the raw view override is runtime-only
 
     DecalComponent* dc = nullptr;
     loaded.GetSystem<DecalComponentManager>()->ForEach([&](DecalComponent& c, scene::EntityHandle)

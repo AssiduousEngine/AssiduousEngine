@@ -102,8 +102,8 @@ export namespace foundation::render
         // scenes, each with its own IBL context). `generation` is unique across contexts
         // (one system-wide counter), so bind-group caches can key on it alone.
         rhi::BufferHandle shBuffer{};
-        rhi::TextureView* prefilterView = nullptr;
-        rhi::TextureView* brdfView = nullptr;
+        rhi::TextureViewHandle prefilterView{};
+        rhi::TextureViewHandle brdfView{};
         f32 maxLod = 0.0f;
         u64 generation = 0;
 
@@ -149,7 +149,7 @@ export namespace foundation::render
         u8 sampleCount = 1;
         // The opaque scene-depth as a sampleable view (transparent pass only; null otherwise). Already in
         // DepthStencilRead from the read-only depth target, so renderers can sample it (soft particles, say).
-        rhi::TextureView* sceneDepthView = nullptr;
+        rhi::TextureViewHandle sceneDepthView{};
         bool depthPrepass =
             false; // camera depth-only prepass: no depth bias (match forward exactly)
         // A directional cascade's shadow pass: casters past its near plane are clamped onto it, so a
@@ -231,7 +231,7 @@ export namespace foundation::render
     // Defined here (not in :shadows) because the forward pass consumes it and :shadows imports :pipeline.
     struct ShadowBinding
     {
-        rhi::TextureView* sampleView = nullptr; // the cascade depth array (all views' layers)
+        rhi::TextureViewHandle sampleView{}; // the cascade depth array (all views' layers)
         rendergraph::RGHandle handle = {}; // read with ReadTexture to order the cascade writes before forward
         ShadowCascades cascades;           // this view's cascade matrices and splits
         u32 layerBase = 0;                 // this view's first array layer (viewIndex * cascades)
@@ -244,13 +244,13 @@ export namespace foundation::render
         rendergraph::RGHandle atlasHandle = {};
         bool atlasValid = false;
         u32 localShadowEntryBase = 0; // this view's scene's first entry in the flat buffer
-        [[nodiscard]] bool Valid() const noexcept { return valid && sampleView != nullptr; }
+        [[nodiscard]] bool Valid() const noexcept { return valid && sampleView.IsValid(); }
         // True whenever the cascade map exists this frame, even for a view whose scene has no
         // directional caster (valid == false). The renderers' set-0 group binds the real map
         // frame-globally and the forward shader samples it statically, so every pass must
         // declare the read (barrier and ordering) or it executes against attachment-layout layers
         // that another view's cascade writes just produced.
-        [[nodiscard]] bool MapBound() const noexcept { return sampleView != nullptr; }
+        [[nodiscard]] bool MapBound() const noexcept { return sampleView.IsValid(); }
     };
 
     // Replay one resolved draw into any command sink (a live pass or an off-thread bundle). Pure
@@ -358,13 +358,13 @@ export namespace foundation::render
         // with the ShadowSystem's generation (bumped on texture recreation) so the renderer's bind-group
         // cache invalidates on a reused-address view. Called once per frame before PrepareFrame. Default
         // no-op (a renderer that doesn't shade ignores it).
-        virtual void SetShadowMap(rhi::TextureView* shadowMap, u64 generation);
+        virtual void SetShadowMap(rhi::TextureViewHandle shadowMap, u64 generation);
 
         // Hand this frame's local-light (spot and point) shadow atlas (null for none) and its generation,
         // with the same contract and timing as SetShadowMap. `passCount` is how many atlas depth passes
         // (one per caster tile) will re-emit this renderer's casters, so it can size its per-object
         // rings. Default no-op.
-        virtual void SetShadowAtlas(rhi::TextureView* atlas, u64 generation, u32 passCount);
+        virtual void SetShadowAtlas(rhi::TextureViewHandle atlas, u64 generation, u32 passCount);
 
         // How many reflection-probe capture faces will re-emit this renderer's draws this frame (one forward
         // pass per face). Lets it size its per-object rings for the extra draw-resolving passes. Called once
@@ -389,7 +389,7 @@ export namespace foundation::render
         // This frame's reflection probes: the prefiltered cube array (set-0 t8), the probe-metadata SRV (t9)
         // and the active probe count (the forward loops Probes[0..count]). Null means no probes. Called once per
         // frame before PrepareFrame. Default no-op.
-        virtual void SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count);
+        virtual void SetProbes(rhi::TextureViewHandle cubeArray, rhi::BufferHandle probeBuffer, u32 count);
 
         // Upload this frame's local-shadow entries (the atlas's per-light matrices and rects) for a renderer
         // that binds them in set 0. Called once per frame after PrepareFrame. Default no-op.
@@ -521,7 +521,7 @@ export namespace foundation::render
                             PassAffinity passAffinity, const ClusterBinding& cluster,
                             const ShadowBinding& shadow, const IblBinding& ibl,
                             Array<rhi::RenderBundle*>& out,
-                            rhi::TextureView* sceneDepthView = nullptr, bool probesEnabled = true,
+                            rhi::TextureViewHandle sceneDepthView = {}, bool probesEnabled = true,
                             u32 probeBase = 0, u32 probeCount = 0);
 
         // Split the resolved draws into <= SlotCount contiguous chunks; record each into its own
@@ -680,7 +680,7 @@ export namespace foundation::render
         // per-view list (drawn only in this view: editor chrome that must not leak into a
         // second view of the same scene, such as the camera preview).
         RenderView* AddView(const ExtractedScene& scene, const ViewCamera& camera,
-                            const ViewSettings& settings, rhi::TextureView* target,
+                            const ViewSettings& settings, rhi::TextureViewHandle target,
                             rhi::TextureFormat targetFormat, u32 width, u32 height,
                             const void* debugScene = nullptr, const void* sceneKey = nullptr,
                             const void* debugView = nullptr);

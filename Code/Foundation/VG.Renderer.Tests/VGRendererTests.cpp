@@ -189,9 +189,9 @@ TEST_CASE("vg.renderer: external texture register / rebind / unregister")
 
     // A caller-owned view standing in for a viewport's offscreen color target.
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA16Float, 64, 48);
-    rhi::Texture* tex = nullptr;
+    rhi::TextureHandle tex{};
     REQUIRE(device.CreateTexture(td, tex).IsOk());
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(tex, rhi::TextureViewDesc{}, view).IsOk());
 
     // The identity key: a pixel-less ImageDataRef (dimensions only).
@@ -210,7 +210,7 @@ TEST_CASE("vg.renderer: external texture register / rebind / unregister")
     CHECK(slice.isValid);
 
     // Rebinding the same key to a new view keeps a single entry (still external).
-    rhi::TextureView* view2 = nullptr;
+    rhi::TextureViewHandle view2{};
     REQUIRE(device.CreateTextureView(tex, rhi::TextureViewDesc{}, view2).IsOk());
     renderer.RegisterExternalTexture(&key, view2);
     CHECK(renderer.IsExternalTextureRegistered(&key));
@@ -237,9 +237,9 @@ TEST_CASE("vg.renderer: Dispose leaves a still-registered external view intact")
     rhi::ShaderModule* fs = MakeModule(device);
 
     rhi::TextureDesc td = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::RGBA16Float, 32, 32);
-    rhi::Texture* tex = nullptr;
+    rhi::TextureHandle tex{};
     REQUIRE(device.CreateTexture(td, tex).IsOk());
-    rhi::TextureView* view = nullptr;
+    rhi::TextureViewHandle view{};
     REQUIRE(device.CreateTextureView(tex, rhi::TextureViewDesc{}, view).IsOk());
 
     {
@@ -474,8 +474,8 @@ namespace
     // A headless render pass on the Null device: a colour target + an encoder.
     struct NullPass
     {
-        rhi::Texture* texture = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle texture{};
+        rhi::TextureViewHandle view{};
         rhi::CommandPool* pool = nullptr;
         rhi::CommandEncoder* encoder = nullptr;
         rhi::RenderPassEncoder* pass = nullptr;
@@ -491,7 +491,7 @@ namespace
             td.height = 64;
             td.format = rhi::TextureFormat::BGRA8UnormSrgb;
             td.usage = rhi::TextureUsage::RenderTarget;
-            if (!device.CreateTexture(td, texture).IsOk() || texture == nullptr)
+            if (!device.CreateTexture(td, texture).IsOk() || !texture.IsValid())
                 return false;
             if (!device.CreateTextureView(texture, rhi::TextureViewDesc{}, view).IsOk())
                 return false;
@@ -516,9 +516,9 @@ namespace
                 pool->DestroyEncoder(encoder);
             if (pool != nullptr)
                 device.DestroyCommandPool(pool);
-            if (view != nullptr)
+            if (view.IsValid())
                 device.DestroyTextureView(view);
-            if (texture != nullptr)
+            if (texture.IsValid())
                 device.DestroyTexture(texture);
         }
     };

@@ -161,6 +161,14 @@ namespace foundation::rhi
   value the tracker compares. WebGPU's
   own objects already outlive the work that uses them; its backend frees at once if that holds in
   the browser and wgpu-native, and retires as the others do if it does not (checked in H1).
+- **A swap chain's images and views are in the device's tables** while it holds them, so a frame
+  names its back buffer by handle as it names any texture. They stay the swap chain's: taken back
+  out of the tables (not retired) when it rebuilds or goes, which waits for the GPU already. On
+  WebGPU, where each acquire wraps a new surface texture, every acquired image has handles of its
+  own, so nothing keyed on one is handed the next image.
+- **A view outlives its texture's destroy**: it stays usable while the texture is retired, and then
+  names a stale texture (`TextureOf` gives it, `Describe` of it is null). A backend's view does not
+  keep a pointer to its texture's object; Direct3D 12's holds its own reference to the resource.
 - **`GpuRetireQueue`, the per-pass `Retire*` paths and their `WaitIdle` fallbacks go**: a pass that
   replaces a resource destroys the old one and is done. The web frame drop the queue was written
   for cannot happen, since the device never waits.

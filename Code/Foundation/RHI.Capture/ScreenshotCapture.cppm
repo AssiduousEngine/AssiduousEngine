@@ -197,7 +197,7 @@ export namespace foundation::rhi
         /// scaling it back up would only blur it. `preRotation` is how the backbuffer's content is
         /// turned from the window's picture (a pre-rotated swapchain's): the PNG is turned back, the
         /// window as it shows.
-        bool Record(rhi::Device& device, rhi::CommandEncoder& encoder, rhi::Texture* backbuffer,
+        bool Record(rhi::Device& device, rhi::CommandEncoder& encoder, rhi::TextureHandle backbuffer,
                     rhi::TextureFormat format, u32 width, u32 height,
                     rhi::ResourceState state = rhi::ResourceState::RenderTarget, u32 originX = 0,
                     u32 originY = 0, ContentRotation preRotation = ContentRotation::None)
@@ -207,7 +207,7 @@ export namespace foundation::rhi
                 return false;
             }
             m_armed = false;
-            if (backbuffer == nullptr || width == 0 || height == 0)
+            if (!backbuffer.IsValid() || width == 0 || height == 0)
             {
                 LOG_ERROR(u8"Screenshot", u8"no backbuffer to capture");
                 return false;

@@ -52,10 +52,10 @@ namespace
     // Encode a solid RGBA8 texel to `format` and create a live BC GPU texture uploaded through the
     // runtime's block-aware layout. Returns the sampled view (null on failure). `outTexture` receives
     // the owning texture for cleanup.
-    rhi::TextureView* MakeSolidBcTexture(rhi::Device& device, rhi::TextureFormat format, u8 r, u8 g,
-                                         u8 b, rhi::Texture*& outTexture)
+    rhi::TextureViewHandle MakeSolidBcTexture(rhi::Device& device, rhi::TextureFormat format, u8 r, u8 g,
+                                         u8 b, rhi::TextureHandle& outTexture)
     {
-        outTexture = nullptr;
+        outTexture = {};
         Array<u8> src;
         src.Resize(static_cast<usize>(kTexSize) * kTexSize * 4);
         for (usize i = 0; i < static_cast<usize>(kTexSize) * kTexSize; ++i)
@@ -86,7 +86,7 @@ namespace
         }
         if (blocks.Size() != rhi::CompressedLevelBytes(format, kTexSize, kTexSize))
         {
-            return nullptr;
+            return {};
         }
 
         rhi::TextureDesc td{};
@@ -96,10 +96,10 @@ namespace
         td.mipLevelCount = 1;
         td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
         td.label = u8"bc.probe.source";
-        rhi::Texture* texture = nullptr;
+        rhi::TextureHandle texture{};
         if (!device.CreateTexture(td, texture).IsOk())
         {
-            return nullptr;
+            return {};
         }
 
         // Upload as TextureResource's factory does: the pitch of one block row, and block rows.
@@ -108,7 +108,7 @@ namespace
         if (queue == nullptr || !queue->CreateTransferBatch(batch).IsOk() || batch == nullptr)
         {
             device.DestroyTexture(texture);
-            return nullptr;
+            return {};
         }
         rhi::TextureDataLayout layout{};
         layout.bytesPerRow = rhi::CompressedRowPitch(format, kTexSize);
@@ -122,11 +122,11 @@ namespace
         rhi::TextureViewDesc vd{};
         vd.format = format;
         vd.dimension = rhi::TextureViewDimension::Texture2D;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         if (!device.CreateTextureView(texture, vd, view).IsOk())
         {
             device.DestroyTexture(texture);
-            return nullptr;
+            return {};
         }
         outTexture = texture;
         return view;
@@ -134,7 +134,7 @@ namespace
 
     // Render a screen-filling unlit cube textured with `albedo` (BaseColor white so the sampled
     // texel passes straight through) and read the LDR back.
-    testsupport::CapturedImage RenderTexturedCube(rhi::Device& device, rhi::TextureView* albedo)
+    testsupport::CapturedImage RenderTexturedCube(rhi::Device& device, rhi::TextureViewHandle albedo)
     {
         testsupport::CapturedImage out;
         shaders::ShaderSystemHost host{DefaultAllocator()};
@@ -178,11 +178,11 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"bc.probe.target";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
 
             rhi::CommandPool* pool = nullptr;
@@ -231,9 +231,9 @@ namespace
     // An 8x8 RGBA8 texture uploaded with a padded row pitch: 32 bytes of red texels then 32
     // bytes of blue padding per row. A backend that ignores TextureDataLayout::bytesPerRow reads
     // the padding as the next row's texels and the texture comes out half blue.
-    rhi::TextureView* MakePaddedRgba8Texture(rhi::Device& device, rhi::Texture*& outTexture)
+    rhi::TextureViewHandle MakePaddedRgba8Texture(rhi::Device& device, rhi::TextureHandle& outTexture)
     {
-        outTexture = nullptr;
+        outTexture = {};
         constexpr u32 kEdge = 8;
         constexpr u32 kBytesPerRow = kEdge * 4 + 32; // 32 bytes of padding per row
         Array<u8> src;
@@ -257,17 +257,17 @@ namespace
         td.mipLevelCount = 1;
         td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
         td.label = u8"padded.probe.source";
-        rhi::Texture* texture = nullptr;
+        rhi::TextureHandle texture{};
         if (!device.CreateTexture(td, texture).IsOk())
         {
-            return nullptr;
+            return {};
         }
         rhi::Queue* queue = device.GetQueue(rhi::QueueType::Graphics, 0);
         rhi::TransferBatch* batch = nullptr;
         if (queue == nullptr || !queue->CreateTransferBatch(batch).IsOk() || batch == nullptr)
         {
             device.DestroyTexture(texture);
-            return nullptr;
+            return {};
         }
         rhi::TextureDataLayout layout{};
         layout.bytesPerRow = kBytesPerRow;
@@ -279,15 +279,15 @@ namespace
         if (!submitted.IsOk())
         {
             device.DestroyTexture(texture);
-            return nullptr;
+            return {};
         }
         rhi::TextureViewDesc vd{};
         vd.format = rhi::TextureFormat::RGBA8Unorm;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         if (!device.CreateTextureView(texture, vd, view).IsOk())
         {
             device.DestroyTexture(texture);
-            return nullptr;
+            return {};
         }
         outTexture = texture;
         return view;
@@ -369,9 +369,9 @@ namespace
                 std::printf("[bc] %-8s %-12s format unsupported - skipped\n", backendName, c.name);
                 continue;
             }
-            rhi::Texture* tex = nullptr;
-            rhi::TextureView* view = MakeSolidBcTexture(device, c.format, c.r, c.g, c.b, tex);
-            REQUIRE(view != nullptr);
+            rhi::TextureHandle tex{};
+            rhi::TextureViewHandle view = MakeSolidBcTexture(device, c.format, c.r, c.g, c.b, tex);
+            REQUIRE(view.IsValid());
 
             const testsupport::CapturedImage img = RenderTexturedCube(device, view);
             REQUIRE(img.valid);
@@ -396,9 +396,9 @@ namespace
 
     void ProbePaddedUpload(rhi::Device& device, const char* backendName)
     {
-        rhi::Texture* tex = nullptr;
-        rhi::TextureView* view = MakePaddedRgba8Texture(device, tex);
-        REQUIRE(view != nullptr);
+        rhi::TextureHandle tex{};
+        rhi::TextureViewHandle view = MakePaddedRgba8Texture(device, tex);
+        REQUIRE(view.IsValid());
         const testsupport::CapturedImage img = RenderTexturedCube(device, view);
         REQUIRE(img.valid);
         const u32 red = CountDominant(img, 0);

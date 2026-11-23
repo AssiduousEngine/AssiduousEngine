@@ -96,7 +96,7 @@ export namespace imgui
             ImGui::Render();
             m_width = frame.width;
             m_height = frame.height;
-            if (frame.encoder == nullptr || frame.backbufferView == nullptr ||
+            if (frame.encoder == nullptr || !frame.backbufferView.IsValid() ||
                 frame.window == nullptr)
             {
                 return;

@@ -200,10 +200,10 @@ export namespace foundation::rhi
 
         // ---- Resource creation ----
         virtual Status CreateBuffer(const BufferDesc& desc, BufferHandle& out) = 0;
-        virtual Status CreateTexture(const TextureDesc& desc, Texture*& out) = 0;
-        virtual Status CreateTextureView(Texture* texture, const TextureViewDesc& desc,
-                                         TextureView*& out) = 0;
-        virtual Status CreateSampler(const SamplerDesc& desc, Sampler*& out) = 0;
+        virtual Status CreateTexture(const TextureDesc& desc, TextureHandle& out) = 0;
+        virtual Status CreateTextureView(TextureHandle texture, const TextureViewDesc& desc,
+                                         TextureViewHandle& out) = 0;
+        virtual Status CreateSampler(const SamplerDesc& desc, SamplerHandle& out) = 0;
         virtual Status CreateShaderModule(const ShaderModuleDesc& desc, ShaderModule*& out) = 0;
         virtual Status CreateBindGroupLayout(const BindGroupLayoutDesc& desc,
                                              BindGroupLayout*& out) = 0;
@@ -233,13 +233,25 @@ export namespace foundation::rhi
         /// during the mapping; Unmap then only closes the mapping.
         virtual void FlushRange(BufferHandle buffer, u64 offset, u64 size) = 0;
 
+        // ---- Textures, views and samplers ----
+        /// What the texture was created with; null for a stale handle.
+        [[nodiscard]] virtual const TextureDesc* Describe(TextureHandle texture) const = 0;
+        /// What the view was created with; null for a stale handle.
+        [[nodiscard]] virtual const TextureViewDesc* Describe(TextureViewHandle view) const = 0;
+        /// The texture a view is of; invalid for a stale handle.
+        [[nodiscard]] virtual TextureHandle TextureOf(TextureViewHandle view) const = 0;
+        /// What the sampler was created with; null for a stale handle.
+        [[nodiscard]] virtual const SamplerDesc* Describe(SamplerHandle sampler) const = 0;
+
         // ---- Resource destruction ----
         /// The handle (and the caller's copy) is stale at once; the buffer is freed when the GPU
         /// can no longer use it (Specs/rhi-handles.md, Decision 4).
         virtual void DestroyBuffer(BufferHandle& buf) = 0;
-        virtual void DestroyTexture(Texture*& tex) = 0;
-        virtual void DestroyTextureView(TextureView*& view) = 0;
-        virtual void DestroySampler(Sampler*& sampler) = 0;
+        /// As DestroyBuffer. A view stays usable while its texture is retired; a texture destroyed
+        /// before its views is freed once the GPU is done with it, and the views then name nothing.
+        virtual void DestroyTexture(TextureHandle& tex) = 0;
+        virtual void DestroyTextureView(TextureViewHandle& view) = 0;
+        virtual void DestroySampler(SamplerHandle& sampler) = 0;
         virtual void DestroyShaderModule(ShaderModule*& module) = 0;
         virtual void DestroyBindGroupLayout(BindGroupLayout*& layout) = 0;
         virtual void DestroyBindGroup(BindGroup*& group) = 0;

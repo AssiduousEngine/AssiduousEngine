@@ -91,7 +91,7 @@ export namespace foundation::render
         {
         public:
             // Products bound into the forward set 0 (per-view downstream).
-            [[nodiscard]] rhi::TextureView* PrefilterView() const noexcept
+            [[nodiscard]] rhi::TextureViewHandle PrefilterView() const noexcept
             {
                 return m_prefilterView;
             }
@@ -112,7 +112,7 @@ export namespace foundation::render
             [[nodiscard]] rendergraph::RGHandle ShHandle() const noexcept { return m_shH; }
             // The full-radiance environment cube, sampled by the sky pass (background) at full detail.
             [[nodiscard]] rendergraph::RGHandle EnvHandle() const noexcept { return m_envH; }
-            [[nodiscard]] rhi::TextureView* EnvView() const noexcept { return m_envSampleView; }
+            [[nodiscard]] rhi::TextureViewHandle EnvView() const noexcept { return m_envSampleView; }
             [[nodiscard]] f32 SkyIntensity() const noexcept { return m_sky.intensity; }
             // Display-only backdrop dimmer for the visible sky (not baked into the cube).
             [[nodiscard]] f32 SkyBackgroundIntensity() const noexcept
@@ -136,11 +136,11 @@ export namespace foundation::render
             u64 m_uid = 0;
             u64 m_lastUsedFrame = 0;
 
-            rhi::Texture* m_envCube = nullptr;
-            rhi::TextureView* m_envSampleView = nullptr;
-            rhi::TextureView* m_envMipView[kEnvMips] = {};
-            rhi::Texture* m_prefilterCube = nullptr;
-            rhi::TextureView* m_prefilterView = nullptr;
+            rhi::TextureHandle m_envCube{};
+            rhi::TextureViewHandle m_envSampleView{};
+            rhi::TextureViewHandle m_envMipView[kEnvMips] = {};
+            rhi::TextureHandle m_prefilterCube{};
+            rhi::TextureViewHandle m_prefilterView{};
             u32 m_prefilterRes = 0; // the size the prefilter cube was made at
             rhi::BufferHandle m_shBuffer{};
             rhi::BindGroup* m_envBindGroup = nullptr;  // env full-chain sample (prefilter input)
@@ -185,7 +185,7 @@ export namespace foundation::render
         [[nodiscard]] u32 PrefilterResolution() const noexcept { return m_prefilterRes; }
 
         // Shared products (sky-independent).
-        [[nodiscard]] rhi::TextureView* BrdfView() const noexcept { return m_brdfView; }
+        [[nodiscard]] rhi::TextureViewHandle BrdfView() const noexcept { return m_brdfView; }
         [[nodiscard]] rendergraph::RGHandle BrdfHandle() const noexcept { return m_brdfH; }
         [[nodiscard]] u64 ShBytes() const noexcept { return sizeof(f32) * 4 * kShCoeffCount; }
         [[nodiscard]] f32 MaxLod() const noexcept { return static_cast<f32>(kPrefilterMips - 1); }
@@ -295,10 +295,10 @@ export namespace foundation::render
             1; // programmatic SetEquirect/SetCubemap change tick (contexts start at 0)
 
         // Shared programmatic HDR equirect source: an uploaded 2D texture sampled by the equirect pass.
-        rhi::Texture* m_equirectTex = nullptr;
-        rhi::TextureView* m_equirectView = nullptr;
+        rhi::TextureHandle m_equirectTex{};
+        rhi::TextureViewHandle m_equirectView{};
         rhi::BufferHandle m_equirectStaging{};
-        rhi::Sampler* m_equirectSampler = nullptr;
+        rhi::SamplerHandle m_equirectSampler{};
         rhi::BindGroupLayout* m_equirectLayout = nullptr;
         rhi::PipelineLayout* m_equirectPipelineLayout = nullptr;
         rhi::RenderPipeline* m_equirectPipeline = nullptr;
@@ -307,8 +307,8 @@ export namespace foundation::render
         bool m_equirectPending = false;
 
         // Shared programmatic cubemap source.
-        rhi::Texture* m_srcCube = nullptr;
-        rhi::TextureView* m_srcCubeView = nullptr;
+        rhi::TextureHandle m_srcCube{};
+        rhi::TextureViewHandle m_srcCubeView{};
         rhi::BufferHandle m_cubemapStaging{};
         rhi::RenderPipeline* m_cubemapPipeline = nullptr; // reuses m_prefilterLayout and m_envLayout
         rhi::BindGroup* m_cubemapBindGroup = nullptr;
@@ -316,16 +316,16 @@ export namespace foundation::render
         bool m_cubemapPending = false;
 
         // Shared products and machinery.
-        rhi::Texture* m_brdfLut = nullptr;
-        rhi::TextureView* m_brdfView = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::TextureHandle m_brdfLut{};
+        rhi::TextureViewHandle m_brdfView{};
+        rhi::SamplerHandle m_sampler{};
 
         rhi::BindGroupLayout* m_envLayout = nullptr;
         // A 1x1 cube and sampler bound when a pipeline's layout declares the env group
         // but the mode has no env source (procedural, analytic): WebGPU requires every
         // declared group bound; Vulkan and DX12 simply never sample it.
-        rhi::Texture* m_dummyEnvCube = nullptr;
-        rhi::TextureView* m_dummyEnvView = nullptr;
+        rhi::TextureHandle m_dummyEnvCube{};
+        rhi::TextureViewHandle m_dummyEnvView{};
         rhi::BindGroup* m_dummyEnvBindGroup = nullptr;
         rhi::BindGroupLayout* m_shLayout = nullptr;
         rhi::PipelineLayout* m_envOnlyLayout = nullptr;

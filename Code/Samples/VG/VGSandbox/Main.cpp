@@ -108,10 +108,10 @@ private:
     rhi::ShaderModule* m_boxShadowFs = nullptr; // blurred rounded rect fragment shader
     // VG quality targets: 4x MSAA color (resolved into the swapchain) and stencil
     // (for stencil-then-cover fills). Created in OnInit and recreated by OnResize.
-    rhi::Texture* m_msaaColor = nullptr;
-    rhi::TextureView* m_msaaColorView = nullptr;
-    rhi::Texture* m_depthStencil = nullptr;
-    rhi::TextureView* m_depthStencilView = nullptr;
+    rhi::TextureHandle m_msaaColor{};
+    rhi::TextureViewHandle m_msaaColorView{};
+    rhi::TextureHandle m_depthStencil{};
+    rhi::TextureViewHandle m_depthStencilView{};
     bool m_quality = false; // renderer initialized with 4x MSAA and stencil (see OnInit)
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
@@ -974,7 +974,7 @@ void VGSandbox::OnRender()
 {
     if (m_fenceVal > 0)
         m_fence->Wait(m_fenceVal, ~0ull);
-    if (m_quality && m_msaaColorView == nullptr)
+    if (m_quality && !m_msaaColorView.IsValid())
         return; // recreating at the new size failed, and the 4x pipelines cannot draw a 1x pass
     if (m_swapChain->AcquireNextImage() != ErrorCode::Ok)
         return;
@@ -997,7 +997,7 @@ void VGSandbox::OnRender()
     // The offscreen attachments need the same explicit transitions the swapchain gets,
     // because the backend does not transition pass attachments itself. They start from
     // Undefined every frame: both are fully cleared, so the previous contents can go.
-    if (m_msaaColor != nullptr)
+    if (m_msaaColor.IsValid())
     {
         enc->TransitionTexture(m_msaaColor, rhi::ResourceState::Undefined,
                                rhi::ResourceState::RenderTarget);
@@ -1010,7 +1010,7 @@ void VGSandbox::OnRender()
     ca.storeOp = rhi::StoreOp::Store;
     ca.clearValue = rhi::ClearColor(0.19f, 0.19f, 0.21f, 1.0f);
     rhi::RenderPassDesc rpd{};
-    if (m_msaaColorView != nullptr)
+    if (m_msaaColorView.IsValid())
     {
         ca.view = m_msaaColorView;
         ca.resolveTarget = m_swapChain->CurrentTextureView();
@@ -1084,10 +1084,10 @@ void VGSandbox::DestroyQualityTargets()
         m_device->DestroyTextureView(m_depthStencilView);
     if (m_depthStencil)
         m_device->DestroyTexture(m_depthStencil);
-    m_msaaColor = nullptr;
-    m_msaaColorView = nullptr;
-    m_depthStencil = nullptr;
-    m_depthStencilView = nullptr;
+    m_msaaColor = {};
+    m_msaaColorView = {};
+    m_depthStencil = {};
+    m_depthStencilView = {};
 }
 
 void VGSandbox::OnResize(u32 /*width*/, u32 /*height*/)

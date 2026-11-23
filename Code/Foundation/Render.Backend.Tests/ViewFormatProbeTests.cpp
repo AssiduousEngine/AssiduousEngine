@@ -26,11 +26,11 @@ namespace
         td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
         td.alternateViewFormat = rhi::TextureFormat::RGBA8Unorm;
         td.label = u8"viewformat.target";
-        rhi::Texture* target = nullptr;
+        rhi::TextureHandle target{};
         REQUIRE(device.CreateTexture(td, target).IsOk());
         rhi::TextureViewDesc vd{};
         vd.format = viewFormat;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         REQUIRE(device.CreateTextureView(target, vd, view).IsOk());
         rhi::CommandPool* pool = nullptr;
         REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());

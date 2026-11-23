@@ -240,7 +240,7 @@ export namespace foundation::rhi::vk
                         q, qt, static_cast<u32>(family), tsPeriod, this, m_device,
                         adapter->physicalDevice(), m_allocator);
                     vkQ->counters = &m_counters;
-                    vkQ->buffers = &m_buffers;
+                    vkQ->tables = &m_tables;
                     if (vkQ->initTimeline(m_tracker) != ErrorCode::Ok)
                         LogError("[RHI] a Vulkan queue's timeline could not be made: what it uses is freed only when the device goes");
                     m_allQueues.PushBack(vkQ);
@@ -514,7 +514,7 @@ export namespace foundation::rhi::vk
                 m_allocator.Delete(b);
                 return ErrorCode::Unknown;
             }
-            out = m_buffers.Add(b);
+            out = m_tables.buffers.Add(b);
             if (!out)
             {
                 b->cleanup(m_device);
@@ -526,60 +526,107 @@ export namespace foundation::rhi::vk
         }
         const BufferDesc* Describe(BufferHandle buffer) const override
         {
-            const VkBufferImpl* b = m_buffers.Get(buffer);
+            const VkBufferImpl* b = m_tables.buffers.Get(buffer);
             return b != nullptr ? &b->desc : nullptr;
         }
         void* Map(BufferHandle buffer) override
         {
-            VkBufferImpl* b = m_buffers.Get(buffer);
+            VkBufferImpl* b = m_tables.buffers.Get(buffer);
             return b != nullptr ? b->Map() : nullptr;
         }
         void Unmap(BufferHandle buffer) override
         {
-            if (VkBufferImpl* b = m_buffers.Get(buffer))
+            if (VkBufferImpl* b = m_tables.buffers.Get(buffer))
                 b->Unmap();
         }
         void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
         {
-            if (VkBufferImpl* b = m_buffers.Get(buffer))
+            if (VkBufferImpl* b = m_tables.buffers.Get(buffer))
                 b->FlushRange(offset, size);
         }
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
         {
+            out = TextureHandle::Invalid();
             auto* t = m_allocator.New<VkTextureImpl>();
             if (t->init(m_device, m_adapter, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(t);
-                out = nullptr;
                 return ErrorCode::Unknown;
+            }
+            out = m_tables.textures.Add(t);
+            if (!out)
+            {
+                t->cleanup(m_device);
+                m_allocator.Delete(t);
+                return ErrorCode::OutOfMemory;
             }
             m_counters.TextureMade(t->allocationSize(), CountsAsRenderTarget(d));
-            out = t;
             return ErrorCode::Ok;
         }
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
+            out = TextureViewHandle::Invalid();
+            VkTextureImpl* texture = m_tables.textures.Get(tex);
+            if (texture == nullptr)
+                return ErrorCode::InvalidArgument;
             auto* v = m_allocator.New<VkTextureViewImpl>();
-            if (v->init(m_device, static_cast<VkTextureImpl*>(tex), d) != ErrorCode::Ok)
+            if (v->init(m_device, texture, tex, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(v);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = v;
+            out = m_tables.views.Add(v);
+            if (!out)
+            {
+                v->cleanup(m_device);
+                m_allocator.Delete(v);
+                return ErrorCode::OutOfMemory;
+            }
             return ErrorCode::Ok;
         }
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
+            out = SamplerHandle::Invalid();
             auto* s = m_allocator.New<VkSamplerImpl>();
             if (s->init(m_device, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(s);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = s;
+            out = m_tables.samplers.Add(s);
+            if (!out)
+            {
+                s->cleanup(m_device);
+                m_allocator.Delete(s);
+                return ErrorCode::OutOfMemory;
+            }
             return ErrorCode::Ok;
+        }
+        const TextureDesc* Describe(TextureHandle texture) const override
+        {
+            const VkTextureImpl* t = m_tables.textures.Get(texture);
+            return t != nullptr ? &t->desc : nullptr;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle view) const override
+        {
+            const VkTextureViewImpl* v = m_tables.views.Get(view);
+            return v != nullptr ? &v->desc : nullptr;
+        }
+        TextureHandle TextureOf(TextureViewHandle view) const override
+        {
+            const VkTextureViewImpl* v = m_tables.views.Get(view);
+            return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        /// The backend's own texture a handle names, or null: for tests that read its state (its
+        /// tracked layouts).
+        [[nodiscard]] VkTextureImpl* TextureImplOf(TextureHandle texture) const noexcept
+        {
+            return m_tables.textures.Get(texture);
+        }
+        const SamplerDesc* Describe(SamplerHandle sampler) const override
+        {
+            const VkSamplerImpl* s = m_tables.samplers.Get(sampler);
+            return s != nullptr ? &s->desc : nullptr;
         }
         Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
         {
@@ -609,7 +656,7 @@ export namespace foundation::rhi::vk
         Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
         {
             auto* g = m_allocator.New<VkBindGroupImpl>();
-            g->buffers = &m_buffers;
+            g->tables = &m_tables;
             if (g->init(m_device, m_poolManager, d, m_bindingShifts) != ErrorCode::Ok)
             {
                 m_allocator.Delete(g);
@@ -672,7 +719,7 @@ export namespace foundation::rhi::vk
             auto* p = m_allocator.New<VkCommandPoolImpl>();
             p->ownerDevice = this;
             p->counters = &m_counters;
-            p->buffers = &m_buffers;
+            p->tables = &m_tables;
             p->tracker = &m_tracker;
             if (p->init(m_device, m_adapter, qt, m_allocator) != ErrorCode::Ok)
             {
@@ -714,9 +761,10 @@ export namespace foundation::rhi::vk
         {
             auto* sc = m_allocator.New<VkSwapChainImpl>();
             auto* vkSurf = static_cast<VkSurfaceImpl*>(surface);
-            if (sc->init(m_device, m_adapter->physicalDevice(), vkSurf->handle(), d, this,
+            if (sc->init(m_device, m_adapter->physicalDevice(), vkSurf->handle(), d, this, m_tables,
                          m_allocator, m_swapchainMutableFormat) != ErrorCode::Ok)
             {
+                sc->cleanup(); // the images it got before failing are in the tables
                 m_allocator.Delete(sc);
                 out = nullptr;
                 return ErrorCode::Unknown;
@@ -826,37 +874,23 @@ export namespace foundation::rhi::vk
         // ---- Resource destruction ----
         void DestroyBuffer(BufferHandle& b) override
         {
-            if (m_buffers.Retire(b))
+            if (m_tables.buffers.Retire(b))
                 collectRetired();
         }
-        void DestroyTexture(Texture*& t) override
+        void DestroyTexture(TextureHandle& t) override
         {
-            if (t)
-            {
-                m_counters.TextureFreed(static_cast<VkTextureImpl*>(t)->allocationSize(),
-                                        CountsAsRenderTarget(t->desc));
-                static_cast<VkTextureImpl*>(t)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkTextureImpl*>(t));
-                t = nullptr;
-            }
+            if (m_tables.textures.Retire(t))
+                collectRetired();
         }
-        void DestroyTextureView(TextureView*& v) override
+        void DestroyTextureView(TextureViewHandle& v) override
         {
-            if (v)
-            {
-                static_cast<VkTextureViewImpl*>(v)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkTextureViewImpl*>(v));
-                v = nullptr;
-            }
+            if (m_tables.views.Retire(v))
+                collectRetired();
         }
-        void DestroySampler(Sampler*& s) override
+        void DestroySampler(SamplerHandle& s) override
         {
-            if (s)
-            {
-                static_cast<VkSamplerImpl*>(s)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkSamplerImpl*>(s));
-                s = nullptr;
-            }
+            if (m_tables.samplers.Retire(s))
+                collectRetired();
         }
         void DestroyShaderModule(ShaderModule*& m) override
         {
@@ -1003,7 +1037,7 @@ export namespace foundation::rhi::vk
         {
             WaitIdle();
             // Freed while the VkDevice still lives (the members' destructors run after it goes).
-            m_buffers.FreeAll();
+            m_tables.FreeAll();
             m_tracker.FreeAll();
             if (m_poolManager)
             {
@@ -1066,9 +1100,10 @@ export namespace foundation::rhi::vk
         bool m_validationEnabled = false;
         PFN_vkGetCalibratedTimestampsEXT m_getCalibratedTimestamps = nullptr;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
-        // When a destroyed resource may go, and its buffers by handle (Specs/rhi-handles.md).
+        // When a destroyed resource may go, and its objects by handle (Specs/rhi-handles.md).
         SubmissionTracker m_tracker{m_allocator};
-        VkBufferTable m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        VkTables m_tables{m_allocator, m_tracker, this, &FreeBuffer, &FreeTexture, &FreeObject<VkTextureViewImpl>,
+                          &FreeObject<VkSamplerImpl>};
         static void FreeBuffer(void* context, void* object)
         {
             auto* device = static_cast<VkDeviceImpl*>(context);
@@ -1076,6 +1111,22 @@ export namespace foundation::rhi::vk
             device->m_counters.BufferFreed(buffer->allocationSize());
             buffer->cleanup(device->m_device);
             device->m_allocator.Delete(buffer);
+        }
+        static void FreeTexture(void* context, void* object)
+        {
+            auto* device = static_cast<VkDeviceImpl*>(context);
+            auto* texture = static_cast<VkTextureImpl*>(object);
+            device->m_counters.TextureFreed(texture->allocationSize(), CountsAsRenderTarget(texture->desc));
+            texture->cleanup(device->m_device);
+            device->m_allocator.Delete(texture);
+        }
+        // A view or a sampler: its Vulkan object, then itself.
+        template <typename T>
+        static void FreeObject(void* context, void* object)
+        {
+            auto* device = static_cast<VkDeviceImpl*>(context);
+            static_cast<T*>(object)->cleanup(device->m_device);
+            device->m_allocator.Delete(static_cast<T*>(object));
         }
         BindingShifts m_bindingShifts = BindingShifts::standard();
         VkDescriptorPoolManager* m_poolManager = nullptr;

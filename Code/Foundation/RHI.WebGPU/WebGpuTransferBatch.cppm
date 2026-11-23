@@ -21,6 +21,7 @@ import :api;
 import :buffer;
 import :texture;
 import :fence;
+import :tables;
 
 using namespace foundation::core;
 
@@ -29,8 +30,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuTransferBatch final : public TransferBatch
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up.
-        const WebGpuBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         DeviceCounterBlock* counters = nullptr; // the device's counts (transfer bytes)
 
         void Initialize(const WebGpuApi& api, WGPUInstance instance, WGPUDevice device,
@@ -46,7 +47,7 @@ export namespace foundation::rhi::webgpu
         void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
             BufferWrite write;
-            write.destination = WgpuBufferOf(buffers, dst);
+            write.destination = WgpuOf(tables, dst);
             write.offset = dstOffset;
             write.dataOffset = m_payload.Size();
             write.size = data.Size();
@@ -56,10 +57,12 @@ export namespace foundation::rhi::webgpu
                 counters->Transfer(data.Size());
         }
 
-        void WriteTexture(Texture* dst, Span<const u8> data, const TextureDataLayout& layout,
+        void WriteTexture(TextureHandle dst, Span<const u8> data, const TextureDataLayout& layout,
                           Extent3D extent, u32 mipLevel, u32 arrayLayer) override
         {
-            const WebGpuTexture* texture = static_cast<WebGpuTexture*>(dst);
+            const WebGpuTexture* texture = LookUp(tables, dst);
+            if (texture == nullptr)
+                return; // a stale handle
             if (counters)
                 counters->Transfer(data.Size());
             TextureWrite write;

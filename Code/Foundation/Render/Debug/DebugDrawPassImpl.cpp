@@ -760,20 +760,20 @@ namespace foundation::render
             m_device->DestroyBindGroup(m_fontBg);
             m_fontBg = nullptr;
         }
-        if (m_fontView != nullptr)
+        if (m_fontView.IsValid())
         {
             m_device->DestroyTextureView(m_fontView);
-            m_fontView = nullptr;
+            m_fontView = {};
         }
-        if (m_fontTex != nullptr)
+        if (m_fontTex.IsValid())
         {
             m_device->DestroyTexture(m_fontTex);
-            m_fontTex = nullptr;
+            m_fontTex = {};
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_geomLayout != nullptr)
         {

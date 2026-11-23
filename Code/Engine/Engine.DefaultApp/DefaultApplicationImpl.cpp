@@ -814,7 +814,7 @@ namespace engine::runtime
         auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>();
         auto* scenes = host.Subsystems().GetSubsystem<engine::scene::SceneSubsystem>();
         if (render == nullptr || !render->IsReady() || scenes == nullptr ||
-            frame.encoder == nullptr || frame.backbufferView == nullptr || frame.window == nullptr)
+            frame.encoder == nullptr || !frame.backbufferView.IsValid() || frame.window == nullptr)
         {
             frame.Clear(0.08f, 0.09f, 0.12f, 1.0f); // no renderer - present a clear
             return;

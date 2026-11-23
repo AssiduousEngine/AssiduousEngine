@@ -100,8 +100,8 @@ namespace editor
 
         // GPU objects (created lazily on the first Render with a live device).
         rhi::Device* device = nullptr;
-        rhi::Texture* target = nullptr;
-        rhi::TextureView* targetView = nullptr;
+        rhi::TextureHandle target{};
+        rhi::TextureViewHandle targetView{};
         rhi::BufferHandle readback{};
         rhi::ResourceState targetState = rhi::ResourceState::Undefined;
 
@@ -117,7 +117,7 @@ namespace editor
 
         [[nodiscard]] bool EnsureGpuObjects()
         {
-            if (target != nullptr)
+            if (target.IsValid())
             {
                 return true;
             }
@@ -135,16 +135,16 @@ namespace editor
             desc.height = kRenderSize;
             desc.format = rhi::TextureFormat::RGBA16Float;
             desc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
-            if (!device->CreateTexture(desc, target).IsOk() || target == nullptr)
+            if (!device->CreateTexture(desc, target).IsOk() || !target.IsValid())
             {
-                target = nullptr;
+                target = {};
                 return false;
             }
             if (!device->CreateTextureView(target, rhi::TextureViewDesc{}, targetView).IsOk() ||
-                targetView == nullptr)
+                !targetView.IsValid())
             {
                 device->DestroyTexture(target);
-                target = nullptr;
+                target = {};
                 return false;
             }
             rhi::BufferDesc bufferDesc;
@@ -155,8 +155,8 @@ namespace editor
             {
                 device->DestroyTextureView(targetView);
                 device->DestroyTexture(target);
-                targetView = nullptr;
-                target = nullptr;
+                targetView = {};
+                target = {};
                 readback = {};
                 return false;
             }
@@ -445,15 +445,15 @@ namespace editor
                 impl.device->DestroyBuffer(impl.readback);
                 impl.readback = {};
             }
-            if (impl.targetView != nullptr)
+            if (impl.targetView.IsValid())
             {
                 impl.device->DestroyTextureView(impl.targetView);
-                impl.targetView = nullptr;
+                impl.targetView = {};
             }
-            if (impl.target != nullptr)
+            if (impl.target.IsValid())
             {
                 impl.device->DestroyTexture(impl.target);
-                impl.target = nullptr;
+                impl.target = {};
             }
             impl.device = nullptr;
         }

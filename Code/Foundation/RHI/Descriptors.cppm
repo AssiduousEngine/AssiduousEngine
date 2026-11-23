@@ -224,8 +224,8 @@ export namespace foundation::rhi
         BufferHandle buffer{};
         u64 bufferOffset = 0;
         u64 bufferSize = 0;
-        TextureView* textureView = nullptr;
-        Sampler* sampler = nullptr;
+        TextureViewHandle textureView{};
+        SamplerHandle sampler{};
         AccelStruct* accelStruct = nullptr;
 
         static BindGroupEntry BufferEntry(BufferHandle buf, u64 offset, u64 size)
@@ -236,13 +236,13 @@ export namespace foundation::rhi
             e.bufferSize = size;
             return e;
         }
-        static BindGroupEntry TextureEntry(TextureView* view)
+        static BindGroupEntry TextureEntry(TextureViewHandle view)
         {
             BindGroupEntry e{};
             e.textureView = view;
             return e;
         }
-        static BindGroupEntry SamplerEntry(Sampler* s)
+        static BindGroupEntry SamplerEntry(SamplerHandle s)
         {
             BindGroupEntry e{};
             e.sampler = s;
@@ -271,8 +271,8 @@ export namespace foundation::rhi
         BufferHandle buffer{};
         u64 bufferOffset = 0;
         u64 bufferSize = 0;
-        TextureView* textureView = nullptr;
-        Sampler* sampler = nullptr;
+        TextureViewHandle textureView{};
+        SamplerHandle sampler{};
     };
 
     // ---- Pipelines ----
@@ -437,8 +437,8 @@ export namespace foundation::rhi
     /// Color attachment for a render pass.
     struct ColorAttachment
     {
-        TextureView* view = nullptr;
-        TextureView* resolveTarget = nullptr;
+        TextureViewHandle view{};
+        TextureViewHandle resolveTarget{};
         LoadOp loadOp = LoadOp::Clear;
         StoreOp storeOp = StoreOp::Store;
         ClearColor clearValue = ClearColor::Black();
@@ -447,7 +447,7 @@ export namespace foundation::rhi
     /// Depth/stencil attachment for a render pass.
     struct DepthStencilAttachment
     {
-        TextureView* view = nullptr;
+        TextureViewHandle view{};
         LoadOp depthLoadOp = LoadOp::Clear;
         StoreOp depthStoreOp = StoreOp::Store;
         f32 depthClearValue = 1.0f;
@@ -518,7 +518,7 @@ export namespace foundation::rhi
 
     struct TextureBarrier
     {
-        Texture* texture = nullptr;
+        TextureHandle texture{};
         ResourceState oldState = ResourceState::Undefined;
         ResourceState newState = ResourceState::Undefined;
         u32 baseMipLevel = 0;

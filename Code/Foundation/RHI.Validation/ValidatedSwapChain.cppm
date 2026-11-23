@@ -27,11 +27,11 @@ export namespace foundation::rhi::validation
         u32 Height() const override { return m_inner->Height(); }
         u32 BufferCount() const override { return m_inner->BufferCount(); }
         u32 CurrentImageIndex() const override { return m_inner->CurrentImageIndex(); }
-        Texture* CurrentTexture() override { return m_inner->CurrentTexture(); }
-        TextureView* CurrentTextureView() override { return m_inner->CurrentTextureView(); }
+        TextureHandle CurrentTexture() override { return m_inner->CurrentTexture(); }
+        TextureViewHandle CurrentTextureView() override { return m_inner->CurrentTextureView(); }
         TextureFormat AlternateViewFormat() const override { return m_inner->AlternateViewFormat(); }
         ContentRotation PreRotation() const override { return m_inner->PreRotation(); }
-        TextureView* CurrentAlternateTextureView() override { return m_inner->CurrentAlternateTextureView(); }
+        TextureViewHandle CurrentAlternateTextureView() override { return m_inner->CurrentAlternateTextureView(); }
 
         Status AcquireNextImage() override
         {

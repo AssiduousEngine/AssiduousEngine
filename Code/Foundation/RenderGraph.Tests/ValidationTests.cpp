@@ -67,7 +67,7 @@ TEST_CASE("rg.validation: reading an imported resource is fine")
 {
     RenderGraph graph(DefaultAllocator(), nullptr);
     graph.BeginFrame(0);
-    const RGHandle imported = graph.ImportTarget(u8"External", nullptr, nullptr);
+    const RGHandle imported = graph.ImportTarget(u8"External", rhi::TextureHandle{}, rhi::TextureViewHandle{});
     graph.AddRenderPass(u8"ReadImported",
                         [&](PassBuilder& b)
                         {

@@ -22,6 +22,7 @@ target_sources(RHI.DX12
             DxTexture.cppm
             DxTextureView.cppm
             DxSampler.cppm
+            DxTables.cppm
             DxShaderModule.cppm
             DxFence.cppm
             DxQuerySet.cppm

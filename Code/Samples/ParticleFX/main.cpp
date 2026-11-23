@@ -303,15 +303,15 @@ namespace
             if (rhi::Device* dev = (host.Graphics() != nullptr) ? host.Graphics()->Raw() : nullptr)
             {
                 dev->WaitIdle();
-                if (m_blastView != nullptr)
+                if (m_blastView.IsValid())
                 {
                     dev->DestroyTextureView(m_blastView);
-                    m_blastView = nullptr;
+                    m_blastView = {};
                 }
-                if (m_blastTex != nullptr)
+                if (m_blastTex.IsValid())
                 {
                     dev->DestroyTexture(m_blastTex);
-                    m_blastTex = nullptr;
+                    m_blastTex = {};
                 }
             }
             engine::runtime::DefaultApplication::OnShutdown(host);
@@ -945,7 +945,7 @@ namespace
         // Builds the 4x4 flipbook atlas for the explosion blast: 16 frames of an expanding, dissipating
         // fiery puff, generated on the CPU (like the renderer's soft dot) and uploaded once. Stores the
         // texture and view on the app and returns the view to bind on the blast component.
-        rhi::TextureView* MakeBlastAtlas(rhi::Device& dev)
+        rhi::TextureViewHandle MakeBlastAtlas(rhi::Device& dev)
         {
             constexpr core::u32 kCols = 4, kRows = 4, kF = 64;
             constexpr core::u32 W = kCols * kF, H = kRows * kF;
@@ -989,14 +989,14 @@ namespace
             td.label = u8"particle.blastatlas";
             if (!dev.CreateTexture(td, m_blastTex).IsOk())
             {
-                return nullptr;
+                return {};
             }
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
             vd.dimension = rhi::TextureViewDimension::Texture2D;
             if (!dev.CreateTextureView(m_blastTex, vd, m_blastView).IsOk())
             {
-                return nullptr;
+                return {};
             }
             if (rhi::Queue* q = dev.GetQueue(rhi::QueueType::Graphics))
             {
@@ -1251,8 +1251,8 @@ namespace
         particles::ParticleEffect m_explosionFx;
         particles::ParticleEffect m_magic;
         particles::ParticleEffect m_fireflies;
-        rhi::Texture* m_blastTex = nullptr; // flipbook atlas for the explosion (owned)
-        rhi::TextureView* m_blastView = nullptr;
+        rhi::TextureHandle m_blastTex{}; // flipbook atlas for the explosion (owned)
+        rhi::TextureViewHandle m_blastView{};
         // Cooked-pipeline demo: the content DB, manager, factory and the bound cooked effect.
         core::UniquePtr<vfs::NativeFileSystem> m_contentFs;
         core::UniquePtr<content::ContentDatabase> m_contentDb;

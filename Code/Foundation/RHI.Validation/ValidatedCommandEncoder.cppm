@@ -115,7 +115,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyBufferToBuffer(src, srcOff, dst, dstOff, size);
         }
 
-        void CopyBufferToTexture(BufferHandle src, Texture* dst,
+        void CopyBufferToTexture(BufferHandle src, TextureHandle dst,
                                  const BufferTextureCopyRegion& r) override
         {
             if (!checkState("copyBufferToTexture", EncoderState::Recording))
@@ -133,7 +133,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyBufferToTexture(src, dst, r);
         }
 
-        void CopyTextureToBuffer(Texture* src, BufferHandle dst,
+        void CopyTextureToBuffer(TextureHandle src, BufferHandle dst,
                                  const BufferTextureCopyRegion& r) override
         {
             if (!checkState("copyTextureToBuffer", EncoderState::Recording))
@@ -151,7 +151,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyTextureToBuffer(src, dst, r);
         }
 
-        void CopyTextureToTexture(Texture* src, Texture* dst, const TextureCopyRegion& r) override
+        void CopyTextureToTexture(TextureHandle src, TextureHandle dst, const TextureCopyRegion& r) override
         {
             if (!checkState("copyTextureToTexture", EncoderState::Recording))
                 return;
@@ -168,7 +168,7 @@ export namespace foundation::rhi::validation
             m_inner->CopyTextureToTexture(src, dst, r);
         }
 
-        void Blit(Texture* src, Texture* dst) override
+        void Blit(TextureHandle src, TextureHandle dst) override
         {
             if (!checkState("blit", EncoderState::Recording))
                 return;
@@ -180,7 +180,7 @@ export namespace foundation::rhi::validation
             m_inner->Blit(src, dst);
         }
 
-        void GenerateMipmaps(Texture* tex) override
+        void GenerateMipmaps(TextureHandle tex) override
         {
             if (!checkState("generateMipmaps", EncoderState::Recording))
                 return;
@@ -192,7 +192,7 @@ export namespace foundation::rhi::validation
             m_inner->GenerateMipmaps(tex);
         }
 
-        void ResolveTexture(Texture* src, Texture* dst) override
+        void ResolveTexture(TextureHandle src, TextureHandle dst) override
         {
             if (!checkState("resolveTexture", EncoderState::Recording))
                 return;

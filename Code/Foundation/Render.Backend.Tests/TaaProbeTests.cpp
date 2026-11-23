@@ -198,16 +198,16 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"taa.probe.target";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
             td.label = u8"taa.probe.side";
-            rhi::Texture* sideTarget = nullptr;
+            rhi::TextureHandle sideTarget{};
             REQUIRE(device.CreateTexture(td, sideTarget).IsOk());
-            rhi::TextureView* sideView = nullptr;
+            rhi::TextureViewHandle sideView{};
             REQUIRE(device.CreateTextureView(sideTarget, vd, sideView).IsOk());
 
             rhi::CommandPool* pool = nullptr;

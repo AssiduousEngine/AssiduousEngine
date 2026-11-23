@@ -185,12 +185,12 @@ TEST_CASE("shadows: castShadows = false keeps an Opaque item out of the caster l
     REQUIRE(s.device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
     rhi::CommandEncoder* encoder = nullptr;
     REQUIRE(pool->CreateEncoder(encoder).IsOk());
-    rhi::Texture* color = nullptr;
+    rhi::TextureHandle color{};
     REQUIRE(s.device
                 .CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::BGRA8Unorm, 64, 64),
                                color)
                 .IsOk());
-    rhi::TextureView* colorView = nullptr;
+    rhi::TextureViewHandle colorView{};
     REQUIRE(s.device.CreateTextureView(color, rhi::TextureViewDesc{}, colorView).IsOk());
 
     ViewCamera camera;

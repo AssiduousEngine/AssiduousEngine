@@ -23,6 +23,7 @@ target_sources(RHI.Vulkan
             VkTexture.cppm
             VkTextureView.cppm
             VkSampler.cppm
+            VkTables.cppm
             VkShaderModule.cppm
             VkFence.cppm
             VkQuerySet.cppm

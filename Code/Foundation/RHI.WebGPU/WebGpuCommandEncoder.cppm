@@ -31,6 +31,7 @@ import :command_buffer;
 import :render_pass_encoder;
 import :compute_pass_encoder;
 import :render_bundle_encoder;
+import :tables;
 
 using namespace foundation::core;
 
@@ -39,8 +40,8 @@ export namespace foundation::rhi::webgpu
     class WebGpuCommandEncoder final : public CommandEncoder
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up.
-        const WebGpuBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up.
+        const WebGpuTables* tables = nullptr;
         /// The device's counts this encoder and its passes bump (Device::Counters).
         void SetCounters(DeviceCounterBlock* counters) noexcept { m_counters = counters; }
 
@@ -62,13 +63,8 @@ export namespace foundation::rhi::webgpu
             {
                 const ColorAttachment& attachment = passDesc.colorAttachments[i];
                 WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
-                color.view =
-                    static_cast<WebGpuTextureView*>(attachment.view)->Handle();
-                if (attachment.resolveTarget != nullptr)
-                {
-                    color.resolveTarget =
-                        static_cast<WebGpuTextureView*>(attachment.resolveTarget)->Handle();
-                }
+                color.view = WgpuOf(tables, attachment.view);
+                color.resolveTarget = WgpuOf(tables, attachment.resolveTarget);
                 color.loadOp = ToWgpuLoadOp(attachment.loadOp);
                 color.storeOp = ToWgpuStoreOp(attachment.storeOp);
                 color.clearValue = WGPUColor{attachment.clearValue.r, attachment.clearValue.g,
@@ -88,7 +84,7 @@ export namespace foundation::rhi::webgpu
             {
                 const DepthStencilAttachment& attachment =
                     passDesc.depthStencilAttachment.Value();
-                depth.view = static_cast<WebGpuTextureView*>(attachment.view)->Handle();
+                depth.view = WgpuOf(tables, attachment.view);
                 // depthClearValue must be finite even on a read-only or Load-op plane. The wgpu
                 // INIT sentinel is WGPU_DEPTH_CLEAR_VALUE_UNDEFINED (== NaN); native wgpu ignores
                 // it when not clearing, but the browser's WebGPU validation rejects a non-finite
@@ -109,10 +105,12 @@ export namespace foundation::rhi::webgpu
                 // desc keeps Undefined), so resolve through the owner, or a stencil-capable
                 // attachment is misjudged as depth-only and the browser rejects the pass
                 // ("Both stencilLoadOp and stencilStoreOp must be set...").
-                TextureFormat dsFormat = attachment.view->desc.format;
-                if (dsFormat == TextureFormat::Undefined && attachment.view->texture != nullptr)
+                const WebGpuTextureView* dsView = LookUp(tables, attachment.view);
+                TextureFormat dsFormat = dsView != nullptr ? dsView->desc.format : TextureFormat::Undefined;
+                if (dsFormat == TextureFormat::Undefined && dsView != nullptr)
                 {
-                    dsFormat = attachment.view->texture->desc.format;
+                    if (const WebGpuTexture* dsTexture = LookUp(tables, dsView->texture))
+                        dsFormat = dsTexture->desc.format;
                 }
                 const bool hasStencil = HasStencil(dsFormat);
                 passHasStencil = hasStencil;
@@ -152,14 +150,15 @@ export namespace foundation::rhi::webgpu
                 m_api->wgpuCommandEncoderBeginRenderPass(m_encoder, &wgpuDesc);
             // The render area: the attachments' size at the viewed mip (scissors are clipped to it).
             u32 width = 0, height = 0;
-            const TextureView* sized = !passDesc.colorAttachments.IsEmpty() ? passDesc.colorAttachments[0].view
-                                       : passDesc.depthStencilAttachment.HasValue()
-                                           ? passDesc.depthStencilAttachment->view
-                                           : nullptr;
-            if (sized != nullptr && sized->texture != nullptr)
+            const WebGpuTextureView* sized =
+                LookUp(tables, !passDesc.colorAttachments.IsEmpty() ? passDesc.colorAttachments[0].view
+                               : passDesc.depthStencilAttachment.HasValue() ? passDesc.depthStencilAttachment->view
+                                                                            : TextureViewHandle::Invalid());
+            const WebGpuTexture* sizedTexture = sized != nullptr ? LookUp(tables, sized->texture) : nullptr;
+            if (sizedTexture != nullptr)
             {
-                width = Max(sized->texture->desc.width >> sized->desc.baseMipLevel, 1u);
-                height = Max(sized->texture->desc.height >> sized->desc.baseMipLevel, 1u);
+                width = Max(sizedTexture->desc.width >> sized->desc.baseMipLevel, 1u);
+                height = Max(sizedTexture->desc.height >> sized->desc.baseMipLevel, 1u);
             }
             bool depthReadOnly = false;
             bool stencilReadOnly = false;
@@ -172,7 +171,7 @@ export namespace foundation::rhi::webgpu
             m_renderPass.Begin(*m_api, m_device, pass, width, height, depthReadOnly, stencilReadOnly,
                                passDesc.label);
             m_renderPass.counters = m_counters;
-            m_renderPass.buffers = buffers;
+            m_renderPass.tables = tables;
             if (m_counters)
                 m_counters->RenderPass();
             return &m_renderPass;
@@ -187,7 +186,7 @@ export namespace foundation::rhi::webgpu
                 m_api->wgpuCommandEncoderBeginComputePass(m_encoder, &wgpuDesc);
             m_computePass.Begin(*m_api, m_device, pass);
             m_computePass.counters = m_counters;
-            m_computePass.buffers = buffers;
+            m_computePass.tables = tables;
             if (m_counters)
                 m_counters->ComputePass();
             return &m_computePass;
@@ -201,7 +200,7 @@ export namespace foundation::rhi::webgpu
                 m_allocator->Delete(encoder);
                 return nullptr;
             }
-            encoder->buffers = buffers;
+            encoder->tables = tables;
             m_bundleEncoders.PushBack(encoder);
             return encoder;
         }
@@ -213,42 +212,54 @@ export namespace foundation::rhi::webgpu
         {
             EnsureOpen();
             m_api->wgpuCommandEncoderCopyBufferToBuffer(
-                m_encoder, WgpuBufferOf(buffers, source), sourceOffset,
-                WgpuBufferOf(buffers, destination), destinationOffset, size);
+                m_encoder, WgpuOf(tables, source), sourceOffset,
+                WgpuOf(tables, destination), destinationOffset, size);
         }
 
-        void CopyBufferToTexture(BufferHandle source, Texture* destination,
+        void CopyBufferToTexture(BufferHandle source, TextureHandle destination,
                                  const BufferTextureCopyRegion& region) override
         {
-            EnsureOpen();
             WGPUTexelCopyBufferInfo src = MakeBufferInfo(source, region);
             WGPUTexelCopyTextureInfo dst = MakeTextureInfo(destination, region);
+            if (src.buffer == nullptr || dst.texture == nullptr)
+            {
+                return; // a stale handle
+            }
+            EnsureOpen();
             const WGPUExtent3D extent{region.textureExtent.width, region.textureExtent.height,
                                       region.textureExtent.depth};
             m_api->wgpuCommandEncoderCopyBufferToTexture(m_encoder, &src, &dst, &extent);
         }
 
-        void CopyTextureToBuffer(Texture* source, BufferHandle destination,
+        void CopyTextureToBuffer(TextureHandle source, BufferHandle destination,
                                  const BufferTextureCopyRegion& region) override
         {
-            EnsureOpen();
             WGPUTexelCopyTextureInfo src = MakeTextureInfo(source, region);
             WGPUTexelCopyBufferInfo dst = MakeBufferInfo(destination, region);
+            if (src.texture == nullptr || dst.buffer == nullptr)
+            {
+                return; // a stale handle
+            }
+            EnsureOpen();
             const WGPUExtent3D extent{region.textureExtent.width, region.textureExtent.height,
                                       region.textureExtent.depth};
             m_api->wgpuCommandEncoderCopyTextureToBuffer(m_encoder, &src, &dst, &extent);
         }
 
-        void CopyTextureToTexture(Texture* source, Texture* destination,
+        void CopyTextureToTexture(TextureHandle source, TextureHandle destination,
                                   const TextureCopyRegion& region) override
         {
-            EnsureOpen();
             WGPUTexelCopyTextureInfo src = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-            src.texture = static_cast<WebGpuTexture*>(source)->Handle();
+            src.texture = WgpuOf(tables, source);
+            if (src.texture == nullptr || WgpuOf(tables, destination) == nullptr)
+            {
+                return; // a stale handle
+            }
+            EnsureOpen();
             src.mipLevel = region.srcMipLevel;
             src.origin.z = region.srcArrayLayer;
             WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-            dst.texture = static_cast<WebGpuTexture*>(destination)->Handle();
+            dst.texture = WgpuOf(tables, destination);
             dst.mipLevel = region.dstMipLevel;
             dst.origin.z = region.dstArrayLayer;
             const WGPUExtent3D extent{region.extent.width, region.extent.height,
@@ -256,8 +267,14 @@ export namespace foundation::rhi::webgpu
             m_api->wgpuCommandEncoderCopyTextureToTexture(m_encoder, &src, &dst, &extent);
         }
 
-        void Blit(Texture* source, Texture* destination) override
+        void Blit(TextureHandle sourceHandle, TextureHandle destinationHandle) override
         {
+            const WebGpuTexture* source = LookUp(tables, sourceHandle);
+            const WebGpuTexture* destination = LookUp(tables, destinationHandle);
+            if (source == nullptr || destination == nullptr)
+            {
+                return;
+            }
             // Same extent and same format is a plain copy; anything else goes through
             // the internal fullscreen blit pass (linear-sampled scale and convert).
             if (source->desc.width == destination->desc.width &&
@@ -266,7 +283,7 @@ export namespace foundation::rhi::webgpu
             {
                 TextureCopyRegion region;
                 region.extent = Extent3D{source->desc.width, source->desc.height, 1};
-                CopyTextureToTexture(source, destination, region);
+                CopyTextureToTexture(sourceHandle, destinationHandle, region);
                 return;
             }
             EnsureOpen();
@@ -280,12 +297,13 @@ export namespace foundation::rhi::webgpu
             m_api->wgpuTextureViewRelease(destinationView);
         }
 
-        void GenerateMipmaps(Texture* texture) override
+        void GenerateMipmaps(TextureHandle textureHandle) override
         {
             // The blit-chain: each mip renders from the one above, per array layer
             // (cubemaps are 6 layers). Texture creation widened the usage for
             // blit-capable mip chains; anything else is not generatable here.
-            if (texture->desc.mipLevelCount < 2 ||
+            const WebGpuTexture* texture = LookUp(tables, textureHandle);
+            if (texture == nullptr || texture->desc.mipLevelCount < 2 ||
                 texture->desc.dimension != TextureDimension::Texture2D ||
                 !IsBlitCapableFormat(texture->desc.format))
             {
@@ -308,10 +326,16 @@ export namespace foundation::rhi::webgpu
             }
         }
 
-        void ResolveTexture(Texture* source, Texture* destination) override
+        void ResolveTexture(TextureHandle sourceHandle, TextureHandle destinationHandle) override
         {
             // WebGPU resolves via a pass resolveTarget; a standalone resolve is a pass
             // that loads the MSAA attachment, discards it, and resolves out.
+            const WebGpuTexture* source = LookUp(tables, sourceHandle);
+            const WebGpuTexture* destination = LookUp(tables, destinationHandle);
+            if (source == nullptr || destination == nullptr)
+            {
+                return;
+            }
             EnsureOpen();
             const WGPUTextureView sourceView =
                 MipView(source, 0, 0, WGPUTextureAspect_All, false);
@@ -373,7 +397,7 @@ export namespace foundation::rhi::webgpu
                 queryCount, m_queryScratch, 0);
             m_api->wgpuCommandEncoderCopyBufferToBuffer(
                 m_encoder, m_queryScratch, 0,
-                WgpuBufferOf(buffers, destination), destinationOffset, size);
+                WgpuOf(tables, destination), destinationOffset, size);
         }
 
         void BeginDebugLabel(StringView label, f32, f32, f32, f32) override
@@ -455,18 +479,18 @@ export namespace foundation::rhi::webgpu
                                                       const BufferTextureCopyRegion& region)
         {
             WGPUTexelCopyBufferInfo info = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
-            info.buffer = WgpuBufferOf(buffers, buffer);
+            info.buffer = WgpuOf(tables, buffer);
             info.layout.offset = region.bufferOffset;
             info.layout.bytesPerRow = region.bytesPerRow;
             info.layout.rowsPerImage = region.rowsPerImage;
             return info;
         }
 
-        static WGPUTexelCopyTextureInfo MakeTextureInfo(Texture* texture,
+        WGPUTexelCopyTextureInfo MakeTextureInfo(TextureHandle texture,
                                                         const BufferTextureCopyRegion& region)
         {
             WGPUTexelCopyTextureInfo info = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
-            info.texture = static_cast<WebGpuTexture*>(texture)->Handle();
+            info.texture = WgpuOf(tables, texture);
             info.mipLevel = region.textureMipLevel;
             info.origin = WGPUOrigin3D{region.textureOrigin.x, region.textureOrigin.y,
                                        region.textureOrigin.z};
@@ -476,7 +500,7 @@ export namespace foundation::rhi::webgpu
         }
 
         /// A single-mip single-layer 2D view for the blit pass (sampled or target).
-        WGPUTextureView MipView(Texture* texture, u32 mipLevel, u32 arrayLayer,
+        WGPUTextureView MipView(const WebGpuTexture* texture, u32 mipLevel, u32 arrayLayer,
                                 WGPUTextureAspect aspect, bool /*sampled*/)
         {
             WGPUTextureViewDescriptor viewDesc = WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
@@ -487,8 +511,7 @@ export namespace foundation::rhi::webgpu
             viewDesc.baseArrayLayer = arrayLayer;
             viewDesc.arrayLayerCount = 1;
             viewDesc.aspect = aspect;
-            return m_api->wgpuTextureCreateView(
-                static_cast<WebGpuTexture*>(texture)->Handle(), &viewDesc);
+            return m_api->wgpuTextureCreateView(texture->Handle(), &viewDesc);
         }
 
         static bool HasStencil(TextureFormat format)

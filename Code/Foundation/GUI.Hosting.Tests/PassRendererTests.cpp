@@ -43,8 +43,8 @@ namespace
         rhi::ShaderModule* fs = MakeModule(device);
         UniquePtr<GuiPassRenderer> renderer;
         rhi::CommandPool* pool = nullptr;
-        rhi::Texture* target = nullptr;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureHandle target{};
+        rhi::TextureViewHandle view{};
         RefPtr<GUIContext> context = MakeRef<GUIContext>(DefaultAllocator());
 
         Bed()

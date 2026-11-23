@@ -35,8 +35,8 @@ export namespace foundation::rendergraph
         // Acquire a matching texture from the pool; true if one was found. `generation` receives the
         // physical texture's stable id (preserved while it lives in the pool), so consumers can detect
         // when a transient is backed by a different physical texture (a freed view address can reuse).
-        [[nodiscard]] bool TryAcquire(const rhi::TextureDesc& desc, rhi::Texture*& texture,
-                                      rhi::TextureView*& view, u64& generation)
+        [[nodiscard]] bool TryAcquire(const rhi::TextureDesc& desc, rhi::TextureHandle& texture,
+                                      rhi::TextureViewHandle& view, u64& generation)
         {
             for (usize i = 0; i < m_pool.Size(); ++i)
             {
@@ -49,14 +49,14 @@ export namespace foundation::rendergraph
                     return true;
                 }
             }
-            texture = nullptr;
-            view = nullptr;
+            texture = {};
+            view = {};
             generation = 0;
             return false;
         }
 
-        void ReturnToPool(const rhi::TextureDesc& desc, rhi::Texture* texture,
-                          rhi::TextureView* view, u64 generation)
+        void ReturnToPool(const rhi::TextureDesc& desc, rhi::TextureHandle texture,
+                          rhi::TextureViewHandle view, u64 generation)
         {
             m_pool.PushBack(PooledTexture{desc, texture, view, generation, 0});
         }
@@ -69,13 +69,13 @@ export namespace foundation::rendergraph
                 ++m_pool[i].unusedFrames;
                 if (m_pool[i].unusedFrames > maxUnusedFrames)
                 {
-                    rhi::Texture* tex = m_pool[i].texture;
-                    rhi::TextureView* view = m_pool[i].view;
-                    if (view != nullptr)
+                    rhi::TextureHandle tex = m_pool[i].texture;
+                    rhi::TextureViewHandle view = m_pool[i].view;
+                    if (view.IsValid())
                     {
                         m_device->DestroyTextureView(view);
                     }
-                    if (tex != nullptr)
+                    if (tex.IsValid())
                     {
                         m_device->DestroyTexture(tex);
                     }
@@ -88,11 +88,11 @@ export namespace foundation::rendergraph
         {
             for (PooledTexture& entry : m_pool)
             {
-                if (entry.view != nullptr)
+                if (entry.view.IsValid())
                 {
                     m_device->DestroyTextureView(entry.view);
                 }
-                if (entry.texture != nullptr)
+                if (entry.texture.IsValid())
                 {
                     m_device->DestroyTexture(entry.texture);
                 }
@@ -104,8 +104,8 @@ export namespace foundation::rendergraph
         struct PooledTexture
         {
             rhi::TextureDesc desc;
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureHandle texture{};
+            rhi::TextureViewHandle view{};
             u64 generation = 0; // stable id of this physical texture (carried across pool reuse)
             i32 unusedFrames = 0;
         };

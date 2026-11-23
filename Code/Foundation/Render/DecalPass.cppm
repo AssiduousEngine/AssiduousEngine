@@ -102,7 +102,7 @@ export namespace foundation::render
         struct Draw
         {
             u32 offset;
-            rhi::TextureView* texture;
+            rhi::TextureViewHandle texture;
         };
 
         static constexpr u32 kRetireFrames = 3;
@@ -118,9 +118,9 @@ export namespace foundation::render
         // Depth bind group (set 0), cached by (view, generation) with a deferred-free retire list. The depth
         // transient is aliased and recreated, so a raw-pointer cache would free a set an in-flight frame
         // still uses.
-        rhi::BindGroup* EnsureDepthBindGroup(rhi::TextureView* depth, u64 generation);
+        rhi::BindGroup* EnsureDepthBindGroup(rhi::TextureViewHandle depth, u64 generation);
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureView* tex);
+        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureViewHandle tex);
 
         void Tick(u32 frameIndex);
 
@@ -143,24 +143,21 @@ export namespace foundation::render
         rhi::RenderPipeline* m_pipeline = nullptr;
         u32 m_pipelineSampleCount = 1;   // scene-pass MSAA count the cached pipeline was built for
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_depthSampler = nullptr;
-        rhi::Sampler* m_texSampler = nullptr;
+        rhi::SamplerHandle m_depthSampler{};
+        rhi::SamplerHandle m_texSampler{};
         rhi::BindGroup* m_uboBg = nullptr;
         u32 m_uboBgGen = 0xFFFFFFFFu;
         rhi::BindGroup* m_depthBg = nullptr;
-        rhi::TextureView* m_depthView = nullptr;
+        rhi::TextureViewHandle m_depthView{};
         u64 m_depthGen = 0;
         u32 m_lastFrame = 0xFFFFFFFFu;
         bool m_reserved = false;
         Array<Retired> m_retired;
-        // Keyed by view pointer, validated by TextureView::uniqueId on every hit (a destroyed
-        // dynamic texture's address can be reused; see SpriteRenderer::TexBindGroup).
-        struct TexBindGroup
-        {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 viewId = 0;
-        };
-        HashMap<rhi::TextureView*, TexBindGroup> m_texBindGroups;
+        // Cached per-texture bind groups, keyed by view handle: a view made where a destroyed one
+        // was has another handle, so a group built for the old view is never handed back.
+        // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
+        // retire through the device as views do.
+        HashMap<rhi::TextureViewHandle, rhi::BindGroup*> m_texBindGroups;
     };
 
 } // namespace foundation::render

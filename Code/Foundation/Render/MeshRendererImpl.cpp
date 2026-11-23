@@ -198,23 +198,23 @@ namespace foundation::render
         return CreateDummyClusters();
     }
 
-    void MeshRenderer::SetShadowMap(rhi::TextureView* view, u64 generation)
+    void MeshRenderer::SetShadowMap(rhi::TextureViewHandle view, u64 generation)
     {
-        m_activeShadowView = (view != nullptr) ? view : m_dummyShadowView;
-        m_activeShadowGen = (view != nullptr) ? generation : 0; // dummy never changes
+        m_activeShadowView = (view.IsValid()) ? view : m_dummyShadowView;
+        m_activeShadowGen = (view.IsValid()) ? generation : 0; // dummy never changes
     }
 
-    void MeshRenderer::SetShadowAtlas(rhi::TextureView* view, u64 generation, u32 passCount)
+    void MeshRenderer::SetShadowAtlas(rhi::TextureViewHandle view, u64 generation, u32 passCount)
     {
-        m_activeAtlasView = (view != nullptr) ? view : m_dummyAtlasView;
-        m_activeAtlasGen = (view != nullptr) ? generation : 0;
+        m_activeAtlasView = (view.IsValid()) ? view : m_dummyAtlasView;
+        m_activeAtlasGen = (view.IsValid()) ? generation : 0;
         m_localShadowPassCount =
-            (view != nullptr) ? passCount : 0; // each tile re-emits the casters
+            (view.IsValid()) ? passCount : 0; // each tile re-emits the casters
     }
 
-    void MeshRenderer::SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count)
+    void MeshRenderer::SetProbes(rhi::TextureViewHandle cubeArray, rhi::BufferHandle probeBuffer, u32 count)
     {
-        const bool has = (cubeArray != nullptr && probeBuffer.IsValid() && count > 0);
+        const bool has = (cubeArray.IsValid() && probeBuffer.IsValid() && count > 0);
         m_activeProbeCube = has ? cubeArray : m_dummyProbeCubeView;
         m_activeProbeBuffer = has ? probeBuffer : m_dummyProbeBuffer;
         m_activeProbeCount =
@@ -400,28 +400,28 @@ namespace foundation::render
         // expect, so they're never sampled while UNDEFINED on caster-less frames (VUID-09600).
         if (!m_dummyDepthInit)
         {
-            if (m_dummyShadowTex != nullptr)
+            if (m_dummyShadowTex.IsValid())
             {
                 encoder.TransitionTexture(m_dummyShadowTex, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::DepthStencilRead);
             }
-            if (m_dummyAtlasTex != nullptr)
+            if (m_dummyAtlasTex.IsValid())
             {
                 encoder.TransitionTexture(m_dummyAtlasTex, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::DepthStencilRead);
             }
             // IBL color fallbacks (cube, BRDF LUT), also out of graph, sampled when no env is active.
-            if (m_dummyCube != nullptr)
+            if (m_dummyCube.IsValid())
             {
                 encoder.TransitionTexture(m_dummyCube, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::ShaderRead);
             }
-            if (m_dummyBrdf != nullptr)
+            if (m_dummyBrdf.IsValid())
             {
                 encoder.TransitionTexture(m_dummyBrdf, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::ShaderRead);
             }
-            if (m_dummyProbeCube != nullptr)
+            if (m_dummyProbeCube.IsValid())
             {
                 encoder.TransitionTexture(m_dummyProbeCube, rhi::ResourceState::Undefined,
                                           rhi::ResourceState::ShaderRead);
@@ -1119,7 +1119,7 @@ namespace foundation::render
         vd.cameraPos = ctx.cameraPos;
         vd.ambient = ctx.ambient;
         const bool iblActive = ctx.ibl.valid && ctx.ibl.shBuffer.IsValid() &&
-                               ctx.ibl.prefilterView != nullptr && ctx.ibl.brdfView != nullptr;
+                               ctx.ibl.prefilterView.IsValid() && ctx.ibl.brdfView.IsValid();
         vd.iblMaxLod = iblActive ? ctx.ibl.maxLod : -1.0f; // < 0: the forward uses flat ambient
         // Probes are disabled during probe capture (ctx.probesEnabled=false), giving count 0, so metallics
         // reflect the sky (global IBL) rather than the probe being built, which would bake them black.
@@ -2697,15 +2697,15 @@ namespace foundation::render
 
     bool MeshRenderer::EnsureViewBindGroup(const RenderRecordContext& ctx)
     {
-        if (m_activeShadowView == nullptr)
+        if (!m_activeShadowView.IsValid())
         {
             m_activeShadowView = m_dummyShadowView;
         }
-        if (m_activeAtlasView == nullptr)
+        if (!m_activeAtlasView.IsValid())
         {
             m_activeAtlasView = m_dummyAtlasView;
         }
-        if (m_activeProbeCube == nullptr)
+        if (!m_activeProbeCube.IsValid())
         {
             m_activeProbeCube = m_dummyProbeCubeView;
         }
@@ -2715,10 +2715,10 @@ namespace foundation::render
         }
         // This view's scene's IBL products (dummies when IBL is off or unavailable).
         const bool iblActive = ctx.ibl.valid && ctx.ibl.shBuffer.IsValid() &&
-                               ctx.ibl.prefilterView != nullptr && ctx.ibl.brdfView != nullptr;
+                               ctx.ibl.prefilterView.IsValid() && ctx.ibl.brdfView.IsValid();
         rhi::BufferHandle sh = iblActive ? ctx.ibl.shBuffer : m_dummyShBuffer;
-        rhi::TextureView* prefilter = iblActive ? ctx.ibl.prefilterView : m_dummyCubeView;
-        rhi::TextureView* brdf = iblActive ? ctx.ibl.brdfView : m_dummyBrdfView;
+        rhi::TextureViewHandle prefilter = iblActive ? ctx.ibl.prefilterView : m_dummyCubeView;
+        rhi::TextureViewHandle brdf = iblActive ? ctx.ibl.brdfView : m_dummyBrdfView;
         const u64 iblGen = iblActive ? ctx.ibl.generation : 0;
 
         if (m_viewBGs.Size() <= ctx.viewIndex)
@@ -2745,9 +2745,9 @@ namespace foundation::render
         rhi::BufferHandle localBuf = m_localShadowRing.Buffer();
         rhi::BufferHandle boneBuf = m_boneDevice; // VS reads the device mirror, not the staging ring
         if (!viewBuf.IsValid() || !lightBuf.IsValid() || !localBuf.IsValid() ||
-            !boneBuf.IsValid() || m_activeShadowView == nullptr || m_activeAtlasView == nullptr ||
-            m_shadowSampler == nullptr || !sh.IsValid() || prefilter == nullptr ||
-            brdf == nullptr || m_envSampler == nullptr)
+            !boneBuf.IsValid() || !m_activeShadowView.IsValid() || !m_activeAtlasView.IsValid() ||
+            !m_shadowSampler.IsValid() || !sh.IsValid() || !prefilter.IsValid() ||
+            !brdf.IsValid() || !m_envSampler.IsValid())
         {
             return false;
         }
@@ -3123,57 +3123,57 @@ namespace foundation::render
         if (m_dummyShadowView)
         {
             m_device->DestroyTextureView(m_dummyShadowView);
-            m_dummyShadowView = nullptr;
+            m_dummyShadowView = {};
         }
         if (m_dummyShadowTex)
         {
             m_device->DestroyTexture(m_dummyShadowTex);
-            m_dummyShadowTex = nullptr;
+            m_dummyShadowTex = {};
         }
         if (m_dummyAtlasView)
         {
             m_device->DestroyTextureView(m_dummyAtlasView);
-            m_dummyAtlasView = nullptr;
+            m_dummyAtlasView = {};
         }
         if (m_dummyAtlasTex)
         {
             m_device->DestroyTexture(m_dummyAtlasTex);
-            m_dummyAtlasTex = nullptr;
+            m_dummyAtlasTex = {};
         }
         if (m_shadowSampler)
         {
             m_device->DestroySampler(m_shadowSampler);
-            m_shadowSampler = nullptr;
+            m_shadowSampler = {};
         }
         if (m_dummyCubeView)
         {
             m_device->DestroyTextureView(m_dummyCubeView);
-            m_dummyCubeView = nullptr;
+            m_dummyCubeView = {};
         }
         if (m_dummyCube)
         {
             m_device->DestroyTexture(m_dummyCube);
-            m_dummyCube = nullptr;
+            m_dummyCube = {};
         }
         if (m_dummyBrdfView)
         {
             m_device->DestroyTextureView(m_dummyBrdfView);
-            m_dummyBrdfView = nullptr;
+            m_dummyBrdfView = {};
         }
         if (m_dummyBrdf)
         {
             m_device->DestroyTexture(m_dummyBrdf);
-            m_dummyBrdf = nullptr;
+            m_dummyBrdf = {};
         }
         if (m_dummyProbeCubeView)
         {
             m_device->DestroyTextureView(m_dummyProbeCubeView);
-            m_dummyProbeCubeView = nullptr;
+            m_dummyProbeCubeView = {};
         }
         if (m_dummyProbeCube)
         {
             m_device->DestroyTexture(m_dummyProbeCube);
-            m_dummyProbeCube = nullptr;
+            m_dummyProbeCube = {};
         }
         if (m_dummyProbeBuffer)
         {
@@ -3188,7 +3188,7 @@ namespace foundation::render
         if (m_envSampler)
         {
             m_device->DestroySampler(m_envSampler);
-            m_envSampler = nullptr;
+            m_envSampler = {};
         }
         if (m_objectBG)
         {

@@ -569,7 +569,7 @@ namespace foundation::render
                 ? graph.CreateTransient(u8"ssgi.accum", rendergraph::RGTextureDesc(kHdrFormat, w, h))
                 : out;
         rpc2.outputAccum = denoisePasses > 0 ? 1 : 0;
-        rhi::TextureView* histPrevView = hist.view[prev];
+        rhi::TextureViewHandle histPrevView = hist.view[prev];
         graph.AddRenderPass(
             u8"ssgi.resolve",
             [this, &graph, filtered, histPrev, velocity, hdr, albedo, normal, accumOut, histCur,
@@ -634,7 +634,7 @@ namespace foundation::render
             cpc.outputAccum = 0;
             const rendergraph::RGHandle scratch =
                 graph.CreateTransient(u8"ssgi.compositeScratch", rendergraph::RGTextureDesc(kHdrFormat, w, h));
-            rhi::TextureView* histCurView = hist.view[cur];
+            rhi::TextureViewHandle histCurView = hist.view[cur];
             const rendergraph::RGHandle smoothed = src;
             graph.AddRenderPass(
                 u8"ssgi.composite",
@@ -687,7 +687,7 @@ namespace foundation::render
 
     bool SsgiPass::EnsureHistory(ViewHistory& hist, u32 w, u32 h)
     {
-        if (hist.tex[0] != nullptr && hist.w == w && hist.h == h)
+        if (hist.tex[0].IsValid() && hist.w == w && hist.h == h)
         {
             return true;
         }
@@ -702,7 +702,7 @@ namespace foundation::render
             td.label = u8"ssgi.history";
             if (!m_device->CreateTexture(td, hist.tex[i]).IsOk())
             {
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -711,7 +711,7 @@ namespace foundation::render
             vd.dimension = rhi::TextureViewDimension::Texture2D;
             if (!m_device->CreateTextureView(hist.tex[i], vd, hist.view[i]).IsOk())
             {
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
                 DestroyHistory(hist);
                 return false;
             }
@@ -731,12 +731,12 @@ namespace foundation::render
             if (hist.view[i])
             {
                 m_device->DestroyTextureView(hist.view[i]);
-                hist.view[i] = nullptr;
+                hist.view[i] = {};
             }
             if (hist.tex[i])
             {
                 m_device->DestroyTexture(hist.tex[i]);
-                hist.tex[i] = nullptr;
+                hist.tex[i] = {};
             }
         }
         hist.w = hist.h = 0;
@@ -775,10 +775,10 @@ namespace foundation::render
         m_retired.Resize(w);
     }
 
-    rhi::BindGroup* SsgiPass::EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                              rhi::TextureView* normal, u64 generation)
+    rhi::BindGroup* SsgiPass::EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                              rhi::TextureViewHandle normal, u64 generation)
     {
-        if (scene == nullptr || depth == nullptr || normal == nullptr)
+        if (!scene.IsValid() || !depth.IsValid() || !normal.IsValid())
         {
             return nullptr;
         }
@@ -815,9 +815,9 @@ namespace foundation::render
         return bg;
     }
 
-    rhi::BindGroup* SsgiPass::EnsureDownBindGroup(rhi::TextureView* hdr, u64 generation)
+    rhi::BindGroup* SsgiPass::EnsureDownBindGroup(rhi::TextureViewHandle hdr, u64 generation)
     {
-        if (hdr == nullptr)
+        if (!hdr.IsValid())
         {
             return nullptr;
         }
@@ -850,10 +850,10 @@ namespace foundation::render
         return bg;
     }
 
-    rhi::BindGroup* SsgiPass::EnsureBlurBindGroup(rhi::TextureView* gi, rhi::TextureView* depth,
+    rhi::BindGroup* SsgiPass::EnsureBlurBindGroup(rhi::TextureViewHandle gi, rhi::TextureViewHandle depth,
                                                   u64 generation)
     {
-        if (gi == nullptr || depth == nullptr)
+        if (!gi.IsValid() || !depth.IsValid())
         {
             return nullptr;
         }
@@ -887,10 +887,10 @@ namespace foundation::render
         return bg;
     }
 
-    rhi::BindGroup* SsgiPass::EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureView* histPrev,
+    rhi::BindGroup* SsgiPass::EnsureResolveBindGroup(BindGroupCache<5>& cache, rhi::TextureViewHandle histPrev,
                                                      const ResolveInputs& inputs)
     {
-        if (histPrev == nullptr || !inputs.Complete())
+        if (!histPrev.IsValid() || !inputs.Complete())
         {
             return nullptr;
         }
@@ -990,15 +990,15 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_resolvePipeline);
             m_resolvePipeline = nullptr;
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
-        if (m_linearSampler != nullptr)
+        if (m_linearSampler.IsValid())
         {
             m_device->DestroySampler(m_linearSampler);
-            m_linearSampler = nullptr;
+            m_linearSampler = {};
         }
         if (m_pipelineLayout != nullptr)
         {

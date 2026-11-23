@@ -77,7 +77,7 @@ export namespace foundation::render
         // inverse of this view's view*proj; `camPos` and `intensity` scale the result.
         void DeclareSky(rendergraph::RenderGraph& graph, rendergraph::RGHandle color,
                         rendergraph::RGHandle velocity, rendergraph::RGHandle depth,
-                        rendergraph::RGHandle envH, rhi::TextureView* envView,
+                        rendergraph::RGHandle envH, rhi::TextureViewHandle envView,
                         rhi::TextureFormat colorFormat, rhi::TextureFormat depthFormat,
                         const Float4x4& invViewProj, const Float4x4& prevViewProj, Float2 jitter,
                         Float2 prevJitter, const Float3& camPos, f32 backgroundIntensity,
@@ -90,9 +90,9 @@ export namespace foundation::render
         rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFmt,
                                             rhi::TextureFormat depthFmt, u32 samples);
 
-        // Env identity is (view pointer, context uid): the uid catches pointer reuse after an IBL
-        // context eviction.
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* envView, u64 envUid,
+        // Env identity is (view handle, context uid): the uid changes when an IBL context is evicted
+        // and made again.
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView, u64 envUid,
                                         const GpuSky& u);
 
         void Shutdown();
@@ -101,7 +101,7 @@ export namespace foundation::render
         {
             rhi::BufferHandle ubo{};
             rhi::BindGroup* bindGroup = nullptr;
-            rhi::TextureView* env = nullptr;
+            rhi::TextureViewHandle env{};
             u64 envUid = 0;
         };
 
@@ -125,7 +125,7 @@ export namespace foundation::render
         static constexpr u32 kRetireFrames = 3;
         Array<RetiredPipe> m_retiredPipes;
         u32 m_lastRetireFrame = 0xFFFFFFFFu;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         ViewSlots<Slot> m_slots; // per (view, frame in flight), however many views a frame has
     };
 

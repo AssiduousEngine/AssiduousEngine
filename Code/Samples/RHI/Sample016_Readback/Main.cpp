@@ -42,8 +42,8 @@ private:
     rhi::BufferHandle m_vb{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline *m_offPipeline = nullptr, *m_swapPipeline = nullptr;
-    rhi::Texture* m_offTex = nullptr;
-    rhi::TextureView* m_offView = nullptr;
+    rhi::TextureHandle m_offTex{};
+    rhi::TextureViewHandle m_offView{};
     rhi::BufferHandle m_readbackBuf{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;

@@ -105,8 +105,8 @@ TEST_CASE("texture.pipeline: TextureAsset -> cook -> GPU Texture")
     CHECK(tex->Width() == 2u);
     CHECK(tex->Height() == 2u);
     CHECK(tex->Format() == rhi::TextureFormat::RGBA8UnormSrgb); // sRGB resolved from color space
-    CHECK(tex->GpuTexture() != nullptr);
-    CHECK(tex->Sampler() != nullptr);
+    CHECK(tex->GpuTexture().IsValid());
+    CHECK(tex->Sampler().IsValid());
 
     RemoveTree();
 }
@@ -320,7 +320,7 @@ TEST_CASE("texture.pipeline: cubemap - 6 faces cook into one cube product (end t
     CHECK(tex->Height() == 4u);
     CHECK(tex->IsCube());
     CHECK(tex->Uid() != 0u);
-    CHECK(tex->GpuTexture() != nullptr);
+    CHECK(tex->GpuTexture().IsValid());
 
     scrub();
 }
@@ -824,7 +824,7 @@ TEST_CASE("texture.pipeline: an HDR source cooks to BC6H on the desktop (BC) tar
     CHECK(sky->Width() == 72u);
     CHECK(sky->Height() == 72u);
     CHECK(sky->Format() == rhi::TextureFormat::BC6HRGBUfloat); // the HDR policy row
-    CHECK(sky->GpuTexture() != nullptr);
+    CHECK(sky->GpuTexture().IsValid());
 
     Proxy<Texture> raw = manager.Bind<Texture>(rawId);
     REQUIRE(raw);

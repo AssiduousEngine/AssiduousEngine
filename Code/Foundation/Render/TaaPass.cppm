@@ -104,8 +104,8 @@ export namespace foundation::render
     private:
         struct ViewHistory
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 w = 0, h = 0, cur = 0;
@@ -121,7 +121,7 @@ export namespace foundation::render
         // One bind group per history view, rebuilt when any of the frame's transient inputs (the
         // jittered colour, motion, depth; BindGroupCache) is a different view or texture.
         using BindInputs = BindGroupInputs<3>;
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* histPrev, const BindInputs& inputs);
+        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle histPrev, const BindInputs& inputs);
 
         void Shutdown();
 
@@ -133,8 +133,8 @@ export namespace foundation::render
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         rhi::RenderPipeline* m_pipeline = nullptr;
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_pointSampler = nullptr;
-        rhi::Sampler* m_linearSampler = nullptr;
+        rhi::SamplerHandle m_pointSampler{};
+        rhi::SamplerHandle m_linearSampler{};
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
         BindGroupCache<3> m_bindGroups;
     };

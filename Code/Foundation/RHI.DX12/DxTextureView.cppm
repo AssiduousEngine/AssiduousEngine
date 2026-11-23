@@ -25,12 +25,16 @@ export namespace foundation::rhi::dx12
     class DxTextureViewImpl : public TextureView
     {
     public:
-        Status init(ID3D12Device* device, DxTextureImpl* tex, const TextureViewDesc& d,
+        /// A view of `tex`, which `handle` names. It holds its own reference to the texture's
+        /// resource and a copy of its description: a texture may be freed before its views.
+        Status init(ID3D12Device* device, DxTextureImpl* tex, TextureHandle handle, const TextureViewDesc& d,
                     DxDescriptorHeapAllocator* srvHeap, DxDescriptorHeapAllocator* rtvHeap,
                     DxDescriptorHeapAllocator* dsvHeap)
         {
             m_device = device;
-            m_texture = tex;
+            texture = handle;
+            m_resource = tex->handle();
+            m_textureDesc = tex->desc;
             m_viewDesc = d;
             m_srvHeap = srvHeap;
             m_rtvHeap = rtvHeap;
@@ -44,7 +48,7 @@ export namespace foundation::rhi::dx12
             if (m_hasSrv)
                 return m_srv;
 
-            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_texture->desc.format
+            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_textureDesc.format
                                                                        : m_viewDesc.format;
             DXGI_FORMAT srvFmt = IsDepthFormat(fmt) ? toDepthSrvFormat(fmt) : toDxgiFormat(fmt);
 
@@ -54,7 +58,7 @@ export namespace foundation::rhi::dx12
 
             u32 mips = m_viewDesc.mipLevelCount;
             if (mips == 0)
-                mips = m_texture->desc.mipLevelCount - m_viewDesc.baseMipLevel;
+                mips = m_textureDesc.mipLevelCount - m_viewDesc.baseMipLevel;
 
             switch (m_viewDesc.dimension)
             {
@@ -71,7 +75,7 @@ export namespace foundation::rhi::dx12
                 sd.Texture1DArray.ArraySize = m_viewDesc.arrayLayerCount;
                 break;
             case TextureViewDimension::Texture2D:
-                if (m_texture->desc.sampleCount > 1)
+                if (m_textureDesc.sampleCount > 1)
                 {
                     sd.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
                 }
@@ -83,7 +87,7 @@ export namespace foundation::rhi::dx12
                 }
                 break;
             case TextureViewDimension::Texture2DArray:
-                if (m_texture->desc.sampleCount > 1)
+                if (m_textureDesc.sampleCount > 1)
                 {
                     sd.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMSARRAY;
                     sd.Texture2DMSArray.FirstArraySlice = m_viewDesc.baseArrayLayer;
@@ -120,7 +124,7 @@ export namespace foundation::rhi::dx12
             m_srv = m_srvHeap->allocate();
             if (m_srv.ptr == 0)
                 return m_srv; // no heap page could be made: nothing is written through a null handle
-            m_device->CreateShaderResourceView(m_texture->handle(), &sd, m_srv);
+            m_device->CreateShaderResourceView(m_resource.Get(), &sd, m_srv);
             m_hasSrv = true;
             return m_srv;
         }
@@ -131,9 +135,9 @@ export namespace foundation::rhi::dx12
             if (m_hasRtv)
                 return m_rtv;
 
-            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_texture->desc.format
+            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_textureDesc.format
                                                                        : m_viewDesc.format;
-            bool isArray = m_texture->desc.arrayLayerCount > 1;
+            bool isArray = m_textureDesc.arrayLayerCount > 1;
 
             D3D12_RENDER_TARGET_VIEW_DESC rd{};
             rd.Format = toDxgiFormat(fmt);
@@ -142,7 +146,7 @@ export namespace foundation::rhi::dx12
             {
                 if (isArray)
                 {
-                    if (m_texture->desc.sampleCount > 1)
+                    if (m_textureDesc.sampleCount > 1)
                     {
                         rd.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMSARRAY;
                         rd.Texture2DMSArray.FirstArraySlice = m_viewDesc.baseArrayLayer;
@@ -156,7 +160,7 @@ export namespace foundation::rhi::dx12
                         rd.Texture2DArray.ArraySize = m_viewDesc.arrayLayerCount;
                     }
                 }
-                else if (m_texture->desc.sampleCount > 1)
+                else if (m_textureDesc.sampleCount > 1)
                 {
                     rd.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMS;
                 }
@@ -175,7 +179,7 @@ export namespace foundation::rhi::dx12
             else
             {
                 // 2DArray, Cube, CubeArray
-                if (m_texture->desc.sampleCount > 1)
+                if (m_textureDesc.sampleCount > 1)
                 {
                     rd.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DMSARRAY;
                     rd.Texture2DMSArray.FirstArraySlice = m_viewDesc.baseArrayLayer;
@@ -193,7 +197,7 @@ export namespace foundation::rhi::dx12
             m_rtv = m_rtvHeap->allocate();
             if (m_rtv.ptr == 0)
                 return m_rtv;
-            m_device->CreateRenderTargetView(m_texture->handle(), &rd, m_rtv);
+            m_device->CreateRenderTargetView(m_resource.Get(), &rd, m_rtv);
             m_hasRtv = true;
             return m_rtv;
         }
@@ -204,9 +208,9 @@ export namespace foundation::rhi::dx12
             if (m_hasDsv)
                 return m_dsv;
 
-            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_texture->desc.format
+            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_textureDesc.format
                                                                        : m_viewDesc.format;
-            bool isArray = m_texture->desc.arrayLayerCount > 1;
+            bool isArray = m_textureDesc.arrayLayerCount > 1;
 
             D3D12_DEPTH_STENCIL_VIEW_DESC dd{};
             dd.Format = toDxgiFormat(fmt);
@@ -215,7 +219,7 @@ export namespace foundation::rhi::dx12
             {
                 if (isArray)
                 {
-                    if (m_texture->desc.sampleCount > 1)
+                    if (m_textureDesc.sampleCount > 1)
                     {
                         dd.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMSARRAY;
                         dd.Texture2DMSArray.FirstArraySlice = m_viewDesc.baseArrayLayer;
@@ -229,7 +233,7 @@ export namespace foundation::rhi::dx12
                         dd.Texture2DArray.ArraySize = m_viewDesc.arrayLayerCount;
                     }
                 }
-                else if (m_texture->desc.sampleCount > 1)
+                else if (m_textureDesc.sampleCount > 1)
                 {
                     dd.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMS;
                 }
@@ -241,7 +245,7 @@ export namespace foundation::rhi::dx12
             }
             else
             {
-                if (m_texture->desc.sampleCount > 1)
+                if (m_textureDesc.sampleCount > 1)
                 {
                     dd.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DMSARRAY;
                     dd.Texture2DMSArray.FirstArraySlice = m_viewDesc.baseArrayLayer;
@@ -259,7 +263,7 @@ export namespace foundation::rhi::dx12
             m_dsv = m_dsvHeap->allocate();
             if (m_dsv.ptr == 0)
                 return m_dsv;
-            m_device->CreateDepthStencilView(m_texture->handle(), &dd, m_dsv);
+            m_device->CreateDepthStencilView(m_resource.Get(), &dd, m_dsv);
             m_hasDsv = true;
             return m_dsv;
         }
@@ -270,7 +274,7 @@ export namespace foundation::rhi::dx12
             if (m_hasUav)
                 return m_uav;
 
-            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_texture->desc.format
+            auto fmt = (m_viewDesc.format == TextureFormat::Undefined) ? m_textureDesc.format
                                                                        : m_viewDesc.format;
 
             D3D12_UNORDERED_ACCESS_VIEW_DESC ud{};
@@ -315,7 +319,7 @@ export namespace foundation::rhi::dx12
             m_uav = m_srvHeap->allocate();
             if (m_uav.ptr == 0)
                 return m_uav;
-            m_device->CreateUnorderedAccessView(m_texture->handle(), nullptr, &ud, m_uav);
+            m_device->CreateUnorderedAccessView(m_resource.Get(), nullptr, &ud, m_uav);
             m_hasUav = true;
             return m_uav;
         }
@@ -345,11 +349,10 @@ export namespace foundation::rhi::dx12
         }
 
         // ---- Internal ----
-        [[nodiscard]] DxTextureImpl* dxTexture() const { return m_texture; }
         [[nodiscard]] TextureViewDesc viewDesc() const { return m_viewDesc; }
         [[nodiscard]] TextureFormat Format() const
         {
-            return (m_viewDesc.format == TextureFormat::Undefined) ? m_texture->desc.format
+            return (m_viewDesc.format == TextureFormat::Undefined) ? m_textureDesc.format
                                                                    : m_viewDesc.format;
         }
         // Base-mip extent (a view onto mip N is half-sized per level). DX12 has no Vulkan-style renderArea
@@ -357,18 +360,19 @@ export namespace foundation::rhi::dx12
         // viewport default) expect the view's true dimensions, as Vulkan reports them.
         [[nodiscard]] u32 Width() const
         {
-            u32 w = m_texture->desc.width >> m_viewDesc.baseMipLevel;
+            u32 w = m_textureDesc.width >> m_viewDesc.baseMipLevel;
             return w ? w : 1u;
         }
         [[nodiscard]] u32 Height() const
         {
-            u32 h = m_texture->desc.height >> m_viewDesc.baseMipLevel;
+            u32 h = m_textureDesc.height >> m_viewDesc.baseMipLevel;
             return h ? h : 1u;
         }
 
     private:
         ID3D12Device* m_device = nullptr;
-        DxTextureImpl* m_texture = nullptr;
+        ComPtr<ID3D12Resource> m_resource; // the texture's, kept while the view lives
+        TextureDesc m_textureDesc{};
         TextureViewDesc m_viewDesc{};
         DxDescriptorHeapAllocator* m_srvHeap = nullptr;
         DxDescriptorHeapAllocator* m_rtvHeap = nullptr;

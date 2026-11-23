@@ -48,25 +48,25 @@ export namespace engine::terrain
         /// resource guid work (the uid is per object, not per resource). Creates, uploads and
         /// caches on a miss; a stale version for the same heightfield rebuilds in place (the
         /// sculpt re-upload path). Returns null on a device failure or an empty grid.
-        [[nodiscard]] rhi::TextureView* GetOrCreate(rhi::Device& device,
+        [[nodiscard]] rhi::TextureViewHandle GetOrCreate(rhi::Device& device,
                                                     const heightfield::Heightfield& hf, u64 version)
         {
             if (hf.IsEmpty())
             {
-                return nullptr;
+                return {};
             }
             for (Entry& entry : m_entries)
             {
                 if (entry.key == hf.uid)
                 {
-                    if (entry.version == version && entry.view != nullptr)
+                    if (entry.version == version && entry.view.IsValid())
                     {
                         return entry.view;
                     }
                     RetireOrDestroy(device, entry); // stale version: rebuild in place
                     if (!Build(device, hf, entry))
                     {
-                        return nullptr;
+                        return {};
                     }
                     entry.version = version;
                     return entry.view;
@@ -77,7 +77,7 @@ export namespace engine::terrain
             fresh.version = version;
             if (!Build(device, hf, fresh))
             {
-                return nullptr;
+                return {};
             }
             m_entries.PushBack(fresh);
             return m_entries[m_entries.Size() - 1].view;
@@ -104,8 +104,8 @@ export namespace engine::terrain
         {
             u64 key = 0; // Heightfield::uid, never a pointer (address reuse aliases)
             u64 version = 0;
-            rhi::Texture* texture = nullptr;
-            rhi::TextureView* view = nullptr;
+            rhi::TextureHandle texture{};
+            rhi::TextureViewHandle view{};
         };
 
         [[nodiscard]] static bool Build(rhi::Device& device, const heightfield::Heightfield& hf,
@@ -118,14 +118,14 @@ export namespace engine::terrain
             td.height = n;
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
             td.label = u8"terrain.height";
-            if (!device.CreateTexture(td, out.texture).IsOk() || out.texture == nullptr)
+            if (!device.CreateTexture(td, out.texture).IsOk() || !out.texture.IsValid())
             {
                 return false;
             }
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::R16Uint;
             vd.dimension = rhi::TextureViewDimension::Texture2D;
-            if (!device.CreateTextureView(out.texture, vd, out.view).IsOk() || out.view == nullptr)
+            if (!device.CreateTextureView(out.texture, vd, out.view).IsOk() || !out.view.IsValid())
             {
                 device.DestroyTexture(out.texture);
                 return false;
@@ -157,8 +157,8 @@ export namespace engine::terrain
             {
                 m_retire->Retire(entry.view);    // aged past every in-flight frame, then freed
                 m_retire->Retire(entry.texture);
-                entry.view = nullptr;
-                entry.texture = nullptr;
+                entry.view = {};
+                entry.texture = {};
                 return;
             }
             Destroy(device, entry);
@@ -166,15 +166,15 @@ export namespace engine::terrain
 
         static void Destroy(rhi::Device& device, Entry& entry)
         {
-            if (entry.view != nullptr)
+            if (entry.view.IsValid())
             {
                 device.DestroyTextureView(entry.view);
-                entry.view = nullptr;
+                entry.view = {};
             }
-            if (entry.texture != nullptr)
+            if (entry.texture.IsValid())
             {
                 device.DestroyTexture(entry.texture);
-                entry.texture = nullptr;
+                entry.texture = {};
             }
         }
 

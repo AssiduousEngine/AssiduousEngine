@@ -202,7 +202,7 @@ TEST_CASE("vk.counters: memory held follows real allocations, and the driver rep
     bd.label = u8"vk.counters.buffer";
     BufferHandle buffer{};
     REQUIRE(device->CreateBuffer(bd, buffer).IsOk());
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 256, 256), target).IsOk());
     const DeviceCounters held = device->Counters();
     // What the driver allocated: at least what was asked (it may round up).
@@ -261,11 +261,11 @@ TEST_CASE("vk.queries: a bundle runs inside a statistics query without a validat
     qd.label = u8"vk.queries.bundle_statistics";
     QuerySet* set = nullptr;
     REQUIRE(device->CreateQuerySet(qd, set).IsOk());
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 64), target).IsOk());
     TextureViewDesc vd{};
     vd.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(target, vd, view).IsOk());
 
     CommandPool* pool = nullptr;

@@ -109,11 +109,11 @@ export namespace foundation::rhi::testsupport
     // unpacks the 256-aligned rows into a tightly-packed CapturedImage. Decoupled from the render
     // command stream (the target is a persistent texture), so a caller renders however it likes and
     // then calls this. Returns {valid=false} on any failure.
-    [[nodiscard]] inline CapturedImage Readback(rhi::Device& device, rhi::Texture* colorTarget,
+    [[nodiscard]] inline CapturedImage Readback(rhi::Device& device, rhi::TextureHandle colorTarget,
                                                 u32 width, u32 height)
     {
         CapturedImage out;
-        if (colorTarget == nullptr || width == 0 || height == 0)
+        if (!colorTarget.IsValid() || width == 0 || height == 0)
         {
             return out;
         }

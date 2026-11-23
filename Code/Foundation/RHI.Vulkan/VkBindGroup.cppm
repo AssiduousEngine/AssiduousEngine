@@ -21,6 +21,7 @@ import :texture_view;
 import :sampler;
 import :accel_struct;
 import :descriptor_pool_manager;
+import :tables;
 
 using namespace foundation::core;
 
@@ -30,9 +31,9 @@ export namespace foundation::rhi::vk
     class VkBindGroupImpl : public BindGroup
     {
     public:
-        /// The device's buffers, by which its entries' buffer handles are looked up (set before
+        /// The device's tables, by which its entries' handles are looked up (set before
         /// init; a bindless update looks them up again).
-        const VkBufferTable* buffers = nullptr;
+        const VkTables* tables = nullptr;
 
         Status init(VkDevice device, VkDescriptorPoolManager* poolMgr, const BindGroupDesc& desc,
                     const BindingShifts& shifts = {})
@@ -98,7 +99,7 @@ export namespace foundation::rhi::vk
                 switch (le.type)
                 {
                 case BindingType::BindlessStorageBuffers:
-                    if (auto* vkBuf = LookUp(buffers, e.buffer))
+                    if (auto* vkBuf = LookUp(tables, e.buffer))
                     {
                         VkDescriptorBufferInfo bi{};
                         bi.buffer = vkBuf->handle();
@@ -112,7 +113,7 @@ export namespace foundation::rhi::vk
                     break;
                 case BindingType::BindlessTextures:
                 case BindingType::BindlessStorageTextures:
-                    if (auto* vkView = static_cast<VkTextureViewImpl*>(e.textureView))
+                    if (auto* vkView = LookUp(tables, e.textureView))
                     {
                         VkDescriptorImageInfo ii{};
                         ii.imageView = vkView->handle();
@@ -126,7 +127,7 @@ export namespace foundation::rhi::vk
                         continue;
                     break;
                 case BindingType::BindlessSamplers:
-                    if (auto* vkSamp = static_cast<VkSamplerImpl*>(e.sampler))
+                    if (auto* vkSamp = LookUp(tables, e.sampler))
                     {
                         VkDescriptorImageInfo ii{};
                         ii.sampler = vkSamp->handle();
@@ -199,7 +200,7 @@ export namespace foundation::rhi::vk
                 case BindingType::UniformBuffer:
                 case BindingType::StorageBufferReadOnly:
                 case BindingType::StorageBufferReadWrite:
-                    if (auto* vkBuf = LookUp(buffers, e.buffer))
+                    if (auto* vkBuf = LookUp(tables, e.buffer))
                     {
                         VkDescriptorBufferInfo bi{};
                         bi.buffer = vkBuf->handle();
@@ -214,14 +215,14 @@ export namespace foundation::rhi::vk
                 case BindingType::SampledTexture:
                 case BindingType::StorageTextureReadOnly:
                 case BindingType::StorageTextureReadWrite:
-                    if (auto* vkView = static_cast<VkTextureViewImpl*>(e.textureView))
+                    if (auto* vkView = LookUp(tables, e.textureView))
                     {
                         VkDescriptorImageInfo ii{};
                         ii.imageView = vkView->handle();
                         if (le.type == BindingType::SampledTexture)
                         {
                             // Depth/stencil textures are always sampled in DEPTH_STENCIL_READ_ONLY layout.
-                            auto* vkTex = vkView->texture;
+                            auto* vkTex = LookUp(tables, vkView->texture);
                             if (vkTex && IsDepthFormat(vkTex->desc.format))
                                 ii.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
                             else
@@ -239,7 +240,7 @@ export namespace foundation::rhi::vk
                     break;
                 case BindingType::Sampler:
                 case BindingType::ComparisonSampler:
-                    if (auto* vkSamp = static_cast<VkSamplerImpl*>(e.sampler))
+                    if (auto* vkSamp = LookUp(tables, e.sampler))
                     {
                         VkDescriptorImageInfo ii{};
                         ii.sampler = vkSamp->handle();

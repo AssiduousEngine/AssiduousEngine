@@ -240,12 +240,12 @@ export namespace foundation::rhi::null
         }
         void Barrier(const BarrierGroup&) override {}
         void CopyBufferToBuffer(BufferHandle, u64, BufferHandle, u64, u64) override {}
-        void CopyBufferToTexture(BufferHandle, Texture*, const BufferTextureCopyRegion&) override {}
-        void CopyTextureToBuffer(Texture*, BufferHandle, const BufferTextureCopyRegion&) override {}
-        void CopyTextureToTexture(Texture*, Texture*, const TextureCopyRegion&) override {}
-        void Blit(Texture*, Texture*) override {}
-        void GenerateMipmaps(Texture*) override {}
-        void ResolveTexture(Texture*, Texture*) override {}
+        void CopyBufferToTexture(BufferHandle, TextureHandle, const BufferTextureCopyRegion&) override {}
+        void CopyTextureToBuffer(TextureHandle, BufferHandle, const BufferTextureCopyRegion&) override {}
+        void CopyTextureToTexture(TextureHandle, TextureHandle, const TextureCopyRegion&) override {}
+        void Blit(TextureHandle, TextureHandle) override {}
+        void GenerateMipmaps(TextureHandle) override {}
+        void ResolveTexture(TextureHandle, TextureHandle) override {}
         void ResetQuerySet(QuerySet*, u32, u32) override {}
         void WriteTimestamp(QuerySet*, u32) override {}
         void BeginPipelineStatisticsQuery(QuerySet*, u32) override {}
@@ -334,7 +334,7 @@ export namespace foundation::rhi::null
     public:
         DeviceCounterBlock* counters = nullptr;
         void WriteBuffer(BufferHandle, u64, Span<const u8> data) override { counters->Transfer(data.Size()); }
-        void WriteTexture(Texture*, Span<const u8> data, const TextureDataLayout&, Extent3D, u32,
+        void WriteTexture(TextureHandle, Span<const u8> data, const TextureDataLayout&, Extent3D, u32,
                           u32) override
         {
             counters->Transfer(data.Size());
@@ -351,6 +351,10 @@ export namespace foundation::rhi::null
         NullTexture tex;
         NullTextureView view;
         NullTextureView alternateView;
+        // The device's handles to them, taken back out of its tables when the swap chain goes.
+        TextureHandle texHandle{};
+        TextureViewHandle viewHandle{};
+        TextureViewHandle alternateHandle{};
         TextureFormat m_format = TextureFormat::BGRA8UnormSrgb;
         TextureFormat m_alternate = TextureFormat::Undefined;
         u32 m_width = 0;
@@ -380,14 +384,11 @@ export namespace foundation::rhi::null
             m_imgIdx = (m_imgIdx + 1) % m_count;
             return ErrorCode::Ok;
         }
-        Texture* CurrentTexture() override { return &tex; }
-        TextureView* CurrentTextureView() override { return &view; }
+        TextureHandle CurrentTexture() override { return texHandle; }
+        TextureViewHandle CurrentTextureView() override { return viewHandle; }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
         ContentRotation PreRotation() const override { return m_rotation; }
-        TextureView* CurrentAlternateTextureView() override
-        {
-            return m_alternate != TextureFormat::Undefined ? &alternateView : nullptr;
-        }
+        TextureViewHandle CurrentAlternateTextureView() override { return alternateHandle; }
         Status Present(Queue*) override
         {
             const Status fault = nextPresent;
@@ -490,6 +491,23 @@ export namespace foundation::rhi::null
 
         SubmissionTracker m_tracker{m_allocator};
         ResourceTable<BufferTag, NullBuffer> m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        ResourceTable<TextureTag, NullTexture> m_textures{m_allocator, m_tracker, &FreeTexture, this};
+        ResourceTable<TextureViewTag, NullTextureView> m_views{m_allocator, m_tracker, &FreeObject<NullTextureView>,
+                                                               this};
+        ResourceTable<SamplerTag, NullSampler> m_samplers{m_allocator, m_tracker, &FreeObject<NullSampler>, this};
+
+        static void FreeTexture(void* context, void* object)
+        {
+            auto* device = static_cast<NullDevice*>(context);
+            auto* texture = static_cast<NullTexture*>(object);
+            device->m_counters.TextureFreed(EstimateTextureBytes(texture->desc), CountsAsRenderTarget(texture->desc));
+            device->m_allocator.Delete(texture);
+        }
+        template <typename T>
+        static void FreeObject(void* context, void* object)
+        {
+            static_cast<NullDevice*>(context)->m_allocator.Delete(static_cast<T*>(object));
+        }
 
         static void FreeBuffer(void* context, void* object)
         {
@@ -603,28 +621,51 @@ export namespace foundation::rhi::null
             if (NullBuffer* b = m_buffers.Get(buffer))
                 b->FlushRange(offset, size);
         }
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
         {
             auto* t = m_allocator.New<NullTexture>();
             t->desc = d;
             m_counters.TextureMade(EstimateTextureBytes(d), CountsAsRenderTarget(d));
-            out = t;
+            out = m_textures.Add(t);
             return ErrorCode::Ok;
         }
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
+            out = TextureViewHandle::Invalid();
+            if (m_textures.Get(tex) == nullptr)
+                return ErrorCode::InvalidArgument;
             auto* v = m_allocator.New<NullTextureView>();
             v->desc = d;
             v->texture = tex;
-            out = v;
+            out = m_views.Add(v);
             return ErrorCode::Ok;
         }
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
             auto* s = m_allocator.New<NullSampler>();
             s->desc = d;
-            out = s;
+            out = m_samplers.Add(s);
             return ErrorCode::Ok;
+        }
+        const TextureDesc* Describe(TextureHandle texture) const override
+        {
+            const NullTexture* t = m_textures.Get(texture);
+            return t != nullptr ? &t->desc : nullptr;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle view) const override
+        {
+            const NullTextureView* v = m_views.Get(view);
+            return v != nullptr ? &v->desc : nullptr;
+        }
+        TextureHandle TextureOf(TextureViewHandle view) const override
+        {
+            const NullTextureView* v = m_views.Get(view);
+            return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        const SamplerDesc* Describe(SamplerHandle sampler) const override
+        {
+            const NullSampler* s = m_samplers.Get(sampler);
+            return s != nullptr ? &s->desc : nullptr;
         }
         Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
         {
@@ -699,6 +740,12 @@ export namespace foundation::rhi::null
             sc->m_width = swaps ? d.height : d.width;
             sc->m_height = swaps ? d.width : d.height;
             sc->m_count = d.bufferCount;
+            sc->texHandle = m_textures.Add(&sc->tex);
+            sc->view.texture = sc->texHandle;
+            sc->alternateView.texture = sc->texHandle;
+            sc->viewHandle = m_views.Add(&sc->view);
+            if (sc->m_alternate != TextureFormat::Undefined)
+                sc->alternateHandle = m_views.Add(&sc->alternateView);
             out = sc;
             return ErrorCode::Ok;
         }
@@ -708,22 +755,20 @@ export namespace foundation::rhi::null
             if (m_buffers.Retire(x))
                 CollectRetired();
         }
-        void DestroyTexture(Texture*& x) override
+        void DestroyTexture(TextureHandle& x) override
         {
-            if (x != nullptr)
-                m_counters.TextureFreed(EstimateTextureBytes(x->desc), CountsAsRenderTarget(x->desc));
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_textures.Retire(x))
+                CollectRetired();
         }
-        void DestroyTextureView(TextureView*& x) override
+        void DestroyTextureView(TextureViewHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_views.Retire(x))
+                CollectRetired();
         }
-        void DestroySampler(Sampler*& x) override
+        void DestroySampler(SamplerHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_samplers.Retire(x))
+                CollectRetired();
         }
         void DestroyShaderModule(ShaderModule*& x) override
         {
@@ -777,6 +822,12 @@ export namespace foundation::rhi::null
         }
         void DestroySwapChain(SwapChain*& x) override
         {
+            if (auto* sc = static_cast<NullSwapChain*>(x))
+            {
+                (void)m_textures.Remove(sc->texHandle);
+                (void)m_views.Remove(sc->viewHandle);
+                (void)m_views.Remove(sc->alternateHandle);
+            }
             m_allocator.Delete(x);
             x = nullptr;
         }

@@ -173,9 +173,9 @@ TEST_CASE("material system: infers bind-group layout from properties + builds in
     rhi::null::NullDevice device{DefaultAllocator()};
     MaterialSystem system;
     REQUIRE(system.Initialize(device).IsOk());
-    CHECK(system.DefaultSampler() != nullptr);
-    CHECK(system.WhiteTexture() != nullptr);
-    CHECK(system.NormalTexture() != nullptr);
+    CHECK(system.DefaultSampler().IsValid());
+    CHECK(system.WhiteTexture().IsValid());
+    CHECK(system.NormalTexture().IsValid());
 
     RefPtr<Material> mat = MaterialBuilder(u8"lit")
                                .Shader(u8"forward")
@@ -528,7 +528,7 @@ TEST_CASE("material clone: a copy with its own uid and everything else the same;
                                .Texture(u8"normalMap")
                                .Build();
     REQUIRE(mat);
-    auto* albedo = reinterpret_cast<rhi::TextureView*>(static_cast<usize>(0x1000)); // a stand-in, never used as one
+    const rhi::TextureViewHandle albedo{0x1000, 1}; // a stand-in, never used as one
     mat->SetDefaultTexture(u8"albedoMap", albedo);
     mat->samplerU = rhi::AddressMode::ClampToEdge;
 
@@ -548,9 +548,9 @@ TEST_CASE("material clone: a copy with its own uid and everything else the same;
     CHECK(copy->GetDefaultTexture(static_cast<usize>(albedoIndex)) == albedo);
 
     // The copy drawn without its texture: the original keeps it.
-    copy->SetDefaultTexture(u8"albedoMap", nullptr);
+    copy->SetDefaultTexture(u8"albedoMap", {});
     copy->SetDefaultFloat(u8"roughness", 0.9f);
-    CHECK(copy->GetDefaultTexture(static_cast<usize>(albedoIndex)) == nullptr);
+    CHECK_FALSE(copy->GetDefaultTexture(static_cast<usize>(albedoIndex)).IsValid());
     CHECK(mat->GetDefaultTexture(static_cast<usize>(mat->GetPropertyIndex(u8"albedoMap"))) == albedo);
     const f32* rough = reinterpret_cast<const f32*>(mat->DefaultUniformData().Data() + mat->FindProperty(u8"roughness")->offset);
     CHECK(*rough == doctest::Approx(0.5f));
@@ -573,12 +573,12 @@ TEST_CASE("material system: an unbound cube slot binds a cube, an unbound 2D slo
     MaterialInstance inst(mat.Get());
     REQUIRE(system.PrepareInstance(inst) != nullptr);
     REQUIRE(device.groupEntries.Size() == 3u); // t0, t1, s0 (no uniforms)
-    const rhi::TextureView* albedo = device.groupEntries[0].textureView;
-    const rhi::TextureView* env = device.groupEntries[1].textureView;
-    REQUIRE(albedo != nullptr);
-    REQUIRE(env != nullptr);
-    CHECK(albedo->desc.dimension == rhi::TextureViewDimension::Texture2D);
-    CHECK(env->desc.dimension == rhi::TextureViewDimension::TextureCube);
-    CHECK(env->desc.arrayLayerCount == 6u);
-    CHECK(env->texture->desc.arrayLayerCount == 6u);
+    const rhi::TextureViewHandle albedo = device.groupEntries[0].textureView;
+    const rhi::TextureViewHandle env = device.groupEntries[1].textureView;
+    REQUIRE(albedo.IsValid());
+    REQUIRE(env.IsValid());
+    CHECK(device.Describe(albedo)->dimension == rhi::TextureViewDimension::Texture2D);
+    CHECK(device.Describe(env)->dimension == rhi::TextureViewDimension::TextureCube);
+    CHECK(device.Describe(env)->arrayLayerCount == 6u);
+    CHECK(device.Describe(device.TextureOf(env))->arrayLayerCount == 6u);
 }

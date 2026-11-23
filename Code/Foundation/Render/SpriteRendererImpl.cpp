@@ -232,24 +232,15 @@ namespace foundation::render
         return m_viewBg;
     }
 
-    rhi::BindGroup* SpriteRenderer::EnsureTextureBindGroup(rhi::TextureView* tex)
+    rhi::BindGroup* SpriteRenderer::EnsureTextureBindGroup(rhi::TextureViewHandle tex)
     {
-        if (tex == nullptr)
+        if (!tex.IsValid())
         {
             return nullptr;
         }
-        if (TexBindGroup* found = m_texBindGroups.Find(tex))
+        if (rhi::BindGroup** found = m_texBindGroups.Find(tex))
         {
-            if (found->viewId == tex->uniqueId)
-            {
-                return found->bindGroup;
-            }
-            // Address reuse: the cached group references a destroyed view, so rebuild.
-            if (found->bindGroup != nullptr)
-            {
-                m_device->DestroyBindGroup(found->bindGroup);
-            }
-            m_texBindGroups.Remove(tex);
+            return *found;
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(tex),
@@ -263,7 +254,7 @@ namespace foundation::render
         {
             return nullptr;
         }
-        m_texBindGroups.InsertOrAssign(tex, TexBindGroup{bg, tex->uniqueId});
+        m_texBindGroups.InsertOrAssign(tex, bg);
         return bg;
     }
 
@@ -362,9 +353,9 @@ namespace foundation::render
     {
         for (auto& kv : m_texBindGroups)
         {
-            if (kv.value.bindGroup != nullptr)
+            if (kv.value != nullptr)
             {
-                m_device->DestroyBindGroup(kv.value.bindGroup);
+                m_device->DestroyBindGroup(kv.value);
             }
         }
         m_texBindGroups.Clear();
@@ -387,10 +378,10 @@ namespace foundation::render
             m_device->DestroyBuffer(m_indexBuffer);
             m_indexBuffer = {};
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_pipelineLayout != nullptr)
         {

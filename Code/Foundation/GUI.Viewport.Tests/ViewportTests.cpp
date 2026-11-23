@@ -203,10 +203,10 @@ TEST_CASE("gui.viewport: an sRGB target has its twin view; a float one has none"
 {
     Bed bed;
     bed.Frame(bed.main.Get());
-    CHECK(bed.viewport->ColorAlternateView() == nullptr); // RGBA16Float has no twin
+    CHECK(!bed.viewport->ColorAlternateView().IsValid()); // RGBA16Float has no twin
     bed.viewport->SetFormats(rhi::TextureFormat::RGBA8UnormSrgb, bed.viewport->DepthFormat());
     bed.Frame(bed.main.Get());
-    CHECK(bed.viewport->ColorAlternateView() != nullptr);
+    CHECK(bed.viewport->ColorAlternateView().IsValid());
 }
 
 TEST_CASE("gui.viewport: the hosted content's text input is the node's; the pointer maps into the content's own resolution")

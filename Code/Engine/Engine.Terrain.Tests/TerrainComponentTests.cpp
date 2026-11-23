@@ -83,29 +83,29 @@ TEST_CASE("engine.terrain: the GPU height-texture cache keys by heightfield + ve
     TerrainHeightTextureCache cache;
 
     // The first request creates and caches.
-    foundation::rhi::TextureView* v1 = cache.GetOrCreate(device, *grid, 1);
-    REQUIRE(v1 != nullptr);
+    foundation::rhi::TextureViewHandle v1 = cache.GetOrCreate(device, *grid, 1);
+    REQUIRE(v1.IsValid());
     CHECK(cache.Size() == 1u);
 
     // Same heightfield and version: cache hit, same view, no new entry.
-    foundation::rhi::TextureView* v1again = cache.GetOrCreate(device, *grid, 1);
+    foundation::rhi::TextureViewHandle v1again = cache.GetOrCreate(device, *grid, 1);
     CHECK(v1again == v1);
     CHECK(cache.Size() == 1u);
 
     // Same heightfield, bumped version (a sculpt/regen re-upload): rebuilt in place (one entry).
-    foundation::rhi::TextureView* v2 = cache.GetOrCreate(device, *grid, 2);
-    REQUIRE(v2 != nullptr);
+    foundation::rhi::TextureViewHandle v2 = cache.GetOrCreate(device, *grid, 2);
+    REQUIRE(v2.IsValid());
     CHECK(cache.Size() == 1u);
 
     // A different heightfield: a second cached texture (keyed by the heightfield itself, so two
     // terrains sharing one heightfield share one texture).
-    foundation::rhi::TextureView* vb = cache.GetOrCreate(device, *other, 1);
-    REQUIRE(vb != nullptr);
+    foundation::rhi::TextureViewHandle vb = cache.GetOrCreate(device, *other, 1);
+    REQUIRE(vb.IsValid());
     CHECK(cache.Size() == 2u);
 
     // An empty grid yields no texture.
     RefPtr<hf::Heightfield> empty = MakeRef<hf::Heightfield>(DefaultAllocator());
-    CHECK(cache.GetOrCreate(device, *empty, 1) == nullptr);
+    CHECK_FALSE(cache.GetOrCreate(device, *empty, 1).IsValid());
 
     cache.Clear(device);
     CHECK(cache.Size() == 0u);
@@ -124,7 +124,7 @@ TEST_CASE("engine.terrain: the cache keys by UID, never pointer (address-reuse a
         RefPtr<hf::Heightfield> a =
             MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
         uidA = a->uid;
-        REQUIRE(cache.GetOrCreate(device, *a, a->Version()) != nullptr);
+        REQUIRE(cache.GetOrCreate(device, *a, a->Version()).IsValid());
         CHECK(cache.Size() == 1u);
     } // A dies; its cache entry remains keyed by A's uid
 
@@ -133,8 +133,8 @@ TEST_CASE("engine.terrain: the cache keys by UID, never pointer (address-reuse a
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
     CHECK(b->uid != uidA);
     // so B at the same version gets its own texture entry, never A's stale one.
-    foundation::rhi::TextureView* vb = cache.GetOrCreate(device, *b, b->Version());
-    REQUIRE(vb != nullptr);
+    foundation::rhi::TextureViewHandle vb = cache.GetOrCreate(device, *b, b->Version());
+    REQUIRE(vb.IsValid());
     CHECK(cache.Size() == 2u);
 
     cache.Clear(device);
@@ -154,13 +154,13 @@ TEST_CASE("engine.terrain: a version-bump rebuild RETIRES the old texture (in-fl
 
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
-    foundation::rhi::TextureView* v1 = cache.GetOrCreate(device, *grid, grid->Version());
-    REQUIRE(v1 != nullptr);
+    foundation::rhi::TextureViewHandle v1 = cache.GetOrCreate(device, *grid, grid->Version());
+    REQUIRE(v1.IsValid());
     CHECK(retire.PendingCount() == 0u);
 
     grid->BumpVersion(); // the regen path
-    foundation::rhi::TextureView* v2 = cache.GetOrCreate(device, *grid, grid->Version());
-    REQUIRE(v2 != nullptr);
+    foundation::rhi::TextureViewHandle v2 = cache.GetOrCreate(device, *grid, grid->Version());
+    REQUIRE(v2.IsValid());
     CHECK(retire.PendingCount() == 2u); // old view and old texture aged, not destroyed in place
     CHECK(cache.Size() == 1u);          // rebuilt in place
 
@@ -189,7 +189,7 @@ TEST_CASE("engine.terrain: Clear RETIRES live entries when a queue is wired (sce
     {
         TerrainHeightTextureCache cache;
         cache.SetRetireQueue(&retire);
-        REQUIRE(cache.GetOrCreate(device, *grid, grid->Version()) != nullptr);
+        REQUIRE(cache.GetOrCreate(device, *grid, grid->Version()).IsValid());
         CHECK(retire.PendingCount() == 0u);
         cache.Clear(device);
         CHECK(cache.Size() == 0u);
@@ -202,7 +202,7 @@ TEST_CASE("engine.terrain: Clear RETIRES live entries when a queue is wired (sce
     }
     {
         TerrainHeightTextureCache cache; // no queue: direct destroy (tests, device idled)
-        REQUIRE(cache.GetOrCreate(device, *grid, grid->Version()) != nullptr);
+        REQUIRE(cache.GetOrCreate(device, *grid, grid->Version()).IsValid());
         cache.Clear(device);
         CHECK(cache.Size() == 0u);
         CHECK(retire.PendingCount() == 0u);
@@ -275,7 +275,7 @@ TEST_CASE("engine.terrain: a cut heightfield extracts its holed chunks' meshes; 
     CHECK(mgr->HoledMeshCount(grid->uid) == 1u);
     CHECK(mgr->HoleTextureCount() == 1u); // the R8 mask the HOLES shaders sample
     rd = static_cast<const engine::terrain::TerrainRenderData*>(second.Items()[0]);
-    CHECK(rd->holeView != nullptr);
+    CHECK(rd->holeView.IsValid());
     REQUIRE(rd->holedMeshCount == 1u);
     CHECK(rd->holedMeshes[0].chunkIndex == 3u);
     CHECK(rd->holedMeshes[0].indexBuffers[0].IsValid());

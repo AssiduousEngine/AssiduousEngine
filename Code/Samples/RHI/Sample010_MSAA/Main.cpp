@@ -39,8 +39,8 @@ private:
     rhi::BufferHandle m_vb{}, m_ib{};
     rhi::PipelineLayout* m_pl = nullptr;
     rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::Texture* m_msaaTex = nullptr;
-    rhi::TextureView* m_msaaView = nullptr;
+    rhi::TextureHandle m_msaaTex{};
+    rhi::TextureViewHandle m_msaaView{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -51,12 +51,12 @@ void MSAASample::recreateMSAA(foundation::core::u32 w, foundation::core::u32 h)
     if (m_msaaView)
     {
         m_device->DestroyTextureView(m_msaaView);
-        m_msaaView = nullptr;
+        m_msaaView = {};
     }
     if (m_msaaTex)
     {
         m_device->DestroyTexture(m_msaaTex);
-        m_msaaTex = nullptr;
+        m_msaaTex = {};
     }
     rhi::TextureDesc td =
         rhi::TextureDesc::RenderTarget(m_swapChain->Format(), w, h, kSamples, u8"MSAATarget");

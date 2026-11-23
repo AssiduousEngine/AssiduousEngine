@@ -145,8 +145,8 @@ export namespace foundation::render
             rhi::TextureFormat::RGBA16Float; // matches the scene HDR
         struct ViewHistory
         {
-            rhi::Texture* tex[2] = {};
-            rhi::TextureView* view[2] = {};
+            rhi::TextureHandle tex[2] = {};
+            rhi::TextureViewHandle view[2] = {};
             rhi::ResourceState state[2] = {rhi::ResourceState::Undefined,
                                            rhi::ResourceState::Undefined};
             u32 w = 0, h = 0, cur = 0;
@@ -168,24 +168,24 @@ export namespace foundation::render
         void Tick(u32 frameIndex);
 
         // Four-texture bind group (t0..t3) and sampler, cached by (scene view, combined generation).
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* scene, rhi::TextureView* depth,
-                                        rhi::TextureView* normal, rhi::TextureView* material,
+        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+                                        rhi::TextureViewHandle normal, rhi::TextureViewHandle material,
                                         u64 generation);
 
         // Resolve bind group (reflection, history, velocity, hdr and 2 samplers), one per history view, kept only while
         // its three transient inputs (refl, velocity, hdr: views and generations) are the ones it was
         // built from (BindGroupCache).
         using ResolveInputs = BindGroupInputs<3>;
-        rhi::BindGroup* EnsureResolveBindGroup(rhi::TextureView* histPrev, const ResolveInputs& inputs);
+        rhi::BindGroup* EnsureResolveBindGroup(rhi::TextureViewHandle histPrev, const ResolveInputs& inputs);
 
         void Shutdown();
 
         struct Entry
         {
             rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* depth = nullptr;
-            rhi::TextureView* normal = nullptr;
-            rhi::TextureView* material = nullptr;
+            rhi::TextureViewHandle depth{};
+            rhi::TextureViewHandle normal{};
+            rhi::TextureViewHandle material{};
             u64 gen = 0;
         };
         struct Retired
@@ -204,10 +204,10 @@ export namespace foundation::render
         rhi::PipelineLayout* m_resolvePipelineLayout = nullptr;
         rhi::RenderPipeline* m_resolvePipeline = nullptr; // temporal resolve and composite
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_sampler = nullptr;                // point: depth and reconstruction
-        rhi::Sampler* m_linearSampler = nullptr;          // linear: glossy color gather
+        rhi::SamplerHandle m_sampler{};                // point: depth and reconstruction
+        rhi::SamplerHandle m_linearSampler{};          // linear: glossy color gather
         Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
-        HashMap<rhi::TextureView*, Entry> m_bindGroups;
+        HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
         BindGroupCache<3> m_resolveBindGroups;
         Array<Retired> m_retired;
         u32 m_lastFrame = 0xFFFFFFFFu;

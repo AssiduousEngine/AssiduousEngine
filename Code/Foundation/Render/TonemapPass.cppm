@@ -35,7 +35,7 @@ export namespace foundation::render
     {
         bool enabled = false;
         rendergraph::RGHandle handle{};
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         u64 generation = 0;
         f32 key = 0.18f;
         f32 minExposure = 0.0625f;
@@ -45,7 +45,7 @@ export namespace foundation::render
     /// the bind-group cache, never the pointer). lutSize < 2 (or a null view) disables.
     struct TonemapGrading
     {
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         u64 uid = 0;
         f32 lutSize = 0.0f;
         f32 intensity = 1.0f;
@@ -161,7 +161,7 @@ export namespace foundation::render
         };
         PipelineEntry m_pipelines[kMaxPipelineFormats] = {};
 
-        rhi::Sampler* m_sampler = nullptr; // linear-clamp, for the bloom composite
+        rhi::SamplerHandle m_sampler{}; // linear-clamp, for the bloom composite
         ViewSlots<Slot> m_slots; // per (view and use, frame in flight), however many views a frame has
     };
 

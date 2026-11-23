@@ -165,10 +165,10 @@ export namespace foundation::render
         // Resources (consumed by the forward, and by capture and prefilter).
         // The captured cube array as a sample view: the whole-array view used for the render-target import, a
         // stable single-allocation view. The forward samples PrefilterArrayView (set-0 t8).
-        [[nodiscard]] rhi::TextureView* CapturedSampleView() const noexcept;
-        [[nodiscard]] rhi::TextureView* PrefilterArrayView() const noexcept;
+        [[nodiscard]] rhi::TextureViewHandle CapturedSampleView() const noexcept;
+        [[nodiscard]] rhi::TextureViewHandle PrefilterArrayView() const noexcept;
         [[nodiscard]] rhi::BufferHandle ProbeBuffer() const noexcept { return m_probeBuffer; }
-        [[nodiscard]] rhi::Sampler* Sampler() const noexcept { return m_sampler; }
+        [[nodiscard]] rhi::SamplerHandle Sampler() const noexcept { return m_sampler; }
 
     private:
         static constexpr u32 kInvalidSlot = 0xFFFFFFFFu;
@@ -225,7 +225,7 @@ export namespace foundation::render
         rhi::BindGroupLayout* m_blitLayout = nullptr;
         rhi::PipelineLayout* m_blitPipeLayout = nullptr;
         rhi::RenderPipeline* m_blitPipeline = nullptr;
-        rhi::TextureView* m_capturedFaceView[kMaxProbes * 6] = {};
+        rhi::TextureViewHandle m_capturedFaceView[kMaxProbes * 6] = {};
         rhi::BindGroup* m_blitFaceBG[kMaxProbes * 6] = {};
 
         // GGX roughness prefilter (prefiltered mip 0 into mips 1..N-1).
@@ -233,21 +233,21 @@ export namespace foundation::render
         rhi::PipelineLayout* m_prefilterPipeLayout = nullptr;
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::RenderPipeline* m_prefilterPipeline = nullptr;
-        rhi::TextureView* m_prefilterSrcView[kMaxProbes] =
+        rhi::TextureViewHandle m_prefilterSrcView[kMaxProbes] =
             {}; // per-slot mip-0 cube view (convolution source)
         rhi::BindGroup* m_prefilterSrcBG[kMaxProbes] = {};
 
-        rhi::Texture* m_capturedCube = nullptr;
-        rhi::TextureView* m_capturedArrayView = nullptr;
+        rhi::TextureHandle m_capturedCube{};
+        rhi::TextureViewHandle m_capturedArrayView{};
         rhi::ResourceState m_capturedState =
             rhi::ResourceState::Undefined; // persists across frames (import)
         bool m_layoutsInit = false;        // one-time whole-array ShaderRead init
-        rhi::Texture* m_prefilterCube = nullptr;
-        rhi::TextureView* m_prefilterArrayView = nullptr;
+        rhi::TextureHandle m_prefilterCube{};
+        rhi::TextureViewHandle m_prefilterArrayView{};
         rhi::ResourceState m_prefilterState =
             rhi::ResourceState::Undefined; // persists across frames (import)
         rhi::BufferHandle m_probeBuffer{};
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
 
         Array<CaptureTask> m_captures; // dirty probes to (re)capture this frame
 

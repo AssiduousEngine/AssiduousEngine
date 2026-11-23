@@ -45,9 +45,9 @@ private:
 
     rhi::BufferHandle m_vb{};
     rhi::BufferHandle m_ib{};
-    rhi::Texture* m_tex = nullptr;
-    rhi::TextureView* m_texView = nullptr;
-    rhi::Sampler* m_sampler = nullptr;
+    rhi::TextureHandle m_tex{};
+    rhi::TextureViewHandle m_texView{};
+    rhi::SamplerHandle m_sampler{};
 
     rhi::BufferHandle m_transformBuf{};
     void* m_transformMapped = nullptr;

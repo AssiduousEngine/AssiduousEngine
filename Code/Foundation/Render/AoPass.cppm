@@ -183,7 +183,7 @@ export namespace foundation::render
         // Two-texture bind group (t0, t1) and sampler, cached by the t0 view and the combined generation.
         // Every AO pass shares the layout: generation binds depth and normal, blur binds AO and depth, apply
         // binds HDR and AO.
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* a, rhi::TextureView* bView,
+        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle a, rhi::TextureViewHandle bView,
                                         u64 generation);
 
         void Shutdown();
@@ -191,7 +191,7 @@ export namespace foundation::render
         struct Entry
         {
             rhi::BindGroup* bg = nullptr;
-            rhi::TextureView* b = nullptr;
+            rhi::TextureViewHandle b{};
             u64 gen = 0;
         };
         struct Retired
@@ -214,8 +214,8 @@ export namespace foundation::render
         rhi::RenderPipeline* m_blurPipeline = nullptr;
         rhi::RenderPipeline* m_applyPipeline = nullptr;
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_sampler = nullptr;
-        HashMap<rhi::TextureView*, Entry> m_bindGroups;
+        rhi::SamplerHandle m_sampler{};
+        HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
         Array<Retired> m_retired;
         u32 m_lastFrame = 0xFFFFFFFFu;
     };

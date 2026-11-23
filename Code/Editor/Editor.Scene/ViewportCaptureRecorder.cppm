@@ -44,7 +44,7 @@ export namespace editor
         /// what was drawn, never resampled; `renderWidth` x `renderHeight` names the resolution
         /// the content plays at when the view drew it scaled (reported beside the written size).
         void Record(foundation::rhi::Device* device, foundation::rhi::CommandEncoder* encoder,
-                    foundation::rhi::Texture* target, foundation::rhi::TextureFormat format,
+                    foundation::rhi::TextureHandle target, foundation::rhi::TextureFormat format,
                     u32 width, u32 height, foundation::rhi::ResourceState targetState, u32 originX = 0,
                     u32 originY = 0, u32 renderWidth = 0, u32 renderHeight = 0)
         {

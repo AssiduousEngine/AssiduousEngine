@@ -101,14 +101,14 @@ export namespace foundation::vg::renderer
         /// host waits for the GPU to finish with them first).
         [[nodiscard]] bool NeedsResize(u32 width, u32 height) const noexcept
         {
-            return m_colorView != nullptr && width != 0 && height != 0 && (width != m_width || height != m_height);
+            return m_colorView.IsValid() && width != 0 && height != 0 && (width != m_width || height != m_height);
         }
 
         /// Recreates the targets when the size changed (call outside an open frame, after the GPU
         /// is done with the old ones). False when the targets are off.
         bool Resize(u32 width, u32 height)
         {
-            if (m_colorView == nullptr)
+            if (!m_colorView.IsValid())
                 return false;
             if (width == m_width && height == m_height)
                 return true;
@@ -127,18 +127,18 @@ export namespace foundation::vg::renderer
         template <typename RetireFn>
         void Retire(RetireFn&& retire)
         {
-            if (m_color != nullptr)
+            if (m_color.IsValid())
                 retire(m_color);
-            if (m_colorView != nullptr)
+            if (m_colorView.IsValid())
                 retire(m_colorView);
-            if (m_stencil != nullptr)
+            if (m_stencil.IsValid())
                 retire(m_stencil);
-            if (m_stencilView != nullptr)
+            if (m_stencilView.IsValid())
                 retire(m_stencilView);
-            m_color = nullptr;
-            m_colorView = nullptr;
-            m_stencil = nullptr;
-            m_stencilView = nullptr;
+            m_color = {};
+            m_colorView = {};
+            m_stencil = {};
+            m_stencilView = {};
             Destroy();
         }
 
@@ -150,14 +150,14 @@ export namespace foundation::vg::renderer
         /// Whether the targets exist at `width` x `height`, so this frame can take the quality pass.
         [[nodiscard]] bool Matches(u32 width, u32 height) const noexcept
         {
-            return m_colorView != nullptr && m_width == width && m_height == height;
+            return m_colorView.IsValid() && m_width == width && m_height == height;
         }
 
         /// Transitions both targets for a fresh pass (their old contents are discarded) and
         /// describes it: the multisampled colour cleared to `clear` and resolved into
         /// `resolveTarget`, the stencil cleared to 0 as stencil-then-cover expects.
         [[nodiscard]] foundation::rhi::RenderPassDesc BeginPass(foundation::rhi::CommandEncoder& encoder,
-                                                                foundation::rhi::TextureView* resolveTarget,
+                                                                foundation::rhi::TextureViewHandle resolveTarget,
                                                                 foundation::rhi::ClearColor clear,
                                                                 const char8_t* label = u8"VG (msaa+stencil)") const
         {
@@ -189,10 +189,10 @@ export namespace foundation::vg::renderer
 
     private:
         foundation::rhi::Device* m_device = nullptr; // borrowed
-        foundation::rhi::Texture* m_color = nullptr;
-        foundation::rhi::TextureView* m_colorView = nullptr;
-        foundation::rhi::Texture* m_stencil = nullptr;
-        foundation::rhi::TextureView* m_stencilView = nullptr;
+        foundation::rhi::TextureHandle m_color{};
+        foundation::rhi::TextureViewHandle m_colorView{};
+        foundation::rhi::TextureHandle m_stencil{};
+        foundation::rhi::TextureViewHandle m_stencilView{};
         foundation::rhi::TextureFormat m_colorFormat = foundation::rhi::TextureFormat::Undefined;
         foundation::rhi::TextureFormat m_stencilFormat = foundation::rhi::TextureFormat::Undefined;
         u32 m_samples = kDefaultSamples;
@@ -203,19 +203,19 @@ export namespace foundation::vg::renderer
         {
             if (m_device != nullptr)
             {
-                if (m_colorView != nullptr)
+                if (m_colorView.IsValid())
                     m_device->DestroyTextureView(m_colorView);
-                if (m_color != nullptr)
+                if (m_color.IsValid())
                     m_device->DestroyTexture(m_color);
-                if (m_stencilView != nullptr)
+                if (m_stencilView.IsValid())
                     m_device->DestroyTextureView(m_stencilView);
-                if (m_stencil != nullptr)
+                if (m_stencil.IsValid())
                     m_device->DestroyTexture(m_stencil);
             }
-            m_colorView = nullptr;
-            m_color = nullptr;
-            m_stencilView = nullptr;
-            m_stencil = nullptr;
+            m_colorView = {};
+            m_color = {};
+            m_stencilView = {};
+            m_stencil = {};
             m_width = 0;
             m_height = 0;
         }

@@ -145,9 +145,9 @@ export namespace foundation::render
         rhi::PipelineLayout* m_gridLayout = nullptr; // the grid's push block (both stages)
         rhi::PipelineLayout* m_screenLayout = nullptr;
         rhi::BindGroupLayout* m_screenBgLayout = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
-        rhi::Texture* m_fontTex = nullptr;
-        rhi::TextureView* m_fontView = nullptr;
+        rhi::SamplerHandle m_sampler{};
+        rhi::TextureHandle m_fontTex{};
+        rhi::TextureViewHandle m_fontView{};
         rhi::BindGroup* m_fontBg = nullptr;
         // Per-(color, depth) entries: a frame can hold views with different target formats,
         // and destroying on mismatch would free pipelines an earlier view's recorded commands

@@ -152,10 +152,10 @@ export namespace foundation::gui
                     return;
             m_targets.PushBack(&target);
             for (const UniquePtr<Entry>& entry : m_entries)
-                if (entry->View != nullptr)
+                if (entry->View.IsValid())
                     target.RegisterExternalTexture(entry->Key.Get(), entry->View);
             for (const UniquePtr<AtlasPage>& page : m_pages)
-                if (page->View != nullptr)
+                if (page->View.IsValid())
                     target.RegisterExternalTexture(page->Key.Get(), page->View);
         }
         /// Removes a renderer that is going away (with its window): it forgets every bake and is told
@@ -166,10 +166,10 @@ export namespace foundation::gui
                 if (m_targets[i] == &target)
                 {
                     for (const UniquePtr<Entry>& entry : m_entries)
-                        if (entry->View != nullptr)
+                        if (entry->View.IsValid())
                             target.UnregisterExternalTexture(entry->Key.Get());
                     for (const UniquePtr<AtlasPage>& page : m_pages)
-                        if (page->View != nullptr)
+                        if (page->View.IsValid())
                             target.UnregisterExternalTexture(page->Key.Get());
                     m_targets.RemoveAt(i);
                     return;
@@ -182,7 +182,7 @@ export namespace foundation::gui
                 if (entry->Document == &document && entry->Width == width && entry->Height == height)
                 {
                     entry->LastAsked = m_frame;
-                    return entry->View != nullptr ? entry->Key.Get() : nullptr;
+                    return entry->View.IsValid() ? entry->Key.Get() : nullptr;
                 }
             UniquePtr<Entry> entry = MakeUnique<Entry>(m_allocator);
             entry->Document = &document;
@@ -252,7 +252,7 @@ export namespace foundation::gui
             };
             for (const UniquePtr<Entry>& entry : m_entries)
             {
-                if (entry->View != nullptr || !m_renderer.IsInitialized())
+                if (entry->View.IsValid() || !m_renderer.IsInitialized())
                     continue;
                 begin();
                 baked = Bake(encoder, frameIndex, *entry) || baked;
@@ -286,8 +286,8 @@ export namespace foundation::gui
             u32 Height = 0;
             u64 LastAsked = 0;
             UniquePtr<image::ImageDataRef> Key; // what the GUI's renderer knows the texture by
-            rhi::Texture* Texture = nullptr;
-            rhi::TextureView* View = nullptr; // set once the picture is drawn
+            rhi::TextureHandle Texture{};
+            rhi::TextureViewHandle View{}; // set once the picture is drawn
         };
 
         struct AtlasPage
@@ -295,8 +295,8 @@ export namespace foundation::gui
             explicit AtlasPage(IAllocator& allocator) : Packer(allocator, kAtlasPageSize, kAtlasPageSize) {}
             ShelfPacker Packer;
             UniquePtr<image::ImageDataRef> Key; // what the GUI's renderer knows the page by
-            rhi::Texture* Texture = nullptr;
-            rhi::TextureView* View = nullptr;
+            rhi::TextureHandle Texture{};
+            rhi::TextureViewHandle View{};
             bool Clear = true; // clear the page before the next draw into it (new, or packed anew)
         };
         struct AtlasEntry
@@ -362,7 +362,7 @@ export namespace foundation::gui
         bool BakePage(rhi::CommandEncoder& encoder, i32 frameIndex, usize index)
         {
             AtlasPage& page = *m_pages[index];
-            const bool fresh = page.Texture == nullptr;
+            const bool fresh = !page.Texture.IsValid();
             if (fresh)
             {
                 rhi::TextureDesc desc{};
@@ -373,8 +373,8 @@ export namespace foundation::gui
                 desc.depth = 1;
                 desc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled;
                 desc.label = u8"picture atlas";
-                if (!m_device.CreateTexture(desc, page.Texture).IsOk() || page.Texture == nullptr ||
-                    !m_device.CreateTextureView(page.Texture, rhi::TextureViewDesc{}, page.View).IsOk() || page.View == nullptr)
+                if (!m_device.CreateTexture(desc, page.Texture).IsOk() || !page.Texture.IsValid() ||
+                    !m_device.CreateTextureView(page.Texture, rhi::TextureViewDesc{}, page.View).IsOk() || !page.View.IsValid())
                 {
                     Release(page);
                     return false;
@@ -421,17 +421,17 @@ export namespace foundation::gui
 
         void Release(AtlasPage& page)
         {
-            if (page.View != nullptr)
+            if (page.View.IsValid())
             {
                 for (vg::renderer::VGRenderer* target : m_targets)
                     target->UnregisterExternalTexture(page.Key.Get());
                 m_device.DestroyTextureView(page.View);
-                page.View = nullptr;
+                page.View = {};
             }
-            if (page.Texture != nullptr)
+            if (page.Texture.IsValid())
             {
                 m_device.DestroyTexture(page.Texture);
-                page.Texture = nullptr;
+                page.Texture = {};
             }
         }
 
@@ -445,8 +445,8 @@ export namespace foundation::gui
             desc.depth = 1;
             desc.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled;
             desc.label = u8"picture bake";
-            if (!m_device.CreateTexture(desc, entry.Texture).IsOk() || entry.Texture == nullptr ||
-                !m_device.CreateTextureView(entry.Texture, rhi::TextureViewDesc{}, entry.View).IsOk() || entry.View == nullptr)
+            if (!m_device.CreateTexture(desc, entry.Texture).IsOk() || !entry.Texture.IsValid() ||
+                !m_device.CreateTextureView(entry.Texture, rhi::TextureViewDesc{}, entry.View).IsOk() || !entry.View.IsValid())
             {
                 Release(entry);
                 return false;
@@ -478,17 +478,17 @@ export namespace foundation::gui
 
         void Release(Entry& entry)
         {
-            if (entry.View != nullptr)
+            if (entry.View.IsValid())
             {
                 for (vg::renderer::VGRenderer* target : m_targets)
                     target->UnregisterExternalTexture(entry.Key.Get());
                 m_device.DestroyTextureView(entry.View);
-                entry.View = nullptr;
+                entry.View = {};
             }
-            if (entry.Texture != nullptr)
+            if (entry.Texture.IsValid())
             {
                 m_device.DestroyTexture(entry.Texture);
-                entry.Texture = nullptr;
+                entry.Texture = {};
             }
         }
 

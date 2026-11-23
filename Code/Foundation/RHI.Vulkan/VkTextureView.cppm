@@ -23,10 +23,11 @@ export namespace foundation::rhi::vk
     class VkTextureViewImpl : public TextureView
     {
     public:
-        Status init(VkDevice device, VkTextureImpl* tex, const TextureViewDesc& d)
+        /// A view of `tex`, which `handle` names.
+        Status init(VkDevice device, VkTextureImpl* tex, TextureHandle handle, const TextureViewDesc& d)
         {
             desc = d;
-            texture = tex;
+            texture = handle;
             // Dimensions are the view's base mip extent, not the texture's mip-0 size: a view onto
             // mip N is half-sized per level. The render-pass renderArea and framebuffer derive from
             // these, so a mip-0 size here would overrun a mip>0 attachment (GPU fault).

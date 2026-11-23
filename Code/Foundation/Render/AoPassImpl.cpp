@@ -374,10 +374,10 @@ namespace foundation::render
         m_retired.Resize(w);
     }
 
-    rhi::BindGroup* AoPass::EnsureBindGroup(rhi::TextureView* a, rhi::TextureView* bView,
+    rhi::BindGroup* AoPass::EnsureBindGroup(rhi::TextureViewHandle a, rhi::TextureViewHandle bView,
                                             u64 generation)
     {
-        if (a == nullptr || bView == nullptr)
+        if (!a.IsValid() || !bView.IsValid())
         {
             return nullptr;
         }
@@ -445,10 +445,10 @@ namespace foundation::render
             m_device->DestroyRenderPipeline(m_applyPipeline);
             m_applyPipeline = nullptr;
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_gtaoLayout != nullptr)
         {

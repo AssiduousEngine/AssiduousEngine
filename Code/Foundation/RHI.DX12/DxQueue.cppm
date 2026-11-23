@@ -18,6 +18,7 @@ import :fence;
 import :transfer_batch;
 import :queue_timeline;
 import :buffer;
+import :tables;
 
 using namespace foundation::core;
 
@@ -32,8 +33,8 @@ export namespace foundation::rhi::dx12
         explicit DxQueueImpl(IAllocator& allocator) noexcept : m_allocator(allocator) {}
 
         DeviceCounterBlock* counters = nullptr; // the device's counts; its transfer batches bump them
-        /// The device's buffers, for its transfer batches.
-        const DxBufferTable* buffers = nullptr;
+        /// The device's tables, for its transfer batches.
+        const DxTables* tables = nullptr;
         /// The device's: frees the retired resources nothing can use any more (after a submit).
         Function<void()> collect;
 
@@ -143,7 +144,7 @@ export namespace foundation::rhi::dx12
                 return ErrorCode::Unknown;
             }
             batch->counters = counters;
-            batch->buffers = buffers;
+            batch->tables = tables;
             batch->timeline = &m_timeline;
             out = batch;
             return ErrorCode::Ok;

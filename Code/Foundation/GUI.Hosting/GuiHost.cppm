@@ -640,7 +640,7 @@ export namespace foundation::gui
             }
             PROFILE_SCOPE("GUI.Encode"); // the window's pass: every draw command
             const rhi::ClearColor clear = ClearFor(data->Encoded);
-            rhi::TextureView* view = data->Encoded ? frame.backbufferAlternateView : frame.backbufferView;
+            rhi::TextureViewHandle view = data->Encoded ? frame.backbufferAlternateView : frame.backbufferView;
             // The targets follow the backbuffer this frame draws into, not the window: while a window
             // is resized its swapchain need not match it, and a pass resolves only into its own size.
             // New targets are made at once and the old ones retired, then freed once the frames in

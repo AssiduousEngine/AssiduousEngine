@@ -57,9 +57,9 @@ export namespace foundation::rhi::webgpu
             m_transferQueue.Initialize(api, instance, device, queue, allocator,
                                        QueueType::Transfer, m_bufferRegistry);
             m_graphicsQueue.counters = &m_counters;
-            m_graphicsQueue.buffers = &m_buffers;
-            m_computeQueue.buffers = &m_buffers;
-            m_transferQueue.buffers = &m_buffers;
+            m_graphicsQueue.tables = &m_tables;
+            m_computeQueue.tables = &m_tables;
+            m_transferQueue.tables = &m_tables;
             m_computeQueue.counters = &m_counters;
             m_transferQueue.counters = &m_counters;
             m_blitHelper.Initialize(api, device);
@@ -291,7 +291,7 @@ export namespace foundation::rhi::webgpu
             if (!status.IsOk())
                 return status;
             auto* buffer = static_cast<WebGpuBuffer*>(made);
-            out = m_buffers.Add(buffer);
+            out = m_tables.buffers.Add(buffer);
             if (!out)
             {
                 buffer->Release();
@@ -304,31 +304,31 @@ export namespace foundation::rhi::webgpu
         }
         /// The backend's own buffer a handle names, or null: for tests that read its state (its
         /// shadow's uploads).
-        [[nodiscard]] WebGpuBuffer* BufferOf(BufferHandle buffer) const noexcept { return m_buffers.Get(buffer); }
+        [[nodiscard]] WebGpuBuffer* BufferOf(BufferHandle buffer) const noexcept { return m_tables.buffers.Get(buffer); }
         const BufferDesc* Describe(BufferHandle buffer) const override
         {
-            const WebGpuBuffer* b = m_buffers.Get(buffer);
+            const WebGpuBuffer* b = m_tables.buffers.Get(buffer);
             return b != nullptr ? &b->desc : nullptr;
         }
         void* Map(BufferHandle buffer) override
         {
-            WebGpuBuffer* b = m_buffers.Get(buffer);
+            WebGpuBuffer* b = m_tables.buffers.Get(buffer);
             return b != nullptr ? b->Map() : nullptr;
         }
         void Unmap(BufferHandle buffer) override
         {
-            if (WebGpuBuffer* b = m_buffers.Get(buffer))
+            if (WebGpuBuffer* b = m_tables.buffers.Get(buffer))
                 b->Unmap();
         }
         void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
         {
-            if (WebGpuBuffer* b = m_buffers.Get(buffer))
+            if (WebGpuBuffer* b = m_tables.buffers.Get(buffer))
                 b->FlushRange(offset, size);
         }
-        Status CreateTexture(const TextureDesc& textureDesc, Texture*& out) override
+        Status CreateTexture(const TextureDesc& textureDesc, TextureHandle& out) override
         {
-            const Status status = CreateResource<WebGpuTexture>(
-                out, [&](WebGpuTexture& t) { return t.Initialize(*m_api, m_device, textureDesc); });
+            const Status status = CreateInTable<WebGpuTexture>(
+                m_tables.textures, out, [&](WebGpuTexture& t) { return t.Initialize(*m_api, m_device, textureDesc); });
             if (status.IsOk())
             {
                 // WebGPU does not say what it allocated: the description's size.
@@ -336,21 +336,42 @@ export namespace foundation::rhi::webgpu
             }
             return status;
         }
-        Status CreateTextureView(Texture* texture, const TextureViewDesc& viewDesc,
-                                 TextureView*& out) override
+        Status CreateTextureView(TextureHandle texture, const TextureViewDesc& viewDesc,
+                                 TextureViewHandle& out) override
         {
-            if (texture == nullptr)
+            const WebGpuTexture* owner = m_tables.textures.Get(texture);
+            if (owner == nullptr)
             {
-                out = nullptr;
+                out = TextureViewHandle::Invalid();
                 return ErrorCode::InvalidArgument;
             }
-            return CreateResource<WebGpuTextureView>(
-                out, [&](WebGpuTextureView& v) { return v.Initialize(*m_api, texture, viewDesc); });
+            return CreateInTable<WebGpuTextureView>(
+                m_tables.views, out, [&](WebGpuTextureView& v) { return v.Initialize(*m_api, owner, texture, viewDesc); });
         }
-        Status CreateSampler(const SamplerDesc& samplerDesc, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& samplerDesc, SamplerHandle& out) override
         {
-            return CreateResource<WebGpuSampler>(
-                out, [&](WebGpuSampler& smp) { return smp.Initialize(*m_api, m_device, samplerDesc); });
+            return CreateInTable<WebGpuSampler>(
+                m_tables.samplers, out, [&](WebGpuSampler& smp) { return smp.Initialize(*m_api, m_device, samplerDesc); });
+        }
+        const TextureDesc* Describe(TextureHandle texture) const override
+        {
+            const WebGpuTexture* t = m_tables.textures.Get(texture);
+            return t != nullptr ? &t->desc : nullptr;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle view) const override
+        {
+            const WebGpuTextureView* v = m_tables.views.Get(view);
+            return v != nullptr ? &v->desc : nullptr;
+        }
+        TextureHandle TextureOf(TextureViewHandle view) const override
+        {
+            const WebGpuTextureView* v = m_tables.views.Get(view);
+            return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        const SamplerDesc* Describe(SamplerHandle sampler) const override
+        {
+            const WebGpuSampler* smp = m_tables.samplers.Get(sampler);
+            return smp != nullptr ? &smp->desc : nullptr;
         }
         Status CreateShaderModule(const ShaderModuleDesc& moduleDesc, ShaderModule*& out) override
         {
@@ -375,7 +396,7 @@ export namespace foundation::rhi::webgpu
                 out,
                 [&](WebGpuBindGroup& g)
                 {
-                    g.buffers = &m_buffers;
+                    g.tables = &m_tables;
                     return g.Initialize(*m_api, m_device, groupDesc);
                 });
         }
@@ -412,7 +433,7 @@ export namespace foundation::rhi::webgpu
             auto* pool = m_allocator.New<WebGpuCommandPool>();
             pool->Initialize(*m_api, m_device, m_allocator, m_blitHelper);
             pool->counters = &m_counters;
-            pool->buffers = &m_buffers;
+            pool->tables = &m_tables;
             out = pool;
             return ErrorCode::Ok;
         }
@@ -437,7 +458,7 @@ export namespace foundation::rhi::webgpu
             return CreateResource<WebGpuSwapChain>(
                 out, [&](WebGpuSwapChain& sc)
                 { return sc.Initialize(*m_api, m_adapter, m_device, &m_graphicsQueue,
-                                       static_cast<WebGpuSurface*>(surface), swapDesc); });
+                                       static_cast<WebGpuSurface*>(surface), swapDesc, m_tables); });
         }
 
         // ---- Resource destruction ----
@@ -447,22 +468,24 @@ export namespace foundation::rhi::webgpu
         // losing it (Specs/rhi-handles.md, Decision 4).
         void DestroyBuffer(BufferHandle& x) override
         {
-            if (m_buffers.Retire(x))
+            if (m_tables.buffers.Retire(x))
                 m_tracker.Collect({});
         }
-        void DestroyTexture(Texture*& x) override
+        void DestroyTexture(TextureHandle& x) override
         {
-            if (x != nullptr)
-            {
-                m_counters.TextureFreed(EstimateTextureBytes(x->desc), CountsAsRenderTarget(x->desc));
-            }
-            ReleaseAndDelete<WebGpuTexture>(x);
+            if (m_tables.textures.Retire(x))
+                m_tracker.Collect({});
         }
-        void DestroyTextureView(TextureView*& x) override
+        void DestroyTextureView(TextureViewHandle& x) override
         {
-            ReleaseAndDelete<WebGpuTextureView>(x);
+            if (m_tables.views.Retire(x))
+                m_tracker.Collect({});
         }
-        void DestroySampler(Sampler*& x) override { ReleaseAndDelete<WebGpuSampler>(x); }
+        void DestroySampler(SamplerHandle& x) override
+        {
+            if (m_tables.samplers.Retire(x))
+                m_tracker.Collect({});
+        }
         void DestroyShaderModule(ShaderModule*& x) override
         {
             ReleaseAndDelete<WebGpuShaderModule>(x);
@@ -550,7 +573,7 @@ export namespace foundation::rhi::webgpu
         void Destroy() override
         {
             // Freed while the WebGPU device still lives (the members' destructors run after).
-            m_buffers.FreeAll();
+            m_tables.FreeAll();
             m_tracker.FreeAll();
             m_blitHelper.Release();
             m_api->wgpuQueueRelease(m_graphicsQueue.Handle());
@@ -588,6 +611,29 @@ export namespace foundation::rhi::webgpu
             return ErrorCode::Ok;
         }
 
+        /// As CreateResource, into `table`: `out` is the new object's handle, invalid on failure.
+        template <typename TResource, typename TTable, typename THandle, typename TInit>
+        Status CreateInTable(TTable& table, THandle& out, TInit&& initialize)
+        {
+            out = THandle::Invalid();
+            auto* resource = m_allocator.New<TResource>();
+            const Status status = initialize(*resource);
+            if (!status.IsOk())
+            {
+                resource->Release();
+                m_allocator.Delete(resource);
+                return status;
+            }
+            out = table.Add(resource);
+            if (!out)
+            {
+                resource->Release();
+                m_allocator.Delete(resource);
+                return ErrorCode::OutOfMemory;
+            }
+            return ErrorCode::Ok;
+        }
+
         template <typename TResource, typename TBase> void ReleaseAndDelete(TBase*& object)
         {
             if (object != nullptr)
@@ -616,10 +662,27 @@ export namespace foundation::rhi::webgpu
         WebGpuBlitHelper m_blitHelper;
         WebGpuBufferRegistry m_bufferRegistry;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
-        // Its buffers by handle, and the tracker the table retires through: no recordings are
-        // registered, so a destroyed buffer is freed at once (see DestroyBuffer).
+        // Its objects by handle, and the tracker the tables retire through: no recordings are
+        // registered, so a destroyed object is freed at once (see DestroyBuffer).
         SubmissionTracker m_tracker{m_allocator};
-        WebGpuBufferTable m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        WebGpuTables m_tables{m_allocator, m_tracker, this, &FreeBuffer, &FreeTexture,
+                              &FreeObject<WebGpuTextureView>, &FreeObject<WebGpuSampler>};
+        static void FreeTexture(void* context, void* object)
+        {
+            auto* device = static_cast<WebGpuDevice*>(context);
+            auto* texture = static_cast<WebGpuTexture*>(object);
+            device->m_counters.TextureFreed(EstimateTextureBytes(texture->desc), CountsAsRenderTarget(texture->desc));
+            texture->Release();
+            device->m_allocator.Delete(texture);
+        }
+        // A view or a sampler: its WebGPU object, then itself.
+        template <typename T>
+        static void FreeObject(void* context, void* object)
+        {
+            auto* device = static_cast<WebGpuDevice*>(context);
+            static_cast<T*>(object)->Release();
+            device->m_allocator.Delete(static_cast<T*>(object));
+        }
         static void FreeBuffer(void* context, void* object)
         {
             auto* device = static_cast<WebGpuDevice*>(context);

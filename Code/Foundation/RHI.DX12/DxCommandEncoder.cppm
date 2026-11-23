@@ -36,6 +36,7 @@ import :accel_struct;
 import :ray_tracing_pipeline;
 import :render_pass_encoder;
 import :compute_pass_encoder;
+import :tables;
 
 using namespace foundation::core;
 
@@ -95,7 +96,7 @@ export namespace foundation::rhi::dx12
             for (usize i = 0; i < colorAtts.Size() && rtvCount < 8; ++i)
             {
                 const auto& att = colorAtts[i];
-                auto* dxView = static_cast<DxTextureViewImpl*>(att.view);
+                auto* dxView = LookUp(m_rpeCtx.tables, att.view);
                 if (dxView == nullptr)
                 {
                     continue;
@@ -120,7 +121,7 @@ export namespace foundation::rhi::dx12
             if (desc.depthStencilAttachment.HasValue())
             {
                 const auto& dsAttach = *desc.depthStencilAttachment;
-                if (auto* dxView = static_cast<DxTextureViewImpl*>(dsAttach.view))
+                if (auto* dxView = LookUp(m_rpeCtx.tables, dsAttach.view))
                 {
                     dsvStorage = dxView->getDsv();
                     dsvPtr = dsvStorage.ptr != 0 ? &dsvStorage : nullptr; // no room: no depth
@@ -196,7 +197,7 @@ export namespace foundation::rhi::dx12
             for (usize i = 0; i < group.bufferBarriers.Size(); ++i)
             {
                 const auto& bb = group.bufferBarriers[i];
-                auto* dxBuf = LookUp(m_rpeCtx.buffers, bb.buffer);
+                auto* dxBuf = LookUp(m_rpeCtx.tables, bb.buffer);
                 if (!dxBuf)
                     continue;
 
@@ -240,7 +241,7 @@ export namespace foundation::rhi::dx12
                 for (usize i = 0; i < group.textureBarriers.Size(); ++i)
                 {
                     const auto& tb = group.textureBarriers[i];
-                    auto* dxTex = static_cast<DxTextureImpl*>(tb.texture);
+                    auto* dxTex = LookUp(m_rpeCtx.tables, tb.texture);
                     if (!dxTex)
                         continue;
 
@@ -362,19 +363,19 @@ export namespace foundation::rhi::dx12
         void CopyBufferToBuffer(BufferHandle src, u64 srcOffset, BufferHandle dst, u64 dstOffset,
                                 u64 size) override
         {
-            auto* dxSrc = LookUp(m_rpeCtx.buffers, src);
-            auto* dxDst = LookUp(m_rpeCtx.buffers, dst);
+            auto* dxSrc = LookUp(m_rpeCtx.tables, src);
+            auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!dxSrc || !dxDst)
                 return;
             m_cmdList->CopyBufferRegion(dxDst->handle(), dstOffset, dxSrc->handle(), srcOffset,
                                         size);
         }
 
-        void CopyBufferToTexture(BufferHandle src, Texture* dst,
+        void CopyBufferToTexture(BufferHandle src, TextureHandle dst,
                                  const BufferTextureCopyRegion& region) override
         {
-            auto* dxSrc = LookUp(m_rpeCtx.buffers, src);
-            auto* dxTex = static_cast<DxTextureImpl*>(dst);
+            auto* dxSrc = LookUp(m_rpeCtx.tables, src);
+            auto* dxTex = LookUp(m_rpeCtx.tables, dst);
             if (!dxSrc || !dxTex)
                 return;
 
@@ -400,11 +401,11 @@ export namespace foundation::rhi::dx12
                                          region.textureOrigin.z, &srcLoc, nullptr);
         }
 
-        void CopyTextureToBuffer(Texture* src, BufferHandle dst,
+        void CopyTextureToBuffer(TextureHandle src, BufferHandle dst,
                                  const BufferTextureCopyRegion& region) override
         {
-            auto* dxTex = static_cast<DxTextureImpl*>(src);
-            auto* dxDst = LookUp(m_rpeCtx.buffers, dst);
+            auto* dxTex = LookUp(m_rpeCtx.tables, src);
+            auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!dxTex || !dxDst)
                 return;
 
@@ -437,11 +438,11 @@ export namespace foundation::rhi::dx12
             m_cmdList->CopyTextureRegion(&dstLoc, 0, 0, 0, &srcLoc, &srcBox);
         }
 
-        void CopyTextureToTexture(Texture* src, Texture* dst,
+        void CopyTextureToTexture(TextureHandle src, TextureHandle dst,
                                   const TextureCopyRegion& region) override
         {
-            auto* dxSrc = static_cast<DxTextureImpl*>(src);
-            auto* dxDst = static_cast<DxTextureImpl*>(dst);
+            auto* dxSrc = LookUp(m_rpeCtx.tables, src);
+            auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!dxSrc || !dxDst)
                 return;
 
@@ -471,10 +472,10 @@ export namespace foundation::rhi::dx12
 
         // ---- Blit & Mipmap Generation ----
 
-        void Blit(Texture* src, Texture* dst) override
+        void Blit(TextureHandle src, TextureHandle dst) override
         {
-            auto* dxSrc = static_cast<DxTextureImpl*>(src);
-            auto* dxDst = static_cast<DxTextureImpl*>(dst);
+            auto* dxSrc = LookUp(m_rpeCtx.tables, src);
+            auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!dxSrc || !dxDst)
                 return;
 
@@ -510,9 +511,9 @@ export namespace foundation::rhi::dx12
             m_cmdList->ResourceBarrier(2, barriers);
         }
 
-        void GenerateMipmaps(Texture* texture) override
+        void GenerateMipmaps(TextureHandle texture) override
         {
-            auto* dxTex = static_cast<DxTextureImpl*>(texture);
+            auto* dxTex = LookUp(m_rpeCtx.tables, texture);
             if (!dxTex)
                 return;
 
@@ -575,10 +576,10 @@ export namespace foundation::rhi::dx12
 
         // ---- MSAA Resolve ----
 
-        void ResolveTexture(Texture* src, Texture* dst) override
+        void ResolveTexture(TextureHandle src, TextureHandle dst) override
         {
-            auto* dxSrc = static_cast<DxTextureImpl*>(src);
-            auto* dxDst = static_cast<DxTextureImpl*>(dst);
+            auto* dxSrc = LookUp(m_rpeCtx.tables, src);
+            auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!dxSrc || !dxDst)
                 return;
 
@@ -627,7 +628,7 @@ export namespace foundation::rhi::dx12
                              u64 dstOffset) override
         {
             auto* qs = static_cast<DxQuerySetImpl*>(querySet);
-            auto* dxDst = LookUp(m_rpeCtx.buffers, dst);
+            auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!qs || !dxDst)
                 return;
             m_cmdList->ResolveQueryData(qs->handle(), DxQuerySetImpl::toDxQueryType(qs->type),
@@ -668,7 +669,7 @@ export namespace foundation::rhi::dx12
                                          Span<const AccelStructGeometryAABBs> aabbs) override
         {
             auto* dxAs = static_cast<DxAccelStructImpl*>(dst);
-            auto* dxScratch = LookUp(m_rpeCtx.buffers, scratchBuffer);
+            auto* dxScratch = LookUp(m_rpeCtx.tables, scratchBuffer);
             if (!dxAs || !dxScratch)
                 return;
 
@@ -690,7 +691,7 @@ export namespace foundation::rhi::dx12
 
                 auto& tri = geomDescs[idx].Triangles;
 
-                if (auto* vb = LookUp(m_rpeCtx.buffers, t.vertexBuffer))
+                if (auto* vb = LookUp(m_rpeCtx.tables, t.vertexBuffer))
                 {
                     tri.VertexBuffer.StartAddress = vb->gpuAddress() + t.vertexOffset;
                     tri.VertexBuffer.StrideInBytes = t.vertexStride;
@@ -700,7 +701,7 @@ export namespace foundation::rhi::dx12
 
                 if (t.indexBuffer)
                 {
-                    if (auto* ib = LookUp(m_rpeCtx.buffers, t.indexBuffer))
+                    if (auto* ib = LookUp(m_rpeCtx.tables, t.indexBuffer))
                     {
                         tri.IndexBuffer = ib->gpuAddress() + t.indexOffset;
                         tri.IndexCount = t.indexCount;
@@ -716,7 +717,7 @@ export namespace foundation::rhi::dx12
 
                 if (t.transformBuffer)
                 {
-                    if (auto* tb = LookUp(m_rpeCtx.buffers, t.transformBuffer))
+                    if (auto* tb = LookUp(m_rpeCtx.tables, t.transformBuffer))
                         tri.Transform3x4 = tb->gpuAddress() + t.transformOffset;
                 }
 
@@ -730,7 +731,7 @@ export namespace foundation::rhi::dx12
                 geomDescs[idx].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_PROCEDURAL_PRIMITIVE_AABBS;
                 geomDescs[idx].Flags = toGeometryFlags(a.flags);
 
-                if (auto* ab = LookUp(m_rpeCtx.buffers, a.aabbBuffer))
+                if (auto* ab = LookUp(m_rpeCtx.tables, a.aabbBuffer))
                 {
                     geomDescs[idx].AABBs.AABBs.StartAddress = ab->gpuAddress() + a.offset;
                     geomDescs[idx].AABBs.AABBs.StrideInBytes = a.stride;
@@ -758,8 +759,8 @@ export namespace foundation::rhi::dx12
                                       u32 instanceCount) override
         {
             auto* dxAs = static_cast<DxAccelStructImpl*>(dst);
-            auto* dxScratch = LookUp(m_rpeCtx.buffers, scratchBuffer);
-            auto* dxInstances = LookUp(m_rpeCtx.buffers, instanceBuffer);
+            auto* dxScratch = LookUp(m_rpeCtx.tables, scratchBuffer);
+            auto* dxInstances = LookUp(m_rpeCtx.tables, instanceBuffer);
             if (!dxAs || !dxScratch || !dxInstances)
                 return;
 
@@ -902,7 +903,7 @@ export namespace foundation::rhi::dx12
             D3D12_DISPATCH_RAYS_DESC dispatchDesc{};
 
             // Raygen: a single record.
-            if (auto* dxBuf = LookUp(m_rpeCtx.buffers, raygenSBT))
+            if (auto* dxBuf = LookUp(m_rpeCtx.tables, raygenSBT))
             {
                 dispatchDesc.RayGenerationShaderRecord.StartAddress =
                     dxBuf->gpuAddress() + raygenOffset;
@@ -912,7 +913,7 @@ export namespace foundation::rhi::dx12
             // Miss.
             if (missSBT)
             {
-                if (auto* dxBuf = LookUp(m_rpeCtx.buffers, missSBT))
+                if (auto* dxBuf = LookUp(m_rpeCtx.tables, missSBT))
                 {
                     dispatchDesc.MissShaderTable.StartAddress = dxBuf->gpuAddress() + missOffset;
                     dispatchDesc.MissShaderTable.StrideInBytes = missStride;
@@ -923,7 +924,7 @@ export namespace foundation::rhi::dx12
             // Hit group.
             if (hitSBT)
             {
-                if (auto* dxBuf = LookUp(m_rpeCtx.buffers, hitSBT))
+                if (auto* dxBuf = LookUp(m_rpeCtx.tables, hitSBT))
                 {
                     dispatchDesc.HitGroupTable.StartAddress = dxBuf->gpuAddress() + hitOffset;
                     dispatchDesc.HitGroupTable.StrideInBytes = hitStride;

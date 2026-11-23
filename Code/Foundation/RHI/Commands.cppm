@@ -170,7 +170,7 @@ export namespace foundation::rhi
         virtual void Barrier(const BarrierGroup& group) = 0;
 
         /// Convenience: transition a single texture between resource states.
-        void TransitionTexture(Texture* tex, ResourceState oldState, ResourceState newState)
+        void TransitionTexture(TextureHandle tex, ResourceState oldState, ResourceState newState)
         {
             TextureBarrier tb{};
             tb.texture = tex;
@@ -196,19 +196,19 @@ export namespace foundation::rhi
         /// Copy operations.
         virtual void CopyBufferToBuffer(BufferHandle src, u64 srcOffset, BufferHandle dst, u64 dstOffset,
                                         u64 size) = 0;
-        virtual void CopyBufferToTexture(BufferHandle src, Texture* dst,
+        virtual void CopyBufferToTexture(BufferHandle src, TextureHandle dst,
                                          const BufferTextureCopyRegion& region) = 0;
-        virtual void CopyTextureToBuffer(Texture* src, BufferHandle dst,
+        virtual void CopyTextureToBuffer(TextureHandle src, BufferHandle dst,
                                          const BufferTextureCopyRegion& region) = 0;
-        virtual void CopyTextureToTexture(Texture* src, Texture* dst,
+        virtual void CopyTextureToTexture(TextureHandle src, TextureHandle dst,
                                           const TextureCopyRegion& region) = 0;
 
         /// Blit (scaled copy) from one texture to another.
-        virtual void Blit(Texture* src, Texture* dst) = 0;
+        virtual void Blit(TextureHandle src, TextureHandle dst) = 0;
         /// Generate mipmaps for a texture.
-        virtual void GenerateMipmaps(Texture* texture) = 0;
+        virtual void GenerateMipmaps(TextureHandle texture) = 0;
         /// Resolve a multisampled texture to a single-sampled texture.
-        virtual void ResolveTexture(Texture* src, Texture* dst) = 0;
+        virtual void ResolveTexture(TextureHandle src, TextureHandle dst) = 0;
 
         /// Query operations.
         virtual void ResetQuerySet(QuerySet* querySet, u32 first, u32 count) = 0;
@@ -274,7 +274,7 @@ export namespace foundation::rhi
         /// Stage a buffer write.
         virtual void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) = 0;
         /// Stage a texture write.
-        virtual void WriteTexture(Texture* dst, Span<const u8> data,
+        virtual void WriteTexture(TextureHandle dst, Span<const u8> data,
                                   const TextureDataLayout& layout, Extent3D extent,
                                   u32 mipLevel = 0, u32 arrayLayer = 0) = 0;
 

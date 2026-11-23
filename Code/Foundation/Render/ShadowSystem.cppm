@@ -446,9 +446,9 @@ export namespace foundation::render
         // Ensure this frame's shadow array exists with enough layers for `viewCount` views' cascades
         // (called before the mesh renderer builds set 0, so the map view is available to bind). Returns
         // the array sample view, or null on failure.
-        rhi::TextureView* PrepareFrame(u32 frameIndex, u32 viewCount);
+        rhi::TextureViewHandle PrepareFrame(u32 frameIndex, u32 viewCount);
 
-        [[nodiscard]] rhi::TextureView* SampleView(u32 frameIndex) const noexcept;
+        [[nodiscard]] rhi::TextureViewHandle SampleView(u32 frameIndex) const noexcept;
 
         // Bumped whenever a shadow texture is (re)created (lazily, and when the array grows for more
         // views). A consumer caching a bind group over SampleView keys on this so a reused-address view
@@ -482,7 +482,7 @@ export namespace foundation::render
 
         // Ensure this frame's atlas exists at the current tile size; returns its sample view (null on
         // failure). Created lazily, and again only when the tile size changes.
-        rhi::TextureView* PrepareAtlas(u32 frameIndex);
+        rhi::TextureViewHandle PrepareAtlas(u32 frameIndex);
 
         // Import this frame's atlas into the graph: the atlas depth pass writes it, then it transitions to
         // DepthStencilRead for the forward sample. Returns the handle (invalid if no atlas).
@@ -500,7 +500,7 @@ export namespace foundation::render
         u64 m_atlasGeneration = 0;
 
         // Retire (or, without a queue, drain and destroy) a texture and its two views.
-        void Release(rhi::Texture*& texture, rhi::TextureView*& attach, rhi::TextureView*& sample);
+        void Release(rhi::TextureHandle& texture, rhi::TextureViewHandle& attach, rhi::TextureViewHandle& sample);
         static constexpr u32 kCascadeCount = ShadowCascades::kCount;
         static constexpr u32 kMaxFramesInFlight = 8;
 
@@ -521,18 +521,18 @@ export namespace foundation::render
         u32 m_framesInFlight = 2;
         u64 m_generation = 0; // incremented on every shadow texture (re)creation
 
-        rhi::Texture* m_textures[kMaxFramesInFlight] = {};
-        rhi::TextureView* m_attachViews[kMaxFramesInFlight] = {}; // depth render target
-        rhi::TextureView* m_sampleViews[kMaxFramesInFlight] = {}; // sampled in the forward shader
+        rhi::TextureHandle m_textures[kMaxFramesInFlight] = {};
+        rhi::TextureViewHandle m_attachViews[kMaxFramesInFlight] = {}; // depth render target
+        rhi::TextureViewHandle m_sampleViews[kMaxFramesInFlight] = {}; // sampled in the forward shader
         rhi::ResourceState m_states[kMaxFramesInFlight] =
             {};                                     // last-known state (import current-state)
         u32 m_layerCounts[kMaxFramesInFlight] = {}; // current array layer count per slot
         u32 m_slotResolutions[kMaxFramesInFlight] = {}; // the cascade resolution each slot was made at
 
         // Local-light shadow atlas: one 2-layer depth array per frame slot.
-        rhi::Texture* m_atlasTextures[kMaxFramesInFlight] = {};
-        rhi::TextureView* m_atlasAttachViews[kMaxFramesInFlight] = {}; // depth render target
-        rhi::TextureView* m_atlasSampleViews[kMaxFramesInFlight] =
+        rhi::TextureHandle m_atlasTextures[kMaxFramesInFlight] = {};
+        rhi::TextureViewHandle m_atlasAttachViews[kMaxFramesInFlight] = {}; // depth render target
+        rhi::TextureViewHandle m_atlasSampleViews[kMaxFramesInFlight] =
             {}; // sampled in the forward shader
         rhi::ResourceState m_atlasStates[kMaxFramesInFlight] = {};
         u32 m_atlasSlotTiles[kMaxFramesInFlight] = {}; // the tile size each slot's atlas was made at

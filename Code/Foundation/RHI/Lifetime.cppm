@@ -276,6 +276,24 @@ export namespace foundation::rhi
             return true;
         }
 
+        /// Takes an object the table does not own back out of it at once, without retiring it (a
+        /// swap chain's own textures, which go with the swap chain): the handle is stale, and the
+        /// object is the caller's again. Null for a handle that is not live.
+        Impl* Remove(Handle<Tag>& handle)
+        {
+            Impl* object = nullptr;
+            {
+                ScopedLock lock(m_mutex);
+                if (Impl* const* held = m_pool.Get(handle))
+                {
+                    object = *held;
+                    (void)m_pool.Free(handle);
+                }
+            }
+            handle = Handle<Tag>::Invalid();
+            return object;
+        }
+
         [[nodiscard]] u32 Size() const noexcept { return m_pool.Size(); }
 
     private:

@@ -73,9 +73,9 @@ export namespace foundation::render
     private:
         rhi::RenderPipeline* MakePipeline(StringView name, bool additive);
 
-        // Bind group over a transient source view, cached by view pointer and generation. Transients are
+        // Bind group over a transient source view, cached by view handle and generation. Transients are
         // pooled with stable generations across frames, so the cache settles; a resize bumps the generation.
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureView* view, u64 generation);
+        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle view, u64 generation);
 
         void Shutdown();
 
@@ -92,8 +92,8 @@ export namespace foundation::render
         rhi::RenderPipeline* m_downPipeline = nullptr;
         rhi::RenderPipeline* m_upPipeline = nullptr;
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Sampler* m_sampler = nullptr;
-        HashMap<rhi::TextureView*, Entry> m_bindGroups;
+        rhi::SamplerHandle m_sampler{};
+        HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;
     };
 
 } // namespace foundation::render

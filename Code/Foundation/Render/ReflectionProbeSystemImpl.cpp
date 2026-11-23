@@ -51,7 +51,7 @@ namespace foundation::render
     {
         // Another resolution (a quality level's environment tier): the arrays are remade at it, and
         // every probe is captured again, once (an uncaptured slot is dirty at its next Assign).
-        if (m_capturedCube != nullptr && m_arraysResolution != m_resolution)
+        if (m_capturedCube.IsValid() && m_arraysResolution != m_resolution)
         {
             const u32 previous = m_arraysResolution;
             ReleaseArrays();
@@ -345,12 +345,12 @@ namespace foundation::render
         }
     }
 
-    rhi::TextureView* ReflectionProbeSystem::CapturedSampleView() const noexcept
+    rhi::TextureViewHandle ReflectionProbeSystem::CapturedSampleView() const noexcept
     {
         return m_capturedArrayView;
     }
 
-    rhi::TextureView* ReflectionProbeSystem::PrefilterArrayView() const noexcept
+    rhi::TextureViewHandle ReflectionProbeSystem::PrefilterArrayView() const noexcept
     {
         return m_prefilterArrayView;
     }
@@ -511,29 +511,29 @@ namespace foundation::render
             }
             group = nullptr;
         };
-        const auto dropView = [this](rhi::TextureView*& view)
+        const auto dropView = [this](rhi::TextureViewHandle& view)
         {
-            if (view != nullptr && m_retire != nullptr)
+            if (view.IsValid() && m_retire != nullptr)
             {
                 m_retire->Retire(view);
             }
-            else if (view != nullptr)
+            else if (view.IsValid())
             {
                 m_device->DestroyTextureView(view);
             }
-            view = nullptr;
+            view = {};
         };
-        const auto dropTexture = [this](rhi::Texture*& texture)
+        const auto dropTexture = [this](rhi::TextureHandle& texture)
         {
-            if (texture != nullptr && m_retire != nullptr)
+            if (texture.IsValid() && m_retire != nullptr)
             {
                 m_retire->Retire(texture);
             }
-            else if (texture != nullptr)
+            else if (texture.IsValid())
             {
                 m_device->DestroyTexture(texture);
             }
-            texture = nullptr;
+            texture = {};
         };
         if (m_retire == nullptr)
         {
@@ -750,10 +750,10 @@ namespace foundation::render
                 m_device->DestroyBindGroup(m_blitFaceBG[i]);
                 m_blitFaceBG[i] = nullptr;
             }
-            if (m_capturedFaceView[i] != nullptr)
+            if (m_capturedFaceView[i].IsValid())
             {
                 m_device->DestroyTextureView(m_capturedFaceView[i]);
-                m_capturedFaceView[i] = nullptr;
+                m_capturedFaceView[i] = {};
             }
         }
         for (u32 i = 0; i < kMaxProbes; ++i)
@@ -763,10 +763,10 @@ namespace foundation::render
                 m_device->DestroyBindGroup(m_prefilterSrcBG[i]);
                 m_prefilterSrcBG[i] = nullptr;
             }
-            if (m_prefilterSrcView[i] != nullptr)
+            if (m_prefilterSrcView[i].IsValid())
             {
                 m_device->DestroyTextureView(m_prefilterSrcView[i]);
-                m_prefilterSrcView[i] = nullptr;
+                m_prefilterSrcView[i] = {};
             }
         }
         if (m_prefilterPipeline != nullptr)
@@ -799,35 +799,35 @@ namespace foundation::render
             m_device->DestroyBindGroupLayout(m_blitLayout);
             m_blitLayout = nullptr;
         }
-        if (m_prefilterArrayView != nullptr)
+        if (m_prefilterArrayView.IsValid())
         {
             m_device->DestroyTextureView(m_prefilterArrayView);
-            m_prefilterArrayView = nullptr;
+            m_prefilterArrayView = {};
         }
-        if (m_prefilterCube != nullptr)
+        if (m_prefilterCube.IsValid())
         {
             m_device->DestroyTexture(m_prefilterCube);
-            m_prefilterCube = nullptr;
+            m_prefilterCube = {};
         }
-        if (m_capturedArrayView != nullptr)
+        if (m_capturedArrayView.IsValid())
         {
             m_device->DestroyTextureView(m_capturedArrayView);
-            m_capturedArrayView = nullptr;
+            m_capturedArrayView = {};
         }
-        if (m_capturedCube != nullptr)
+        if (m_capturedCube.IsValid())
         {
             m_device->DestroyTexture(m_capturedCube);
-            m_capturedCube = nullptr;
+            m_capturedCube = {};
         }
         if (m_probeBuffer.IsValid())
         {
             m_device->DestroyBuffer(m_probeBuffer);
             m_probeBuffer = {};
         }
-        if (m_sampler != nullptr)
+        if (m_sampler.IsValid())
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
     }
 }

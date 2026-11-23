@@ -68,7 +68,7 @@ namespace foundation::render
 
     void SkyPass::DeclareSky(rendergraph::RenderGraph& graph, rendergraph::RGHandle color,
                              rendergraph::RGHandle velocity, rendergraph::RGHandle depth,
-                             rendergraph::RGHandle envH, rhi::TextureView* envView,
+                             rendergraph::RGHandle envH, rhi::TextureViewHandle envView,
                              rhi::TextureFormat colorFormat, rhi::TextureFormat depthFormat,
                              const Float4x4& invViewProj, const Float4x4& prevViewProj,
                              Float2 jitter, Float2 prevJitter, const Float3& camPos,
@@ -97,7 +97,7 @@ namespace foundation::render
             m_retiredPipes.Resize(w);
         }
         rhi::RenderPipeline* pipeline = EnsurePipeline(colorFormat, depthFormat, samples);
-        if (pipeline == nullptr || envView == nullptr)
+        if (pipeline == nullptr || !envView.IsValid())
         {
             return;
         }
@@ -211,7 +211,7 @@ namespace foundation::render
         return m_pipeline;
     }
 
-    rhi::BindGroup* SkyPass::EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* envView,
+    rhi::BindGroup* SkyPass::EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView,
                                              u64 envUid, const GpuSky& u)
     {
         Slot& s = m_slots.At(viewIndex, frameIndex);
@@ -290,7 +290,7 @@ namespace foundation::render
         if (m_sampler)
         {
             m_device->DestroySampler(m_sampler);
-            m_sampler = nullptr;
+            m_sampler = {};
         }
         if (m_pipelineLayout)
         {

@@ -131,7 +131,7 @@ TEST_CASE("RenderView::BuildDrawList frustum-culls a sphere entirely outside the
     Array<DrawItem> scratch;
 
     RenderView culled;
-    culled.Bind(scene, camera, settings, nullptr, rhi::TextureFormat::BGRA8Unorm, 64, 64);
+    culled.Bind(scene, camera, settings, {}, rhi::TextureFormat::BGRA8Unorm, 64, 64);
     culled.BuildDrawList(scratch, /*cull*/ true);
     REQUIRE(culled.DrawList().Size() == 2);
     CHECK(culled.CulledCount() == 2);
@@ -144,7 +144,7 @@ TEST_CASE("RenderView::BuildDrawList frustum-culls a sphere entirely outside the
     // Culling off (the frame's switch off, or a view's frustumCull cleared by the
     // "draw everything" override): the behind-camera sphere is in the list too.
     RenderView all;
-    all.Bind(scene, camera, settings, nullptr, rhi::TextureFormat::BGRA8Unorm, 64, 64);
+    all.Bind(scene, camera, settings, {}, rhi::TextureFormat::BGRA8Unorm, 64, 64);
     all.BuildDrawList(scratch, /*cull*/ false);
     CHECK(all.DrawList().Size() == 4);
     CHECK(all.CulledCount() == 0);
@@ -157,11 +157,11 @@ TEST_CASE("RenderView::BuildDrawList frustum-culls a sphere entirely outside the
     frame.SetViewCulling(true);
     ViewSettings optOut;
     optOut.frustumCull = false;
-    RenderView* framed = frame.AddView(scene, camera, optOut, nullptr, rhi::TextureFormat::BGRA8Unorm,
+    RenderView* framed = frame.AddView(scene, camera, optOut, {}, rhi::TextureFormat::BGRA8Unorm,
                                        64, 64, nullptr, nullptr, nullptr);
     REQUIRE(framed != nullptr);
     CHECK(framed->DrawList().Size() == 4);
-    RenderView* framedCulled = frame.AddView(scene, camera, settings, nullptr,
+    RenderView* framedCulled = frame.AddView(scene, camera, settings, {},
                                              rhi::TextureFormat::BGRA8Unorm, 64, 64, nullptr,
                                              nullptr, nullptr);
     REQUIRE(framedCulled != nullptr);
@@ -179,7 +179,7 @@ TEST_CASE("RenderView: a scene size splits the scene from the output")
     settings.viewportWidth = 960;
     settings.viewportHeight = 540;
     settings.scene = SceneSize(1280, 720);
-    view.Bind(scene, ViewCamera{}, settings, nullptr, foundation::rhi::TextureFormat::RGBA8Unorm, 1280, 540);
+    view.Bind(scene, ViewCamera{}, settings, {}, foundation::rhi::TextureFormat::RGBA8Unorm, 1280, 540);
     CHECK(view.IsScaled());
     CHECK(view.Width() == 1280u); // the chain runs at the scene size
     CHECK(view.Height() == 720u);
@@ -193,13 +193,13 @@ TEST_CASE("RenderView: a scene size splits the scene from the output")
     CHECK(view.OutputViewportHeight() == 540u);
 
     settings.scene = SceneSize(960, 540);
-    view.Bind(scene, ViewCamera{}, settings, nullptr, foundation::rhi::TextureFormat::RGBA8Unorm, 1280, 540);
+    view.Bind(scene, ViewCamera{}, settings, {}, foundation::rhi::TextureFormat::RGBA8Unorm, 1280, 540);
     CHECK_FALSE(view.IsScaled()); // the viewport's own size is not a scale
     CHECK(view.Width() == 1280u);
     CHECK(view.ViewportX() == 160);
 
     settings.scene.sourceHeight = 0.75f; // the same size, but a crop's slice of it shows
-    view.Bind(scene, ViewCamera{}, settings, nullptr, foundation::rhi::TextureFormat::RGBA8Unorm, 1280, 540);
+    view.Bind(scene, ViewCamera{}, settings, {}, foundation::rhi::TextureFormat::RGBA8Unorm, 1280, 540);
     CHECK(view.IsScaled());
 }
 
@@ -246,7 +246,7 @@ TEST_CASE("RenderView::BuildDrawList sorts opaque front-to-back, transparent bac
         add(-5.0f, /*tag*/ 5, RenderCategories::Opaque);
 
         RenderView view;
-        view.Bind(scene, camera, settings, nullptr, rhi::TextureFormat::BGRA8Unorm, 64, 64);
+        view.Bind(scene, camera, settings, {}, rhi::TextureFormat::BGRA8Unorm, 64, 64);
         view.BuildDrawList(scratch);
 
         const Span<const DrawItem> dl = view.DrawList();
@@ -263,7 +263,7 @@ TEST_CASE("RenderView::BuildDrawList sorts opaque front-to-back, transparent bac
         add(-5.0f, 5, RenderCategories::Transparent);
 
         RenderView view;
-        view.Bind(scene, camera, settings, nullptr, rhi::TextureFormat::BGRA8Unorm, 64, 64);
+        view.Bind(scene, camera, settings, {}, rhi::TextureFormat::BGRA8Unorm, 64, 64);
         view.BuildDrawList(scratch);
 
         const Span<const DrawItem> dl = view.DrawList();

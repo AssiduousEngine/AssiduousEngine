@@ -19,6 +19,7 @@ import :buffer;
 import :queue_timeline;
 import :texture;
 import :fence;
+import :tables;
 
 using namespace foundation::core;
 
@@ -30,9 +31,9 @@ export namespace foundation::rhi::dx12
     class DxTransferBatchImpl : public TransferBatch
     {
     public:
-        /// The device's buffers (its writes look their destinations up as they record), and its
+        /// The device's tables (its writes look their destinations up as they record), and its
         /// queue's timeline, which its submissions signal like the queue's own.
-        const DxBufferTable* buffers = nullptr;
+        const DxTables* tables = nullptr;
         DxQueueTimeline* timeline = nullptr;
         /// Open from its first recorded write to its submit (or Reset, or its end): the writes
         /// name their destinations as they are recorded.
@@ -84,7 +85,7 @@ export namespace foundation::rhi::dx12
 
         void WriteBuffer(BufferHandle dst, u64 dstOffset, Span<const u8> data) override
         {
-            auto* dxDst = LookUp(buffers, dst);
+            auto* dxDst = LookUp(tables, dst);
             if (!dxDst || data.Size() == 0)
                 return;
             if (counters)
@@ -129,10 +130,10 @@ export namespace foundation::rhi::dx12
                                         0, stagingSize);
         }
 
-        void WriteTexture(Texture* dst, Span<const u8> data, const TextureDataLayout& layout,
+        void WriteTexture(TextureHandle dst, Span<const u8> data, const TextureDataLayout& layout,
                           Extent3D extent, u32 mipLevel, u32 arrayLayer) override
         {
-            auto* dxTex = static_cast<DxTextureImpl*>(dst);
+            auto* dxTex = LookUp(tables, dst);
             if (!dxTex || data.Size() == 0)
                 return;
             if (counters)

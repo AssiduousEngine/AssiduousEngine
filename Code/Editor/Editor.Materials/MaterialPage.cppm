@@ -258,7 +258,7 @@ export namespace editor
         u32 m_previewShape = 0;
         Guid m_previewMeshGuid; // nil = primitive shape
         Array<foundation::resource::Proxy<foundation::texture::Texture>> m_previewTextures;
-        Array<foundation::rhi::TextureView*> m_previewTextureViews; // views captured into the material
+        Array<foundation::rhi::TextureViewHandle> m_previewTextureViews; // views captured into the material
 
         // The material's shader asset, when it is on one: its resource (the version says when it
         // recooked) and its property table (the rows' ranges).

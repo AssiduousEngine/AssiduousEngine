@@ -286,7 +286,7 @@ namespace
                 if (rhi::Device* dev =
                         (host.Graphics() != nullptr) ? host.Graphics()->Raw() : nullptr)
                 {
-                    if (rhi::TextureView* cutout = CreateCutoutTexture(*dev))
+                    if (rhi::TextureViewHandle cutout = CreateCutoutTexture(*dev))
                     {
                         core::RefPtr<materials::Material> maskMat = materials::CreatePBR(
                             u8"lit", core::Float4{0.95f, 0.8f, 0.3f, 1.0f}, 0.0f, 0.45f);
@@ -544,8 +544,8 @@ namespace
             {
                 return;
             }
-            rhi::TextureView* logo = m_logoTex ? m_logoTex->View() : LoadLogoTexture();
-            if (logo == nullptr)
+            rhi::TextureViewHandle logo = m_logoTex ? m_logoTex->View() : LoadLogoTexture();
+            if (!logo.IsValid())
             {
                 return;
             }
@@ -567,12 +567,12 @@ namespace
 
         // Import the logo PNG through the asset pipeline (TextureImporter, cooked into the content DB,
         // then Bind the runtime Texture) and return its GPU view. The Proxy is stored to keep it alive.
-        [[nodiscard]] rhi::TextureView* LoadLogoTexture()
+        [[nodiscard]] rhi::TextureViewHandle LoadLogoTexture()
         {
             if (m_resources.Get() == nullptr ||
                 !m_resources->HasFactory(texture::Texture::StaticType().id)) // no device, no texture factory
             {
-                return nullptr;
+                return {};
             }
             const core::String imageDirStorage =
                 foundation::vfs::DataPath(DataRoot(), u8"Samples/Images");
@@ -589,7 +589,7 @@ namespace
                 root->CreateInstance(u8"logo.tex", texture::TextureResource::StaticType());
             if (inst == nullptr)
             {
-                return nullptr;
+                return {};
             }
             pipeline::TextureAssetBuilder builder;
             foundation::vfs::NativeFileSystem imageMount(imageDir, AppRoot());
@@ -598,12 +598,12 @@ namespace
             ctx.output = inst;
             if (!builder.Build(asset, ctx).IsOk())
             {
-                return nullptr;
+                return {};
             }
 
             // The runtime factory product is a texture::Texture (not the cooked record); it owns the GPU view.
             m_logoTex = m_resources->Bind<texture::Texture>(inst->Id());
-            return m_logoTex ? m_logoTex->View() : nullptr;
+            return m_logoTex ? m_logoTex->View() : rhi::TextureViewHandle{};
         }
 
         // One textured billboard per (orientation, blend) combination, in a row, so the modes are easy to
@@ -620,8 +620,8 @@ namespace
             {
                 return;
             }
-            rhi::TextureView* logo = LoadLogoTexture();
-            if (logo == nullptr)
+            rhi::TextureViewHandle logo = LoadLogoTexture();
+            if (!logo.IsValid())
             {
                 core::ConsoleWrite(u8"Sandbox: sprite demo skipped (logo import failed)\n");
                 return;
@@ -1172,7 +1172,7 @@ namespace
             auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>();
             auto* gfx = host.Graphics();
             if (m_scene == nullptr || render == nullptr || !render->IsReady() || gfx == nullptr ||
-                gfx->Raw() == nullptr || frame.encoder == nullptr || frame.backbuffer == nullptr ||
+                gfx->Raw() == nullptr || frame.encoder == nullptr || !frame.backbuffer.IsValid() ||
                 frame.window == nullptr)
             {
                 return;
@@ -1186,8 +1186,8 @@ namespace
             {
                 return;
             }
-            rhi::Texture* offTex = m_offscreenTex[slot];
-            rhi::TextureView* offView = m_offscreenView[slot];
+            rhi::TextureHandle offTex = m_offscreenTex[slot];
+            rhi::TextureViewHandle offView = m_offscreenView[slot];
 
             const core::u32 halfW = frame.width / 2;
             const core::f32 aspect =
@@ -1240,21 +1240,21 @@ namespace
         bool EnsureOffscreen(rhi::Device& device, rhi::TextureFormat fmt, core::u32 w, core::u32 h,
                              core::u32 slot)
         {
-            if (m_offscreenTex[slot] != nullptr && m_offscreenW[slot] == w &&
+            if (m_offscreenTex[slot].IsValid() && m_offscreenW[slot] == w &&
                 m_offscreenH[slot] == h)
             {
                 return true;
             }
             device.WaitIdle();
-            if (m_offscreenView[slot] != nullptr)
+            if (m_offscreenView[slot].IsValid())
             {
                 device.DestroyTextureView(m_offscreenView[slot]);
-                m_offscreenView[slot] = nullptr;
+                m_offscreenView[slot] = {};
             }
-            if (m_offscreenTex[slot] != nullptr)
+            if (m_offscreenTex[slot].IsValid())
             {
                 device.DestroyTexture(m_offscreenTex[slot]);
-                m_offscreenTex[slot] = nullptr;
+                m_offscreenTex[slot] = {};
             }
 
             rhi::TextureDesc td{};
@@ -1266,14 +1266,14 @@ namespace
             td.label = u8"sandbox.offscreen";
             if (!device.CreateTexture(td, m_offscreenTex[slot]).IsOk())
             {
-                m_offscreenTex[slot] = nullptr;
+                m_offscreenTex[slot] = {};
                 return false;
             }
             rhi::TextureViewDesc vd{};
             vd.format = fmt;
             if (!device.CreateTextureView(m_offscreenTex[slot], vd, m_offscreenView[slot]).IsOk())
             {
-                m_offscreenView[slot] = nullptr;
+                m_offscreenView[slot] = {};
                 return false;
             }
             m_offscreenW[slot] = w;
@@ -1431,26 +1431,26 @@ namespace
                 device.WaitIdle(); // GPU must finish before freeing the offscreen targets
                 for (core::u32 i = 0; i < kOffscreenSlots; ++i)
                 {
-                    if (m_offscreenView[i] != nullptr)
+                    if (m_offscreenView[i].IsValid())
                     {
                         device.DestroyTextureView(m_offscreenView[i]);
-                        m_offscreenView[i] = nullptr;
+                        m_offscreenView[i] = {};
                     }
-                    if (m_offscreenTex[i] != nullptr)
+                    if (m_offscreenTex[i].IsValid())
                     {
                         device.DestroyTexture(m_offscreenTex[i]);
-                        m_offscreenTex[i] = nullptr;
+                        m_offscreenTex[i] = {};
                     }
                 }
-                if (m_cutoutView != nullptr)
+                if (m_cutoutView.IsValid())
                 {
                     device.DestroyTextureView(m_cutoutView);
-                    m_cutoutView = nullptr;
+                    m_cutoutView = {};
                 }
-                if (m_cutoutTex != nullptr)
+                if (m_cutoutTex.IsValid())
                 {
                     device.DestroyTexture(m_cutoutTex);
-                    m_cutoutTex = nullptr;
+                    m_cutoutTex = {};
                 }
             }
             core::ConsoleWrite(u8"Sandbox: shutting down.\n");
@@ -1461,7 +1461,7 @@ namespace
         // Build a small procedural alpha-cutout texture (checkerboard: opaque cells and fully transparent
         // holes) and upload it synchronously through an RHI transfer batch. Feeds the masked-material demo,
         // whose alpha-test discard cuts the holes. Stores the texture and view for shutdown cleanup.
-        rhi::TextureView* CreateCutoutTexture(rhi::Device& device)
+        rhi::TextureViewHandle CreateCutoutTexture(rhi::Device& device)
         {
             constexpr core::u32 N = 64, cell = 8;
             core::Array<core::u8> px;
@@ -1490,8 +1490,8 @@ namespace
             td.label = u8"masked.cutout";
             if (!device.CreateTexture(td, m_cutoutTex).IsOk())
             {
-                m_cutoutTex = nullptr;
-                return nullptr;
+                m_cutoutTex = {};
+                return {};
             }
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8UnormSrgb;
@@ -1501,9 +1501,9 @@ namespace
             if (!device.CreateTextureView(m_cutoutTex, vd, m_cutoutView).IsOk())
             {
                 device.DestroyTexture(m_cutoutTex);
-                m_cutoutTex = nullptr;
-                m_cutoutView = nullptr;
-                return nullptr;
+                m_cutoutTex = {};
+                m_cutoutView = {};
+                return {};
             }
             if (rhi::Queue* q = device.GetQueue(rhi::QueueType::Graphics, 0))
             {
@@ -1605,14 +1605,14 @@ namespace
         scene::EntityHandle m_camera{};
         // Offscreen render targets, one per frame in flight (each slot tracks its own size).
         static constexpr core::u32 kOffscreenSlots = 3;
-        rhi::Texture* m_offscreenTex[kOffscreenSlots] = {};
-        rhi::TextureView* m_offscreenView[kOffscreenSlots] = {};
+        rhi::TextureHandle m_offscreenTex[kOffscreenSlots] = {};
+        rhi::TextureViewHandle m_offscreenView[kOffscreenSlots] = {};
         rhi::ResourceState m_offscreenState[kOffscreenSlots] = {rhi::ResourceState::Undefined,
                                                                 rhi::ResourceState::Undefined,
                                                                 rhi::ResourceState::Undefined};
         core::u32 m_offscreenW[kOffscreenSlots] = {}, m_offscreenH[kOffscreenSlots] = {};
-        rhi::Texture* m_cutoutTex = nullptr; // masked-demo alpha-cutout texture
-        rhi::TextureView* m_cutoutView = nullptr;
+        rhi::TextureHandle m_cutoutTex{}; // masked-demo alpha-cutout texture
+        rhi::TextureViewHandle m_cutoutView{};
         scene::EntityHandle
             m_keyLight; // directional key light (intensity/color tweakable in the debug UI)
         core::f32 m_keyPitch = -1.05f; // downward tilt (~-60 deg); Environment window slider

@@ -76,17 +76,17 @@ namespace
         const f32* thresholds = nullptr;    // LOD coverage thresholds override (null = default set)
         u32 thresholdCount = 0;
         // Top-K splat material (all null / 0 = no material, the height-lit fallback).
-        rhi::TextureView* weightView = nullptr;     // RGBA8Unorm slot weights
-        rhi::TextureView* indexView = nullptr;      // RGBA8Uint palette indices
-        rhi::TextureView* baseAlbedoView = nullptr; // the base layer (erase reveals)
-        rhi::TextureView* baseNormalView = nullptr; // base tangent-space normal map (terrain PBR)
-        rhi::TextureView* baseOrmView = nullptr;    // base ORM (R=AO G=rough B=metal)
+        rhi::TextureViewHandle weightView{};     // RGBA8Unorm slot weights
+        rhi::TextureViewHandle indexView{};      // RGBA8Uint palette indices
+        rhi::TextureViewHandle baseAlbedoView{}; // the base layer (erase reveals)
+        rhi::TextureViewHandle baseNormalView{}; // base tangent-space normal map (terrain PBR)
+        rhi::TextureViewHandle baseOrmView{};    // base ORM (R=AO G=rough B=metal)
         f32 baseTileScale = 1.0f;
-        rhi::TextureView* paletteArrayView = nullptr; // Texture2DArray, one slice per layer
-        rhi::TextureView* normalArrayView = nullptr;  // per-layer normal array (terrain PBR)
-        rhi::TextureView* ormArrayView = nullptr;     // per-layer ORM array
-        rhi::TextureView* heightArrayView = nullptr;  // per-layer height array (height-blend)
-        rhi::TextureView* maskArrayView = nullptr;    // per-layer coverage mask array (coverage-mask)
+        rhi::TextureViewHandle paletteArrayView{}; // Texture2DArray, one slice per layer
+        rhi::TextureViewHandle normalArrayView{};  // per-layer normal array (terrain PBR)
+        rhi::TextureViewHandle ormArrayView{};     // per-layer ORM array
+        rhi::TextureViewHandle heightArrayView{};  // per-layer height array (height-blend)
+        rhi::TextureViewHandle maskArrayView{};    // per-layer coverage mask array (coverage-mask)
         f32 heightBlendContrast = 0.25f;              // soft-skirt width (only when a height map binds)
         Float4x4 chunkToWorld = Float4x4::Identity(); // the tangent frame follows this
         rhi::BufferHandle tileScaleBuffer{};       // f32[paletteCount]
@@ -135,16 +135,16 @@ namespace
             tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                        tmodel::ChunksPerSide(terrain.Size()));
             engine::terrain::TerrainHeightTextureCache heightCache;
-            rhi::TextureView* heightView = heightCache.GetOrCreate(device, terrain, 1);
-            REQUIRE(heightView != nullptr);
+            rhi::TextureViewHandle heightView = heightCache.GetOrCreate(device, terrain, 1);
+            REQUIRE(heightView.IsValid());
             // Holed chunks' own index buffers (none for a solid field).
             engine::terrain::TerrainHoledMeshCache holedCache;
             const Span<const engine::terrain::HoledChunkMesh> holed = holedCache.GetOrBuild(
                 device, terrain, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, 1);
             engine::terrain::TerrainHoleTextureCache holeTextures;
-            rhi::TextureView* holeView =
+            rhi::TextureViewHandle holeView =
                 (cfg.holeMask && terrain.HasHoles()) ? holeTextures.GetOrCreate(device, terrain, 1)
-                                                      : nullptr;
+                                                      : rhi::TextureViewHandle{};
 
             static const f32 defaultThresholds[] = {1.0f, 0.25f, 0.08f, 0.03f, 0.012f, 0.005f, 0.002f};
             const f32* thresholds = cfg.thresholds != nullptr ? cfg.thresholds : defaultThresholds;
@@ -210,11 +210,11 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"terrain.probe.target";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
 
             rhi::CommandPool* pool = nullptr;
@@ -383,12 +383,12 @@ namespace
         td.height = h;
         td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
         td.label = u8"probe.albedo";
-        rhi::Texture* tex = nullptr;
+        rhi::TextureHandle tex{};
         REQUIRE(device.CreateTexture(td, tex).IsOk());
         rhi::TextureViewDesc vd{};
         vd.format = rhi::TextureFormat::RGBA8Unorm;
         vd.dimension = rhi::TextureViewDimension::Texture2D;
-        rhi::TextureView* view = nullptr;
+        rhi::TextureViewHandle view{};
         REQUIRE(device.CreateTextureView(tex, vd, view).IsOk());
         if (rhi::Queue* q = device.GetQueue(rhi::QueueType::Graphics))
         {
@@ -405,7 +405,7 @@ namespace
             }
         }
         RefPtr<texture::Texture> t = MakeRef<texture::Texture>(DefaultAllocator());
-        t->Adopt(&device, tex, view, nullptr, w, h, rhi::TextureFormat::RGBA8Unorm, false);
+        t->Adopt(&device, tex, view, {}, w, h, rhi::TextureFormat::RGBA8Unorm, false);
         return t;
     }
 
@@ -528,8 +528,8 @@ namespace
             tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                        tmodel::ChunksPerSide(ridge->Size()));
             engine::terrain::TerrainHeightTextureCache heightCache;
-            rhi::TextureView* heightView = heightCache.GetOrCreate(device, *ridge, 1);
-            REQUIRE(heightView != nullptr);
+            rhi::TextureViewHandle heightView = heightCache.GetOrCreate(device, *ridge, 1);
+            REQUIRE(heightView.IsValid());
 
             // Sun low from +X: the direction to the light; the travel direction is its negation.
             const Float3 travel = Normalized(toLight) * -1.0f;
@@ -582,11 +582,11 @@ namespace
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"terrain.shadowprobe";
-            rhi::Texture* target = nullptr;
+            rhi::TextureHandle target{};
             REQUIRE(device.CreateTexture(td, target).IsOk());
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            rhi::TextureView* targetView = nullptr;
+            rhi::TextureViewHandle targetView{};
             REQUIRE(device.CreateTextureView(target, vd, targetView).IsOk());
 
             rhi::CommandPool* pool = nullptr;
@@ -872,8 +872,8 @@ TEST_CASE("terrain probe: SIX palette layers render distinct stripes (R5 - the 4
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
             const engine::terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, kBands});
-            REQUIRE(views.weightView != nullptr);
-            REQUIRE(gpu.arrayView != nullptr);
+            REQUIRE(views.weightView.IsValid());
+            REQUIRE(gpu.arrayView.IsValid());
             cfg.weightView = views.weightView;
             cfg.indexView = views.indexView;
             cfg.paletteArrayView = gpu.arrayView;
@@ -975,7 +975,7 @@ TEST_CASE("terrain probe: painting the CPU weights re-uploads and changes the bl
             const f32 scale = 1000.0f;
             const engine::terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{&scale, 1});
-            REQUIRE(gpu.arrayView != nullptr);
+            REQUIRE(gpu.arrayView.IsValid());
 
             ProbeCfg cfg;
             cfg.terrain = MakeFlat();
@@ -1176,12 +1176,12 @@ TEST_CASE("terrain probe: ARRAY normal + ORM blend through top-K, and the R2 rot
             const f32 scale = 1000.0f;
             const engine::terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{&scale, 1});
-            REQUIRE(gpu.arrayView != nullptr);
-            REQUIRE(gpu.normalArrayView != nullptr);
-            REQUIRE(gpu.ormArrayView != nullptr);
+            REQUIRE(gpu.arrayView.IsValid());
+            REQUIRE(gpu.normalArrayView.IsValid());
+            REQUIRE(gpu.ormArrayView.IsValid());
             const engine::terrain::SplatTextureViews views =
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
-            REQUIRE(views.weightView != nullptr);
+            REQUIRE(views.weightView.IsValid());
 
             ProbeCfg cfg;
             cfg.terrain = MakeFlat();
@@ -1303,11 +1303,11 @@ TEST_CASE("terrain probe: height-blend biases the top-K toward the tallest layer
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
             const engine::terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, 2});
-            REQUIRE(views.weightView != nullptr);
-            REQUIRE(gpu.arrayView != nullptr);
+            REQUIRE(views.weightView.IsValid());
+            REQUIRE(gpu.arrayView.IsValid());
             if (bindHeight)
             {
-                REQUIRE(gpu.heightArrayView != nullptr); // HasHeight(): the cache built the array
+                REQUIRE(gpu.heightArrayView.IsValid()); // HasHeight(): the cache built the array
             }
             cfg.weightView = views.weightView;
             cfg.indexView = views.indexView;
@@ -1315,7 +1315,7 @@ TEST_CASE("terrain probe: height-blend biases the top-K toward the tallest layer
             cfg.tileScaleBuffer = gpu.tileScaleBuffer;
             cfg.tileScaleGeneration = gpu.generation;
             cfg.paletteCount = 2;
-            cfg.heightArrayView = bindHeight ? gpu.heightArrayView : nullptr;
+            cfg.heightArrayView = bindHeight ? gpu.heightArrayView : rhi::TextureViewHandle{};
             cfg.heightBlendContrast = contrast;
             p = RenderTerrainProbe(*dev, cfg);
 
@@ -1429,11 +1429,11 @@ TEST_CASE("terrain probe: a coverage mask cuts a layer to reveal the base (Vk + 
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
             const engine::terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, 1});
-            REQUIRE(views.weightView != nullptr);
-            REQUIRE(gpu.arrayView != nullptr);
+            REQUIRE(views.weightView.IsValid());
+            REQUIRE(gpu.arrayView.IsValid());
             if (pattern != Off)
             {
-                REQUIRE(gpu.maskArrayView != nullptr); // HasMask(): the cache built the array
+                REQUIRE(gpu.maskArrayView.IsValid()); // HasMask(): the cache built the array
             }
             cfg.weightView = views.weightView;
             cfg.indexView = views.indexView;
@@ -1442,7 +1442,7 @@ TEST_CASE("terrain probe: a coverage mask cuts a layer to reveal the base (Vk + 
             cfg.tileScaleBuffer = gpu.tileScaleBuffer;
             cfg.tileScaleGeneration = gpu.generation;
             cfg.paletteCount = 1;
-            cfg.maskArrayView = (pattern != Off) ? gpu.maskArrayView : nullptr;
+            cfg.maskArrayView = (pattern != Off) ? gpu.maskArrayView : rhi::TextureViewHandle{};
             p = RenderTerrainProbe(*dev, cfg);
 
             splatCache.Clear(*dev);
@@ -1662,8 +1662,8 @@ TEST_CASE("terrain probe: a masked layer reveals the PAINTED layer beneath, not 
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
             const engine::terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, 2});
-            REQUIRE(views.weightView != nullptr);
-            REQUIRE(gpu.arrayView != nullptr);
+            REQUIRE(views.weightView.IsValid());
+            REQUIRE(gpu.arrayView.IsValid());
             cfg.weightView = views.weightView;
             cfg.indexView = views.indexView;
             cfg.baseAlbedoView = blue->View();
@@ -1671,7 +1671,7 @@ TEST_CASE("terrain probe: a masked layer reveals the PAINTED layer beneath, not 
             cfg.tileScaleBuffer = gpu.tileScaleBuffer;
             cfg.tileScaleGeneration = gpu.generation;
             cfg.paletteCount = 2;
-            cfg.maskArrayView = maskGrass ? gpu.maskArrayView : nullptr;
+            cfg.maskArrayView = maskGrass ? gpu.maskArrayView : rhi::TextureViewHandle{};
             p = RenderTerrainProbe(*dev, cfg);
 
             splatCache.Clear(*dev);

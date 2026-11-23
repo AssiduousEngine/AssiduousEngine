@@ -51,10 +51,10 @@ export namespace foundation::materials
         }
 
         [[nodiscard]] rhi::Device* Device() const noexcept { return m_device; }
-        [[nodiscard]] rhi::Sampler* DefaultSampler() const noexcept { return m_defaultSampler; }
-        [[nodiscard]] rhi::TextureView* WhiteTexture() const noexcept { return m_whiteView; }
-        [[nodiscard]] rhi::TextureView* NormalTexture() const noexcept { return m_normalView; }
-        [[nodiscard]] rhi::TextureView* BlackTexture() const noexcept { return m_blackView; }
+        [[nodiscard]] rhi::SamplerHandle DefaultSampler() const noexcept { return m_defaultSampler; }
+        [[nodiscard]] rhi::TextureViewHandle WhiteTexture() const noexcept { return m_whiteView; }
+        [[nodiscard]] rhi::TextureViewHandle NormalTexture() const noexcept { return m_normalView; }
+        [[nodiscard]] rhi::TextureViewHandle BlackTexture() const noexcept { return m_blackView; }
 
         // Ensures the instance's uniform buffer is up to date and returns it (null if the material
         // declares no uniforms). Lets a renderer assemble its own fixed set-2 layout (UBO and textures)
@@ -321,7 +321,7 @@ export namespace foundation::materials
         }
 
         // Sampler cache keyed by address/filter combination.
-        [[nodiscard]] rhi::Sampler*
+        [[nodiscard]] rhi::SamplerHandle 
         GetOrCreateSampler(rhi::AddressMode u, rhi::AddressMode v,
                            rhi::FilterMode minF = rhi::FilterMode::Linear,
                            rhi::FilterMode magF = rhi::FilterMode::Linear,
@@ -330,7 +330,7 @@ export namespace foundation::materials
             const u64 key = static_cast<u64>(u) | (static_cast<u64>(v) << 4) |
                             (static_cast<u64>(minF) << 8) | (static_cast<u64>(magF) << 12) |
                             (static_cast<u64>(mip) << 16);
-            if (rhi::Sampler** cached = m_samplerCache.Find(key))
+            if (rhi::SamplerHandle * cached = m_samplerCache.Find(key))
             {
                 return *cached;
             }
@@ -342,7 +342,7 @@ export namespace foundation::materials
             desc.minFilter = minF;
             desc.magFilter = magF;
             desc.mipmapFilter = mip;
-            rhi::Sampler* sampler = nullptr;
+            rhi::SamplerHandle sampler{};
             if (!m_device->CreateSampler(desc, sampler).IsOk())
             {
                 return m_defaultSampler;
@@ -388,7 +388,7 @@ export namespace foundation::materials
         }
 
         // A 1x1 texture of one colour; `cube` makes it six layers seen as a cube.
-        bool CreateTexture1x1(Color32 color, rhi::Texture*& outTex, rhi::TextureView*& outView,
+        bool CreateTexture1x1(Color32 color, rhi::TextureHandle& outTex, rhi::TextureViewHandle& outView,
                               bool cube = false)
         {
             const u32 layers = cube ? 6u : 1u;
@@ -577,8 +577,8 @@ export namespace foundation::materials
             {
                 if (p.IsTexture())
                 {
-                    rhi::TextureView* view = instance.GetTexture(propIndex);
-                    if (view == nullptr)
+                    rhi::TextureViewHandle view = instance.GetTexture(propIndex);
+                    if (!view.IsValid())
                     {
                         // Neutral textures for unbound slots: a normal map decodes to (0,0,1), the
                         // geometric normal; every other map (albedo, metallic-roughness, occlusion,
@@ -591,23 +591,23 @@ export namespace foundation::materials
                                : Contains(p.name, u8"ormal")               ? m_normalView
                                                                           : m_whiteView;
                     }
-                    if (view != nullptr)
+                    if (view.IsValid())
                     {
                         entries.PushBack(rhi::BindGroupEntry::TextureEntry(view));
                     }
                 }
                 else if (p.IsSampler())
                 {
-                    rhi::Sampler* s = instance.GetSampler(propIndex);
-                    if (s == nullptr)
+                    rhi::SamplerHandle s = instance.GetSampler(propIndex);
+                    if (!s.IsValid())
                     {
                         s = GetOrCreateSampler(material->samplerU, material->samplerV);
                     }
-                    if (s == nullptr)
+                    if (!s.IsValid())
                     {
                         s = m_defaultSampler;
                     }
-                    if (s != nullptr)
+                    if (s.IsValid())
                     {
                         entries.PushBack(rhi::BindGroupEntry::SamplerEntry(s));
                     }
@@ -773,7 +773,7 @@ export namespace foundation::materials
 
         rhi::Device* m_device = nullptr;
         rhi::Queue* m_queue = nullptr;
-        rhi::Sampler* m_defaultSampler = nullptr;
+        rhi::SamplerHandle m_defaultSampler{};
         static constexpr u32 kRetireFrames = 3;
         struct RetiredBindGroup
         {
@@ -782,17 +782,17 @@ export namespace foundation::materials
         };
         Array<RetiredBindGroup> m_retiredBindGroups;
 
-        rhi::Texture* m_whiteTex = nullptr;
-        rhi::TextureView* m_whiteView = nullptr;
-        rhi::Texture* m_normalTex = nullptr;
-        rhi::TextureView* m_normalView = nullptr;
-        rhi::Texture* m_blackTex = nullptr;
-        rhi::TextureView* m_blackView = nullptr;
-        rhi::Texture* m_whiteCubeTex = nullptr;
-        rhi::TextureView* m_whiteCubeView = nullptr;
+        rhi::TextureHandle m_whiteTex{};
+        rhi::TextureViewHandle m_whiteView{};
+        rhi::TextureHandle m_normalTex{};
+        rhi::TextureViewHandle m_normalView{};
+        rhi::TextureHandle m_blackTex{};
+        rhi::TextureViewHandle m_blackView{};
+        rhi::TextureHandle m_whiteCubeTex{};
+        rhi::TextureViewHandle m_whiteCubeView{};
 
         HashMap<u64, rhi::BindGroupLayout*> m_layoutCache;
-        HashMap<u64, rhi::Sampler*> m_samplerCache;
+        HashMap<u64, rhi::SamplerHandle> m_samplerCache;
         HashMap<MaterialInstance*, rhi::BufferHandle> m_uniformBuffers;
         // Each instance's effect group buffers, by group index (null for a group without uniforms).
         struct EffectBuffers

@@ -165,14 +165,14 @@ int main(int /*argc*/, char** /*argv*/)
     SamplerDesc sampDesc{};
     sampDesc.maxAnisotropy = 16;
     sampDesc.label = u8"smoketest_sampler";
-    Sampler* samp = nullptr;
+    SamplerHandle samp{};
     if (device->CreateSampler(sampDesc, samp) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createSampler failed\n");
     }
     else
     {
-        std::printf("sampler created (aniso=%u)\n", samp->desc.maxAnisotropy);
+        std::printf("sampler created (aniso=%u)\n", device->Describe(samp)->maxAnisotropy);
     }
 
     // Minimal SPIR-V noop fragment shader.
@@ -572,17 +572,17 @@ int main(int /*argc*/, char** /*argv*/)
                     }
 
                     // Texture, view and sampler.
-                    Texture* wgpuTex = nullptr;
+                    TextureHandle wgpuTex{};
                     wgpuDevice->CreateTexture(
                         TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 64), wgpuTex);
-                    TextureView* wgpuView = nullptr;
+                    TextureViewHandle wgpuView{};
                     if (wgpuTex)
                     {
                         TextureViewDesc vd{};
                         vd.format = TextureFormat::RGBA8Unorm;
                         wgpuDevice->CreateTextureView(wgpuTex, vd, wgpuView);
                     }
-                    Sampler* wgpuSampler = nullptr;
+                    SamplerHandle wgpuSampler{};
                     wgpuDevice->CreateSampler(SamplerDesc{}, wgpuSampler);
                     std::printf("WebGPU texture/view/sampler: %s/%s/%s\n",
                                 wgpuTex ? "OK" : "FAIL", wgpuView ? "OK" : "FAIL",

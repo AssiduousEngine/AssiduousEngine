@@ -25,6 +25,7 @@ import :buffer;
 import :bind_group;
 import :render_pipeline;
 import :pipeline_layout;
+import :tables;
 
 using namespace foundation::core;
 
@@ -52,8 +53,8 @@ export namespace foundation::rhi::vk
     class VkRenderBundleEncoderImpl : public RenderBundleEncoder
     {
     public:
-        /// The device's buffers, by which this looks its buffer handles up as it records.
-        const VkBufferTable* buffers = nullptr;
+        /// The device's tables, by which this looks its handles up as it records.
+        const VkTables* tables = nullptr;
         VkRenderBundleEncoderImpl(VkCommandBuffer cmdBuf, IAllocator& allocator)
             : m_cmdBuf(cmdBuf), m_allocator(allocator)
         {
@@ -96,7 +97,7 @@ export namespace foundation::rhi::vk
 
         void SetVertexBuffer(u32 slot, BufferHandle buffer, u64 offset) override
         {
-            auto* vkBuf = LookUp(buffers, buffer);
+            auto* vkBuf = LookUp(tables, buffer);
             if (!vkBuf)
                 return;
             VkBuffer handle = vkBuf->handle();
@@ -105,7 +106,7 @@ export namespace foundation::rhi::vk
 
         void SetIndexBuffer(BufferHandle buffer, IndexFormat format, u64 offset) override
         {
-            auto* vkBuf = LookUp(buffers, buffer);
+            auto* vkBuf = LookUp(tables, buffer);
             if (!vkBuf)
                 return;
             vkCmdBindIndexBuffer(m_cmdBuf, vkBuf->handle(), offset, toVkIndexType(format));
@@ -127,7 +128,7 @@ export namespace foundation::rhi::vk
 
         void DrawIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
-            auto* vkBuf = LookUp(buffers, buf);
+            auto* vkBuf = LookUp(tables, buf);
             if (!vkBuf)
                 return;
             vkCmdDrawIndirect(m_cmdBuf, vkBuf->handle(), offset, drawCount,
@@ -137,7 +138,7 @@ export namespace foundation::rhi::vk
 
         void DrawIndexedIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override
         {
-            auto* vkBuf = LookUp(buffers, buf);
+            auto* vkBuf = LookUp(tables, buf);
             if (!vkBuf)
                 return;
             vkCmdDrawIndexedIndirect(m_cmdBuf, vkBuf->handle(), offset, drawCount,

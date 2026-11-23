@@ -30,12 +30,12 @@ export namespace foundation::render
     template <usize N>
     struct BindGroupInputs
     {
-        rhi::TextureView* views[N] = {};
+        rhi::TextureViewHandle views[N] = {};
         u64 generations[N] = {};
         rhi::BufferHandle buffer{};
         u64 bufferGeneration = 0;
 
-        void Set(usize slot, rhi::TextureView* view, u64 generation) noexcept
+        void Set(usize slot, rhi::TextureViewHandle view, u64 generation) noexcept
         {
             views[slot] = view;
             generations[slot] = generation;
@@ -50,7 +50,7 @@ export namespace foundation::render
         {
             for (usize i = 0; i < N; ++i)
             {
-                if (views[i] == nullptr)
+                if (!views[i].IsValid())
                 {
                     return false;
                 }
@@ -122,7 +122,7 @@ export namespace foundation::render
         // The group built for `key` from exactly `inputs`, or null. A group built for `key` from
         // anything else is forgotten and handed back in `stale` for the caller to retire
         // (RetireBindGroup: a frame in flight may still use it).
-        [[nodiscard]] rhi::BindGroup* Find(rhi::TextureView* key, const BindGroupInputs<N>& inputs,
+        [[nodiscard]] rhi::BindGroup* Find(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs,
                                            rhi::BindGroup*& stale)
         {
             stale = nullptr;
@@ -140,7 +140,7 @@ export namespace foundation::render
             return nullptr;
         }
 
-        void Store(rhi::TextureView* key, const BindGroupInputs<N>& inputs, rhi::BindGroup* bg)
+        void Store(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs, rhi::BindGroup* bg)
         {
             m_entries.InsertOrAssign(key, Entry{bg, inputs});
         }
@@ -167,6 +167,6 @@ export namespace foundation::render
             rhi::BindGroup* bg = nullptr;
             BindGroupInputs<N> inputs;
         };
-        HashMap<rhi::TextureView*, Entry> m_entries;
+        HashMap<rhi::TextureViewHandle, Entry> m_entries;
     };
 }

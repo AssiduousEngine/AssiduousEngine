@@ -39,10 +39,9 @@ private:
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
-    rhi::Texture* m_tex = nullptr;
-    rhi::TextureView* m_texView = nullptr;
-    rhi::Sampler *m_sampTransparent = nullptr, *m_sampOpaqueBlack = nullptr,
-                 *m_sampOpaqueWhite = nullptr;
+    rhi::TextureHandle m_tex{};
+    rhi::TextureViewHandle m_texView{};
+    rhi::SamplerHandle m_sampTransparent{}, m_sampOpaqueBlack{}, m_sampOpaqueWhite{};
     rhi::BindGroupLayout *m_texBgl = nullptr, *m_uboBgl = nullptr;
     rhi::BindGroup *m_bgTransparent = nullptr, *m_bgOpaqueBlack = nullptr,
                    *m_bgOpaqueWhite = nullptr;
@@ -145,7 +144,7 @@ foundation::core::Status BorderSamplerSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Three samplers with ClampToBorder and different border colors.
-    auto makeSampler = [&](rhi::SamplerBorderColor bc, rhi::Sampler*& out) -> foundation::core::Status
+    auto makeSampler = [&](rhi::SamplerBorderColor bc, rhi::SamplerHandle& out) -> foundation::core::Status
     {
         rhi::SamplerDesc sd{};
         sd.minFilter = rhi::FilterMode::Nearest;
@@ -176,7 +175,7 @@ foundation::core::Status BorderSamplerSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Three bind groups, one per sampler.
-    auto makeBG = [&](rhi::Sampler* s, rhi::BindGroup*& out) -> foundation::core::Status
+    auto makeBG = [&](rhi::SamplerHandle s, rhi::BindGroup*& out) -> foundation::core::Status
     {
         rhi::BindGroupEntry e[2] = {rhi::BindGroupEntry::TextureEntry(m_texView),
                                     rhi::BindGroupEntry::SamplerEntry(s)};

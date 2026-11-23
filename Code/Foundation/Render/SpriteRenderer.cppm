@@ -120,7 +120,7 @@ export namespace foundation::render
         // since a frame in flight may still use it.
         rhi::BindGroup* EnsureViewBindGroup();
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureView* tex);
+        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureViewHandle tex);
 
         rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, bool additive);
 
@@ -146,21 +146,17 @@ export namespace foundation::render
         rhi::BindGroupLayout* m_viewLayout = nullptr;
         rhi::BindGroupLayout* m_texLayout = nullptr;
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::Sampler* m_sampler = nullptr;
+        rhi::SamplerHandle m_sampler{};
         rhi::BufferHandle m_indexBuffer{};
         rhi::BindGroup* m_viewBg = nullptr;
         u32 m_viewBgGen = 0xFFFFFFFFu; // generation the view bind group was built for
         Array<Pipelines> m_pipelines; // one entry per (format, additive) seen
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Depth32Float;
-        // Cached per-texture bind groups. Keyed by view pointer for lookup speed, but every hit
-        // validates the view's uniqueId: dynamic textures (UI render targets) are destroyed and
-        // their address reused, and a stale descriptor samples a dead image view (device lost).
-        struct TexBindGroup
-        {
-            rhi::BindGroup* bindGroup = nullptr;
-            u64 viewId = 0; // TextureView::uniqueId the group was built for
-        };
-        HashMap<rhi::TextureView*, TexBindGroup> m_texBindGroups;
+        // Cached per-texture bind groups, keyed by view handle: a view made where a destroyed one
+        // was has another handle, so a group built for the old view is never handed back.
+        // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
+        // retire through the device as views do.
+        HashMap<rhi::TextureViewHandle, rhi::BindGroup*> m_texBindGroups;
     };
 
 } // namespace foundation::render

@@ -204,7 +204,7 @@ TEST_CASE("rhi.webgpu: blit-capable = WebGPU-renderable color formats only (no A
         desc.height = 16;
         desc.mipLevelCount = 3;
         desc.usage = TextureUsage::Sampled | TextureUsage::CopyDst;
-        Texture* texture = nullptr;
+        TextureHandle texture{};
         REQUIRE(device->CreateTexture(desc, texture).IsOk());
         CommandPool* pool = nullptr;
         REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -290,19 +290,19 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     CHECK(device->Map(deviceLocal) == nullptr);
 
     // Texture + a full-resource view.
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device
                 ->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 64),
                                 texture)
                 .IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(texture, viewDesc, view).IsOk());
-    CHECK(view->texture == texture);
+    CHECK(device->TextureOf(view) == texture);
 
     // A format WebGPU does not have fails cleanly.
-    Texture* unsupported = nullptr;
+    TextureHandle unsupported{};
     CHECK(device
               ->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA16Unorm, 4, 4),
                               unsupported)
@@ -312,7 +312,7 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     SamplerDesc samplerDesc;
     samplerDesc.minFilter = FilterMode::Nearest;
     samplerDesc.maxAnisotropy = 8; // invalid with nearest; the backend clamps to 1
-    Sampler* sampler = nullptr;
+    SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(samplerDesc, sampler).IsOk());
 
     // WGSL shader module (the non-SPIR-V ingestion branch; the samples exercise SPIR-V).
@@ -365,15 +365,15 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     uboDesc.memory = MemoryLocation::CpuToGpu;
     BufferHandle ubo{};
     REQUIRE(device->CreateBuffer(uboDesc, ubo).IsOk());
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     TextureDesc texDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
     texDesc.usage = TextureUsage::Sampled | TextureUsage::CopyDst;
     REQUIRE(device->CreateTexture(texDesc, texture).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(texture, viewDesc, view).IsOk());
-    Sampler* sampler = nullptr;
+    SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(SamplerDesc{}, sampler).IsOk());
 
     const BindGroupEntry groupEntries[] = {
@@ -480,11 +480,11 @@ TEST_CASE("rhi.webgpu: encode + submit + readback - a full GPU round trip")
     // Offscreen 4x4 target, cleared to a known color by a real render pass.
     TextureDesc targetDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
     targetDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device->CreateTexture(targetDesc, target).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(target, viewDesc, view).IsOk());
 
     // Readback buffer: 4 rows x 256 bytes (WebGPU's bytesPerRow alignment).
@@ -581,7 +581,7 @@ TEST_CASE("rhi.webgpu: transfer batch uploads verify through GPU readback")
     texDesc.width = 4;
     texDesc.height = 4;
     texDesc.usage = TextureUsage::CopyDst | TextureUsage::CopySrc;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(texDesc, texture).IsOk());
     u8 texels[4 * 4 * 4];
     for (u32 i = 0; i < sizeof(texels); ++i)
@@ -694,7 +694,7 @@ TEST_CASE("rhi.webgpu: a compressed texture whose size is not whole blocks is ma
     desc.height = 10;
     desc.mipLevelCount = 5; // 18x10, 9x5, 4x2, 2x1, 1x1
     desc.usage = TextureUsage::CopyDst | TextureUsage::Sampled;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(desc, texture).IsOk());
 
     u8 blocks[20 * 12];
@@ -749,7 +749,7 @@ TEST_CASE("rhi.webgpu: a compressed texture's whole mip chain uploads, the tail 
     desc.height = 16;
     desc.mipLevelCount = 5; // 16, 8, 4, 2, 1
     desc.usage = TextureUsage::CopyDst | TextureUsage::Sampled;
-    Texture* texture = nullptr;
+    TextureHandle texture{};
     REQUIRE(device->CreateTexture(desc, texture).IsOk());
 
     // Each level as the texture resource lays it out: texel extent, block-row pitch and count.
@@ -861,7 +861,7 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     mipDesc.height = 8;
     mipDesc.mipLevelCount = 4;
     mipDesc.usage = TextureUsage::Sampled | TextureUsage::CopyDst | TextureUsage::CopySrc;
-    Texture* mipTexture = nullptr;
+    TextureHandle mipTexture{};
     REQUIRE(device->CreateTexture(mipDesc, mipTexture).IsOk());
 
     u8 texels[8 * 8 * 4];
@@ -920,7 +920,7 @@ TEST_CASE("rhi.webgpu: GenerateMipmaps + scaling Blit verify through readback")
     // Scaling blit: the 8x8 green source into a 4x4 target of a DIFFERENT format.
     TextureDesc blitDesc = TextureDesc::RenderTarget(TextureFormat::BGRA8Unorm, 4, 4);
     blitDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* blitTarget = nullptr;
+    TextureHandle blitTarget{};
     REQUIRE(device->CreateTexture(blitDesc, blitTarget).IsOk());
     REQUIRE(pool->CreateEncoder(encoder).IsOk());
     encoder->Blit(mipTexture, blitTarget);
@@ -1222,7 +1222,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     cubeDesc.height = 4;
     cubeDesc.arrayLayerCount = 6;
     cubeDesc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
-    Texture* cube = nullptr;
+    TextureHandle cube{};
     REQUIRE(device->CreateTexture(cubeDesc, cube).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1231,7 +1231,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     REQUIRE(pool->CreateEncoder(encoder).IsOk());
 
     // Clear each face to a distinct red level via its own 2D layer view.
-    TextureView* faceViews[6] = {};
+    TextureViewHandle faceViews[6] = {};
     for (u32 face = 0; face < 6; ++face)
     {
         TextureViewDesc faceDesc;
@@ -1253,9 +1253,9 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     cubeViewDesc.format = TextureFormat::RGBA8Unorm;
     cubeViewDesc.dimension = TextureViewDimension::TextureCube;
     cubeViewDesc.arrayLayerCount = 6;
-    TextureView* cubeView = nullptr;
+    TextureViewHandle cubeView{};
     REQUIRE(device->CreateTextureView(cube, cubeViewDesc, cubeView).IsOk());
-    Sampler* sampler = nullptr;
+    SamplerHandle sampler{};
     REQUIRE(device->CreateSampler(SamplerDesc{}, sampler).IsOk());
 
     const BindGroupLayoutEntry layoutEntries[] = {
@@ -1315,11 +1315,11 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
 
     TextureDesc outDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 1, 1);
     outDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* outTexture = nullptr;
+    TextureHandle outTexture{};
     REQUIRE(device->CreateTexture(outDesc, outTexture).IsOk());
     TextureViewDesc outViewDesc;
     outViewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* outView = nullptr;
+    TextureViewHandle outView{};
     REQUIRE(device->CreateTextureView(outTexture, outViewDesc, outView).IsOk());
 
     RenderPassDesc samplePass;
@@ -1398,28 +1398,28 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     // panic in submit), on both d3d12 and vulkan. A real prepass-depth reader declares Sampled
     // anyway.
     depthDesc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled;
-    Texture* depthTexture = nullptr;
+    TextureHandle depthTexture{};
     REQUIRE(device->CreateTexture(depthDesc, depthTexture).IsOk());
     TextureViewDesc depthViewDesc;
     depthViewDesc.format = TextureFormat::Depth32Float;
-    TextureView* depthView = nullptr;
+    TextureViewHandle depthView{};
     REQUIRE(device->CreateTextureView(depthTexture, depthViewDesc, depthView).IsOk());
 
     TextureDesc colorDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 4, 4);
     colorDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* colorTexture = nullptr;
+    TextureHandle colorTexture{};
     REQUIRE(device->CreateTexture(colorDesc, colorTexture).IsOk());
     TextureViewDesc colorViewDesc;
     colorViewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* colorView = nullptr;
+    TextureViewHandle colorView{};
     REQUIRE(device->CreateTextureView(colorTexture, colorViewDesc, colorView).IsOk());
     TextureDesc velocityDesc = TextureDesc::RenderTarget(TextureFormat::RG16Float, 4, 4);
-    Texture* velocityTexture = nullptr;
+    TextureHandle velocityTexture{};
     REQUIRE(device->CreateTexture(velocityDesc, velocityTexture).IsOk());
     TextureViewDesc velocityViewDesc;
     velocityViewDesc.format = TextureFormat::RG16Float;
     velocityViewDesc.dimension = TextureViewDimension::Texture2D;
-    TextureView* velocityView = nullptr;
+    TextureViewHandle velocityView{};
     REQUIRE(device->CreateTextureView(velocityTexture, velocityViewDesc, velocityView).IsOk());
 
     const char8_t* wgsl =
@@ -1574,11 +1574,11 @@ TEST_CASE("rhi.webgpu: a bundle that may write depth, run in a pass that holds d
     REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
     TextureDesc depthDesc = TextureDesc::DepthBuffer(TextureFormat::Depth32Float, 4, 4);
     depthDesc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled; // read-only needs Sampled
-    Texture* depthTexture = nullptr;
+    TextureHandle depthTexture{};
     REQUIRE(device->CreateTexture(depthDesc, depthTexture).IsOk());
     TextureViewDesc depthViewDesc;
     depthViewDesc.format = TextureFormat::Depth32Float;
-    TextureView* depthView = nullptr;
+    TextureViewHandle depthView{};
     REQUIRE(device->CreateTextureView(depthTexture, depthViewDesc, depthView).IsOk());
     CommandPool* pool = nullptr;
     REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -1815,11 +1815,11 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     texDesc.width = 2;
     texDesc.height = 1;
     texDesc.usage = TextureUsage::RenderTarget | TextureUsage::CopySrc;
-    Texture* tex = nullptr;
+    TextureHandle tex{};
     REQUIRE(device->CreateTexture(texDesc, tex).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(tex, viewDesc, view).IsOk());
 
     BufferDesc readbackDesc;
@@ -1938,11 +1938,11 @@ TEST_CASE("rhi.webgpu: a scissor reaching outside the render area is clipped to 
     Device* device = nullptr;
     REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
     TextureDesc targetDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 48);
-    Texture* target = nullptr;
+    TextureHandle target{};
     REQUIRE(device->CreateTexture(targetDesc, target).IsOk());
     TextureViewDesc viewDesc;
     viewDesc.format = TextureFormat::RGBA8Unorm;
-    TextureView* view = nullptr;
+    TextureViewHandle view{};
     REQUIRE(device->CreateTextureView(target, viewDesc, view).IsOk());
     CommandPool* pool = nullptr;
     REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());

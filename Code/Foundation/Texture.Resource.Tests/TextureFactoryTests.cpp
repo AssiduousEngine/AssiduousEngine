@@ -102,8 +102,8 @@ TEST_CASE("texture.factory: cooked TextureResource -> live GPU Texture")
     CHECK(tex->Width() == 2u);
     CHECK(tex->Height() == 2u);
     CHECK(tex->Format() == rhi::TextureFormat::RGBA8UnormSrgb);
-    CHECK(tex->GpuTexture() != nullptr);
-    CHECK(tex->Sampler() != nullptr);
+    CHECK(tex->GpuTexture().IsValid());
+    CHECK(tex->Sampler().IsValid());
 
     RemoveTree();
 }
@@ -147,13 +147,13 @@ TEST_CASE("texture.factory: a cooked RenderTextureResource is a texture a camera
     CHECK(tex->Width() == 320u);
     CHECK(tex->Height() == 180u);
     CHECK(tex->Format() == rhi::TextureFormat::RGBA16Float);
-    REQUIRE(tex->GpuTexture() != nullptr);
-    const rhi::TextureUsage usage = tex->GpuTexture()->desc.usage;
+    REQUIRE(tex->GpuTexture().IsValid());
+    const rhi::TextureUsage usage = device.Describe(tex->GpuTexture())->usage;
     CHECK((usage & rhi::TextureUsage::RenderTarget) == rhi::TextureUsage::RenderTarget);
     CHECK((usage & rhi::TextureUsage::Sampled) == rhi::TextureUsage::Sampled);
     CHECK((usage & rhi::TextureUsage::CopySrc) == rhi::TextureUsage::CopySrc);
-    CHECK(tex->View() != nullptr);
-    CHECK(tex->Sampler() != nullptr);
+    CHECK(tex->View().IsValid());
+    CHECK(tex->Sampler().IsValid());
 
     CHECK_FALSE(manager.Bind<Texture>(badId));
 
@@ -231,8 +231,8 @@ TEST_CASE("texture.factory: async load produces the same product as the sync loa
     CHECK(b->Width() == a->Width());
     CHECK(b->Height() == a->Height());
     CHECK(b->Format() == a->Format());
-    CHECK(b->GpuTexture() != nullptr);
-    CHECK(b->Sampler() != nullptr);
+    CHECK(b->GpuTexture().IsValid());
+    CHECK(b->Sampler().IsValid());
 
     RemoveTree();
 }
@@ -279,7 +279,7 @@ TEST_CASE("texture.factory: many concurrent async loads decode on workers withou
         REQUIRE(tex);
         CHECK(tex.Handle()->State() == ResourceState::Ready);
         CHECK(tex->Width() == 2u);
-        CHECK(tex->GpuTexture() != nullptr);
+        CHECK(tex->GpuTexture().IsValid());
     }
 
     RemoveDirectory(u8"scratch_texfac_concurrent");

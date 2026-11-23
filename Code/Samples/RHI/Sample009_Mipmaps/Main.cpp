@@ -43,9 +43,9 @@ private:
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
     void* m_ubMapped = nullptr;
-    rhi::Texture* m_tex = nullptr;
-    rhi::TextureView* m_texView = nullptr;
-    rhi::Sampler* m_sampler = nullptr;
+    rhi::TextureHandle m_tex{};
+    rhi::TextureViewHandle m_texView{};
+    rhi::SamplerHandle m_sampler{};
     rhi::BindGroupLayout *m_texBgl = nullptr, *m_uboBgl = nullptr;
     rhi::BindGroup *m_texBg = nullptr, *m_uboBg = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;

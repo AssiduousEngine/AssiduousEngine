@@ -172,9 +172,9 @@ export namespace engine::terrain
                         return;
                     }
                     // The GPU height texture (keyed by the heightfield; re-uploads on a version bump).
-                    rhi::TextureView* heightView =
+                    rhi::TextureViewHandle heightView =
                         m_heightTextures.GetOrCreate(*m_device, *hf, hf->Version());
-                    if (heightView == nullptr)
+                    if (!heightView.IsValid())
                     {
                         return;
                     }
@@ -197,9 +197,9 @@ export namespace engine::terrain
                         hf->Version());
                     const Span<const HoledChunkMesh> holedCopy =
                         holed.IsEmpty() ? Span<const HoledChunkMesh>{} : snapshot.AddArray(holed);
-                    rhi::TextureView* holeView =
+                    rhi::TextureViewHandle holeView =
                         hf->HasHoles() ? m_holeTextures.GetOrCreate(*m_device, *hf, hf->Version())
-                                       : nullptr;
+                                       : rhi::TextureViewHandle{};
 
                     TerrainRenderData* rd = snapshot.Add<TerrainRenderData>();
                     if (rd == nullptr)

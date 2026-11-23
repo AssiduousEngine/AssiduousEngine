@@ -17,6 +17,7 @@ import :fence;
 import :transfer_batch;
 import :queue_timeline;
 import :buffer;
+import :tables;
 
 using namespace foundation::core;
 
@@ -42,8 +43,8 @@ export namespace foundation::rhi::vk
         [[nodiscard]] Status initTimeline(SubmissionTracker& tracker) { return m_timeline.init(m_vkDevice, tracker); }
         [[nodiscard]] VkQueueTimeline& timeline() noexcept { return m_timeline; }
         [[nodiscard]] u64 completed() const { return m_timeline.completed(m_vkDevice); }
-        /// The device's buffers, for its transfer batches.
-        const VkBufferTable* buffers = nullptr;
+        /// The device's tables, for its transfer batches.
+        const VkTables* tables = nullptr;
 
         // ---- Queue interface ----
         // All Submit overloads are defined out-of-line (VkDevice.cppm): they report
@@ -77,7 +78,7 @@ export namespace foundation::rhi::vk
         {
             auto* batch = m_allocator.New<VkTransferBatchImpl>(m_vkDevice, m_queue, m_familyIndex,
                                                                m_physDevice, counters);
-            batch->buffers = buffers;
+            batch->tables = tables;
             batch->timeline = &m_timeline;
             out = batch;
             return ErrorCode::Ok;

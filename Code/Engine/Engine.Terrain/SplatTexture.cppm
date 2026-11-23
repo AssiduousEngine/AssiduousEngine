@@ -34,8 +34,8 @@ export namespace engine::terrain
     /// The derived GPU views for one SplatWeights resource (null when unresolved).
     struct SplatTextureViews
     {
-        rhi::TextureView* weightView = nullptr; // RGBA8Unorm
-        rhi::TextureView* indexView = nullptr;  // RGBA8Uint (Load-only)
+        rhi::TextureViewHandle weightView{}; // RGBA8Unorm
+        rhi::TextureViewHandle indexView{};  // RGBA8Uint (Load-only)
     };
 
     /// Owns and caches the per-resource GPU texture pairs, keyed by resource uid and version.
@@ -68,7 +68,7 @@ export namespace engine::terrain
             {
                 if (entry.key == sw.uid)
                 {
-                    if (entry.version == version && entry.weightView != nullptr)
+                    if (entry.version == version && entry.weightView.IsValid())
                     {
                         return SplatTextureViews{entry.weightView, entry.indexView};
                     }
@@ -114,16 +114,16 @@ export namespace engine::terrain
         {
             u64 key = 0; // SplatWeights::uid, never a pointer (address reuse aliases)
             u64 version = 0;
-            rhi::Texture* weightTexture = nullptr;
-            rhi::TextureView* weightView = nullptr;
-            rhi::Texture* indexTexture = nullptr;
-            rhi::TextureView* indexView = nullptr;
+            rhi::TextureHandle weightTexture{};
+            rhi::TextureViewHandle weightView{};
+            rhi::TextureHandle indexTexture{};
+            rhi::TextureViewHandle indexView{};
         };
 
         [[nodiscard]] static bool BuildOne(rhi::Device& device, u32 w, u32 h,
                                            rhi::TextureFormat format, Span<const u8> pixels,
-                                           StringView label, rhi::Texture*& outTexture,
-                                           rhi::TextureView*& outView)
+                                           StringView label, rhi::TextureHandle& outTexture,
+                                           rhi::TextureViewHandle& outView)
         {
             rhi::TextureDesc td{};
             td.format = format;
@@ -131,17 +131,17 @@ export namespace engine::terrain
             td.height = h;
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
             td.label = label;
-            if (!device.CreateTexture(td, outTexture).IsOk() || outTexture == nullptr)
+            if (!device.CreateTexture(td, outTexture).IsOk() || !outTexture.IsValid())
             {
                 return false;
             }
             rhi::TextureViewDesc vd{};
             vd.format = format;
             vd.dimension = rhi::TextureViewDimension::Texture2D;
-            if (!device.CreateTextureView(outTexture, vd, outView).IsOk() || outView == nullptr)
+            if (!device.CreateTextureView(outTexture, vd, outView).IsOk() || !outView.IsValid())
             {
                 device.DestroyTexture(outTexture);
-                outTexture = nullptr;
+                outTexture = {};
                 return false;
             }
             if (rhi::Queue* queue = device.GetQueue(rhi::QueueType::Graphics))
@@ -175,8 +175,8 @@ export namespace engine::terrain
             {
                 device.DestroyTextureView(out.weightView);
                 device.DestroyTexture(out.weightTexture);
-                out.weightView = nullptr;
-                out.weightTexture = nullptr;
+                out.weightView = {};
+                out.weightTexture = {};
                 return false;
             }
             return true;
@@ -190,10 +190,10 @@ export namespace engine::terrain
                 m_retire->Retire(entry.weightTexture);
                 m_retire->Retire(entry.indexView);
                 m_retire->Retire(entry.indexTexture);
-                entry.weightView = nullptr;
-                entry.weightTexture = nullptr;
-                entry.indexView = nullptr;
-                entry.indexTexture = nullptr;
+                entry.weightView = {};
+                entry.weightTexture = {};
+                entry.indexView = {};
+                entry.indexTexture = {};
                 return;
             }
             Destroy(device, entry);
@@ -201,25 +201,25 @@ export namespace engine::terrain
 
         static void Destroy(rhi::Device& device, Entry& entry)
         {
-            if (entry.weightView != nullptr)
+            if (entry.weightView.IsValid())
             {
                 device.DestroyTextureView(entry.weightView);
-                entry.weightView = nullptr;
+                entry.weightView = {};
             }
-            if (entry.weightTexture != nullptr)
+            if (entry.weightTexture.IsValid())
             {
                 device.DestroyTexture(entry.weightTexture);
-                entry.weightTexture = nullptr;
+                entry.weightTexture = {};
             }
-            if (entry.indexView != nullptr)
+            if (entry.indexView.IsValid())
             {
                 device.DestroyTextureView(entry.indexView);
-                entry.indexView = nullptr;
+                entry.indexView = {};
             }
-            if (entry.indexTexture != nullptr)
+            if (entry.indexTexture.IsValid())
             {
                 device.DestroyTexture(entry.indexTexture);
-                entry.indexTexture = nullptr;
+                entry.indexTexture = {};
             }
         }
 
@@ -230,11 +230,11 @@ export namespace engine::terrain
     /// The palette-array GPU views and the per-layer tileScale buffer for one terrain.
     struct PaletteGpu
     {
-        rhi::TextureView* arrayView = nullptr;  // albedo Texture2DArray, one slice per palette layer
-        rhi::TextureView* normalArrayView = nullptr; // null = no layer used a normal map (dummy binds)
-        rhi::TextureView* ormArrayView = nullptr;    // null = no layer used an ORM map
-        rhi::TextureView* heightArrayView = nullptr; // null = no layer used a height map (dummy binds)
-        rhi::TextureView* maskArrayView = nullptr;   // null = no layer used a coverage mask (opaque)
+        rhi::TextureViewHandle arrayView{};  // albedo Texture2DArray, one slice per palette layer
+        rhi::TextureViewHandle normalArrayView{}; // null = no layer used a normal map (dummy binds)
+        rhi::TextureViewHandle ormArrayView{};    // null = no layer used an ORM map
+        rhi::TextureViewHandle heightArrayView{}; // null = no layer used a height map (dummy binds)
+        rhi::TextureViewHandle maskArrayView{};   // null = no layer used a coverage mask (opaque)
         rhi::BufferHandle tileScaleBuffer{}; // f32[paletteCount]; base tile rides the view UBO
         u64 generation = 0;                     // part of the set-3 cache key
     };
@@ -265,7 +265,7 @@ export namespace engine::terrain
             {
                 if (entry.key == data.uid)
                 {
-                    if (entry.scaleHash == scaleHash && entry.arrayView != nullptr)
+                    if (entry.scaleHash == scaleHash && entry.arrayView.IsValid())
                     {
                         return MakeGpu(entry);
                     }
@@ -313,16 +313,16 @@ export namespace engine::terrain
             u64 key = 0; // TerrainPaletteData::uid, never a pointer
             u64 scaleHash = 0;
             u64 generation = 0;
-            rhi::Texture* arrayTexture = nullptr;       // albedo (sRGB)
-            rhi::TextureView* arrayView = nullptr;
-            rhi::Texture* normalTexture = nullptr;      // linear; null when no layer used a normal map
-            rhi::TextureView* normalArrayView = nullptr;
-            rhi::Texture* ormTexture = nullptr;         // linear; null when no layer used an ORM map
-            rhi::TextureView* ormArrayView = nullptr;
-            rhi::Texture* heightTexture = nullptr;      // linear; null when no layer used a height map
-            rhi::TextureView* heightArrayView = nullptr;
-            rhi::Texture* maskTexture = nullptr;        // linear; null when no layer used a mask
-            rhi::TextureView* maskArrayView = nullptr;
+            rhi::TextureHandle arrayTexture{};       // albedo (sRGB)
+            rhi::TextureViewHandle arrayView{};
+            rhi::TextureHandle normalTexture{};      // linear; null when no layer used a normal map
+            rhi::TextureViewHandle normalArrayView{};
+            rhi::TextureHandle ormTexture{};         // linear; null when no layer used an ORM map
+            rhi::TextureViewHandle ormArrayView{};
+            rhi::TextureHandle heightTexture{};      // linear; null when no layer used a height map
+            rhi::TextureViewHandle heightArrayView{};
+            rhi::TextureHandle maskTexture{};        // linear; null when no layer used a mask
+            rhi::TextureViewHandle maskArrayView{};
             rhi::BufferHandle tileScaleBuffer{};
         };
 
@@ -349,8 +349,8 @@ export namespace engine::terrain
         // Creates and uploads one RGBA8 Texture2DArray (slice-major mip chain) at `format`.
         [[nodiscard]] static bool BuildArray(rhi::Device& device, rhi::TextureFormat format,
                                              Span<const u8> texels, u32 sliceSize, u32 mipCount,
-                                             u32 sliceCount, StringView label, rhi::Texture*& outTex,
-                                             rhi::TextureView*& outView)
+                                             u32 sliceCount, StringView label, rhi::TextureHandle& outTex,
+                                             rhi::TextureViewHandle& outView)
         {
             rhi::TextureDesc td{};
             td.format = format;
@@ -360,7 +360,7 @@ export namespace engine::terrain
             td.mipLevelCount = mipCount;
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
             td.label = label;
-            if (!device.CreateTexture(td, outTex).IsOk() || outTex == nullptr)
+            if (!device.CreateTexture(td, outTex).IsOk() || !outTex.IsValid())
             {
                 return false;
             }
@@ -369,10 +369,10 @@ export namespace engine::terrain
             vd.dimension = rhi::TextureViewDimension::Texture2DArray;
             vd.arrayLayerCount = sliceCount;
             vd.mipLevelCount = mipCount;
-            if (!device.CreateTextureView(outTex, vd, outView).IsOk() || outView == nullptr)
+            if (!device.CreateTextureView(outTex, vd, outView).IsOk() || !outView.IsValid())
             {
                 device.DestroyTexture(outTex);
-                outTex = nullptr;
+                outTex = {};
                 return false;
             }
             if (rhi::Queue* queue = device.GetQueue(rhi::QueueType::Graphics))
@@ -500,16 +500,16 @@ export namespace engine::terrain
                 m_retire->Retire(entry.maskArrayView);
                 m_retire->Retire(entry.maskTexture);
                 m_retire->Retire(entry.tileScaleBuffer);
-                entry.arrayView = nullptr;
-                entry.arrayTexture = nullptr;
-                entry.normalArrayView = nullptr;
-                entry.normalTexture = nullptr;
-                entry.ormArrayView = nullptr;
-                entry.ormTexture = nullptr;
-                entry.heightArrayView = nullptr;
-                entry.heightTexture = nullptr;
-                entry.maskArrayView = nullptr;
-                entry.maskTexture = nullptr;
+                entry.arrayView = {};
+                entry.arrayTexture = {};
+                entry.normalArrayView = {};
+                entry.normalTexture = {};
+                entry.ormArrayView = {};
+                entry.ormTexture = {};
+                entry.heightArrayView = {};
+                entry.heightTexture = {};
+                entry.maskArrayView = {};
+                entry.maskTexture = {};
                 entry.tileScaleBuffer = {};
                 return;
             }
@@ -518,20 +518,20 @@ export namespace engine::terrain
 
         static void Destroy(rhi::Device& device, Entry& entry)
         {
-            const auto view = [&device](rhi::TextureView*& v)
+            const auto view = [&device](rhi::TextureViewHandle& v)
             {
-                if (v != nullptr)
+                if (v.IsValid())
                 {
                     device.DestroyTextureView(v);
-                    v = nullptr;
+                    v = {};
                 }
             };
-            const auto tex = [&device](rhi::Texture*& t)
+            const auto tex = [&device](rhi::TextureHandle& t)
             {
-                if (t != nullptr)
+                if (t.IsValid())
                 {
                     device.DestroyTexture(t);
-                    t = nullptr;
+                    t = {};
                 }
             };
             view(entry.arrayView);

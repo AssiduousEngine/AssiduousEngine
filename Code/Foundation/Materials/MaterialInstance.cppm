@@ -117,7 +117,7 @@ export namespace foundation::materials
         void SetFloat4(StringView n, Float4 v) { WriteUniform(n, &v, sizeof(v)); }
         void SetColor(StringView n, Float4 c) { SetFloat4(n, c); }
 
-        void SetTexture(StringView n, rhi::TextureView* tex)
+        void SetTexture(StringView n, rhi::TextureViewHandle tex)
         {
             const isize i = m_material->GetPropertyIndex(n);
             if (i < 0 || !m_material->GetProperty(static_cast<usize>(i)).IsTexture())
@@ -128,7 +128,7 @@ export namespace foundation::materials
             m_overrides.Set(static_cast<usize>(i));
             SetBindGroupDirty();
         }
-        void SetSampler(StringView n, rhi::Sampler* s)
+        void SetSampler(StringView n, rhi::SamplerHandle s)
         {
             const isize i = m_material->GetPropertyIndex(n);
             if (i < 0 || !m_material->GetProperty(static_cast<usize>(i)).IsSampler())
@@ -141,11 +141,11 @@ export namespace foundation::materials
         }
 
         // --- effective values (override else material default) ---
-        [[nodiscard]] rhi::TextureView* GetTexture(usize propIndex) const
+        [[nodiscard]] rhi::TextureViewHandle GetTexture(usize propIndex) const
         {
             if (m_overrides.IsSet(propIndex))
             {
-                rhi::TextureView* const* p = m_textures.Find(propIndex);
+                rhi::TextureViewHandle const* p = m_textures.Find(propIndex);
                 if (p != nullptr)
                 {
                     return *p;
@@ -153,11 +153,11 @@ export namespace foundation::materials
             }
             return m_material->GetDefaultTexture(propIndex);
         }
-        [[nodiscard]] rhi::Sampler* GetSampler(usize propIndex) const
+        [[nodiscard]] rhi::SamplerHandle GetSampler(usize propIndex) const
         {
             if (m_overrides.IsSet(propIndex))
             {
-                rhi::Sampler* const* p = m_samplers.Find(propIndex);
+                rhi::SamplerHandle const* p = m_samplers.Find(propIndex);
                 if (p != nullptr)
                 {
                     return *p;
@@ -319,8 +319,8 @@ export namespace foundation::materials
         IMaterialInstanceSink* m_sink = nullptr;      // borrowed (the MaterialSystem)
         Array<u8> m_uniformData;                      // override uniform buffer
         Array<Array<u8>> m_effectData;                // override values per effect group
-        HashMap<usize, rhi::TextureView*> m_textures; // override textures by property index
-        HashMap<usize, rhi::Sampler*> m_samplers;     // override samplers by property index
+        HashMap<usize, rhi::TextureViewHandle> m_textures; // override textures by property index
+        HashMap<usize, rhi::SamplerHandle> m_samplers;     // override samplers by property index
         PropertyOverrideMask m_overrides;
         rhi::BindGroupLayout* m_bindGroupLayout = nullptr; // set by MaterialSystem for PSO creation
         bool m_uniformDirty = true;

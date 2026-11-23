@@ -22,6 +22,7 @@ import :pipeline_layout;
 import :query_set;
 import :descriptor_staging;
 import :gpu_descriptor_heap;
+import :tables;
 
 using namespace foundation::core;
 
@@ -32,7 +33,7 @@ export namespace foundation::rhi::dx12
     struct DxComputePassContext
     {
         ID3D12GraphicsCommandList* cmdList = nullptr;
-        const DxBufferTable* buffers = nullptr; // the device's buffers, its handles looked up in
+        const DxTables* tables = nullptr; // the device's tables, its handles looked up in
         DxDescriptorStaging* srvStaging = nullptr;
         DxGpuDescriptorHeap* gpuSrvHeap = nullptr;
         DxGpuDescriptorHeap* gpuSamplerHeap = nullptr;
@@ -168,7 +169,7 @@ export namespace foundation::rhi::dx12
         void DispatchIndirect(BufferHandle buffer, u64 offset) override
         {
             if (m_ctx.counters) m_ctx.counters->Dispatches();
-            auto* dxBuf = LookUp(m_ctx.buffers, buffer);
+            auto* dxBuf = LookUp(m_ctx.tables, buffer);
             if (!dxBuf)
                 return;
 

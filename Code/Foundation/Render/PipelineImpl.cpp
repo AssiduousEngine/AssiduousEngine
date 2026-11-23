@@ -58,20 +58,20 @@ namespace foundation::render
         (void)out;
     }
 
-    void Renderer::SetShadowMap(rhi::TextureView* shadowMap, u64 generation)
+    void Renderer::SetShadowMap(rhi::TextureViewHandle shadowMap, u64 generation)
     {
         (void)shadowMap;
         (void)generation;
     }
 
-    void Renderer::SetShadowAtlas(rhi::TextureView* atlas, u64 generation, u32 passCount)
+    void Renderer::SetShadowAtlas(rhi::TextureViewHandle atlas, u64 generation, u32 passCount)
     {
         (void)atlas;
         (void)generation;
         (void)passCount;
     }
 
-    void Renderer::SetProbes(rhi::TextureView* cubeArray, rhi::BufferHandle probeBuffer, u32 count)
+    void Renderer::SetProbes(rhi::TextureViewHandle cubeArray, rhi::BufferHandle probeBuffer, u32 count)
     {
         (void)cubeArray;
         (void)probeBuffer;
@@ -216,7 +216,7 @@ namespace foundation::render
                         ResolveAndEmit(view, registry, enc, frameIndex, viewIndex, colorFormat,
                                        view.Camera().ViewProjection(), prevViewProj, jitter,
                                        prevJitter, PassAffinity::Opaque, cluster, shadow, ibl, out,
-                                       /*sceneDepth*/ nullptr,
+                                       /*sceneDepth*/ {},
                                        /*probesEnabled*/ probeValid, probeBase, probeCount);
                     });
             });
@@ -272,7 +272,7 @@ namespace foundation::render
                     {
                         // The opaque depth is in DepthStencilRead here (read-only depth target): resolve its sampleable
                         // view and hand it to the renderers for soft particles. It is already in that state.
-                        rhi::TextureView* sceneDepth = graph.GetTextureView(depth);
+                        rhi::TextureViewHandle sceneDepth = graph.GetTextureView(depth);
                         ResolveAndEmit(view, registry, enc, frameIndex, viewIndex, colorFormat,
                                        drawViewProj, prevViewProj, jitter, prevJitter,
                                        PassAffinity::Blended, cluster, shadow, ibl, out, sceneDepth,
@@ -322,7 +322,7 @@ namespace foundation::render
                                        drawViewProj, prevViewProj, Float2{0.0f, 0.0f},
                                        Float2{0.0f, 0.0f}, PassAffinity::PostTonemap,
                                        ClusterBinding{}, ShadowBinding{}, IblBinding{}, out,
-                                       nullptr,
+                                       {},
                                        /*probesEnabled*/ false, 0, 0);
                     });
             });
@@ -357,7 +357,7 @@ namespace foundation::render
                                      PassAffinity passAffinity, const ClusterBinding& cluster,
                                      const ShadowBinding& shadow, const IblBinding& ibl,
                                      Array<rhi::RenderBundle*>& out,
-                                     rhi::TextureView* sceneDepthView, bool probesEnabled,
+                                     rhi::TextureViewHandle sceneDepthView, bool probesEnabled,
                                      u32 probeBase, u32 probeCount)
     {
         RenderRecordContext ctx = CameraRecordContext(view, m_timeSeconds, m_prevTimeSeconds);
@@ -646,7 +646,7 @@ namespace foundation::render
     }
 
     RenderView* RenderFrame::AddView(const ExtractedScene& scene, const ViewCamera& camera,
-                                     const ViewSettings& settings, rhi::TextureView* target,
+                                     const ViewSettings& settings, rhi::TextureViewHandle target,
                                      rhi::TextureFormat targetFormat, u32 width, u32 height,
                                      const void* debugScene, const void* sceneKey,
                                      const void* debugView)
@@ -1219,8 +1219,8 @@ namespace foundation::render
             anyLocalCasters = anyLocalCasters || !ctx.scene->LocalShadowCasters().IsEmpty();
         }
         const bool hasShadow = m_shadows != nullptr && anyDirectional;
-        rhi::TextureView* shadowMap =
-            hasShadow ? m_shadows->PrepareFrame(m_frameIndex, viewCount) : nullptr;
+        rhi::TextureViewHandle shadowMap =
+            hasShadow ? m_shadows->PrepareFrame(m_frameIndex, viewCount) : rhi::TextureViewHandle{};
         const u64 shadowGen = (m_shadows != nullptr) ? m_shadows->Generation() : 0;
 
         // Camera-independent caster lists (opaque and masked, off-camera casters included), one per
@@ -1247,13 +1247,13 @@ namespace foundation::render
         m_localShadows.Clear();
         m_rtAtlasDraws.Clear();
         m_staticAtlasDraws.Clear();
-        rhi::TextureView* atlasView = nullptr;
+        rhi::TextureViewHandle atlasView{};
         u32 staticTileCount = 0;
         if (m_shadows != nullptr && anyLocalCasters)
         {
             atlasView = m_shadows->PrepareAtlas(m_frameIndex);
         }
-        if (atlasView != nullptr)
+        if (atlasView.IsValid())
         {
             const u32 capacity =
                 m_shadows->AtlasTileCapacity(); // per layer, whole frame (all scenes)
@@ -1449,7 +1449,7 @@ namespace foundation::render
             {
                 for (Renderer* r : m_registry->Unique())
                 {
-                    r->SetProbes(nullptr, {}, 0);
+                    r->SetProbes({}, {}, 0);
                 }
             }
             if (m_ibl != nullptr && m_ibl->Ready())
@@ -1503,7 +1503,7 @@ namespace foundation::render
             // Per-view CSM: import the shared cascade array once; each view fits its own cascades to its
             // camera and renders them into its layer range (so split-screen views don't share a fit).
             rendergraph::RGHandle shadowH;
-            const bool shadowActive = hasShadow && shadowMap != nullptr;
+            const bool shadowActive = hasShadow && shadowMap.IsValid();
             const u32 cascadeCount = (m_shadows != nullptr) ? m_shadows->CascadeCount() : 4u;
             const u32 shadowRes = (m_shadows != nullptr) ? m_shadows->Resolution() : 1024u;
 
@@ -1531,7 +1531,7 @@ namespace foundation::render
             // readable.
             rendergraph::RGHandle atlasH;
             const bool atlasActive =
-                atlasView != nullptr && (!m_rtAtlasDraws.IsEmpty() || staticTileCount > 0);
+                atlasView.IsValid() && (!m_rtAtlasDraws.IsEmpty() || staticTileCount > 0);
             if (atlasActive)
             {
                 atlasH = m_shadows->ImportAtlas(m_graph, m_frameIndex);
@@ -1852,7 +1852,7 @@ namespace foundation::render
                     {
                         const ViewCamera fc = ProbeFaceCamera(task.center, face, nearZ, farZ);
                         RenderView& cv = m_captureViews[face];
-                        cv.Bind(*captureScene, fc, ViewSettings{}, nullptr,
+                        cv.Bind(*captureScene, fc, ViewSettings{}, {},
                                 ReflectionProbeSystem::kCubeFormat, res, res);
                         cv.BuildDrawList(m_sortScratch);
 
@@ -1912,7 +1912,7 @@ namespace foundation::render
             // preserving earlier views' regions (split-screen). Targets are few, so a linear scan is fine.
             struct TargetImport
             {
-                rhi::TextureView* target;
+                rhi::TextureViewHandle target;
                 rendergraph::RGHandle handle;
                 u32 w;
                 u32 h;
@@ -1936,8 +1936,8 @@ namespace foundation::render
                 // Semantic debug views blit the scene HDR raw (tonemap would grade the
                 // encoded terms); set on the tonemap path, invalid when no blit is needed.
                 rendergraph::RGHandle debugSemanticSrc{};
-                rhi::TextureView* tgt = v->Target();
-                if (tgt == nullptr)
+                rhi::TextureViewHandle tgt = v->Target();
+                if (!tgt.IsValid())
                 {
                     continue;
                 }
@@ -2289,8 +2289,8 @@ namespace foundation::render
                         ssgiParams.maxSteps = Max(static_cast<i32>(post.ssgiMaxSteps), 1);
                         SsgiPass::Sky sky;
                         // The forward's own test for using the scene's IBL (MeshRenderer view set).
-                        if (ibl.valid && ibl.shBuffer.IsValid() && ibl.prefilterView != nullptr &&
-                            ibl.brdfView != nullptr)
+                        if (ibl.valid && ibl.shBuffer.IsValid() && ibl.prefilterView.IsValid() &&
+                            ibl.brdfView.IsValid())
                         {
                             sky.shBuffer = ibl.shBuffer;
                             sky.shHandle = ibl.shHandle;
@@ -2416,7 +2416,7 @@ namespace foundation::render
                             m_graph, sceneColor, historySlot, m_frameIndex, uvScale, uvOffset,
                             m_deltaSeconds, post.autoExposureSpeed,
                             v->Scene() != nullptr ? v->Scene()->SceneSerial() : 0);
-                        autoExposure.enabled = adapted.view != nullptr;
+                        autoExposure.enabled = adapted.view.IsValid();
                         autoExposure.handle = adapted.handle;
                         autoExposure.view = adapted.view;
                         autoExposure.generation = adapted.generation;

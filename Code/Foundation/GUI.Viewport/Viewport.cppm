@@ -145,14 +145,14 @@ export namespace foundation::gui
         /// to ClearColor on the next frame rather than keeping its last one.
         void ClearPicture() noexcept { m_clearPending = true; }
 
-        [[nodiscard]] bool IsReady() const noexcept { return m_colorView != nullptr && m_depthView != nullptr; }
+        [[nodiscard]] bool IsReady() const noexcept { return m_colorView.IsValid() && m_depthView.IsValid(); }
         /// Returns the colour target viewed in its sRGB or UNORM twin format, or null when its format
         /// has none. Drawing through it writes encoded values into an sRGB target without the
         /// hardware encoding them again.
-        [[nodiscard]] rhi::TextureView* ColorAlternateView() const noexcept { return m_colorAlternateView; }
-        [[nodiscard]] rhi::TextureView* ColorView() const noexcept { return m_colorView; }
-        [[nodiscard]] rhi::TextureView* DepthView() const noexcept { return m_depthView; }
-        [[nodiscard]] rhi::Texture* ColorTexture() const noexcept { return m_colorTexture; }
+        [[nodiscard]] rhi::TextureViewHandle ColorAlternateView() const noexcept { return m_colorAlternateView; }
+        [[nodiscard]] rhi::TextureViewHandle ColorView() const noexcept { return m_colorView; }
+        [[nodiscard]] rhi::TextureViewHandle DepthView() const noexcept { return m_depthView; }
+        [[nodiscard]] rhi::TextureHandle ColorTexture() const noexcept { return m_colorTexture; }
         /// Returns the colour target's state. A renderer drawing it outside OnRender imports it from
         /// this state (Undefined once it is made again), and reports the state it left it in with
         /// SetColorState.
@@ -187,7 +187,7 @@ export namespace foundation::gui
                     m_registered = false;
                 }
                 m_renderer = renderer;
-                if (m_renderer != nullptr && m_colorView != nullptr)
+                if (m_renderer != nullptr && m_colorView.IsValid())
                 {
                     m_renderer->RegisterExternalTexture(m_key.Get(), m_colorView);
                     m_registered = true;
@@ -321,7 +321,7 @@ export namespace foundation::gui
                 m_height = height;
                 return;
             }
-            if (m_colorTexture != nullptr || m_depthTexture != nullptr)
+            if (m_colorTexture.IsValid() || m_depthTexture.IsValid())
                 m_device->WaitIdle(); // wait, because frames in flight sample the old targets
             if (m_registered && m_renderer != nullptr)
             {
@@ -348,7 +348,7 @@ export namespace foundation::gui
                 rhi::TextureViewDesc alternate{};
                 alternate.format = colorDesc.alternateViewFormat;
                 if (!m_device->CreateTextureView(m_colorTexture, alternate, m_colorAlternateView).IsOk())
-                    m_colorAlternateView = nullptr; // without the twin view, content meant for it draws linear light instead
+                    m_colorAlternateView = {}; // without the twin view, content meant for it draws linear light instead
             }
             rhi::TextureDesc depthDesc = rhi::TextureDesc::DepthBuffer(m_depthFormat, width, height, 1, u8"ViewportDepth");
             if (!m_device->CreateTexture(depthDesc, m_depthTexture).IsOk() ||
@@ -370,25 +370,25 @@ export namespace foundation::gui
         {
             if (m_device == nullptr)
                 return;
-            if (m_depthView != nullptr)
+            if (m_depthView.IsValid())
                 m_device->DestroyTextureView(m_depthView);
-            if (m_depthTexture != nullptr)
+            if (m_depthTexture.IsValid())
                 m_device->DestroyTexture(m_depthTexture);
-            if (m_colorAlternateView != nullptr)
+            if (m_colorAlternateView.IsValid())
                 m_device->DestroyTextureView(m_colorAlternateView);
-            if (m_colorView != nullptr)
+            if (m_colorView.IsValid())
                 m_device->DestroyTextureView(m_colorView);
-            if (m_colorTexture != nullptr)
+            if (m_colorTexture.IsValid())
                 m_device->DestroyTexture(m_colorTexture);
-            m_depthView = nullptr;
-            m_depthTexture = nullptr;
-            m_colorView = nullptr;
-            m_colorAlternateView = nullptr;
-            m_colorTexture = nullptr;
+            m_depthView = {};
+            m_depthTexture = {};
+            m_colorView = {};
+            m_colorAlternateView = {};
+            m_colorTexture = {};
         }
         void ReleaseTargets()
         {
-            if (m_device != nullptr && (m_colorTexture != nullptr || m_depthTexture != nullptr))
+            if (m_device != nullptr && (m_colorTexture.IsValid() || m_depthTexture.IsValid()))
                 m_device->WaitIdle();
             if (m_registered && m_renderer != nullptr)
                 m_renderer->UnregisterExternalTexture(m_key.Get());
@@ -400,11 +400,11 @@ export namespace foundation::gui
         rhi::Device* m_device = nullptr;
         vg::renderer::VGRenderer* m_renderer = nullptr; // the renderer of its window
         UniquePtr<image::ImageDataRef> m_key;
-        rhi::Texture* m_colorTexture = nullptr;
-        rhi::TextureView* m_colorView = nullptr;
-        rhi::TextureView* m_colorAlternateView = nullptr; // the colour target in its sRGB or UNORM twin, if it has one
-        rhi::Texture* m_depthTexture = nullptr;
-        rhi::TextureView* m_depthView = nullptr;
+        rhi::TextureHandle m_colorTexture{};
+        rhi::TextureViewHandle m_colorView{};
+        rhi::TextureViewHandle m_colorAlternateView{}; // the colour target in its sRGB or UNORM twin, if it has one
+        rhi::TextureHandle m_depthTexture{};
+        rhi::TextureViewHandle m_depthView{};
         rhi::ResourceState m_colorState = rhi::ResourceState::Undefined;
         rhi::ResourceState m_depthState = rhi::ResourceState::Undefined;
         rhi::TextureFormat m_colorFormat = rhi::TextureFormat::RGBA16Float;

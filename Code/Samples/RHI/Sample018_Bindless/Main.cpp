@@ -48,9 +48,9 @@ private:
     rhi::ShaderModule* m_ps = nullptr;
 
     // Textures
-    rhi::Texture* m_textures[kNumTextures] = {};
-    rhi::TextureView* m_textureViews[kNumTextures] = {};
-    rhi::Sampler* m_sampler = nullptr;
+    rhi::TextureHandle m_textures[kNumTextures] = {};
+    rhi::TextureViewHandle m_textureViews[kNumTextures] = {};
+    rhi::SamplerHandle m_sampler{};
 
     // Bindless bind group (space0: bindless textures)
     rhi::BindGroupLayout* m_bindlessBgl = nullptr;

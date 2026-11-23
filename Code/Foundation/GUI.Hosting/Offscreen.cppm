@@ -98,9 +98,9 @@ export namespace foundation::gui
                 device->DestroyFence(m_fence);
             if (m_pool != nullptr)
                 device->DestroyCommandPool(m_pool);
-            if (m_view != nullptr)
+            if (m_view.IsValid())
                 device->DestroyTextureView(m_view);
-            if (m_texture != nullptr)
+            if (m_texture.IsValid())
                 device->DestroyTexture(m_texture);
         }
         GuiOffscreen(const GuiOffscreen&) = delete;
@@ -110,7 +110,7 @@ export namespace foundation::gui
         [[nodiscard]] u32 Width() const noexcept { return m_width; }
         [[nodiscard]] u32 Height() const noexcept { return m_height; }
         /// The colour target the last draw went into (left in ShaderRead).
-        [[nodiscard]] rhi::Texture* Texture() const noexcept { return m_texture; }
+        [[nodiscard]] rhi::TextureHandle Texture() const noexcept { return m_texture; }
 
         /// Styles `root`, lays it out at this target's size (at its own display scale) and draws it,
         /// then waits for the GPU's work. The stages are timed into `times`. Returns false when the
@@ -200,8 +200,8 @@ export namespace foundation::gui
         vg::renderer::VGRenderer m_renderer;
         vg::renderer::VGPassTargets m_targets;
         UniquePtr<vg::VGContext> m_canvas;
-        rhi::Texture* m_texture = nullptr;
-        rhi::TextureView* m_view = nullptr;
+        rhi::TextureHandle m_texture{};
+        rhi::TextureViewHandle m_view{};
         rhi::CommandPool* m_pool = nullptr;
         rhi::Fence* m_fence = nullptr;
         u64 m_fenceValue = 0;

@@ -101,7 +101,7 @@ export namespace editor::app
         /// Called from window `windowId`'s frame, after its UI has drawn: records the copy of its
         /// backbuffer when a capture of it is armed.
         void Record(foundation::rhi::Device& device, foundation::rhi::CommandEncoder& encoder, u32 windowId,
-                    foundation::rhi::Texture* backbuffer, foundation::rhi::TextureFormat format, u32 width,
+                    foundation::rhi::TextureHandle backbuffer, foundation::rhi::TextureFormat format, u32 width,
                     u32 height)
         {
             for (Slot& slot : m_slots)

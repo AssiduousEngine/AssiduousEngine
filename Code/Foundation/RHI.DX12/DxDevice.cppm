@@ -48,6 +48,7 @@ import :render_pass_encoder;
 import :compute_pass_encoder;
 import :queue;
 import :swap_chain;
+import :tables;
 
 using namespace foundation::core;
 
@@ -356,7 +357,7 @@ export namespace foundation::rhi::dx12
                 m_allocator.Delete(b);
                 return ErrorCode::Unknown;
             }
-            out = m_buffers.Add(b);
+            out = m_tables.buffers.Add(b);
             if (!out)
             {
                 b->cleanup();
@@ -369,73 +370,108 @@ export namespace foundation::rhi::dx12
         }
         const BufferDesc* Describe(BufferHandle buffer) const override
         {
-            const DxBufferImpl* b = m_buffers.Get(buffer);
+            const DxBufferImpl* b = m_tables.buffers.Get(buffer);
             return b != nullptr ? &b->desc : nullptr;
         }
         void* Map(BufferHandle buffer) override
         {
-            DxBufferImpl* b = m_buffers.Get(buffer);
+            DxBufferImpl* b = m_tables.buffers.Get(buffer);
             return b != nullptr ? b->Map() : nullptr;
         }
         void Unmap(BufferHandle buffer) override
         {
-            if (DxBufferImpl* b = m_buffers.Get(buffer))
+            if (DxBufferImpl* b = m_tables.buffers.Get(buffer))
                 b->Unmap();
         }
         void FlushRange(BufferHandle buffer, u64 offset, u64 size) override
         {
-            if (DxBufferImpl* b = m_buffers.Get(buffer))
+            if (DxBufferImpl* b = m_tables.buffers.Get(buffer))
                 b->FlushRange(offset, size);
         }
 
-        Status CreateTexture(const TextureDesc& d, Texture*& out) override
+        Status CreateTexture(const TextureDesc& d, TextureHandle& out) override
         {
+            out = TextureHandle::Invalid();
             auto* t = m_allocator.New<DxTextureImpl>();
             if (t->init(m_device.Get(), d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(t);
-                out = nullptr;
                 return ErrorCode::Unknown;
+            }
+            out = m_tables.textures.Add(t);
+            if (!out)
+            {
+                t->cleanup();
+                m_allocator.Delete(t);
+                return ErrorCode::OutOfMemory;
             }
             setDebugName(t->handle(), d.label);
             // The description's size (the driver may pad; GetResourceAllocationInfo would say).
             m_counters.TextureMade(EstimateTextureBytes(d), CountsAsRenderTarget(d));
-            out = t;
             return ErrorCode::Ok;
         }
 
-        Status CreateTextureView(Texture* tex, const TextureViewDesc& d, TextureView*& out) override
+        Status CreateTextureView(TextureHandle tex, const TextureViewDesc& d, TextureViewHandle& out) override
         {
-            auto* dxTex = static_cast<DxTextureImpl*>(tex);
+            out = TextureViewHandle::Invalid();
+            auto* dxTex = m_tables.textures.Get(tex);
             if (!dxTex)
-            {
-                LogError("DxDevice: cast to DxTextureImpl failed");
-                out = nullptr;
-                return ErrorCode::Unknown;
-            }
+                return ErrorCode::InvalidArgument;
             auto* v = m_allocator.New<DxTextureViewImpl>();
-            if (v->init(m_device.Get(), dxTex, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap) !=
+            if (v->init(m_device.Get(), dxTex, tex, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap) !=
                 ErrorCode::Ok)
             {
                 m_allocator.Delete(v);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = v;
+            out = m_tables.views.Add(v);
+            if (!out)
+            {
+                v->cleanup();
+                m_allocator.Delete(v);
+                return ErrorCode::OutOfMemory;
+            }
             return ErrorCode::Ok;
         }
 
-        Status CreateSampler(const SamplerDesc& d, Sampler*& out) override
+        Status CreateSampler(const SamplerDesc& d, SamplerHandle& out) override
         {
+            out = SamplerHandle::Invalid();
             auto* s = m_allocator.New<DxSamplerImpl>();
             if (s->init(m_device.Get(), d, &m_samplerHeap) != ErrorCode::Ok)
             {
                 m_allocator.Delete(s);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = s;
+            out = m_tables.samplers.Add(s);
+            if (!out)
+            {
+                s->cleanup();
+                m_allocator.Delete(s);
+                return ErrorCode::OutOfMemory;
+            }
             return ErrorCode::Ok;
+        }
+
+        const TextureDesc* Describe(TextureHandle texture) const override
+        {
+            const DxTextureImpl* t = m_tables.textures.Get(texture);
+            return t != nullptr ? &t->desc : nullptr;
+        }
+        const TextureViewDesc* Describe(TextureViewHandle view) const override
+        {
+            const DxTextureViewImpl* v = m_tables.views.Get(view);
+            return v != nullptr ? &v->desc : nullptr;
+        }
+        TextureHandle TextureOf(TextureViewHandle view) const override
+        {
+            const DxTextureViewImpl* v = m_tables.views.Get(view);
+            return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        const SamplerDesc* Describe(SamplerHandle sampler) const override
+        {
+            const DxSamplerImpl* s = m_tables.samplers.Get(sampler);
+            return s != nullptr ? &s->desc : nullptr;
         }
 
         Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
@@ -472,7 +508,7 @@ export namespace foundation::rhi::dx12
         Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
         {
             auto* g = m_allocator.New<DxBindGroupImpl>();
-            g->buffers = &m_buffers;
+            g->tables = &m_tables;
             if (g->init(m_device.Get(), d, &m_cpuSrvHeap, &m_cpuSamplerHeap, &m_gpuSamplerHeap, &m_samplerTables) !=
                 ErrorCode::Ok)
             {
@@ -684,7 +720,7 @@ export namespace foundation::rhi::dx12
         Status CreateCommandPool(QueueType qt, CommandPool*& out) override
         {
             auto* p = m_allocator.New<DxCommandPoolImpl>();
-            p->buffers = &m_buffers;
+            p->tables = &m_tables;
             p->tracker = &m_tracker;
             if (p->init(this, m_device.Get(), qt, &m_cpuSrvHeap, &m_gpuSrvHeap, &m_cpuSamplerHeap,
                         &m_gpuSamplerHeap, m_allocator) != ErrorCode::Ok)
@@ -755,9 +791,10 @@ export namespace foundation::rhi::dx12
 
             auto* sc = m_allocator.New<DxSwapChainImpl>();
             if (sc->init(m_device.Get(), m_adapter->factory(), m_graphicsQueues[0]->handle(),
-                         dxSurface, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap,
+                         dxSurface, d, &m_srvHeap, &m_rtvHeap, &m_dsvHeap, m_tables,
                          m_allocator) != ErrorCode::Ok)
             {
+                sc->cleanup(); // the back buffers it got before failing are in the tables
                 m_allocator.Delete(sc);
                 out = nullptr;
                 return ErrorCode::Unknown;
@@ -772,36 +809,23 @@ export namespace foundation::rhi::dx12
 
         void DestroyBuffer(BufferHandle& b) override
         {
-            if (m_buffers.Retire(b))
+            if (m_tables.buffers.Retire(b))
                 collectRetired();
         }
-        void DestroyTexture(Texture*& t) override
+        void DestroyTexture(TextureHandle& t) override
         {
-            if (t)
-            {
-                m_counters.TextureFreed(EstimateTextureBytes(t->desc), CountsAsRenderTarget(t->desc));
-                static_cast<DxTextureImpl*>(t)->cleanup();
-                m_allocator.Delete(static_cast<DxTextureImpl*>(t));
-                t = nullptr;
-            }
+            if (m_tables.textures.Retire(t))
+                collectRetired();
         }
-        void DestroyTextureView(TextureView*& v) override
+        void DestroyTextureView(TextureViewHandle& v) override
         {
-            if (v)
-            {
-                static_cast<DxTextureViewImpl*>(v)->cleanup();
-                m_allocator.Delete(static_cast<DxTextureViewImpl*>(v));
-                v = nullptr;
-            }
+            if (m_tables.views.Retire(v))
+                collectRetired();
         }
-        void DestroySampler(Sampler*& s) override
+        void DestroySampler(SamplerHandle& s) override
         {
-            if (s)
-            {
-                static_cast<DxSamplerImpl*>(s)->cleanup();
-                m_allocator.Delete(static_cast<DxSamplerImpl*>(s));
-                s = nullptr;
-            }
+            if (m_tables.samplers.Retire(s))
+                collectRetired();
         }
         void DestroyShaderModule(ShaderModule*& m) override
         {
@@ -951,7 +975,7 @@ export namespace foundation::rhi::dx12
         // A queue made: its timeline, its batches' buffers, and the collection after its submits.
         void wireQueue(DxQueueImpl& queue)
         {
-            queue.buffers = &m_buffers;
+            queue.tables = &m_tables;
             queue.collect = [this]() { collectRetired(); };
             if (queue.initTimeline(m_tracker) != ErrorCode::Ok)
                 LogError("[RHI] a D3D12 queue's timeline could not be made: what it uses is freed only when the device goes");
@@ -988,7 +1012,7 @@ export namespace foundation::rhi::dx12
         {
             WaitIdle();
             // Freed while the D3D12 device still lives (the members' destructors run after).
-            m_buffers.FreeAll();
+            m_tables.FreeAll();
             m_tracker.FreeAll();
 
             // Queues.
@@ -1348,9 +1372,26 @@ export namespace foundation::rhi::dx12
         ComPtr<ID3D12InfoQueue> m_infoQueue;
         DxAdapterImpl* m_adapter = nullptr;
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
-        // When a destroyed resource may go, and its buffers by handle (Specs/rhi-handles.md).
+        // When a destroyed resource may go, and its objects by handle (Specs/rhi-handles.md).
         SubmissionTracker m_tracker{m_allocator};
-        DxBufferTable m_buffers{m_allocator, m_tracker, &FreeBuffer, this};
+        DxTables m_tables{m_allocator, m_tracker, this, &FreeBuffer, &FreeTexture, &FreeObject<DxTextureViewImpl>,
+                          &FreeObject<DxSamplerImpl>};
+        static void FreeTexture(void* context, void* object)
+        {
+            auto* device = static_cast<DxDeviceImpl*>(context);
+            auto* texture = static_cast<DxTextureImpl*>(object);
+            device->m_counters.TextureFreed(EstimateTextureBytes(texture->desc), CountsAsRenderTarget(texture->desc));
+            texture->cleanup();
+            device->m_allocator.Delete(texture);
+        }
+        // A view or a sampler: its descriptors, then itself.
+        template <typename T>
+        static void FreeObject(void* context, void* object)
+        {
+            auto* device = static_cast<DxDeviceImpl*>(context);
+            static_cast<T*>(object)->cleanup();
+            device->m_allocator.Delete(static_cast<T*>(object));
+        }
         static void FreeBuffer(void* context, void* object)
         {
             auto* device = static_cast<DxDeviceImpl*>(context);
@@ -1521,7 +1562,7 @@ export namespace foundation::rhi::dx12
         rpeCtx.drawIndexedSig = m_device->drawIndexedSignature();
         rpeCtx.dispatchMeshSig = m_device->dispatchMeshSignature();
         rpeCtx.counters = m_device->counters();
-        rpeCtx.buffers = buffers;
+        rpeCtx.tables = tables;
 
         DxComputePassContext cpeCtx{};
         cpeCtx.cmdList = cmdList;
@@ -1530,7 +1571,7 @@ export namespace foundation::rhi::dx12
         cpeCtx.gpuSamplerHeap = m_device->gpuSamplerHeap();
         cpeCtx.dispatchSig = m_device->dispatchSignature();
         cpeCtx.counters = m_device->counters();
-        cpeCtx.buffers = buffers;
+        cpeCtx.tables = tables;
 
         auto* enc = m_allocPtr->New<DxCommandEncoderImpl>(m_device, cmdList, this, rpeCtx, cpeCtx,
                                                           *m_allocPtr);
@@ -1577,7 +1618,7 @@ export namespace foundation::rhi::dx12
 
         DxRenderPassContext ctx{};
         ctx.cmdList = list.Get();
-        ctx.buffers = buffers;
+        ctx.tables = tables;
         beginBundleRecording();
         ctx.srvStaging = &m_srvStaging;
         ctx.gpuSrvHeap = m_device->gpuSrvHeap();
