@@ -834,7 +834,7 @@ namespace foundation::render
         // Skinned crowds need a per-set draw offsets buffer (dynamic per-instance bone bases). Allocate or
         // grow it here; it is filled in FillSkinnedMultiMeshOffsets once the pose pool's bone base is known.
         set->skinned = (mm.posePool != nullptr && mm.poseCount > 0 && mm.boneCount > 0);
-        if (set->skinned && !(set->offsetsBuf.IsValid() || mm.instanceCount > set->offsetsCapacity))
+        if (set->skinned && (!set->offsetsBuf.IsValid() || mm.instanceCount > set->offsetsCapacity))
         {
             if (set->offsetsBuf.IsValid())
             {

@@ -407,3 +407,64 @@ TEST_CASE("multimesh: a faded set's InstanceSet carries its window, the whole li
     CHECK(block.fadeEnd == doctest::Approx(0.0f)); // unfaded
 }
 
+
+TEST_CASE("multimesh: a skinned set gets its per-instance draw offsets, an unskinned one none")
+{
+    // A skinned crowd picks each instance's pose through its draw offsets; a set that never got the
+    // buffer drew every guest without a pose, standing still.
+    Systems s;
+    if (!s.Init())
+    {
+        MESSAGE("no shader compiler; skipping");
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*s.compiler, s.device);
+    materials::PipelineStateCache psoCache(shaderSystem, s.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(s.device).IsOk());
+    MeshRenderer renderer(DefaultAllocator(), s.device, shaderSystem, psoCache, materialSystem, /*framesInFlight*/ 2);
+    REQUIRE(renderer.Initialize().IsOk());
+
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> material =
+        materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+    Array<Float4x4> transforms;
+    transforms.Resize(4, Float4x4::Identity());
+    Array<Float4x4> poses; // 2 palettes of 3 bones
+    poses.Resize(6, Float4x4::Identity());
+
+    // A first frame makes what the renderer makes once; the sets after it are measured alone.
+    renderer.PrepareFrame(2, 0);
+    ExtractedScene warm{DefaultAllocator()};
+    AddSet(warm, 0x30u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    UploadOne(renderer, warm);
+
+    renderer.PrepareFrame(2, 1);
+    ExtractedScene plain{DefaultAllocator()};
+    AddSet(plain, 0x30u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    AddSet(plain, 0x31u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    const u32 before = s.device.m_buffers.Size();
+    UploadOne(renderer, plain);
+    const u32 plainBuffers = s.device.m_buffers.Size() - before;
+
+    renderer.PrepareFrame(2, 0);
+    ExtractedScene crowd{DefaultAllocator()};
+    AddSet(crowd, 0x30u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    AddSet(crowd, 0x31u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    AddSet(crowd, 0x32u, cube.Get(), material.Get(), Span<const Float4x4>{transforms.Data(), 4},
+           renderer.RendererId());
+    auto* skinned = static_cast<MultiMeshRenderData*>(crowd.Items()[2]);
+    skinned->posePool = poses.Data();
+    skinned->prevPosePool = poses.Data();
+    skinned->poseCount = 2;
+    skinned->boneCount = 3;
+    const u32 beforeCrowd = s.device.m_buffers.Size();
+    UploadOne(renderer, crowd);
+    // The skinned set: its instances, plus its draw offsets and its pick offsets.
+    CHECK(s.device.m_buffers.Size() - beforeCrowd == plainBuffers + 2u);
+}
