@@ -1610,3 +1610,43 @@ TEST_CASE("physics: worlds share one worker pool, each stepping as before")
     CHECK(pa.y == doctest::Approx(0.5f).epsilon(0.05));
     CHECK(pb.y == doctest::Approx(0.5f).epsilon(0.05));
 }
+
+TEST_CASE("physics: a destroyed joint's or character's id stays stale when its slot is reused")
+{
+    // The ids were slot numbers: a kept copy of a destroyed one named whatever took its slot next.
+    PhysicsWorld world(DefaultAllocator());
+    const BodyId a = world.CreateBody(BoxAt(3.0f));
+    const BodyId b = world.CreateBody(BoxAt(5.0f));
+    JointDesc pair;
+    pair.kind = JointKind::Fixed;
+    pair.bodyA = a;
+    JointId first = world.CreateJoint(pair);
+    REQUIRE(first.IsValid());
+    const JointId kept = first;
+    world.DestroyJoint(first);
+    pair.bodyA = b;
+    const JointId second = world.CreateJoint(pair);
+    REQUIRE(second.IsValid());
+    CHECK(second.index == kept.index); // the slot came back
+    CHECK_FALSE(second == kept);
+    CHECK_FALSE(world.JointHolds(kept, b)); // the old id does not reach the new joint
+    CHECK(world.JointHolds(second, b));
+    world.DestroyJoint(kept); // a stale destroy leaves the new joint alone
+    CHECK(world.JointHolds(second, b));
+
+    CharacterDesc desc;
+    desc.position = Float3{0.0f, 2.0f, 0.0f};
+    const CharacterId one = world.CreateCharacter(desc);
+    REQUIRE(one.IsValid());
+    world.DestroyCharacter(one);
+    desc.position = Float3{4.0f, 2.0f, 0.0f};
+    const CharacterId two = world.CreateCharacter(desc);
+    REQUIRE(two.IsValid());
+    CHECK(two.index == one.index);
+    world.SetCharacterPosition(one, Float3{9.0f, 9.0f, 9.0f}); // stale: does nothing
+    CHECK(world.CharacterPosition(one).x == doctest::Approx(0.0f));
+    CHECK(world.CharacterPosition(two).x == doctest::Approx(4.0f));
+    world.DestroyCharacter(one);
+    CHECK(world.CharacterPosition(two).x == doctest::Approx(4.0f));
+    world.DestroyCharacter(two);
+}
