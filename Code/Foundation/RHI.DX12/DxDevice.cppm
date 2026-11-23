@@ -1404,8 +1404,10 @@ export namespace foundation::rhi::dx12
         static void FreeObject(void* context, void* object)
         {
             auto* device = static_cast<DxDeviceImpl*>(context);
-            static_cast<T*>(object)->cleanup();
-            device->m_allocator.Delete(static_cast<T*>(object));
+            T* typed = static_cast<T*>(object);
+            if constexpr (requires { typed->cleanup(); })
+                typed->cleanup(); // a bind group layout has nothing of D3D12's to release
+            device->m_allocator.Delete(typed);
         }
         static void FreeBuffer(void* context, void* object)
         {
