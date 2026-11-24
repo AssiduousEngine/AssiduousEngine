@@ -361,6 +361,16 @@ namespace foundation::propertyanimation
                 return ReadBinding(target.binding, Instance{system->SettingsInstance(), target.type});
             }
 
+            // The values in effect: the profile's while the system is on one.
+            [[nodiscard]] Variant ReadShown(foundation::scene::Scene& scene, const TrackTarget& target,
+                                            foundation::scene::EntityHandle entity) const override
+            {
+                (void)scene;
+                (void)entity;
+                auto* system = static_cast<foundation::scene::SceneSystem*>(target.object);
+                return ReadBinding(target.binding, Instance{system->EffectiveSettingsInstance(), target.type});
+            }
+
             bool Write(foundation::scene::Scene& scene, const TrackTarget& target, foundation::scene::EntityHandle entity,
                        const Variant& value) const override
             {

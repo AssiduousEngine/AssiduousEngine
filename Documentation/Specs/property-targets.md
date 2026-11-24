@@ -105,9 +105,11 @@ source, so a settings track is bound to no one, never warns for an empty binding
 ### The editors
 
 - The sequence panel's Track menu offers, for the chosen part, every source that needs an entity
-  (the entity's components, as now); with no part chosen or under "Sequence", every source that
-  does not (the scene's settings systems). Each target's leaves come from `Targets` and
-  `CollectAnimatableProperties`, starting with the value in effect at the playhead.
+  (the entity's components, as now), and always every source that does not (the scene's settings
+  systems, labelled `Scene:`, on no part: the panel picks a part whenever the cast has one, so
+  offering them only without one would rarely show them). Each target's leaves come from `Targets`
+  and `CollectAnimatableProperties`, starting with the value in effect at the playhead (a source's
+  `ReadShown`: a settings block on a profile shows the profile's values).
 - The property animation panel offers both, the entity's and the scene's.
 - A row is named `<target>.<path>` (`environment.ambientIntensity`); keys and curves edit as any
   property track's (the same editing calls).

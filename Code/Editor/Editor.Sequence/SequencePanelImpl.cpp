@@ -389,6 +389,19 @@ namespace editor
                 offer.target = Move(seed);
                 offers.PushBack(Move(offer));
             }
+        // A property track for each of the scene's own (its settings), on no part.
+        for (AnimatablePropertyInfo& seed : m_seeds.SceneSeeds())
+        {
+            if (HasPropertyTrack(sequence, -1, seed))
+                continue;
+            SequenceTrackOffer offer;
+            offer.kind = &sequence::PropertySequenceTrack::StaticType();
+            offer.binding = -1;
+            offer.property = true;
+            offer.label = Format(u8"Scene: {}.{}", seed.target, seed.propertyPath);
+            offer.target = Move(seed);
+            offers.PushBack(Move(offer));
+        }
         return offers;
     }
 
@@ -409,11 +422,13 @@ namespace editor
             property->property.target = offer.target.target;
             property->property.propertyPath = offer.target.propertyPath;
             property->property.kind = offer.target.kind;
-            // It starts with what the part's entity shows now, keyed at the playhead.
-            const String partName = m_document.Sequence().bindings[static_cast<usize>(offer.binding)].name;
-            m_preview.Stop(); // read the entity as the scene has it, not as posed
-            const Variant value = m_seeds.Read(m_preview.BoundEntity(partName.AsView()), offer.target.source.AsView(),
-                                               offer.target.target.AsView(), offer.target.propertyPath.AsView());
+            // It starts with what the part's entity, or the scene, shows now, keyed at the playhead.
+            const Guid entity = offer.binding >= 0
+                                    ? m_preview.BoundEntity(m_document.Sequence().bindings[static_cast<usize>(offer.binding)].name.AsView())
+                                    : Guid{};
+            m_preview.Stop(); // read the scene as it has it, not as posed
+            const Variant value = m_seeds.Read(entity, offer.target.source.AsView(), offer.target.target.AsView(),
+                                               offer.target.propertyPath.AsView());
             if (!value.IsEmpty())
                 KeyFirst(property->property, m_transport.Time(), value);
         }

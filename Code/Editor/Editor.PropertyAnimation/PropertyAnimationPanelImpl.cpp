@@ -314,6 +314,11 @@ namespace editor
         for (AnimatablePropertyInfo& seed : m_preview.TrackSeeds(m_entity))
             if (!HasTrack(m_document.Clip(), seed))
                 offered.PushBack(Move(seed));
+        // The scene's own (its settings), once an entity plays the clip.
+        if (!m_entity.IsNil())
+            for (AnimatablePropertyInfo& seed : m_preview.SceneSeeds())
+                if (!HasTrack(m_document.Clip(), seed))
+                    offered.PushBack(Move(seed));
         return offered;
     }
 
@@ -427,7 +432,10 @@ namespace editor
         for (const AnimatablePropertyInfo& seed : offered)
         {
             const AnimatablePropertyInfo pick = seed;
-            (void)m_trackMenu->AddItem(Format(u8"{}.{}", seed.target, seed.propertyPath).AsView(), [self, pick]() { self->AddTrack(pick); });
+            const propanim::PropertyTargetSource* source = propanim::FindPropertyTargetSource(seed.source.AsView());
+            const String label = (source != nullptr && !source->NeedsEntity()) ? Format(u8"Scene: {}.{}", seed.target, seed.propertyPath)
+                                                                               : Format(u8"{}.{}", seed.target, seed.propertyPath);
+            (void)m_trackMenu->AddItem(label.AsView(), [self, pick]() { self->AddTrack(pick); });
         }
         if (offered.IsEmpty())
             m_trackMenu->AddItem(m_entity.IsNil() ? StringView(u8"Bind an entity first") : StringView(u8"Every property has a track"), []() {})->SetEnabled(false);

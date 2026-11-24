@@ -313,6 +313,101 @@ TEST_CASE("scene page: the sequence panel beside the animation panel, cast from 
     page->OnClose();
 }
 
+TEST_CASE("scene page: a sequence keys the scene's settings on no part, posed, saved as it is, put back on close")
+{
+    Bed bed;
+    pipeline::RegisterSequenceAssets();
+    foundation::content::Instance* asset = pipeline::CreateSequenceAsset(bed.project->SourceDb().RootGroup(), u8"Dusk");
+    REQUIRE(asset != nullptr);
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    SequencePanel* panel = page->SequencePanelView();
+    REQUIRE(panel != nullptr);
+    page->SetSequencePanelShown(true);
+    page->EditSequence(asset->Id(), Guid{});
+    namespace propanim = foundation::propertyanimation;
+    const auto ambient = [&page]()
+    {
+        scene::Scene& scene = *page->ScenePtr();
+        return propanim::ReadTrackTarget(scene, propanim::ResolveTrackTarget(scene, propanim::kSettingsSource, u8"environment", u8"ambientIntensity"),
+                                         scene::EntityHandle{})
+            .Get<f32>();
+    };
+    const f32 before = ambient();
+
+    // The scene's settings are offered with no part cast, labelled for the scene.
+    SequenceTrackOffer offer;
+    for (const SequenceTrackOffer& candidate : panel->OfferedTracks())
+        if (candidate.property && candidate.target.source == String(propanim::kSettingsSource) &&
+            candidate.target.target == String(u8"environment") && candidate.target.propertyPath == String(u8"ambientIntensity"))
+            offer = candidate;
+    REQUIRE(offer.property);
+    CHECK(offer.binding == -1);
+    CHECK(offer.label == String(u8"Scene: environment.ambientIntensity"));
+    panel->AddTrack(offer);
+    REQUIRE(panel->Document().Sequence().tracks.Size() == 1u);
+    CHECK(panel->Document().Sequence().tracks[0]->binding == -1);
+    // Its first key is what the scene shows; moving it poses the scene.
+    CHECK(panel->Document().Sequence().tracks[0]->KeyCurve(0)->Keys()[0].value == doctest::Approx(before));
+    panel->Document().Edit(u8"test", [before](foundation::sequence::Sequence& s) { s.tracks[0]->KeyCurve(0)->Keys()[0].value = before + 2.0f; });
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(ambient() == doctest::Approx(before + 2.0f));
+
+    // Saving writes the scene's settings as they are, not as posed.
+    REQUIRE(page->Save().IsOk());
+    {
+        scene::Scene stored(DefaultAllocator(), u8"stored");
+        engine::FullSceneComposition().Instantiate(stored);
+        REQUIRE(scene::LoadScene(*bed.level, stored).IsOk());
+        CHECK(propanim::ReadTrackTarget(stored, propanim::ResolveTrackTarget(stored, propanim::kSettingsSource, u8"environment", u8"ambientIntensity"),
+                                        scene::EntityHandle{})
+                  .Get<f32>() == doctest::Approx(before));
+    }
+
+    // Closing the panel puts the light back.
+    REQUIRE(panel->RequestClose);
+    panel->RequestClose();
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(ambient() == doctest::Approx(before));
+    page->OnClose();
+}
+
+TEST_CASE("scene page: an entity's clip keys the scene's settings, posed and put back")
+{
+    Bed bed;
+    pipeline::RegisterPropertyAnimationAssets();
+    foundation::content::Instance* clip = pipeline::CreatePropertyAnimationClip(bed.project->SourceDb().RootGroup(), u8"Flicker");
+    REQUIRE(clip != nullptr);
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    PropertyAnimationPanel* panel = page->AnimationPanel();
+    REQUIRE(panel != nullptr);
+    page->EditAnimationClip(clip->Id(), bed.crate);
+    namespace propanim = foundation::propertyanimation;
+    const auto ambient = [&page]()
+    {
+        scene::Scene& scene = *page->ScenePtr();
+        return propanim::ReadTrackTarget(scene, propanim::ResolveTrackTarget(scene, propanim::kSettingsSource, u8"environment", u8"ambientIntensity"),
+                                         scene::EntityHandle{})
+            .Get<f32>();
+    };
+    const f32 before = ambient();
+
+    AnimatablePropertyInfo seed;
+    for (const AnimatablePropertyInfo& offered : panel->OfferedTracks())
+        if (offered.source == String(propanim::kSettingsSource) && offered.target == String(u8"environment") &&
+            offered.propertyPath == String(u8"ambientIntensity"))
+            seed = offered;
+    REQUIRE_FALSE(seed.propertyPath.IsEmpty());
+    panel->AddTrack(seed);
+    panel->Document().Edit(u8"test", [before](propanim::PropertyAnimationClip& c) { c.tracks[0].channels[0].Keys()[0].value = before + 1.5f; });
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(ambient() == doctest::Approx(before + 1.5f));
+
+    page->SetAnimationPanelShown(false); // hiding the panel ends its preview
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(ambient() == doctest::Approx(before));
+    page->OnClose();
+}
+
 TEST_CASE("scene page: the animation panel under the viewport, its clip its own, the scene saved as it is and not as posed")
 {
     Bed bed;

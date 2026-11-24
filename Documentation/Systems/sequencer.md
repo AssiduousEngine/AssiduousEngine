@@ -163,8 +163,11 @@ while the page is on screen opens there too.
 - **The cast** is the panel's own: Cast fills a part with the scene's selected entity, or adds a
   part named for it.
 - **Track** offers every registered kind (made through the serializable registry, as a sequence
-  being read makes them), and a property track for each of the chosen part's animatable properties
-  without one, which starts with what the entity shows at the playhead. Section adds a section at
+  being read makes them), a property track for each of the chosen part's animatable properties
+  without one (from every source that needs an entity), and one for each of the scene's own,
+  `Scene: environment.ambientIntensity` (from every source that needs none: the scene's settings),
+  on no part; each starts with what the entity or the scene shows at the playhead (a settings block
+  on a profile shows the profile's values). Section adds a section at
   the playhead to the chosen section track; Marker and Hold add a marker or a hold there.
 - **The inspector** beside the timeline edits the chosen track's reflected fields (a section's
   clip or sound, an event's name, a fade's colour) in place, each edit one step.

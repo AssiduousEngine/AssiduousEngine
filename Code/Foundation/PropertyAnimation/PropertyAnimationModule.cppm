@@ -324,6 +324,13 @@ export namespace foundation::propertyanimation
         // entity lacks the component).
         [[nodiscard]] virtual Variant Read(foundation::scene::Scene& scene, const TrackTarget& target,
                                            foundation::scene::EntityHandle entity) const = 0;
+        // The value as the scene shows it, where that is not what Read gives (a settings block on a
+        // shared profile shows the profile's): what an editor keys a new track with. Read by default.
+        [[nodiscard]] virtual Variant ReadShown(foundation::scene::Scene& scene, const TrackTarget& target,
+                                                foundation::scene::EntityHandle entity) const
+        {
+            return Read(scene, target, entity);
+        }
         // Writes `value` to the target; false when nothing was written.
         virtual bool Write(foundation::scene::Scene& scene, const TrackTarget& target, foundation::scene::EntityHandle entity,
                            const Variant& value) const = 0;

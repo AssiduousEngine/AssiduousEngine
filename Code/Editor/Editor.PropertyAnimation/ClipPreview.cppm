@@ -51,10 +51,14 @@ export namespace editor
         ClipPreview(const ClipPreview&) = delete;
         ClipPreview& operator=(const ClipPreview&) = delete;
 
-        /// What Add Track offers on `entity`: its transform's properties, then each component's.
+        /// What Add Track offers on `entity`: its transform's properties, then each component's, then
+        /// what any other source that needs an entity offers on it.
         [[nodiscard]] Array<AnimatablePropertyInfo> TrackSeeds(const Guid& entity) const;
-        /// A track target's current value on `entity` (empty when there is no such entity, target or
-        /// property).
+        /// What Add Track offers on the scene itself, from every source that needs no entity (the
+        /// scene's settings).
+        [[nodiscard]] Array<AnimatablePropertyInfo> SceneSeeds() const;
+        /// A track target's value as the scene shows it (on `entity`, for a source that needs one;
+        /// empty when there is no such entity, target or property).
         [[nodiscard]] Variant Read(const Guid& entity, StringView source, StringView target, StringView propertyPath) const;
 
         /// Poses `entity` with `clip` at `time`, first saving the values it overwrites so they can
@@ -70,6 +74,7 @@ export namespace editor
         {
             foundation::propertyanimation::TrackTarget target; // bound once: what it found lives as long as the scene
             Variant value;
+            UniquePtr<foundation::propertyanimation::PropertyTargetWrites> writes; // told once the value is back
         };
 
         foundation::scene::Scene* m_scene;

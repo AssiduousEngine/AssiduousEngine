@@ -95,15 +95,44 @@ namespace editor
                     CollectAnimatableProperties(propanim::kComponentSource, StringView(reinterpret_cast<const utf8char*>(type->name)), *type,
                                                 seeds);
             });
+        for (const propanim::PropertyTargetSource* source : propanim::PropertyTargetSources())
+        {
+            if (!source->NeedsEntity() || source->Id() == propanim::kComponentSource)
+                continue; // the components are above, the transform first
+            Array<propanim::PropertyTargetInfo> targets;
+            source->Targets(*m_scene, handle, targets);
+            for (const propanim::PropertyTargetInfo& target : targets)
+                if (IsReflectedType(target.type))
+                    CollectAnimatableProperties(source->Id(), target.name.AsView(), *target.type, seeds);
+        }
+        return seeds;
+    }
+
+    Array<AnimatablePropertyInfo> ClipPreview::SceneSeeds() const
+    {
+        Array<AnimatablePropertyInfo> seeds;
+        for (const propanim::PropertyTargetSource* source : propanim::PropertyTargetSources())
+        {
+            if (source->NeedsEntity())
+                continue;
+            Array<propanim::PropertyTargetInfo> targets;
+            source->Targets(*m_scene, scene::EntityHandle{}, targets);
+            for (const propanim::PropertyTargetInfo& target : targets)
+                if (IsReflectedType(target.type))
+                    CollectAnimatableProperties(source->Id(), target.name.AsView(), *target.type, seeds);
+        }
         return seeds;
     }
 
     Variant ClipPreview::Read(const Guid& entity, StringView source, StringView target, StringView propertyPath) const
     {
-        const scene::EntityHandle handle = m_scene->FindEntity(entity);
-        return handle.IsAssigned()
-                   ? propanim::ReadTrackTarget(*m_scene, propanim::ResolveTrackTarget(*m_scene, source, target, propertyPath), handle)
-                   : Variant{};
+        const propanim::TrackTarget resolved = propanim::ResolveTrackTarget(*m_scene, source, target, propertyPath);
+        if (!resolved.IsResolved())
+            return Variant{};
+        const scene::EntityHandle handle = entity.IsNil() ? scene::EntityHandle{} : m_scene->FindEntity(entity);
+        if (resolved.source->NeedsEntity() && !handle.IsAssigned())
+            return Variant{};
+        return resolved.source->ReadShown(*m_scene, resolved, handle);
     }
 
     void ClipPreview::Pose(const Guid& entity, const propanim::PropertyAnimationClip& clip, f32 time)
@@ -129,8 +158,11 @@ namespace editor
             {
                 propanim::TrackTarget target = propanim::ResolveTrackTarget(*m_scene, track);
                 Variant value = propanim::ReadTrackTarget(*m_scene, target, handle);
-                if (!value.IsEmpty())
-                    m_kept.PushBack(Kept{Move(target), Move(value)});
+                if (value.IsEmpty())
+                    continue;
+                // After the value is kept: a scene's settings on a profile take its values as their own here.
+                UniquePtr<propanim::PropertyTargetWrites> writes = target.source->BeginWrites(m_scene->Allocator(), *m_scene, target);
+                m_kept.PushBack(Kept{Move(target), Move(value), Move(writes)});
             }
             m_tracks = Move(tracks);
             m_entity = entity;
@@ -150,9 +182,16 @@ namespace editor
         if (!m_posing)
             return;
         const scene::EntityHandle handle = m_scene->FindEntity(m_entity);
-        if (handle.IsAssigned())
-            for (const Kept& kept : m_kept)
+        // Last first, so a target two tracks wrote ends as it was before both, and a profile given
+        // back after every value of its system.
+        for (usize i = m_kept.Size(); i-- > 0;)
+        {
+            Kept& kept = m_kept[i];
+            if (handle.IsAssigned() || !kept.target.source->NeedsEntity())
                 (void)propanim::WriteTrackTarget(*m_scene, kept.target, handle, kept.value);
+            if (kept.writes)
+                kept.writes->Restored();
+        }
         m_kept.Clear();
         m_tracks.Clear();
         m_entity = Guid{};
