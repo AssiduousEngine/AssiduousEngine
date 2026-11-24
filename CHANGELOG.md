@@ -12,10 +12,17 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - The player (and every application on the default app) takes `--measure <frames>`: after a
   warm-up it averages that many frames from the profiler, every CPU scope and GPU pass, prints them
   (and writes them with `--measure-out <file>`), and exits, for numbers that compare across builds.
+- Sequences and property animation clips key a scene's own settings (the environment's ambient,
+  image light and sky dimmer, the post-process), not only an entity's components: the sequence and
+  clip panels offer them as `Scene:` tracks, played on no part. A plugin can add targets of its
+  own.
 
 ### Changed
 
 - Scripts: a `VoiceHandle`'s slot is now `index`, as on every other handle; `isValid()` is unchanged.
+- The MCP sequence tools name a property track's target by `source` and `target` in place of
+  `component`. Clip and sequence assets are saved at data version 1; version 0 ones still read and
+  are written as version 1.
 
 ## 0.1.0-beta.5 - 2026-11-22
 

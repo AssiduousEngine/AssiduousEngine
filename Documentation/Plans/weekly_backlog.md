@@ -22,6 +22,16 @@ Proposed and still wanted; each spec holds its design:
 - `Specs/script-run-modules.md`: one script module per run, hot reload that migrates live state, P0
   to P2. Its origin was a fault seen on the Sedulous side; whether it is wanted here is the user's.
 
+## Left over from the property targets spec (archived 2026-11-24)
+
+- Keying a baked environment field re-bakes the whole prefilter chain every frame a track moves it
+  (`IBLSystem::PrecomputeEqual`: `skyMode`, `skyIntensity`, `skyRotation`, the procedural sky's
+  colours, `sunIntensity`, `turbidity`). A sequence that dims the sky over a few seconds pays a
+  bake a frame. The sun's direction already re-bakes only past an angle (`kSunRebakeCos`); the
+  same throttle for the sky's fields, or keying them as live multipliers where they can be, would
+  let them animate. Found while checking the spec's risk; not built (the first game keys the live
+  fields).
+
 ## Left over from the RHI handles spec (archived 2026-11-23)
 
 - The Validation layer's encoders check a bound pipeline only for null, not that it is live

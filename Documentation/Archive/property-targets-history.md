@@ -1,6 +1,10 @@
 # Property tracks with open targets
 
-APPROVED 2026-11-24.
+> ARCHIVED 2026-11-24, fully built on master (the sources, the players, the editors); what it left
+> open is in Documentation/Plans/weekly_backlog.md ("Left over from the property targets spec").
+> Non-authoritative: the original spec, kept as the record of what was built and why; the
+> authoritative description is Documentation/Systems/sequencer.md, under "What a property track
+> keys".
 
 ## Goal
 
