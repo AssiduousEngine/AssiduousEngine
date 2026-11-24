@@ -277,7 +277,15 @@ TEST_CASE("scene page: the sequence panel beside the animation panel, cast from 
             position = offer;
     REQUIRE(position.property);
     panel->AddTrack(position);
-    panel->Document().Edit(u8"test", [](foundation::sequence::Sequence& s) { s.tracks[0]->KeyCurve(0)->Keys()[0].value = 5.0f; });
+    panel->Document().Edit(u8"test",
+                           [](foundation::sequence::Sequence& s)
+                           {
+                               s.tracks[0]->KeyCurve(0)->Keys()[0].value = 5.0f;
+                               // A second key, so a preview at a later time shows the scrub reached it.
+                               const i32 later = s.tracks[0]->InsertKey(0, 1.0f);
+                               s.tracks[0]->KeyCurve(0)->Keys()[static_cast<usize>(later)].value = 9.0f;
+                               s.duration = 1.0f;
+                           });
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     const scene::EntityHandle crate = page->ScenePtr()->FindEntity(bed.crate);
     CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(5.0f));
@@ -300,8 +308,8 @@ TEST_CASE("scene page: the sequence panel beside the animation panel, cast from 
     // is given; a sequence that is not there is refused.
     const String parts[] = {String(u8"Hero")};
     const Guid players[] = {bed.crate};
-    REQUIRE(page->PreviewSequence(asset->Id(), Span<const String>(parts, 1u), Span<const Guid>(players, 1u), 0.0f).HasValue());
-    CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(5.0f));
+    REQUIRE(page->PreviewSequence(asset->Id(), Span<const String>(parts, 1u), Span<const Guid>(players, 1u), 1.0f).HasValue());
+    CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(9.0f)); // posed at the time asked
     CHECK_FALSE(page->PreviewSequence(Guid{0x7, 0x7}, {}, {}, 0.0f).HasValue());
 
     // Its own Close puts back what it posed.
