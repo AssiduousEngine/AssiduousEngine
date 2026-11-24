@@ -1,8 +1,9 @@
 # A persistent instance table for meshes
 
-> APPROVED 2026-11-23 (the user: work on it on a branch), built on branch `instance-table`. The
-> decisions take the recommendations below. Read on branch `rhi-handles` at `0ecd5188a`; line
-> numbers will drift.
+> APPROVED 2026-11-23 (the user: work on it on a branch). Steps 1 to 3 built on branch
+> `instance-table` and measured (Results): in this form the table does not pay on the CPU, and the
+> branch is not merged. The decisions take the recommendations below. Read on branch `rhi-handles`
+> at `0ecd5188a`; line numbers will drift.
 
 ## Goal
 
@@ -199,8 +200,11 @@ Each step leaves the tree green.
 2. **Instanced runs read the table.** `UploadInstances` joins the frame; `ResolveInstanced` and
    `ResolveDepthInstanced` write offsets only; `m_instanceRing`, `MotionHistory` and
    `PrevWorldFor` go. `InstanceSlotsPerFrame` sizes the offsets ring alone.
-3. **Single draws join** (decision 1). The single resolve functions, `m_objectRing`,
-   `GpuObject` and `object_block.hlsli` go; `Integration.ShaderBlocks` loses its `Object` rows.
+3. **Single draws join** (decision 1). The single resolve functions, `m_objectRing`, the object
+   layout and bind group, the single-draw shadow layout and `GpuObject` go, and with them the
+   `instanced` flag the mesh renderer's helpers took; `Integration.ShaderBlocks` loses its
+   `Object` rows. `object_block.hlsli` stays while the non-instanced variants are cooked
+   (decision 3's own step): those variants include it, though nothing draws with them.
 4. **Measure and write up**: what the table netted, against the baseline (Measuring), in the
    weekly and `Documentation/Systems/renderer.md`; backlog items 1b and 1c closed or restated by
    what the numbers show. The write-up ends with a recommendation on the next GPU-driven step,
@@ -262,6 +266,58 @@ scene).
   measurements.
 - **The branch.** `rhi-handles` is changing how the renderer names RHI objects. This work
   starts after that lands, on its result.
+
+## Results (2026-11-23)
+
+Measured with `--measure` (RelWithDebInfo, Vulkan, the RTX 2060 box): `RenderStressTest` at 32000
+and 100000 spheres, at rest and all moving, and the Megascans forest's 40000-entity Canopy scene.
+The baseline is master before step 1 with the measuring commits applied.
+
+**Method.** Only the paired run counts: baseline and table built and measured back to back in one
+session. Earlier comparisons put a baseline measured in one hour against the table measured in
+another, and the same baseline differed by 15 to 20% between them in scopes neither build changed
+(extraction, update, the GPU frame); the gains they showed (21% at 32000 spheres, 8% of the
+forest's GPU time) were that drift. Even the paired run measured the table second; runs
+interleaved A, B, A, B are what settle the GPU difference below.
+
+| Scene | Render thread work | Resolves | Table upload | GPU frame |
+|---|---|---|---|---|
+| 32000 at rest | 9.53 to 9.48 ms | 3.24 to 1.88 ms | 0.70 ms | 7.68 to 8.57 ms |
+| 32000 moving | 10.25 to 10.86 ms | 3.30 to 1.94 ms | 1.39 ms | 7.38 to 8.50 ms |
+| 100000 at rest | 32.68 to 32.24 ms | 10.21 to 7.07 ms | 3.13 ms | 16.16 to 19.45 ms |
+| 100000 moving | 34.72 to 37.44 ms | 11.53 to 8.01 ms | 5.16 ms | 15.78 to 19.69 ms |
+
+- **The resolves save what was expected**, 1.4 to 3.5 ms: every pass writes 16 bytes per instance
+  in place of 144. These scopes are steady across every run.
+- **The table's upload gives it back.** At rest it is the compare of every record each frame,
+  about 22 ns a mesh at 32000 and 31 ns at 100000 (cache misses on the slot entries and the
+  mirror). Moving, it is also 14.4 MB a frame staged and copied at 100000. Its parts at 100000
+  moving: claim 1.76 ms (serial), refresh 1.62 ms (parallel), staging and copy 1.27 ms, mark
+  0.39 ms. The workers' summed time also rose, 21.7 to 36.7 ms at 32000 moving: the parallel
+  refresh costs CPU across threads.
+- **Net**: level at rest, 6 to 8% worse moving.
+- **GPU**: 0.9 to 3.9 ms worse with the table in every paired scene, the depth and shadow passes
+  most. A run's instances are no longer contiguous in memory but scattered table slots, which fits;
+  the table also ran second, on a warmer machine. Not settled.
+- **Unique materials** (200 and 8000 spheres, each its own material): no change from step 3. Their
+  10 ms of resolves at 8000 is per-draw material and pipeline work, which both paths do.
+- **The forest**: 141 to 148 ms a frame in both builds, GPU-bound. Its pipeline statistics say why:
+  82 million primitives through the forward and 37 million through the shadow cascades a frame,
+  for 24 million fragments. Its 40000 entities draw in 82 draws, so batching already works; the
+  cost is triangles, which LOD and culling would cut, not per-object data.
+
+**What would change the answer**: claiming slots in parallel too (only new entities need the
+serial path), assigning slots so a batch's instances sit together (the GPU's reads and the copy's
+runs), and a cheaper rest check than comparing each mesh's world against its record (a transform
+version from extraction would let a mesh at rest cost nothing). Each is measurable with the same
+scenes; none is built.
+
+**Recommendation.** Not to merge the table as it is. The measurements point the next renderer work
+elsewhere: the forest's triangle load (LOD, then culling on the GPU) and, for scenes of many unique
+materials, the per-draw material and pipeline work. Step 3 (one draw path) is a simplification
+worth having on its own, so it went to master over the instance ring instead of the table: a lone
+mesh writes its record there as an instanced run does. The measuring mode and the report's counters
+are on master too, so this branch holds only the table.
 
 ## Not in this work
 
