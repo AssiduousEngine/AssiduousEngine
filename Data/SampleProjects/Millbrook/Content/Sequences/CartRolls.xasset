@@ -5,7 +5,7 @@
 	<string name="source"/>
 	<array name="dataVersions" count="1">
 		<u64 name="type">18041285930185609870</u64>
-		<u32 name="version">0</u32>
+		<u32 name="version">1</u32>
 	</array>
 	<object name="payload">
 		<string name="fileName"/>
@@ -23,7 +23,8 @@
 				<string name="name"/>
 				<i32 name="binding">0</i32>
 				<bool name="muted">false</bool>
-				<string name="component">Transform</string>
+				<string name="source">component</string>
+				<string name="target">Transform</string>
 				<string name="path">position</string>
 				<u8 name="kind">1</u8>
 				<array name="keyCount" count="4">
