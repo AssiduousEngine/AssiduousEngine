@@ -14,6 +14,11 @@
 // Stats show in an ImGui HUD (H toggles it), and the inherited P key dumps the CPU scope tree and
 // per-pass GPU timings. Fly camera: WASD/QE move, hold RMB (or Tab to capture) to look, Shift to
 // move fast, Esc to exit.
+//
+// Measuring, for numbers that compare across builds: `--spheres N` starts with N spheres, `--bob`
+// starts them moving, `--unique` gives each its own material (no batching), and the base app's
+// `--measure N` (with `--measure-out <file>`) averages N frames from the profiler and exits.
+// Measure in a RelWithDebInfo build; Debug says nothing about speed.
 
 #include "Core/Prelude.h"
 #include "imgui.h" // Dear ImGui (HUD), used directly; imgui.engine does the engine integration
@@ -158,7 +163,24 @@ namespace
             }
             PushCameraToEntity();
 
-            AddSphereBatch(); // start with one batch
+            if (m_startSpheres > 0)
+            {
+                // The measured scene: whole batches, then the rest in one.
+                for (core::i32 left = m_startSpheres; left > 0; left -= kSpheresPerBatch)
+                {
+                    AddSphereBatch(left < kSpheresPerBatch ? left : kSpheresPerBatch);
+                }
+                m_bob = m_startBob;
+                m_showStats = !Measuring(); // the HUD costs a frame something; a measure leaves it out
+                core::String label;
+                core::AppendFormat(label, u8"{} spheres, bob {}, unique materials {}", m_startSpheres,
+                                   m_bob ? u8"on" : u8"off", m_uniqueMaterials ? u8"on" : u8"off");
+                SetMeasureLabel(label.AsView());
+            }
+            else
+            {
+                AddSphereBatch(); // start with one batch
+            }
 
             // Lower default exposure: the procedural-sky IBL and sun are bright, so AgX washes out at 1.0.
             if (auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>())
@@ -382,12 +404,14 @@ namespace
             return core::Float3{x, kSphereHeight, z};
         }
 
-        // Spawn 8000 more spheres on the auto-sized grid. Position only depends on a global index, so
-        // existing spheres keep their world positions when the grid widens.
-        void AddSphereBatch()
+        // Spawn a batch of spheres (8000, or fewer for a small scene) on the auto-sized grid. Position
+        // only depends on a global index, so existing spheres keep their world positions when the grid
+        // widens.
+        void AddSphereBatch(core::i32 count = kSpheresPerBatch)
         {
-            const core::i32 startIndex = m_batchCount * kSpheresPerBatch;
-            const core::i32 newTotal = (m_batchCount + 1) * kSpheresPerBatch;
+            const core::i32 startIndex =
+                static_cast<core::i32>(m_multiMesh ? m_mmTransforms.Size() : m_spheres.Size());
+            const core::i32 newTotal = startIndex + count;
             m_gridSize =
                 static_cast<core::i32>(core::Ceil(core::Sqrt(static_cast<core::f32>(newTotal))));
 
@@ -395,7 +419,7 @@ namespace
             {
                 // MultiMesh: no per-sphere entities exist, so grow the canonical transform list and the set.
                 m_mmTransforms.Reserve(static_cast<core::u32>(newTotal));
-                for (core::i32 i = 0; i < kSpheresPerBatch; ++i)
+                for (core::i32 i = 0; i < count; ++i)
                 {
                     m_mmTransforms.PushBack(
                         core::Float4x4::Translation(SphereTranslation(startIndex + i)));
@@ -408,7 +432,7 @@ namespace
                 {
                     return;
                 }
-                for (core::i32 i = 0; i < kSpheresPerBatch; ++i)
+                for (core::i32 i = 0; i < count; ++i)
                 {
                     const core::i32 index = startIndex + i;
                     scene::EntityHandle e = m_scene->CreateEntity(u8"sphere");
@@ -767,6 +791,41 @@ namespace
         // Stats
         bool m_showStats = true; // HUD visibility (H)
         core::f32 m_frameMs = 0.0f;
+
+        core::i32 m_startSpheres = 0;
+        bool m_startBob = false;
+
+    public:
+        // The scene flags (see the header comment); --measure and the rest are the base's.
+        void ReadSceneArguments(int argc, char** argv)
+        {
+            for (int i = 1; i < argc; ++i)
+            {
+                const core::StringView arg(reinterpret_cast<const core::utf8char*>(argv[i]));
+                const bool hasValue = i + 1 < argc;
+                if (arg == core::StringView(u8"--spheres") && hasValue)
+                {
+                    m_startSpheres = static_cast<core::i32>(NumberArgument(argv[++i]));
+                }
+                else if (arg == core::StringView(u8"--bob"))
+                {
+                    m_startBob = true;
+                }
+                else if (arg == core::StringView(u8"--unique"))
+                {
+                    m_uniqueMaterials = true; // a material per sphere: every sphere draws alone
+                }
+            }
+        }
+
+    private:
+        [[nodiscard]] static core::i64 NumberArgument(const char* text)
+        {
+            const core::Optional<core::i64> value =
+                core::ParseInt(core::StringView(reinterpret_cast<const core::utf8char*>(text)));
+            return value.HasValue() && value.Value() > 0 ? value.Value() : 0;
+        }
+
     };
 }
 
@@ -782,5 +841,6 @@ int main(int argc, char** argv)
     StressTestApp app;
     app.SetDataRoot(foundation::vfs::DataRootFromArguments(argc, argv).AsView());
     app.OnCommandLine(argc, argv); // --screenshot and whatever else the base app reads
+    app.ReadSceneArguments(argc, argv); // --spheres, --bob, --unique
     return runtime::RunApplication(app, *shell, device);
 }
