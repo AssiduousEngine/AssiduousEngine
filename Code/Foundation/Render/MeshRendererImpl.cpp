@@ -16,6 +16,7 @@ import foundation.shaders;
 import foundation.shaders.system;
 import foundation.materials;
 import foundation.materials.pipelinecache;
+import foundation.profiler;
 import :data;
 import :views;
 import :pipeline;
