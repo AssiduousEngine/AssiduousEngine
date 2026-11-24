@@ -210,7 +210,7 @@ namespace
             engine::runtime::RunBinding& binding = run.Add<engine::runtime::RunBinding>();
             scene::Scene* current = &scene;
             binding.currentScene = [current]() { return current; };
-            (void)run.Add<engine::runtime::RunSave>(DefaultAllocator());
+            (void)run.Add<engine::runtime::RunSaves>(DefaultAllocator());
             runner = &run.Add<dialogue::DialogueRunService>(settings, run);
             (void)run.Events().Subscribe(StringHash(dialogue::kDialogueLineEvent),
                                          [this](const Variant& value)

@@ -507,7 +507,7 @@ read the file before trusting it, and leave the judgement of how it looks to the
   a late moment by the game's own playtest switch (Snowline's `course.py <course> autopilot`,
   regenerated without it after) or a scripted route, and a results screen by finishing a run.
   Take a few times around the moment (`[23.9, 24.3, 24.7, 25.1]`) and pick one. A run that
-  finishes writes the game's save: copy the project's `Editor/<Game>.save.xml` aside right
+  finishes writes the game's saves: copy the project's `Editor/<Game>.saves/` folder aside right
   before, run with a test save that unlocks what the shot needs, and copy the user's back
   after; never reuse an older backup, since the user plays between runs.
 - *A scene in the editor*: `viewport_frame` the entities (or `viewport_camera_set` a position and

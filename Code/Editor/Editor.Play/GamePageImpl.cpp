@@ -445,12 +445,12 @@ namespace editor
         if (m_run != nullptr)
         {
             m_run->ResetRunClock(); // run time counts from this start
-            // The run's save, for every run and not only a game script's: a game whose scripts are
-            // all on its scenes and entities saves through the same facade. Play in editor keeps its
-            // own in the project's ignored Editor/ folder, so testing never touches a player's save.
-            m_run->SetSaveFile(
+            // The run's saves, for every run and not only a game script's: a game whose scripts are
+            // all on its scenes and entities saves through the same facades. Play in editor keeps its
+            // own in the project's ignored Editor/ folder, so testing never touches a player's saves.
+            m_run->SetSavesFolder(
                 PathJoin(project.EditorStateRoot().AsView(),
-                         engine::project::SaveFileName(project.Settings().name.AsView(), Allocator()).AsView(),
+                         engine::project::SavesFolder(project.Settings().name.AsView(), Allocator()).AsView(),
                          Allocator())
                     .AsView());
             // The project's levels as they are at this start, for the run's scripts.

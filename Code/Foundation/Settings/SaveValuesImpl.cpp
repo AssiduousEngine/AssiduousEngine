@@ -16,6 +16,12 @@ using namespace foundation::core;
 namespace foundation::settings
 {
     RTTI_DEFINE_OBJECT_VERSIONED(SaveValues, "rtti::foundation::settings", 1)
+    RTTI_DEFINE_OBJECT_VERSIONED(SaveInfo, "rtti::foundation::settings", 1)
+
+    void SaveInfo::Serialize(ISerializer& ar)
+    {
+        foundation::core::Serialize(ar, "savedAt", savedAt);
+    }
 
     namespace
     {
@@ -110,6 +116,8 @@ namespace foundation::settings
         {
             GlobalTypeRegistry().Register(SaveValues::StaticType());
             RegisterSerializable<SaveValues>();
+            GlobalTypeRegistry().Register(SaveInfo::StaticType());
+            RegisterSerializable<SaveInfo>();
             return true;
         }();
         (void)once;

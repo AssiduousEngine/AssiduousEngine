@@ -69,7 +69,7 @@ out; nothing writes a store it was not given.
 - **A slot read**, `Saves.readSlot(name)`: a slot's values as they are on disk when it is read, read
   only (its setters do nothing and warn), for a Load menu's summary of each slot. It is a snapshot: it
   does not follow later writes of the same slot, the open one included. Any number may be held beside
-  the open slot.
+  the open slot, one per slot: reading a slot again replaces its earlier read (whose handles go).
 
 A `SaveStore` is a value, as `Scene` and `Entity` are: a handle to a store the run's saves own (in
 AngelScript declared without `@`). A copy is the same store, so a write through one is read through
@@ -130,8 +130,9 @@ global store never writes a slot. The bindings mark the global store changed.
   warning.
 - `Saves.hasSlot(name)`, `Saves.deleteSlot(name)` (deleting the open slot closes it first, unwritten).
 - `Saves.copySlot(from, to)`: a backup, or a save-as. The copy keeps the source's time, so it does not
-  become the slot saved last. When `from` is open its changes are written first; a copy over an
-  existing slot replaces it (its handles go); a copy **onto the open slot is refused** (false and a
+  become the slot saved last. When `from` is open as it plays its changes are written first (one
+  open at save points is copied as its last save point left it); a copy over an existing slot
+  replaces it (its handles go); a copy **onto the open slot is refused** (false and a
   warning: the open slot's next write would undo it). To restore a backup into the slot in play:
   close it, copy, open it.
 - `Saves.closeSlot()`: writes (by its rule) and closes the open slot; its handles go.

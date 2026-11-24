@@ -357,12 +357,12 @@ namespace engine::player
             // needs a scene waits `while (!Game.sceneReady())`.
             // The player's one run plays one session, from here to OnExit.
             PrimaryRun().Start();
-            // The game's save lives beside the user's settings, read before anything launches: for
-            // every game, not only one with a game script (scene and entity scripts save through the
-            // same facade).
-            PrimaryRun().SetSaveFile(
+            // The game's saves live beside the user's settings, the global store read before anything
+            // launches: for every game, not only one with a game script (scene and entity scripts
+            // save through the same facades).
+            PrimaryRun().SetSavesFolder(
                 PathJoin(foundation::core::GetUserDataDirectory().AsView(),
-                         project::SaveFileName(m_settings.name.AsView(), AppRoot()).AsView(), AppRoot())
+                         project::SavesFolder(m_settings.name.AsView(), AppRoot()).AsView(), AppRoot())
                     .AsView());
             LoadAndStartRunBehavior();
 

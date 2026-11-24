@@ -20,7 +20,7 @@ module;
 export module engine.run;
 
 export import :networkcontroller; // the run's networking, composed off this god object
-export import :save;              // the run's save (RunSave) and the Save facade
+export import :save;              // the run's saves (RunSaves: the global store, slots) and the Save facade
 export import :services;          // the services a run gets from outside (a plugin's)
 
 import foundation.core;
@@ -337,9 +337,9 @@ export namespace engine::runtime
             Register<foundation::net::INetworkController>(m_network); // how engine.net reaches it (below this library)
             Register<input::ActionRuntime>(m_inputRuntime);
             Register<input::IRunInput>(*this); // the input subsystem drives it as the frame begins
-            Register<RunSave>(m_save);
+            Register<RunSaves>(m_saves);
             Register<input::PlayerBindings>(m_bindings); // the Input facade's rebinding
-            m_bindings.SetStore(&m_save.Bindings(), [this]() { m_save.MarkChanged(); });
+            m_bindings.SetStore(&m_saves.Global().Bindings(), [this]() { m_saves.Global().MarkChanged(); });
             Register<engine::behavior::BehaviorRunHost>(m_runHost);
             Register<foundation::http::HttpScriptBinding>(m_http);
             Register<RunBinding>(m_runBinding);
@@ -650,9 +650,9 @@ export namespace engine::runtime
 
         /// Install the action map (the game's controls, from the project's input-map asset) on this
         /// instance's runtime. Each instance has its own runtime and its own copy of the map.
-        /// The player's own bindings saved with the run (SetSaveFile) lie over it.
+        /// The player's own bindings, in the run's global store (SetSavesFolder), lie over it.
         void SetInputMap(const input::InputMap& map) { m_bindings.Install(m_inputRuntime, map); }
-        /// The player's bindings over the game's controls: rebinding, kept in the run's save.
+        /// The player's bindings over the game's controls: rebinding, kept in the run's global store.
         [[nodiscard]] input::PlayerBindings& Bindings() noexcept { return m_bindings; }
 
         /// This run's action runtime. The Input facade resolves it per script context (installed
@@ -663,19 +663,20 @@ export namespace engine::runtime
         /// for every run as the frame begins (IRunInput). No-op when no source is set.
         void DriveInput(f32 deltaTime, f32 contextTimeScale) override;
 
-        // ---- save (the values this game keeps between runs) ----
+        // ---- saves (the values this game keeps between runs) ----
 
-        /// Names this run's save file and reads it (the player's user data directory, the editor's
-        /// project Editor/ folder). The run's scripts reach it through the Save facade, and the run
-        /// writes it when its script stops if anything changed. Empty: values kept for the run only.
-        /// The player's bindings in it apply over the game's controls.
-        void SetSaveFile(core::StringView path)
+        /// Names this run's saves folder and reads its global store (the player's user data
+        /// directory, the editor's project Editor/ folder; project::SavesFolder names it). The run's
+        /// scripts reach the stores through their facades, and the run writes what changed when its
+        /// script stops. Empty: the global store is kept for the run only, and there are no slots.
+        /// The player's bindings in the global store apply over the game's controls.
+        void SetSavesFolder(core::StringView folder)
         {
-            m_save.Open(path);
-            m_bindings.SetStore(&m_save.Bindings(), [this]() { m_save.MarkChanged(); });
+            m_saves.Open(folder);
+            m_bindings.SetStore(&m_saves.Global().Bindings(), [this]() { m_saves.Global().MarkChanged(); });
             m_bindings.Reapply();
         }
-        [[nodiscard]] RunSave& Saves() noexcept { return m_save; }
+        [[nodiscard]] RunSaves& Saves() noexcept { return m_saves; }
 
         // ---- networking (this instance's NetworkController; the forwards below) ----
 
@@ -729,8 +730,8 @@ export namespace engine::runtime
             m_runBinding; // stable; app fills its pointers; one of the run's services
 
         input::ActionRuntime m_inputRuntime; // this run's action state (per-instance)
-        RunSave m_save{DefaultAllocator()};  // this run's save, installed per context (StartRunBehavior)
-        input::PlayerBindings m_bindings;    // the player's rebinding of m_inputRuntime, kept in m_save
+        RunSaves m_saves{DefaultAllocator()}; // this run's saves, installed per context (StartRunBehavior)
+        input::PlayerBindings m_bindings;     // the player's rebinding of m_inputRuntime, kept in m_saves' global store
         foundation::http::HttpScriptBinding m_http;          // installed per context; its client on first use
         void TraceInput(); // ENV_INPUT_TRACE: the input path, logged twice a second
         input::IInputSourceProvider* m_inputSource =

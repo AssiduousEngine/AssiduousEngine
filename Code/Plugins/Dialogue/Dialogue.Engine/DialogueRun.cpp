@@ -85,6 +85,17 @@ namespace dialogue
         m_preview = Move(resource);
     }
 
+    namespace
+    {
+        // The run's global store, where the flags and a conversation's place are kept; null for a
+        // run with no saves, which keeps them in scratch.
+        engine::runtime::SaveFile* GlobalStore(foundation::run::IRun& run)
+        {
+            auto* saves = run.Get<engine::runtime::RunSaves>();
+            return saves != nullptr ? &saves->Global() : nullptr;
+        }
+    }
+
     String* DialogueRunHost::Scratch(StringView key)
     {
         for (usize i = 0; i < m_scratchKeys.Size(); ++i)
@@ -143,7 +154,7 @@ namespace dialogue
 
     bool DialogueRunHost::ReadFlag(StringView key)
     {
-        auto* save = m_run->Get<engine::runtime::RunSave>();
+        engine::runtime::SaveFile* save = GlobalStore(*m_run);
         if (save == nullptr)
         {
             const String* value = Scratch(key);
@@ -154,7 +165,7 @@ namespace dialogue
 
     void DialogueRunHost::WriteFlag(StringView key, bool on)
     {
-        auto* save = m_run->Get<engine::runtime::RunSave>();
+        engine::runtime::SaveFile* save = GlobalStore(*m_run);
         if (save == nullptr)
         {
             WriteScratch(key, on ? StringView(u8"true") : StringView(u8"false"));
@@ -167,7 +178,7 @@ namespace dialogue
 
     String DialogueRunHost::ReadText(StringView key)
     {
-        auto* save = m_run->Get<engine::runtime::RunSave>();
+        engine::runtime::SaveFile* save = GlobalStore(*m_run);
         if (save == nullptr)
         {
             const String* value = Scratch(key);
@@ -178,7 +189,7 @@ namespace dialogue
 
     void DialogueRunHost::WriteText(StringView key, StringView text)
     {
-        auto* save = m_run->Get<engine::runtime::RunSave>();
+        engine::runtime::SaveFile* save = GlobalStore(*m_run);
         if (save == nullptr)
         {
             WriteScratch(key, text);

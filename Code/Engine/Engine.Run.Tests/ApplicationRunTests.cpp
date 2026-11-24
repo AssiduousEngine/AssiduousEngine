@@ -178,7 +178,7 @@ TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, 
     CHECK(run.Get<engine::runtime::ApplicationRun>() == &gi);
     CHECK(run.Get<engine::runtime::NetworkController>() == &gi.Network());
     CHECK(run.Get<input::ActionRuntime>() == &gi.InputRuntime());
-    CHECK(run.Get<engine::runtime::RunSave>() == &gi.Saves());
+    CHECK(run.Get<engine::runtime::RunSaves>() == &gi.Saves());
     CHECK(run.Get<engine::behavior::BehaviorRunHost>() == &gi.RunHost());
     CHECK(run.Get<foundation::http::HttpScriptBinding>() == &gi.Http());
 
@@ -202,7 +202,7 @@ TEST_CASE("game-instance: native code under the run host's services reaches the 
         CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 7);
     }
     CHECK(host.Scripts().ScriptContext() == nullptr);
-    CHECK(gi.Saves().HasChanges()); // the run's own save took it
+    CHECK(gi.Saves().Global().HasChanges()); // the run's own global store took it
     CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 0); // outside, no run: the fallback
 }
 
@@ -1850,7 +1850,7 @@ TEST_CASE("game-instance: a context for behaviors gets the run's input, run and 
     REQUIRE(scriptContext != nullptr);
     CHECK(scriptContext->FindService<foundation::input::ActionRuntime>() == &gi.InputRuntime());
     CHECK(scriptContext->FindService<engine::runtime::RunBinding>() != nullptr);
-    CHECK(scriptContext->FindService<engine::runtime::RunSave>() == &gi.Saves());
+    CHECK(scriptContext->FindService<engine::runtime::RunSaves>() == &gi.Saves());
     CHECK(scriptContext->FindService<foundation::http::HttpScriptBinding>() == &gi.Http());
     CHECK(scriptContext->FindService<foundation::net::NetScriptBinding>() != nullptr);
 }
@@ -1906,31 +1906,46 @@ namespace
         (void)FileDelete(path.AsView());
         return path;
     }
+
+    // A fresh, empty saves folder under the build tree the tests run in, and its global store's file.
+    String FreshSavesFolder(StringView name)
+    {
+        String folder = PathJoin(u8"scratch_save", name);
+        (void)RemoveDirectoryRecursive(folder.AsView());
+        (void)CreateDirectories(folder.AsView());
+        return folder;
+    }
+    String GlobalFile(const String& folder)
+    {
+        return PathJoin(folder.AsView(), u8"global.save.xml");
+    }
 }
 
-TEST_CASE("game-instance: a run save writes what changed, reads it back, and survives a bad file")
+TEST_CASE("game-instance: a save file writes what changed with its time, reads it back, and survives a bad file")
 {
     const String path = FreshSavePath(u8"run_save.xml");
 
-    engine::runtime::RunSave save(DefaultAllocator());
-    CHECK_FALSE(save.Flush()); // no file named: nowhere to write
+    engine::runtime::SaveFile save(DefaultAllocator());
+    CHECK_FALSE(save.Flush(100)); // no file named: nowhere to write
     save.Open(path.AsView());  // absent: an empty save
     CHECK(save.IsOpen());
     CHECK(save.Values().Count() == 0u);
-    CHECK(save.Flush()); // nothing changed: nothing to write, and that is fine
+    CHECK(save.Flush(100)); // nothing changed: nothing to write, and that is fine
     CHECK_FALSE(FileExists(path.AsView()));
 
     save.Values().SetInt(u8"best.level2", 4210);
     save.Values().SetFloat(u8"time.level2", 41.5f);
     save.MarkChanged();
-    REQUIRE(save.Flush());
+    REQUIRE(save.Flush(1234));
     CHECK_FALSE(save.HasChanges());
+    CHECK(save.SavedAt() == 1234);
     CHECK(FileExists(path.AsView()));
 
-    engine::runtime::RunSave reread(DefaultAllocator());
+    engine::runtime::SaveFile reread(DefaultAllocator());
     reread.Open(path.AsView());
     CHECK(reread.Values().GetInt(u8"best.level2", 0) == 4210);
     CHECK(reread.Values().GetFloat(u8"time.level2", 0.0f) == 41.5f);
+    CHECK(reread.SavedAt() == 1234); // the time is the store's own, not the file's date
 
     // A file that is not a save: an empty save, and the file is set aside, so the game's next
     // write never replaces what the player had.
@@ -1939,16 +1954,16 @@ TEST_CASE("game-instance: a run save writes what changed, reads it back, and sur
     (void)FileDelete(aside.AsView());
     REQUIRE(WriteFile(path.AsView(), Span<const byte>{reinterpret_cast<const byte*>(garbage), sizeof(garbage) - 1})
                 .IsOk());
-    engine::runtime::RunSave damaged(DefaultAllocator());
+    engine::runtime::SaveFile damaged(DefaultAllocator());
     damaged.Open(path.AsView());
     CHECK(damaged.Values().Count() == 0u);
     damaged.Values().SetInt(u8"best.level1", 99);
     damaged.MarkChanged();
-    CHECK(damaged.Flush());
+    CHECK(damaged.Flush(100));
     Result<Array<byte>> bytes = ReadFile(aside.AsView());
     REQUIRE(bytes.HasValue());
     CHECK(bytes.Value().Size() == sizeof(garbage) - 1);
-    engine::runtime::RunSave after(DefaultAllocator());
+    engine::runtime::SaveFile after(DefaultAllocator());
     after.Open(path.AsView());
     CHECK(after.Values().GetInt(u8"best.level1", 0) == 99);
     (void)FileDelete(aside.AsView());
@@ -1961,7 +1976,7 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
     engine::runtime::RegisterRunScriptFacade();
     engine::runtime::RegisterSaveScriptFacade();
     foundation::script::angelscript::RegisterAngelScriptBackend();
-    const String path = FreshSavePath(u8"game_as.xml");
+    const String folder = FreshSavesFolder(u8"game_as");
 
     // Each run counts itself and keeps a best time; the second sees the first's values. The
     // first never calls flush: the run writes what changed as it stops.
@@ -1982,14 +1997,14 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
     for (i32 run = 1; run <= 2; ++run)
     {
         engine::runtime::ApplicationRun gi;
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         REQUIRE(gi.StartRunBehavior(source, u8"game.as", u8"Game"));
-        CHECK(gi.Saves().Values().GetInt(u8"runs", 0) == run);
+        CHECK(gi.Saves().Global().Values().GetInt(u8"runs", 0) == run);
         gi.StopRunBehavior();
     }
 
-    engine::runtime::RunSave reread(DefaultAllocator());
-    reread.Open(path.AsView());
+    engine::runtime::SaveFile reread(DefaultAllocator());
+    reread.Open(GlobalFile(folder).AsView());
     CHECK(reread.Values().GetInt(u8"runs", 0) == 2);
     CHECK(reread.Values().GetFloat(u8"best", 0.0f) == 41.5f);
     CHECK(reread.Values().GetBool(u8"seen", false));
@@ -1999,7 +2014,7 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
 
 TEST_CASE("game-instance: the player's rebinding is kept in the save and lies over the controls the next run")
 {
-    const String path = FreshSavePath(u8"game_bindings.xml");
+    const String folder = FreshSavesFolder(u8"game_bindings");
     input::InputMap map;
     {
         input::ActionSet gameplay;
@@ -2016,11 +2031,11 @@ TEST_CASE("game-instance: the player's rebinding is kept in the save and lies ov
     j.code = static_cast<u32>(foundation::shell::KeyCode::J);
     {
         engine::runtime::ApplicationRun gi;
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         gi.SetInputMap(map);
-        (void)gi.Saves().Values().SetInt(u8"runs", 1);
+        (void)gi.Saves().Global().Values().SetInt(u8"runs", 1);
         REQUIRE(gi.Bindings().Set(StringView{}, u8"Jump", j));
-        CHECK(gi.Saves().HasChanges());
+        CHECK(gi.Saves().Global().HasChanges());
         REQUIRE(gi.Saves().Flush());
     }
     {
@@ -2028,9 +2043,9 @@ TEST_CASE("game-instance: the player's rebinding is kept in the save and lies ov
         engine::runtime::ApplicationRun gi;
         gi.SetInputMap(map);
         CHECK(gi.InputRuntime().FindAction(u8"Gameplay", u8"Jump")->bindings[0].code == static_cast<u32>(foundation::shell::KeyCode::Space));
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         CHECK(gi.InputRuntime().FindAction(u8"Gameplay", u8"Jump")->bindings[0].code == j.code);
-        CHECK(gi.Saves().Values().GetInt(u8"runs", 0) == 1);
+        CHECK(gi.Saves().Global().Values().GetInt(u8"runs", 0) == 1);
     }
 }
 
@@ -2042,12 +2057,12 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
     engine::runtime::RegisterSaveScriptFacade();
     foundation::script::angelscript::RegisterAngelScriptBackend();
     foundation::script::RegisterLuauScriptBackend();
-    const String path = FreshSavePath(u8"game_floats.xml");
+    const String folder = FreshSavesFolder(u8"game_floats");
 
     // AngelScript records a run; it outlives the run, and reads back whole.
     {
         engine::runtime::ApplicationRun gi;
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         REQUIRE(gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                u8"  Game() {}\n"
                                u8"  void onStart() {\n"
@@ -2061,12 +2076,12 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
                                u8"  void onStop() {}\n"
                                u8"}\n",
                                u8"game.as", u8"Game"));
-        CHECK(gi.Saves().Values().GetInt(u8"length", -1) == 3);
-        CHECK(gi.Saves().Values().GetInt(u8"missing", -1) == 0);
+        CHECK(gi.Saves().Global().Values().GetInt(u8"length", -1) == 3);
+        CHECK(gi.Saves().Global().Values().GetInt(u8"missing", -1) == 0);
         gi.StopRunBehavior();
     }
-    engine::runtime::RunSave reread(DefaultAllocator());
-    reread.Open(path.AsView());
+    engine::runtime::SaveFile reread(DefaultAllocator());
+    reread.Open(GlobalFile(folder).AsView());
     const Array<f32> ghost = reread.Values().GetFloats(u8"ghost");
     REQUIRE(ghost.Size() == 3u);
     CHECK(ghost[0] == 0.5f);
@@ -2076,7 +2091,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
     // Luau reads the same list as a table and writes its own.
     {
         engine::runtime::ApplicationRun gi;
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
@@ -2088,23 +2103,23 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
                                u8"function Game:onUpdate(dt) end\n"
                                u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
-        CHECK(gi.Saves().Values().GetFloat(u8"sum", 0.0f) == doctest::Approx(-1.25f));
-        REQUIRE(gi.Saves().Values().GetFloats(u8"ghost").Size() == 2u);
-        CHECK(gi.Saves().Values().GetFloats(u8"ghost")[1] == 8.0f);
+        CHECK(gi.Saves().Global().Values().GetFloat(u8"sum", 0.0f) == doctest::Approx(-1.25f));
+        REQUIRE(gi.Saves().Global().Values().GetFloats(u8"ghost").Size() == 2u);
+        CHECK(gi.Saves().Global().Values().GetFloats(u8"ghost")[1] == 8.0f);
         gi.StopRunBehavior();
     }
 }
 
-TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with no file writes nowhere")
+TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with no saves folder writes nowhere")
 {
     RegisterCoreTypes();
     engine::runtime::RegisterSaveScriptFacade();
     foundation::script::RegisterLuauScriptBackend();
-    const String path = FreshSavePath(u8"game_luau.xml");
+    const String folder = FreshSavesFolder(u8"game_luau");
 
     {
         engine::runtime::ApplicationRun gi;
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
@@ -2116,14 +2131,14 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
         // Written at the flush, while the run is still going.
-        engine::runtime::RunSave reread(DefaultAllocator());
-        reread.Open(path.AsView());
+        engine::runtime::SaveFile reread(DefaultAllocator());
+        reread.Open(GlobalFile(folder).AsView());
         CHECK(reread.Values().GetInt(u8"coins", 0) == 37);
         gi.StopRunBehavior();
     }
     {
         engine::runtime::ApplicationRun gi;
-        gi.SetSaveFile(path.AsView());
+        gi.SetSavesFolder(folder.AsView());
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
@@ -2132,12 +2147,12 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
         gi.StopRunBehavior();
-        engine::runtime::RunSave reread(DefaultAllocator());
-        reread.Open(path.AsView());
+        engine::runtime::SaveFile reread(DefaultAllocator());
+        reread.Open(GlobalFile(folder).AsView());
         CHECK(reread.Values().Count() == 0u);
     }
     {
-        // No file named: the game's values last the run, its reads see them, nothing is written.
+        // No saves folder named: the game's values last the run, its reads see them, nothing is written.
         engine::runtime::ApplicationRun gi;
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
@@ -2146,7 +2161,7 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"function Game:onUpdate(dt) end\n"
                                u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
-        CHECK(gi.Saves().Values().GetInt(u8"coins", 0) == 5);
+        CHECK(gi.Saves().Global().Values().GetInt(u8"coins", 0) == 5);
         gi.StopRunBehavior();
     }
 }

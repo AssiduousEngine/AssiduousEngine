@@ -84,8 +84,8 @@ construction.
 - **`InputMapResource`** (cooked, write-through: validate + serialize) - `resource::Ref`; the runtime
   binds the project's `defaultInputMapId` at startup.
 - **User rebind overlay** - NOT part of the asset. `InputBindingOverrides` (a `foundation.settings`
-  section) stores per-action replacement bindings. A run keeps it in its save file, beside the
-  game's values (`RunSave::Bindings`), and `PlayerBindings` lays it over the game's map when the map
+  section) stores per-action replacement bindings. A run keeps it in its global store, beside the
+  values every playthrough shares (`SaveFile::Bindings` of `RunSaves::Global`), and `PlayerBindings` lays it over the game's map when the map
   is installed or the save opens, and over one action at each rebind, without resetting the sets
   (`ActionRuntime::ReplaceBindings`). A rebind replaces the action's binding for one kind of
   device (keyboard and mouse, or pad) and keeps the rest; a capture (`BeginCapture`, polled before

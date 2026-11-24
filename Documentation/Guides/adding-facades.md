@@ -34,7 +34,7 @@ A script context asks its run host for a service by type, and the host answers i
 So a binding is offered in one of two places, and nothing lists them:
 
 - **Per-run** (the run's save, HTTP, networking, its own input runtime): the run holds it.
-  `ApplicationRun` registers its members on itself (`Register<RunSave>(m_save)`); a plugin adds
+  `ApplicationRun` registers its members on itself (`Register<RunSaves>(m_saves)`); a plugin adds
   one to each run from a run listener (`run.Add<T>(...)` in `OnRunCreated`).
 - **App-wide** (audio, render, GUI, the shared input runtime): the subsystem registers it with
   its manager while it is registered:

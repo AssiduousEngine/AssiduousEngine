@@ -119,11 +119,11 @@ TEST_CASE("editor-project: create scaffolds the layout and open round-trips the 
     CHECK(project->CookedDb().RootGroup() != nullptr);
     CHECK(project->SourcesRoot() == PathJoin(dir, u8"Sources"));
     CHECK(project->EditorStateRoot() == PathJoin(dir, u8"Editor"));
-    // The save's name, which play in editor keeps under Editor/ and the player in the user data
-    // directory: the same name in both, so a save copied between them is found.
-    CHECK(engine::project::SaveFileName(project->Settings().name.AsView(), DefaultAllocator()) ==
-          u8"Test Project.save.xml");
-    CHECK(engine::project::SaveFileName(u8"", DefaultAllocator()) == u8"project.save.xml");
+    // The saves folder's name, which play in editor keeps under Editor/ and the player in the user
+    // data directory: the same name in both, so saves copied between them are found.
+    CHECK(engine::project::SavesFolder(project->Settings().name.AsView(), DefaultAllocator()) ==
+          u8"Test Project.saves");
+    CHECK(engine::project::SavesFolder(u8"", DefaultAllocator()) == u8"project.saves");
 
     RemoveProjectTree(dir);
 }

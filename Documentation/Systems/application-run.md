@@ -129,19 +129,25 @@ a facade named `Game` would collide with the mandatory `Game` orchestrator class
 
 ## Save data
 
-Each instance owns its run's save (`RunSave`, the `:save` partition): the values the game keeps
-between runs, the file they live in, and whether they changed since the last write. The host names
-the file with `SetSaveFile(path)`, which reads it: the player uses `<user data>/<project>.save.xml`,
-the editor's Game tab `<project>/Editor/<project>.save.xml` (ignored per-user state, so testing
-never touches a player's save); both name it with `engine::project::SaveFileName`. An unreadable
-file is set aside as `<path>.unreadable` before anything writes. The run's contexts reach it through
-the `Save` facade (`Save::setInt("best.level2", 4210)`, `Save::getInt(key, fallback)`, the same for
+Each instance owns its run's saves (`RunSaves`, the `:save` partition): the values the game keeps
+between runs, in stores, each a `SaveFile` (its file, its values, when it was last saved, and
+whether it changed since the last write). The host names the saves folder with
+`SetSavesFolder(folder)`, which reads its global store: the player uses
+`<user data>/<project>.saves/`, the editor's Game tab `<project>/Editor/<project>.saves/` (ignored
+per-user state, so testing never touches a player's saves); both name it with
+`engine::project::SavesFolder`. The folder holds the global store (`global.save.xml`: the values
+every playthrough shares, and the player's bindings) and the game's slots (`slot-<name>.save.xml`,
+one playthrough's values each): `OpenSlot` (one open for writing, as it plays or at its save
+points), `ReadSlot` (a read-only snapshot for a menu), `Slots` (the one saved last first, by the time
+inside each), `CopySlot`, `DeleteSlot` and `SlotTime`; a store is held by a `SaveStoreHandle`, which
+reaches nothing once its store is gone. An unreadable file is set aside as `<path>.unreadable` before
+anything writes to it. The run's contexts reach the global store through the `Save` facade (`Save::setInt("best.level2", 4210)`, `Save::getInt(key, fallback)`, the same for
 float, bool and string, a float list, plus `has`, `remove`, `clear` and `flush`). `StopRunBehavior`
 writes whatever changed; `flush` writes at once; and when the app goes to the background
-(`DefaultApplication::OnEnterBackground`, a phone's home button) every instance's save is written,
+(`DefaultApplication::OnEnterBackground`, a phone's home button) every instance's saves are written,
 since the platform may end the app there without asking. Writes are whole and atomic
-(`WriteFileAtomic`), so a crash never leaves a torn save. Spec:
-`Documentation/Archive/save-data-history.md`.
+(`WriteFileAtomic`), so a crash never leaves a torn save. Specs:
+`Documentation/Archive/save-data-history.md`, `Documentation/Specs/save-slots.md`.
 
 ## Standalone vs editor + headless
 

@@ -202,6 +202,19 @@ export namespace foundation::settings
         bool m_inserted = false;
     };
 
-    // Load needs the section resolvable by name and constructible by id; idempotent.
+    // When a store was last saved, a section of its own beside its values: Unix seconds, set at each
+    // write that holds a change and carried by a copy, so the order of a game's saves does not hang
+    // on file dates (a copy or a cloud sync rewrites those). 0 is a store never saved.
+    class SaveInfo final : public ISerializable
+    {
+        RTTI_OBJECT(SaveInfo, ISerializable)
+    public:
+        i64 savedAt = 0;
+
+        void Serialize(ISerializer& ar) override;
+    };
+
+    // Load needs the sections resolvable by name and constructible by id (SaveValues and SaveInfo);
+    // idempotent.
     void RegisterSaveValuesType();
 }

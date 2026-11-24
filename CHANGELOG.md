@@ -23,6 +23,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- A game's saves are a folder, `<project>.saves/` (in the user data directory for the player, in the
+  project's `Editor/` folder for play in editor), holding the global store (`global.save.xml`) and the
+  game's slots; `Save` is the global store. A save from before (`<project>.save.xml`) is not read.
 - Scripts: a `VoiceHandle`'s slot is now `index`, as on every other handle; `isValid()` is unchanged.
 - The MCP sequence tools name a property track's target by `source` and `target` in place of
   `component`. Clip and sequence assets are saved at data version 1; version 0 ones still read and

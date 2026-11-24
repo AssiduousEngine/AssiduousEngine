@@ -285,18 +285,18 @@ TEST_CASE("game tab: a run with no game script still keeps its save, written to 
         page.Play();
         page.OnUpdate(host, 1.0f / 60.0f);
         REQUIRE(page.IsRunning());
-        REQUIRE(instance.Saves().IsOpen());
-        instance.Saves().Values().SetInt(u8"best.level", 7);
-        instance.Saves().MarkChanged();
+        REQUIRE(instance.Saves().Global().IsOpen());
+        instance.Saves().Global().Values().SetInt(u8"best.level", 7);
+        instance.Saves().Global().MarkChanged();
         page.Stop();
         page.OnUpdate(host, 1.0f / 60.0f);
         page.OnClose();
     }
-    const String path = PathJoin(project->EditorStateRoot().AsView(), u8"P.save.xml");
+    const String path = PathJoin(project->EditorStateRoot().AsView(), u8"P.saves/global.save.xml");
     CHECK(FileExists(path.AsView()));
 
     // The next run reads it back.
-    engine::runtime::RunSave again(DefaultAllocator());
+    engine::runtime::SaveFile again(DefaultAllocator());
     again.Open(path.AsView());
     CHECK(again.Values().GetInt(u8"best.level", 0) == 7);
 

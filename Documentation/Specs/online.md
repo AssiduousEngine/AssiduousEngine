@@ -346,6 +346,16 @@ file wins, the other kept beside it), and writes it when `Save` flushes. Steam d
 `ISteamRemoteStorage` (so the engine decides when and what), rather than Auto-Cloud (configured on
 Steam's site, which a project can still choose instead, with the plugin's cloud setting off).
 
+Since the save slots spec (`Specs/save-slots.md`, approved 2026-11-24) a game's saves are a folder,
+`<project>.saves/`: the global store (`global.save.xml`) and a file per slot
+(`slot-<name>.save.xml`). The cloud keeps the folder as files. Each write of a store is carried
+there, and so is each delete, when it is made (deleting a slot removes the cloud copy too). Before
+the run's first read each file is brought in by the newer of the cloud and the local copy, compared
+by the time saved inside the store (its `SaveInfo` section), not a file date; a slot only in the
+cloud is fetched. One case this leaves for O4 to settle: a machine that was offline when a slot was
+deleted elsewhere still has it, and would bring it back (a record of deleted slots in the global
+store is the likely answer).
+
 ## Decision 7 - the Steam plugin
 
 - `Code/Plugins/Steam` (`plugins.steam`, namespace `steam`): an Engine part providing

@@ -107,12 +107,12 @@ export namespace engine::project
     inline constexpr StringView kDistContentPak = u8"Content.pak";
     inline constexpr StringView kDistManifestFile = u8"player.xml";
 
-    // A game's save file: `<project>.save.xml`, which the player
-    // keeps in the user data directory and play in editor in the project's Editor/ folder.
-    [[nodiscard]] inline String SaveFileName(StringView projectName, IAllocator& allocator)
+    // A game's saves folder: `<project>.saves`, holding its global store and its slots, which the
+    // player keeps in the user data directory and play in editor in the project's Editor/ folder.
+    [[nodiscard]] inline String SavesFolder(StringView projectName, IAllocator& allocator)
     {
         String name(projectName.IsEmpty() ? StringView(u8"project") : projectName, allocator);
-        name.Append(u8".save.xml");
+        name.Append(u8".saves");
         return name;
     }
 

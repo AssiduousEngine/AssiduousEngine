@@ -161,15 +161,15 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
     CHECK(HasFacadeName(u8"DialogueLineNotice"));
     CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueFacade::StaticType().id) != nullptr);
 
-    // Every run gets a runner, its flags in the run's save under the settings' prefix.
+    // Every run gets a runner, its flags in the run's global store under the settings' prefix.
     {
         engine::runtime::ApplicationRun run;
         auto* runner = run.Get<dialogue::DialogueRunService>();
         REQUIRE(runner != nullptr);
         CHECK_FALSE(runner->IsPlaying());
         runner->SetFlag(u8"met_keeper", true);
-        CHECK(run.Saves().Values().GetBool(u8"flag.met_keeper", false));
-        CHECK(run.Saves().HasChanges());
+        CHECK(run.Saves().Global().Values().GetBool(u8"flag.met_keeper", false));
+        CHECK(run.Saves().Global().HasChanges());
         CHECK(runner->Flag(u8"met_keeper"));
         CHECK_FALSE(runner->Resume()); // nothing saved to resume
         CHECK_FALSE(runner->Play(Guid{}, u8"gate")); // no such file: refused

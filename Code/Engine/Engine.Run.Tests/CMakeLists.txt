@@ -1,7 +1,7 @@
 # ApplicationRunTests.cpp interleaves AngelScript and Luau cases (each drives its own real VM), so it
 # builds only when both backends are on (splitting it per backend would lift this).
 if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
-add_executable(Engine.Run.Tests TestsMain.cpp ApplicationRunTests.cpp)
+add_executable(Engine.Run.Tests TestsMain.cpp ApplicationRunTests.cpp RunSavesTests.cpp)
 target_link_libraries(Engine.Run.Tests PRIVATE
     Engine::Run Foundation::Net Foundation::Net.Manager Foundation::Http Foundation::Http.Script
     Foundation::Input Foundation::Shell ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
