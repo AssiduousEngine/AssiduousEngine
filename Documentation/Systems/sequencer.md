@@ -36,10 +36,35 @@ may also hold the play, as a hold marker does: `HoldTime(after, upTo)` names the
 span it holds at, and `IsHolding()` says whether the hold still stands (a line of dialogue not yet
 read). A hold that no longer stands when the playhead reaches it is passed in the same step.
 
-Kinds here: `PropertySequenceTrack` (property animation's `PropertyTrack`, through its track targets:
-any reflected property, or `Transform`), `EventSequenceTrack` (a name and a text value at a time) and
-`NestedSequenceTrack` (another sequence over a section, on the same cast, clamped or looped; a
-sequence inside itself is refused).
+Kinds here: `PropertySequenceTrack` (property animation's `PropertyTrack`, through its track targets,
+below), `EventSequenceTrack` (a name and a text value at a time) and `NestedSequenceTrack` (another
+sequence over a section, on the same cast, clamped or looped; a sequence inside itself is refused).
+
+**What a property track keys.** A `PropertyTrack` names a `source`, a `target` and a property path;
+the source, a `PropertyTargetSource` registered with property animation, finds the target on the
+scene, reads and writes it, and says whether it needs an entity. Two are built in: `component` (a
+component of the bound entity by its reflected name, or `Transform`, read, changed and set back
+through the scene so the world matrix follows) and `settings` (a scene system's settings block by
+its settings id: `environment`, `postprocess`, `physics`, `navigation`). A domain or a plugin adds
+its own with `RegisterPropertyTargetSource` and takes it back as it unloads; a track whose source is
+not registered is skipped with a warning naming it. A track of a source that needs no entity is
+bound to no one (`NeedsBinding()` answers from its source). The same targets serve a property
+animation clip on an entity.
+
+A settings track writes the scene's own block, never a shared profile. Before a player's first write
+to a system that takes its values from a profile (`BeginWrites`), the profile's values become the
+scene's own (`CopySettingsProfileIntoScene`), so the scene looks the same and the writes show;
+`Release` and `Hold` leave it so, and `Restore` puts each value back and then the profile, once
+however many tracks wrote it. The animator never restores what it writes, so a clip leaves a scene it
+took off its profile on its own values.
+
+The environment's fields are not all equally cheap to key. Read live each frame: `ambientColor`,
+`ambientIntensity`, `skyBackgroundIntensity` (the visible sky's dimmer), `iblDiffuseIntensity`,
+`iblSpecularIntensity`, `sunAngularSize` and the shadow fields. Baked into the environment cube, so
+a change bakes the whole prefilter chain again (`IBLSystem::PrecomputeEqual`), every frame while a
+track moves one: `skyMode`, `skyIntensity`, `skyRotation`, the procedural sky's `skyHorizon`,
+`skyZenith` and `skyGround`, `sunIntensity`, `turbidity` and the sky texture. To darken a scene over
+time, key the live ones.
 
 `CameraCutSequenceTrack` (the render's) makes its bound camera the scene's view while one of its
 sections runs (a section's end included, so a play that ends on a cut and holds keeps it). It is a

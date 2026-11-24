@@ -20,6 +20,7 @@ namespace scene = foundation::scene;
 namespace propertyanimation = foundation::propertyanimation;
 
 void RttiRegisterValue_SeqLamp();
+void RttiRegisterValue_SeqSky();
 
 namespace
 {
@@ -36,6 +37,39 @@ namespace
         SeqLampManager() : scene::SerializableComponentManager<SeqLamp>(u8"seq_lamp") {}
     };
 
+    // A scene's settings block that can take its values from a profile, as the environment's does.
+    struct SeqSky
+    {
+        f32 light = 1.0f;
+        f32 sky = 1.0f;
+    };
+
+    class SeqSkySystem final : public scene::SceneSystem
+    {
+    public:
+        [[nodiscard]] const TypeInfo* SettingsType() const noexcept override { return &TypeOf<SeqSky>(); }
+        [[nodiscard]] void* SettingsInstance() noexcept override { return &own; }
+        [[nodiscard]] StringView SettingsId() const noexcept override { return u8"seqsky"; }
+        [[nodiscard]] void* EffectiveSettingsInstance() noexcept override { return profile.IsNil() ? &own : &shared; }
+        [[nodiscard]] Guid SettingsProfile() noexcept override { return profile; }
+        void UseSettingsProfile(const Guid& id) override
+        {
+            profile = id;
+            ++profilesGiven;
+        }
+        void CopySettingsProfileIntoScene() override
+        {
+            own = *static_cast<SeqSky*>(EffectiveSettingsInstance());
+            profile = Guid{};
+        }
+        [[nodiscard]] const SeqSky& Effective() const { return profile.IsNil() ? own : shared; }
+
+        SeqSky own;
+        SeqSky shared; // the profile's values
+        Guid profile;
+        u32 profilesGiven = 0;
+    };
+
     void EnsureRegistered()
     {
         static const bool once = []()
@@ -43,6 +77,8 @@ namespace
             RegisterCoreTypes();
             RttiRegisterValue_SeqLamp();
             GlobalTypeRegistry().Register(TypeOf<SeqLamp>());
+            RttiRegisterValue_SeqSky();
+            GlobalTypeRegistry().Register(TypeOf<SeqSky>());
             RegisterSequenceTypes();
             return true;
         }();
@@ -102,6 +138,25 @@ namespace
         track->binding = binding;
         track->property.target = String(u8"SeqLamp");
         track->property.propertyPath = String(u8"brightness");
+        track->property.kind = propertyanimation::TrackValueKind::Float;
+        CurveKey a;
+        a.time = 0.0f;
+        a.value = from;
+        CurveKey b;
+        b.time = 1.0f;
+        b.value = to;
+        track->property.channels[0].AddKey(a);
+        track->property.channels[0].AddKey(b);
+        return track;
+    }
+
+    // A scene's setting keyed from `from` to `to` over one second, bound to no one.
+    RefPtr<PropertySequenceTrack> SkySetting(StringView field, f32 from, f32 to)
+    {
+        RefPtr<PropertySequenceTrack> track = MakeRef<PropertySequenceTrack>(DefaultAllocator());
+        track->property.source = String(propertyanimation::kSettingsSource);
+        track->property.target = String(u8"seqsky");
+        track->property.propertyPath = String(field);
         track->property.kind = propertyanimation::TrackValueKind::Float;
         CurveKey a;
         a.time = 0.0f;
@@ -181,6 +236,11 @@ namespace
 REFLECT_VALUE(SeqLamp, "rtti::sequence::test")
 {
     builder.Property<&SeqLamp::brightness>("brightness");
+}
+
+REFLECT_VALUE(SeqSky, "rtti::sequence::test")
+{
+    builder.Property<&SeqSky::light>("light").Property<&SeqSky::sky>("sky");
 }
 
 TEST_CASE("sequence: one play drives several bound entities at once")
@@ -348,6 +408,93 @@ TEST_CASE("sequence: two tracks on one property restore to the value before both
     CHECK(stage.lamps->Get(stage.lamp)->brightness == doctest::Approx(15.0f));
     play.Stop();
     CHECK(stage.lamps->Get(stage.lamp)->brightness == doctest::Approx(1.0f));
+}
+
+TEST_CASE("sequence: a scene's settings are keyed by a track bound to no one, under each finish")
+{
+    EnsureRegistered();
+    Sequence sequence;
+    sequence.tracks.PushBack(SkySetting(u8"light", 1.0f, 0.25f));
+    sequence.duration = sequence.ComputeDuration();
+    CHECK_FALSE(sequence.tracks[0]->NeedsBinding());
+
+    SUBCASE("release keeps the light where it went")
+    {
+        scene::Scene world{DefaultAllocator()};
+        auto* sky = world.AddSystem<SeqSkySystem>();
+        SequencePlay play(DefaultAllocator(), world, sequence);
+        play.Play();
+        play.Advance(0.5f);
+        CHECK(sky->own.light == doctest::Approx(0.625f));
+        play.Advance(1.0f);
+        CHECK(sky->own.light == doctest::Approx(0.25f));
+    }
+    SUBCASE("restore puts it back")
+    {
+        scene::Scene world{DefaultAllocator()};
+        auto* sky = world.AddSystem<SeqSkySystem>();
+        sky->own.light = 0.8f;
+        SequencePlay play(DefaultAllocator(), world, sequence);
+        play.finish = SequenceFinish::Restore;
+        play.Play();
+        play.Advance(2.0f);
+        CHECK(sky->own.light == doctest::Approx(0.8f));
+    }
+    SUBCASE("hold keeps it until stopped")
+    {
+        scene::Scene world{DefaultAllocator()};
+        auto* sky = world.AddSystem<SeqSkySystem>();
+        SequencePlay play(DefaultAllocator(), world, sequence);
+        play.finish = SequenceFinish::Hold;
+        play.Play();
+        play.Advance(2.0f);
+        play.Stop();
+        CHECK(sky->own.light == doctest::Approx(0.25f));
+    }
+}
+
+TEST_CASE("sequence: a scene on a profile takes its values for the play, and gets the profile back once after two tracks")
+{
+    EnsureRegistered();
+    Sequence sequence;
+    sequence.tracks.PushBack(SkySetting(u8"light", 1.0f, 0.0f));
+    sequence.tracks.PushBack(SkySetting(u8"sky", 1.0f, 0.5f));
+    sequence.duration = sequence.ComputeDuration();
+    const Guid profile{0x1122334455667788ull, 0x99aabbccddeeff00ull};
+
+    SUBCASE("release leaves the scene on its own values, as the play left them")
+    {
+        scene::Scene world{DefaultAllocator()};
+        auto* sky = world.AddSystem<SeqSkySystem>();
+        sky->shared = SeqSky{0.6f, 0.9f};
+        sky->profile = profile;
+        SequencePlay play(DefaultAllocator(), world, sequence);
+        play.Play();
+        play.Advance(2.0f);
+        CHECK(sky->profile.IsNil());
+        CHECK(sky->Effective().light == doctest::Approx(0.0f));
+        CHECK(sky->Effective().sky == doctest::Approx(0.5f));
+        CHECK(sky->profilesGiven == 0u);
+    }
+    SUBCASE("restore gives the profile back, once")
+    {
+        scene::Scene world{DefaultAllocator()};
+        auto* sky = world.AddSystem<SeqSkySystem>();
+        sky->own = SeqSky{0.1f, 0.2f}; // stale: not in effect while on the profile
+        sky->shared = SeqSky{0.6f, 0.9f};
+        sky->profile = profile;
+        SequencePlay play(DefaultAllocator(), world, sequence);
+        play.finish = SequenceFinish::Restore;
+        play.Play();
+        play.Advance(0.5f);
+        CHECK(sky->profile.IsNil());
+        CHECK(sky->Effective().light == doctest::Approx(0.5f));
+        play.Advance(2.0f);
+        CHECK(sky->profile == profile);
+        CHECK(sky->profilesGiven == 1u);
+        CHECK(sky->Effective().light == doctest::Approx(0.6f));
+        CHECK(sky->own.light == doctest::Approx(0.1f)); // the scene's own block as it was
+    }
 }
 
 TEST_CASE("sequence: binding a name during a play moves its tracks to the new entity")

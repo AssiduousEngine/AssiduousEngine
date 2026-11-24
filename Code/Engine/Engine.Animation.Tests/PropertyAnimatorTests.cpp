@@ -21,6 +21,7 @@ using namespace engine::animation;
 
 // Generated below by REFLECT_VALUE(AnimTarget); forward-declared so EnsureReflected can invoke it.
 void RttiRegisterValue_AnimTarget();
+void RttiRegisterValue_AnimFog();
 
 namespace
 {
@@ -42,6 +43,32 @@ namespace
     {
     public:
         AnimTargetManager() : scene::SerializableComponentManager<AnimTarget>(u8"anim_target") {}
+    };
+
+    // A scene's settings block on a shared profile, as the environment's can be.
+    struct AnimFog
+    {
+        f32 density = 0.0f;
+    };
+
+    class AnimFogSystem final : public scene::SceneSystem
+    {
+    public:
+        [[nodiscard]] const TypeInfo* SettingsType() const noexcept override { return &TypeOf<AnimFog>(); }
+        [[nodiscard]] void* SettingsInstance() noexcept override { return &own; }
+        [[nodiscard]] StringView SettingsId() const noexcept override { return u8"animfog"; }
+        [[nodiscard]] void* EffectiveSettingsInstance() noexcept override { return profile.IsNil() ? &own : &shared; }
+        [[nodiscard]] Guid SettingsProfile() noexcept override { return profile; }
+        void UseSettingsProfile(const Guid& id) override { profile = id; }
+        void CopySettingsProfileIntoScene() override
+        {
+            own = shared;
+            profile = Guid{};
+        }
+
+        AnimFog own;
+        AnimFog shared;
+        Guid profile;
     };
 
     // Build a runtime clip driving AnimTarget.position over 1s (0 to (10,0,0)), loop.
@@ -78,12 +105,19 @@ namespace
         RegisterAnimationComponentReflection(); // PropertyAnimatorComponent and the others
         RttiRegisterValue_AnimTarget(); // apply AnimTarget's REFLECT_VALUE body (sets the type name)
         GlobalTypeRegistry().Register(TypeOf<AnimTarget>());
+        RttiRegisterValue_AnimFog();
+        GlobalTypeRegistry().Register(TypeOf<AnimFog>());
     }
 }
 
 REFLECT_VALUE(AnimTarget, "rtti::engine::animation::test")
 {
     builder.Property<&AnimTarget::position>("position").Property<&AnimTarget::value>("value");
+}
+
+REFLECT_VALUE(AnimFog, "rtti::engine::animation::test")
+{
+    builder.Property<&AnimFog::density>("density");
 }
 
 TEST_CASE("property animator: the script surface is REFLECTED (methods on the type table)")
@@ -421,4 +455,46 @@ TEST_CASE("property animator: SIMULATION-GATED - a non-simulating scene freezes;
     sceneObj.SetSimulationEnabled(false);
     sceneObj.Update(0.4f);
     CHECK(target.position.x == doctest::Approx(5.0f));
+}
+
+TEST_CASE("property animator: a clip keys a scene's settings, taking a profile's values as the scene's own first")
+{
+    EnsureReflected();
+    scene::Scene sceneObj{DefaultAllocator()};
+    auto* fog = sceneObj.AddSystem<AnimFogSystem>();
+    fog->shared.density = 0.3f;
+    fog->profile = Guid{0x0102030405060708ull, 0x090a0b0c0d0e0f10ull};
+    sceneObj.AddSystem<PropertyAnimatorComponentManager>();
+    auto* animators = sceneObj.GetSystem<PropertyAnimatorComponentManager>();
+    const scene::EntityHandle lamp = sceneObj.CreateEntity(u8"Lamp"); // the entity plays the clip; the fog is the scene's
+
+    RefPtr<PropertyAnimationClipResource> res = MakeRef<PropertyAnimationClipResource>(DefaultAllocator());
+    {
+        PropertyTrack t;
+        t.source = String(kSettingsSource);
+        t.target = String(u8"animfog");
+        t.propertyPath = String(u8"density");
+        t.kind = TrackValueKind::Float;
+        CurveKey k0;
+        k0.time = 0.0f;
+        k0.value = 0.0f;
+        CurveKey k1;
+        k1.time = 1.0f;
+        k1.value = 1.0f;
+        t.channels[0].AddKey(k0);
+        t.channels[0].AddKey(k1);
+        res->clip.tracks.PushBack(Move(t));
+        res->clip.duration = res->clip.ComputeDuration();
+    }
+    PropertyAnimatorComponent& anim = animators->Add(lamp);
+    anim.clip = res.Get();
+    anim.autoplay = true;
+    anim.loopMode = PropertyLoopMode::Once;
+
+    sceneObj.Update(0.0f);
+    REQUIRE(anim.bindings.Size() == 1);
+    CHECK(anim.bindings[0].IsResolved());
+    CHECK(fog->profile.IsNil()); // the scene's own values now, the profile's copied in
+    sceneObj.Update(0.5f);
+    CHECK(fog->own.density == doctest::Approx(0.5f));
 }

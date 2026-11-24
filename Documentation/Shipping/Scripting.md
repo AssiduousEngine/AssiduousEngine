@@ -191,7 +191,8 @@ A prefab is still the way to make something with many parts at once (`scene.pref
 ## Sequences: cutscenes on a timeline
 
 A sequence asset is a timeline that drives several entities at once: tracks of keys on any
-reflected property or the transform, events, and markers, some of which hold the playhead. It names
+reflected property or the transform, or on the scene's own settings (the environment's light and
+sky, the post-process), events, and markers, some of which hold the playhead. It names
 its cast ("Mentor", "Actor"), and whoever plays it fills each name with an entity. `scene.sequences`
 plays them:
 
