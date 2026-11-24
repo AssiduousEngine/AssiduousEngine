@@ -114,6 +114,15 @@ namespace foundation::script
         builder.Constructor();
     }
 
+    REFLECT_MEMBERS(TextFacade, "rtti::script")
+    {
+        builder.Attribute("scriptName", "Text");
+        // An arity family, as Entity::send is: parseFloat(text) and parseFloat(text, otherwise).
+        builder.Method<static_cast<f32 (*)(String)>(&TextFacade::parseFloat)>("parseFloat", {"text"});
+        builder.Method<static_cast<f32 (*)(String, f32)>(&TextFacade::parseFloat)>("parseFloat", {"text", "otherwise"});
+        builder.Constructor();
+    }
+
     REFLECT_VALUE(Scene, "rtti::script")
     {
         builder.Method<&Scene::spawn>("spawn");
@@ -162,9 +171,9 @@ namespace foundation::script
     {
         // Keep in sync with RegisterScriptFacadeReflection below.
         static const core::StringView names[] = {
-            u8"Entity", u8"Log", u8"Time", u8"Random", u8"Scene", u8"SceneEvents", u8"ScenePrefabs",
+            u8"Entity", u8"Log", u8"Time", u8"Random", u8"Text", u8"Scene", u8"SceneEvents", u8"ScenePrefabs",
         };
-        return core::Span<const core::StringView>{names, 7};
+        return core::Span<const core::StringView>{names, 8};
     }
 
     namespace
@@ -269,6 +278,7 @@ namespace foundation::script
             GlobalTypeRegistry().Register(LogFacade::StaticType());
             GlobalTypeRegistry().Register(TimeFacade::StaticType());
             GlobalTypeRegistry().Register(RandomFacade::StaticType());
+            GlobalTypeRegistry().Register(TextFacade::StaticType());
             RttiRegisterValue_Scene(); // a bound value type, like Entity
             GlobalTypeRegistry().Register(TypeOf<Scene>());
             RttiRegisterValue_SceneEventsFacade(); // the scene.events handle, like Scene

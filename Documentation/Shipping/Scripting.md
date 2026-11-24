@@ -366,6 +366,13 @@ Http.post("https://example.com/scores", "application/json", '{"score":9}',      
   draws over the page's viewport (and so in `viewport_screenshot`), and goes when the Simulate
   stops. It has no run behavior, input map or save; test those with play in editor.
 
+## Numbers from text
+
+A number carried as text (a sequence event's value, a line of a data file) is read with
+`Text.parseFloat(text)` (`Text::parseFloat` in AngelScript): the whole text, spaces at either end
+aside, as a decimal, the same in every locale. Text that is not one gives 0, or `otherwise` with
+`Text.parseFloat(text, otherwise)`, so a script can tell a bad value apart.
+
 ## Gotchas
 
 - A behavior constructor runs at cook time too; side effects beyond field init will

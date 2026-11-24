@@ -4,7 +4,7 @@
 // Foundation::Script.Facades - the `foundation.script.facades` module.
 //
 // The curated behavior facades: the per-entity `Entity` handle behaviors receive as
-// their constructor argument, plus Log, Time, Random and the scene handles. A separate
+// their constructor argument, plus Log, Time, Random, Text and the scene handles. A separate
 // library (below the subsystem) so the cook's harvest VM and the runtime register the
 // same "main"-module surface: a facade-using behavior that compiles at cook compiles at
 // runtime, and the other way round.
@@ -395,6 +395,21 @@ export namespace foundation::script
         {
             ScriptRuntimeBinding* binding = TimeFacade::Resolve();
             return binding != nullptr && binding->random.NextBool();
+        }
+    };
+
+    /// Text.parseFloat(text) reads a number carried as text (a sequence event's value, a line of a
+    /// data file): the whole text, spaces at either end aside, as a decimal, the same in every
+    /// locale. Text that is not one gives `otherwise`, 0 when left out.
+    class TextFacade final : public Object
+    {
+        RTTI_OBJECT(TextFacade, Object)
+    public:
+        [[nodiscard]] static f32 parseFloat(String text) { return parseFloat(Move(text), 0.0f); }
+        [[nodiscard]] static f32 parseFloat(String text, f32 otherwise)
+        {
+            const Optional<f64> value = core::ParseFloat(text.AsView());
+            return value.HasValue() ? static_cast<f32>(value.Value()) : otherwise;
         }
     };
 
