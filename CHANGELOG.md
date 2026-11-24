@@ -25,9 +25,16 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
-- A game's saves are a folder, `<project>.saves/` (in the user data directory for the player, in the
-  project's `Editor/` folder for play in editor), holding the global store (`global.save.xml`) and the
-  game's slots; `Save` is the global store. A save from before (`<project>.save.xml`) is not read.
+- Saves: a game's saves are a folder, `<project>.saves/` (in the user data directory for the player,
+  in the project's `Editor/` folder for play in editor), holding the global store
+  (`global.save.xml`) and the game's slots. The `Save` facade is replaced by `Saves`, which hands out
+  stores a script holds (`SaveStore`): `Saves.global()` for a game's one save or what every slot
+  shares, `Saves.openSlot(name)` for a playthrough (`SlotWrites.AtSavePoints` for one written only
+  at its save points), `Saves.readSlot(name)` for a Load menu's summary, and `slots()` (saved last
+  first), `copySlot`, `deleteSlot`, `slotTime`. `Save::setInt(...)` becomes
+  `Saves::global().setInt(...)`. The dialogue plugin keeps its flags in the store the game gives it,
+  `Dialogue.useSave(store)`, and for the run only until it is given one. A save from before
+  (`<project>.save.xml`) is not read.
 - Scripts: a `VoiceHandle`'s slot is now `index`, as on every other handle; `isValid()` is unchanged.
 - The MCP sequence tools name a property track's target by `source` and `target` in place of
   `component`. Clip and sequence assets are saved at data version 1; version 0 ones still read and

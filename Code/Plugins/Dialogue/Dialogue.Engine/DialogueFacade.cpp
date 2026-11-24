@@ -88,6 +88,12 @@ namespace dialogue
         }
     }
 
+    bool DialogueFacade::useSave(engine::runtime::SaveStoreHandle store)
+    {
+        DialogueRunService* runner = Resolve();
+        return runner != nullptr && runner->UseSave(store);
+    }
+
     REFLECT_MEMBERS(DialogueFacade, "rtti::dialogue")
     {
         builder.Attribute("scriptName", "Dialogue");
@@ -102,6 +108,7 @@ namespace dialogue
         builder.Method<&DialogueFacade::flag>("flag", {"name"});
         builder.Method<&DialogueFacade::setFlag>("setFlag", {"name", "on"});
         builder.Method<&DialogueFacade::bind>("bind", {"speaker", "entity"});
+        builder.Method<&DialogueFacade::useSave>("useSave", {"store"});
         builder.Constructor();
     }
 

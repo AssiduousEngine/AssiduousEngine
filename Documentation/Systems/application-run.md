@@ -141,8 +141,11 @@ one playthrough's values each): `OpenSlot` (one open for writing, as it plays or
 points), `ReadSlot` (a read-only snapshot for a menu), `Slots` (the one saved last first, by the time
 inside each), `CopySlot`, `DeleteSlot` and `SlotTime`; a store is held by a `SaveStoreHandle`, which
 reaches nothing once its store is gone. An unreadable file is set aside as `<path>.unreadable` before
-anything writes to it. The run's contexts reach the global store through the `Save` facade (`Save::setInt("best.level2", 4210)`, `Save::getInt(key, fallback)`, the same for
-float, bool and string, a float list, plus `has`, `remove`, `clear` and `flush`). `StopRunBehavior`
+anything writes to it. The run's contexts reach the stores through the `Saves` facade, which hands
+out a `SaveStore` (the script's `SaveStoreHandle`: `Saves::global()`, `openSlot`, `readSlot`) with
+the value calls (`getInt(key, fallback)`, `setInt`, the same for float, bool and string, a float list,
+plus `has`, `remove`, `clear` and `flush`); a game hands a store on to what keeps state for it (the
+dialogue plugin's `Dialogue.useSave`). `StopRunBehavior`
 writes whatever changed; `flush` writes at once; and when the app goes to the background
 (`DefaultApplication::OnEnterBackground`, a phone's home button) every instance's saves are written,
 since the platform may end the app there without asking. Writes are whole and atomic

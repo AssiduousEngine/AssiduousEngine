@@ -210,8 +210,9 @@ namespace
             engine::runtime::RunBinding& binding = run.Add<engine::runtime::RunBinding>();
             scene::Scene* current = &scene;
             binding.currentScene = [current]() { return current; };
-            (void)run.Add<engine::runtime::RunSaves>(DefaultAllocator());
+            engine::runtime::RunSaves& saves = run.Add<engine::runtime::RunSaves>(DefaultAllocator());
             runner = &run.Add<dialogue::DialogueRunService>(settings, run);
+            REQUIRE(runner->UseSave(saves.GlobalHandle())); // a game with one save hands it its global store
             (void)run.Events().Subscribe(StringHash(dialogue::kDialogueLineEvent),
                                          [this](const Variant& value)
                                          {

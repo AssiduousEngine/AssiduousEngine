@@ -189,7 +189,7 @@ TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, 
     CHECK(run.State() == foundation::run::RunState::Idle);
 }
 
-TEST_CASE("game-instance: native code under the run host's services reaches the run's save through the Save facade, "
+TEST_CASE("game-instance: native code under the run host's services reaches the run's global store through the Saves facade, "
           "with no script context")
 {
     engine::runtime::ApplicationRun gi;
@@ -198,12 +198,12 @@ TEST_CASE("game-instance: native code under the run host's services reaches the 
     const script::ServiceResolver services{[&host](TypeId type) { return host.FindService(type); }};
     {
         script::ServiceScope scope(&services);
-        engine::runtime::SaveFacade::setInt(String(u8"coins"), 7);
-        CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 7);
+        engine::runtime::SavesFacade::global().setInt(String(u8"coins"), 7);
+        CHECK(engine::runtime::SavesFacade::global().getInt(String(u8"coins"), 0) == 7);
     }
     CHECK(host.Scripts().ScriptContext() == nullptr);
     CHECK(gi.Saves().Global().HasChanges()); // the run's own global store took it
-    CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 0); // outside, no run: the fallback
+    CHECK(engine::runtime::SavesFacade::global().getInt(String(u8"coins"), 0) == 0); // outside, no run: the fallback
 }
 
 namespace
@@ -1969,7 +1969,7 @@ TEST_CASE("game-instance: a save file writes what changed with its time, reads i
     (void)FileDelete(aside.AsView());
 }
 
-TEST_CASE("game-instance: a game keeps its values between runs through Save (AngelScript)")
+TEST_CASE("game-instance: a game keeps its values between runs in the global store (AngelScript)")
 {
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
@@ -1983,13 +1983,13 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
     const StringView source = u8"class Game : RunBehavior {\n"
                               u8"  Game() {}\n"
                               u8"  void onStart() {\n"
-                              u8"    int runs = Save::getInt(\"runs\", 0);\n"
-                              u8"    Save::setInt(\"runs\", runs + 1);\n"
-                              u8"    if (Save::getFloat(\"best\", 999.0f) > 41.5f) Save::setFloat(\"best\", 41.5f);\n"
-                              u8"    Save::setBool(\"seen\", Save::has(\"runs\"));\n"
-                              u8"    Save::setString(\"name\", \"Hopper\");\n"
-                              u8"    Save::setInt(\"scratch\", 1);\n"
-                              u8"    Save::remove(\"scratch\");\n"
+                              u8"    int runs = Saves::global().getInt(\"runs\", 0);\n"
+                              u8"    Saves::global().setInt(\"runs\", runs + 1);\n"
+                              u8"    if (Saves::global().getFloat(\"best\", 999.0f) > 41.5f) Saves::global().setFloat(\"best\", 41.5f);\n"
+                              u8"    Saves::global().setBool(\"seen\", Saves::global().has(\"runs\"));\n"
+                              u8"    Saves::global().setString(\"name\", \"Hopper\");\n"
+                              u8"    Saves::global().setInt(\"scratch\", 1);\n"
+                              u8"    Saves::global().remove(\"scratch\");\n"
                               u8"  }\n"
                               u8"  void onUpdate(double dt) {}\n"
                               u8"  void onStop() {}\n"
@@ -2049,7 +2049,7 @@ TEST_CASE("game-instance: the player's rebinding is kept in the save and lies ov
     }
 }
 
-TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScript and Luau)")
+TEST_CASE("game-instance: a game keeps a list of numbers in the global store (AngelScript and Luau)")
 {
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
@@ -2067,10 +2067,10 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
                                u8"  Game() {}\n"
                                u8"  void onStart() {\n"
                                u8"    array<float> samples = {0.5f, 1.25f, -3.0f};\n"
-                               u8"    Save::setFloats(\"ghost\", samples);\n"
-                               u8"    array<float>@ back = Save::getFloats(\"ghost\");\n"
-                               u8"    Save::setInt(\"length\", back.length());\n"
-                               u8"    Save::setInt(\"missing\", Save::getFloats(\"none\").length());\n"
+                               u8"    Saves::global().setFloats(\"ghost\", samples);\n"
+                               u8"    array<float>@ back = Saves::global().getFloats(\"ghost\");\n"
+                               u8"    Saves::global().setInt(\"length\", back.length());\n"
+                               u8"    Saves::global().setInt(\"missing\", Saves::global().getFloats(\"none\").length());\n"
                                u8"  }\n"
                                u8"  void onUpdate(double dt) {}\n"
                                u8"  void onStop() {}\n"
@@ -2096,9 +2096,9 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
                                u8"function Game:onStart()\n"
-                               u8"  local g = Save.getFloats('ghost')\n"
-                               u8"  Save.setFloat('sum', g[1] + g[2] + g[3])\n"
-                               u8"  Save.setFloats('ghost', {7, 8})\n"
+                               u8"  local g = Saves.global():getFloats('ghost')\n"
+                               u8"  Saves.global():setFloat('sum', g[1] + g[2] + g[3])\n"
+                               u8"  Saves.global():setFloats('ghost', {7, 8})\n"
                                u8"end\n"
                                u8"function Game:onUpdate(dt) end\n"
                                u8"function Game:onStop() end\n",
@@ -2110,7 +2110,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
     }
 }
 
-TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with no saves folder writes nowhere")
+TEST_CASE("game-instance: the global store flushes on request and clears (Luau); a run with no saves folder writes nowhere")
 {
     RegisterCoreTypes();
     engine::runtime::RegisterSaveScriptFacade();
@@ -2124,8 +2124,8 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
                                u8"function Game:onStart()\n"
-                               u8"  Save.setInt('coins', 37)\n"
-                               u8"  self.flushed = Save.flush()\n"
+                               u8"  Saves.global():setInt('coins', 37)\n"
+                               u8"  self.flushed = Saves.global():flush()\n"
                                u8"end\n"
                                u8"function Game:onUpdate(dt) end\n"
                                u8"function Game:onStop() end\n",
@@ -2142,7 +2142,7 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
-                               u8"function Game:onStart() Save.clear() end\n"
+                               u8"function Game:onStart() Saves.global():clear() end\n"
                                u8"function Game:onUpdate(dt) end\n"
                                u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
@@ -2157,7 +2157,7 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
-                               u8"function Game:onStart() Save.setInt('coins', 5) end\n"
+                               u8"function Game:onStart() Saves.global():setInt('coins', 5) end\n"
                                u8"function Game:onUpdate(dt) end\n"
                                u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));

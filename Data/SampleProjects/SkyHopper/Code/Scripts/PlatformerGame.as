@@ -607,7 +607,7 @@ class Game : RunBehavior
         wire("settings-btn", "click", EventHandler(this.onSettings));
         wire("quit-btn", "click", EventHandler(this.onQuit));
         setText("title-stars", "" + savedStars() + " / " + (kLevelCount * 3));
-        int best = Save::getInt("best.run", 0);
+        int best = Saves::global().getInt("best.run", 0);
         setText("title-best", best > 0 ? "Best " + points(best) : "");
         enter(Phase::Title);
     }
@@ -630,7 +630,7 @@ class Game : RunBehavior
         screens().push(kGameOverDoc);
         setText("gameover-reached", "Reached level " + (m_level + 1) + ", " + levelName(m_level));
         setText("gameover-score", points(total));
-        setText("gameover-best", best ? "New best run!" : "Best " + points(Save::getInt("best.run", 0)));
+        setText("gameover-best", best ? "New best run!" : "Best " + points(Saves::global().getInt("best.run", 0)));
         wire("gameover-retry-btn", "click", EventHandler(this.onRetry));
         wire("gameover-title-btn", "click", EventHandler(this.onQuitToTitle));
         enter(Phase::GameOver);
@@ -646,7 +646,7 @@ class Game : RunBehavior
             + m_allFalls + "    Time " + clock(m_allTime));
         setText("victory-score", points(m_score));
         setText("victory-stars", "" + m_runStars + " / " + (kLevelCount * 3));
-        setText("victory-best", best ? "New best run!" : "Best " + points(Save::getInt("best.run", 0)));
+        setText("victory-best", best ? "New best run!" : "Best " + points(Saves::global().getInt("best.run", 0)));
         wire("victory-title-btn", "click", EventHandler(this.onQuitToTitle));
         enter(Phase::Victory);
     }
@@ -843,7 +843,7 @@ class Game : RunBehavior
         }
         else
         {
-            setText("clear-best", "Best " + points(Save::getInt("best.score." + m_level, 0)));
+            setText("clear-best", "Best " + points(Saves::global().getInt("best.score." + m_level, 0)));
         }
         enter(Phase::Cleared); // start the hold before the next level
     }
@@ -873,28 +873,28 @@ class Game : RunBehavior
     private bool saveLevel(int level, int score, int stars, float seconds)
     {
         string suffix = "." + level;
-        bool best = score > Save::getInt("best.score" + suffix, 0);
+        bool best = score > Saves::global().getInt("best.score" + suffix, 0);
         if (best)
         {
-            Save::setInt("best.score" + suffix, score);
+            Saves::global().setInt("best.score" + suffix, score);
         }
-        Save::setInt("best.stars" + suffix, Save::getInt("best.stars" + suffix, 0) | stars);
-        float bestTime = Save::getFloat("best.time" + suffix, 0.0f);
+        Saves::global().setInt("best.stars" + suffix, Saves::global().getInt("best.stars" + suffix, 0) | stars);
+        float bestTime = Saves::global().getFloat("best.time" + suffix, 0.0f);
         if (bestTime <= 0.0f || seconds < bestTime)
         {
-            Save::setFloat("best.time" + suffix, seconds);
+            Saves::global().setFloat("best.time" + suffix, seconds);
         }
-        Save::flush(); // a clear is a moment worth keeping, whatever happens next
+        Saves::global().flush(); // a clear is a moment worth keeping, whatever happens next
         return best;
     }
 
     private bool saveRun(int score)
     {
-        bool best = score > Save::getInt("best.run", 0);
+        bool best = score > Saves::global().getInt("best.run", 0);
         if (best)
         {
-            Save::setInt("best.run", score);
-            Save::flush();
+            Saves::global().setInt("best.run", score);
+            Saves::global().flush();
         }
         return best;
     }
@@ -905,7 +905,7 @@ class Game : RunBehavior
         int total = 0;
         for (int level = 0; level < kLevelCount; level++)
         {
-            int mask = Save::getInt("best.stars." + level, 0);
+            int mask = Saves::global().getInt("best.stars." + level, 0);
             for (int bit = 0; bit < 3; bit++)
             {
                 if ((mask & (1 << bit)) != 0)

@@ -257,7 +257,7 @@ the line if the conversation still has it, else from the start (logged).
 **In a run**, the plugin contributes a runner to every run (`DialogueRunContribution`, a run service
 contribution): a `DialogueRunService`, `run.Get<DialogueRunService>()`, stepped with the run's frame
 (`IRunService::OnRunUpdate`). Its host, `DialogueRunHost`, loads files and casts through the run's
-resources, keeps flags and the record in the run's global store (`RunSaves::Global`), reads an action's binding from
+resources, keeps flags and the record in the store the game gives it (`Dialogue.useSave`, `DialogueRunHost::UseSave`; in scratch for the run until it is given one, and once that store is gone), reads an action's binding from
 the run's input on the device in hand, and publishes the notices on the run's bus.
 
 **Staging** is in the run's current scene (`RunBinding::currentScene`). A speaker plays as an

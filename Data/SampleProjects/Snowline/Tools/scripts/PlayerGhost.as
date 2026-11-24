@@ -32,7 +32,7 @@ class PlayerGhost : EntityBehavior
     {
         @m_rider = self.scene.find("Rider");
         @m_model = self.firstChild();
-        m_ghost = Save::getFloats(key());
+        m_ghost = Saves::global().getFloats(key());
         show(m_ghost.length() >= kSampleSize * 2);
     }
 
@@ -62,8 +62,8 @@ class PlayerGhost : EntityBehavior
     void onNewBest(int hundredths)
     {
         m_ghost = m_recording;
-        Save::setFloats(key(), m_ghost);
-        Save::flush();
+        Saves::global().setFloats(key(), m_ghost);
+        Saves::global().flush();
     }
 
     void onUpdate(double dt)

@@ -9,8 +9,9 @@
 //     round to the waterwheel, and the conversation resumes there (Dialogue::resume).
 //   * fair_cat_seen: once Pip has asked, reaching the windmill's foot shows her cat there (a flag
 //     the game provides; the settings list fair_* as the game's).
-// The save keeps every flag and a conversation's place: each conversation's end saves, and a game
-// that starts with a conversation in progress resumes it.
+// The global store keeps every flag and a conversation's place (handed to the dialogue at the
+// start): each conversation's end saves, and a game that starts with a conversation in progress
+// resumes it.
 // The game opens on the title over the village (Begin, or Carry on with a save under way). When the
 // mayor has called everyone (the flag opening), the ending plays (Sequences/FairOpens: its camera,
 // the lanterns lit on its LightLanterns event, its lines in the stock box), then the credits; the
@@ -97,6 +98,8 @@ class Game : RunBehavior
 
     void onStart()
     {
+        // The flags and a conversation's place are kept in the game's one save, the global store.
+        Dialogue::useSave(Saves::global());
         rememberStart();
         Audio::playMusic(kFairTune);
         idleAll();
@@ -126,8 +129,8 @@ class Game : RunBehavior
     // kept apart from them), the village is put back as it began, and the lanterns are dark.
     private bool onNewGame(GuiEvent e)
     {
-        Save::clear();
-        Save::flush();
+        Saves::global().clear();
+        Saves::global().flush();
         putBack();
         lightLanterns(false);
         return onBegin(e);
@@ -261,7 +264,7 @@ class Game : RunBehavior
         }
         m_walker = -1;
         idleAll(); // a villager stopped mid-walk stands
-        Save::flush();
+        Saves::global().flush();
         showTitle();
         return true;
     }
@@ -294,7 +297,7 @@ class Game : RunBehavior
         }
         m_ending = 0;
         Dialogue::setFlag("fair_opened", true);
-        Save::flush();
+        Saves::global().flush();
         run::currentScene().find("Player").send("Hold", false);
         showCredits();
     }
@@ -520,7 +523,7 @@ class Game : RunBehavior
         {
             return; // a line the ending's sequence showed, not a conversation
         }
-        Save::flush();
+        Saves::global().flush();
         if (Dialogue::flag("opening") && !Dialogue::flag("fair_opened"))
         {
             playEnding(run::currentScene());

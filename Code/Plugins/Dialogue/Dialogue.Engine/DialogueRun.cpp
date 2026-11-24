@@ -85,15 +85,37 @@ namespace dialogue
         m_preview = Move(resource);
     }
 
-    namespace
+    bool DialogueRunHost::UseSave(engine::runtime::SaveStoreHandle store)
     {
-        // The run's global store, where the flags and a conversation's place are kept; null for a
-        // run with no saves, which keeps them in scratch.
-        engine::runtime::SaveFile* GlobalStore(foundation::run::IRun& run)
+        auto* saves = m_run->Get<engine::runtime::RunSaves>();
+        if (saves == nullptr || saves->Resolve(store) == nullptr)
         {
-            auto* saves = run.Get<engine::runtime::RunSaves>();
-            return saves != nullptr ? &saves->Global() : nullptr;
+            LOG_WARNING(u8"Dialogue", u8"useSave: that store is not there (closed, deleted, or never opened); the flags stay where they were");
+            return false;
         }
+        if (saves->IsReadOnly(store))
+        {
+            LOG_WARNING(u8"Dialogue", u8"useSave: a slot read (Saves.readSlot) is read only; give the slot opened with Saves.openSlot");
+            return false;
+        }
+        m_store = store;
+        m_warnedNoStore = false;
+        m_scratchKeys.Clear(); // what played before the store belongs to no playthrough
+        m_scratchValues.Clear();
+        return true;
+    }
+
+    engine::runtime::SaveFile* DialogueRunHost::Store()
+    {
+        auto* saves = m_run->Get<engine::runtime::RunSaves>();
+        engine::runtime::SaveFile* file = saves != nullptr ? saves->Resolve(m_store) : nullptr;
+        if (file == nullptr && !m_warnedNoStore)
+        {
+            m_warnedNoStore = true;
+            LOG_WARNING(u8"Dialogue", u8"no save store to keep the flags in (Dialogue.useSave with the game's slot or global store); "
+                                      u8"they last this run only");
+        }
+        return file;
     }
 
     String* DialogueRunHost::Scratch(StringView key)
@@ -154,7 +176,7 @@ namespace dialogue
 
     bool DialogueRunHost::ReadFlag(StringView key)
     {
-        engine::runtime::SaveFile* save = GlobalStore(*m_run);
+        engine::runtime::SaveFile* save = Store();
         if (save == nullptr)
         {
             const String* value = Scratch(key);
@@ -165,7 +187,7 @@ namespace dialogue
 
     void DialogueRunHost::WriteFlag(StringView key, bool on)
     {
-        engine::runtime::SaveFile* save = GlobalStore(*m_run);
+        engine::runtime::SaveFile* save = Store();
         if (save == nullptr)
         {
             WriteScratch(key, on ? StringView(u8"true") : StringView(u8"false"));
@@ -178,7 +200,7 @@ namespace dialogue
 
     String DialogueRunHost::ReadText(StringView key)
     {
-        engine::runtime::SaveFile* save = GlobalStore(*m_run);
+        engine::runtime::SaveFile* save = Store();
         if (save == nullptr)
         {
             const String* value = Scratch(key);
@@ -189,7 +211,7 @@ namespace dialogue
 
     void DialogueRunHost::WriteText(StringView key, StringView text)
     {
-        engine::runtime::SaveFile* save = GlobalStore(*m_run);
+        engine::runtime::SaveFile* save = Store();
         if (save == nullptr)
         {
             WriteScratch(key, text);

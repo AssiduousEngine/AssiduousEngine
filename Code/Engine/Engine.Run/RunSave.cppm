@@ -102,13 +102,40 @@ export namespace engine::runtime
         AtSavePoints,
     };
 
-    // A store a game holds: the serial of a store of the run's saves. Invalid (0), or stale once its
-    // store is gone (a slot closed, deleted, replaced, or read again), it reaches nothing.
+    // A store a game holds: the serial of a store of the run's saves, a value (a copy is the same
+    // store). Invalid (0), or stale once its store is gone (a slot closed, deleted, replaced, or read
+    // again), it reaches nothing. Scripts hold it as `SaveStore` (Saves.global(), Saves.openSlot(...))
+    // and hand it to what keeps state for them (Dialogue.useSave); its calls reach the store through
+    // the calling script's run's saves, so a stale or invalid one reads every fallback and writes
+    // nothing, with one warning.
     struct SaveStoreHandle
     {
         u64 serial = 0;
         [[nodiscard]] bool IsSet() const noexcept { return serial != 0; }
         [[nodiscard]] bool operator==(const SaveStoreHandle&) const noexcept = default;
+
+        // ---- the script's calls ----
+        [[nodiscard]] bool isValid() const;
+        // The slot's name (in lower case), empty for the global store.
+        [[nodiscard]] core::String name() const;
+        [[nodiscard]] bool has(core::String key) const;
+        void remove(core::String key) const;
+        void clear() const;
+        [[nodiscard]] i32 getInt(core::String key, i32 fallback) const;
+        void setInt(core::String key, i32 value) const;
+        [[nodiscard]] f32 getFloat(core::String key, f32 fallback) const;
+        void setFloat(core::String key, f32 value) const;
+        [[nodiscard]] bool getBool(core::String key, bool fallback) const;
+        void setBool(core::String key, bool value) const;
+        [[nodiscard]] core::String getString(core::String key, core::String fallback) const;
+        void setString(core::String key, core::String value) const;
+        // A list of numbers (a recorded run): set whole, read whole; empty when absent or another
+        // kind. AngelScript `array<float>`, Luau a table.
+        [[nodiscard]] core::Array<f32> getFloats(core::String key) const;
+        void setFloats(core::String key, core::Array<f32> values) const;
+        // The store's own flush: writes it now if it changed (a save point, for a slot written at
+        // its save points). False for a slot read, a stale store, or a failed write.
+        bool flush() const;
     };
 
     // The clock a save's time comes from: Unix seconds. Tests set one.
@@ -164,6 +191,11 @@ export namespace engine::runtime
         [[nodiscard]] SaveFile* Resolve(SaveStoreHandle handle) noexcept;
         // Whether the handle reaches a slot read, whose values are not for writing.
         [[nodiscard]] bool IsReadOnly(SaveStoreHandle handle) const noexcept;
+        // The store's name: a slot's (folded), empty for the global store or a stale handle.
+        [[nodiscard]] String NameOf(SaveStoreHandle handle) const;
+        // One warning a run each, for a stale store used and a slot read written.
+        void WarnStale();
+        void WarnReadOnly();
 
         // Writes every store that changed, but a slot written at its save points: the end of a run,
         // the application going to the background, a general flush. True when every store written
@@ -204,43 +236,38 @@ export namespace engine::runtime
         Array<SlotRead> m_reads;
         u64 m_nextSerial = 1;
         SaveClock m_clock = nullptr;
+        bool m_warnedStale = false;
+        bool m_warnedReadOnly = false;
     };
 
-    // The `Save` script facade: a static facade over the calling context's global store, the same
-    // shape on both backends (`Save::setInt("best.level2", 4210)`, `Save.getInt(...)` in Luau). A
-    // context with no run saves (an editor tool) reads every fallback and writes nowhere.
-    class SaveFacade final : public Object
+    // The `Saves` script facade: the calling context's run's saves, the same shape in every script
+    // language (`Saves::global()`, `Saves.openSlot("1")` in Luau). It hands out stores; a context with
+    // no run saves (an editor tool) gets invalid ones, which read every fallback and write nothing.
+    class SavesFacade final : public Object
     {
-        RTTI_OBJECT(SaveFacade, Object)
+        RTTI_OBJECT(SavesFacade, Object)
     public:
-        [[nodiscard]] static SaveFile* Resolve()
-        {
-            RunSaves* saves = script::CurrentService<RunSaves>(); // the calling script's run's saves
-            return saves != nullptr ? &saves->Global() : nullptr;
-        }
+        [[nodiscard]] static RunSaves* Resolve() { return script::CurrentService<RunSaves>(); }
 
-        [[nodiscard]] static bool has(core::String key);
-        static void remove(core::String key);
-        static void clear();
-
-        [[nodiscard]] static i32 getInt(core::String key, i32 fallback);
-        static void setInt(core::String key, i32 value);
-        [[nodiscard]] static f32 getFloat(core::String key, f32 fallback);
-        static void setFloat(core::String key, f32 value);
-        [[nodiscard]] static bool getBool(core::String key, bool fallback);
-        static void setBool(core::String key, bool value);
-        [[nodiscard]] static core::String getString(core::String key, core::String fallback);
-        static void setString(core::String key, core::String value);
-        // A list of numbers (a recorded run): set whole, read whole; empty when absent or another
-        // kind. AngelScript `array<float>`, Luau a table.
-        [[nodiscard]] static core::Array<f32> getFloats(core::String key);
-        static void setFloats(core::String key, core::Array<f32> values);
-
-        // Writes now if anything changed; false if the write failed or the run has no save file.
+        [[nodiscard]] static SaveStoreHandle global();
+        [[nodiscard]] static SaveStoreHandle openSlot(core::String name);
+        [[nodiscard]] static SaveStoreHandle openSlot(core::String name, SlotWrites writes);
+        [[nodiscard]] static SaveStoreHandle readSlot(core::String name);
+        [[nodiscard]] static SaveStoreHandle openedSlot();
+        static void closeSlot();
+        [[nodiscard]] static core::Array<core::String> slots();
+        [[nodiscard]] static bool hasSlot(core::String name);
+        static bool deleteSlot(core::String name);
+        static bool copySlot(core::String from, core::String to);
+        // When the slot was last saved, in Unix seconds (Time.unixNow's clock); 0 when it was never
+        // saved or there is none.
+        [[nodiscard]] static f64 slotTime(core::String name);
+        // Writes every store that changed, but a slot written at its save points (its own flush).
         static bool flush();
     };
 
-    // Registers the `Save` facade (and the save sections' types, which reading a save file needs).
-    // Idempotent; the run domain calls it with the run facade.
+    // Registers the `Saves` facade, the `SaveStore` value and `SlotWrites` (and the save sections'
+    // types, which reading a save file needs). Idempotent; the run domain calls it with the run
+    // facade.
     void RegisterSaveScriptFacade();
 }

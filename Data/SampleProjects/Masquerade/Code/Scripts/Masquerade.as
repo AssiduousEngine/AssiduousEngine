@@ -301,7 +301,7 @@ class Game : RunBehavior
 
     private string bestLine(int map)
     {
-        int best = Save::getInt("best." + mapName(map), -100000);
+        int best = Saves::global().getInt("best." + mapName(map), -100000);
         return best == -100000 ? "No round played yet" : "Best round: " + best + " points";
     }
     private bool onQuit(GuiEvent e)
@@ -540,12 +540,12 @@ class Game : RunBehavior
         sound(kFanfare);
         int you = int(scores.x);
         string key = "best." + mapName(m_map);
-        int best = Save::getInt(key, -100000);
+        int best = Saves::global().getInt(key, -100000);
         bool record = you > best;
         if (record)
         {
-            Save::setInt(key, you);
-            Save::flush();
+            Saves::global().setInt(key, you);
+            Saves::global().flush();
         }
         int place = 1;
         if (scores.y > scores.x) ++place;

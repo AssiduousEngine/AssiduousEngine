@@ -97,7 +97,7 @@ class Game : RunBehavior
         {
             return false;
         }
-        return i == 0 || Save::getInt("done." + levelName(i - 1), 0) == 1;
+        return i == 0 || Saves::global().getInt("done." + levelName(i - 1), 0) == 1;
     }
 
     private string bestLine(int i)
@@ -110,13 +110,13 @@ class Game : RunBehavior
         {
             return "Locked: get away from " + levelTitle(i - 1);
         }
-        float best = Save::getFloat("best." + levelName(i), -1.0f);
+        float best = Saves::global().getFloat("best." + levelName(i), -1.0f);
         if (best < 0.0f)
         {
             return "Not yet done";
         }
-        string line = "best " + clock(best) + "   loot " + Save::getInt("loot." + levelName(i), 0);
-        return Save::getInt("ghost." + levelName(i), 0) == 1 ? line + "   ghost" : line;
+        string line = "best " + clock(best) + "   loot " + Saves::global().getInt("loot." + levelName(i), 0);
+        return Saves::global().getInt("ghost." + levelName(i), 0) == 1 ? line + "   ghost" : line;
     }
 
     // ---- the title ----
@@ -316,21 +316,21 @@ class Game : RunBehavior
         run::setTimeScale(0.0f);
         string level = levelName(m_level);
         bool ghost = m_seen == 0;
-        float previous = Save::getFloat("best." + level, -1.0f);
-        Save::setInt("done." + level, 1);
+        float previous = Saves::global().getFloat("best." + level, -1.0f);
+        Saves::global().setInt("done." + level, 1);
         if (previous < 0.0f || m_time < previous)
         {
-            Save::setFloat("best." + level, m_time);
+            Saves::global().setFloat("best." + level, m_time);
         }
-        if (m_loot > Save::getInt("loot." + level, 0))
+        if (m_loot > Saves::global().getInt("loot." + level, 0))
         {
-            Save::setInt("loot." + level, m_loot);
+            Saves::global().setInt("loot." + level, m_loot);
         }
         if (ghost)
         {
-            Save::setInt("ghost." + level, 1);
+            Saves::global().setInt("ghost." + level, 1);
         }
-        Save::flush();
+        Saves::global().flush();
 
         screens().push(kResultsDoc);
         bool last = m_level + 1 >= kLevelCount;
@@ -341,8 +341,8 @@ class Game : RunBehavior
         setText("res-seen", "Seen " + m_seen + (m_seen == 1 ? " time" : " times") + ", caught " + m_caught);
         setText("res-medal", last ? "The Lamplight heist is done" + (ghost ? ". Ghost: never seen" : "")
                               : (ghost ? "Ghost: never seen" : ""));
-        setText("res-best", "Best on " + levelTitle(m_level) + ": " + clock(Save::getFloat("best." + level, m_time))
-                             + ", loot " + Save::getInt("loot." + level, m_loot));
+        setText("res-best", "Best on " + levelTitle(m_level) + ": " + clock(Saves::global().getFloat("best." + level, m_time))
+                             + ", loot " + Saves::global().getInt("loot." + level, m_loot));
         bool next = m_level + 1 < kLevelCount && unlocked(m_level + 1);
         find("next-btn").enabled = next;
         wire("next-btn", EventHandler(this.onNext));

@@ -234,8 +234,11 @@ asset is: a property tagged `"asset:DialogueResource"`.
 - A line waits for `Dialogue.advance()`, a choice for `Dialogue.choose(i)` (from 0), and a command
   that waits for `Dialogue.done()`. `stop()` ends it; `isPlaying()` says whether one plays.
 - Flags are what `if`, `set` and `clear` read and write: `Dialogue.flag(name)` and
-  `setFlag(name, on)`. They live in the game's save (under the `flag.` prefix the plugin's settings
-  give), so they last between runs.
+  `setFlag(name, on)`. They live in the store the game gives (`useSave`, below; under the `flag.`
+  prefix the plugin's settings give), so they last between runs.
+- `Dialogue.useSave(store)` keeps the flags and a conversation's place in a store the game holds:
+  the slot it opened, or `Saves.global()` for a game with one save. Until it is given one they last
+  the run only (with a warning), so give it the store before the first conversation.
 - `Dialogue.bind(speaker, entity)` plays a speaker as an entity (a `play`, a `sound` at them, the
   parts of a `sequence` named for them); without one, the level entity the cast names.
 - `Dialogue.resume()` goes on with the conversation the save holds a place in: after a load, or back
@@ -293,26 +296,51 @@ A player can change what they press for an action, and the change is kept in the
 
 ## Saving
 
-The `Save` facade keeps values between runs: a best time, a high score, an unlocked level, the
-game's own options. Values are typed (int, float, bool, string) and keyed by any string you
-choose:
+A game keeps values between runs in stores: a best time, an unlocked level, its own options, a
+playthrough's progress. A store is a `SaveStore` the script holds, a value like `Scene` (a copy is
+the same store), with typed values (int, float, bool, string, a list of floats) keyed by any string:
 
 ```
-Save::setInt("best.level2", 4210);              // AngelScript
-int best = Save::getInt("best.level2", 0);      // the fallback when there is none yet
-Save.setFloat("time.level2", 41.5)              -- Luau
+SaveStore save = Saves::global();               // AngelScript
+save.setInt("best.level2", 4210);
+int best = save.getInt("best.level2", 0);       // the fallback when there is none yet
+Saves.global():setFloat("time.level2", 41.5)    -- Luau
 ```
 
-- `has`, `remove` and `clear` do what they say. A value read as another kind than it was
-  written answers the fallback, except that an int reads as a float.
-- The run writes what changed when it ends. Call `Save::flush()` at the moment that matters (a
-  level clear, leaving a settings screen) so a crash or a forced quit loses nothing.
-- The player keeps the game's saves (a `<project>.saves` folder) in the user's data directory; play
-  in editor keeps its own in the project's ignored `Editor/` folder, so testing never touches a
-  player's save. `Save` is the folder's global store. Every game has one,
-  whether its scripts are a game script or only its scenes' and entities' scripts.
-- The audio bus volumes a settings screen sets are saved by the player on its own; a game
-  does not need to save them.
+`Saves` hands the stores out:
+
+- **`Saves.global()`**, the global store: always there, one per game. A game with one save keeps
+  everything in it; a game with save slots keeps in it what every slot shares (options, a best time
+  over every playthrough).
+- **`Saves.openSlot(name)`**, a slot: one playthrough's values, opened for writing (one at a time;
+  opening another writes the first and lets it go). A new name makes the slot at once, empty and
+  never saved. `Saves.openSlot(name, SlotWrites.AtSavePoints)` opens one written only by its own
+  `flush()`, so quitting without saving loses what changed since, as save-point games intend.
+- **`Saves.readSlot(name)`**, a slot as it is on disk, read only: a Load menu's summary of each slot
+  without opening it. A snapshot: it does not follow later writes.
+- `Saves.slots()` lists the slots, the one saved last first (Continue opens `slots()[0]`; a slot
+  never saved comes last); `hasSlot`, `deleteSlot`, `copySlot(from, to)` (a backup, keeping the
+  source's time; refused onto the open slot), `closeSlot`, and `slotTime(name)`, when it was last
+  saved in Unix seconds, shown against `Time.unixNow()` ("2 hours ago") or with
+  `Text.formatDate(seconds, "YYYY-MM-DD hh:mm")`. Slot names are 1 to 32 letters, digits, `-` and
+  `_`, and case does not count, so they are not for showing: keep a name the player gave as a value.
+
+A store handed out is the game's to hand on: the dialogue plugin keeps its flags in the store it is
+given (`Dialogue.useSave(store)`), never one it picks. A store held after its slot is closed,
+deleted or replaced reaches nothing (`isValid()` is false): its reads give their fallbacks and its
+writes go nowhere.
+
+- `has`, `remove` and `clear` do what they say on the store. A value read as another kind than it
+  was written answers the fallback, except that an int reads as a float.
+- The run writes what changed when it ends and when the application goes to the background. Call
+  `flush()` on a store (or `Saves.flush()` for all of them) at the moment that matters (a level clear,
+  leaving a settings screen) so a crash or a forced quit loses nothing.
+- The player keeps the game's saves (a `<project>.saves` folder: `global.save.xml` and a file per
+  slot) in the user's data directory; play in editor keeps its own in the project's ignored
+  `Editor/` folder, so testing never touches a player's saves. Every game has them, whether its
+  scripts are a game script or only its scenes' and entities' scripts.
+- The player's control bindings and audio bus volumes are kept by the engine; a game does not need
+  to save them.
 
 ## Graphics quality
 

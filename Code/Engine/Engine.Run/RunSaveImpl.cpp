@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Run - a run's saves (the global store, slots, slot reads) and the `Save` facade.
+// Engine::Run - a run's saves (the global store, slots, slot reads), the `Saves` facade and the
+// `SaveStore` a script holds.
 
 module;
 #include "Core/Prelude.h"
@@ -520,123 +521,300 @@ namespace engine::runtime
         return file != nullptr && file->Flush(Now());
     }
 
-    bool SaveFacade::has(core::String key)
+    String RunSaves::NameOf(SaveStoreHandle handle) const
     {
-        SaveFile* save = Resolve();
-        return save != nullptr && save->Values().Has(key.AsView());
+        if (m_slot.Get() != nullptr && handle.serial == m_slot->Serial())
+        {
+            return m_slotName;
+        }
+        for (const SlotRead& read : m_reads)
+        {
+            if (handle.serial == read.file->Serial())
+            {
+                return read.name;
+            }
+        }
+        return String(*m_allocator);
     }
 
-    void SaveFacade::remove(core::String key)
+    void RunSaves::WarnStale()
     {
-        if (SaveFile* save = Resolve(); save != nullptr && save->Values().Remove(key.AsView()))
+        if (!m_warnedStale)
         {
-            save->MarkChanged();
+            m_warnedStale = true;
+            LOG_WARNING(u8"Save", u8"a save store was used after it was closed, deleted or replaced (or was never opened): "
+                                  u8"its reads give their fallbacks and its writes go nowhere");
         }
     }
 
-    void SaveFacade::clear()
+    void RunSaves::WarnReadOnly()
     {
-        if (SaveFile* save = Resolve(); save != nullptr && save->Values().Clear())
+        if (!m_warnedReadOnly)
         {
-            save->MarkChanged();
+            m_warnedReadOnly = true;
+            LOG_WARNING(u8"Save", u8"a slot read (Saves.readSlot) is read only: write to the slot opened with Saves.openSlot");
         }
     }
 
-    i32 SaveFacade::getInt(core::String key, i32 fallback)
-    {
-        SaveFile* save = Resolve();
-        return save != nullptr ? save->Values().GetInt(key.AsView(), fallback) : fallback;
-    }
+    // ---- the script's store ----
 
-    void SaveFacade::setInt(core::String key, i32 value)
+    namespace
     {
-        if (SaveFile* save = Resolve(); save != nullptr && save->Values().SetInt(key.AsView(), value))
+        // The store a script's handle reaches, through the calling script's run's saves; null (and a
+        // warning once) when it is gone. `write`: refused for a slot read.
+        SaveFile* StoreOf(SaveStoreHandle handle, bool write)
         {
-            save->MarkChanged();
+            RunSaves* saves = SavesFacade::Resolve();
+            if (saves == nullptr)
+            {
+                return nullptr; // no run (an editor tool): every fallback
+            }
+            SaveFile* file = saves->Resolve(handle);
+            if (file == nullptr)
+            {
+                saves->WarnStale();
+                return nullptr;
+            }
+            if (write && saves->IsReadOnly(handle))
+            {
+                saves->WarnReadOnly();
+                return nullptr;
+            }
+            return file;
+        }
+
+        void Changed(SaveFile* file, bool changed)
+        {
+            if (file != nullptr && changed)
+            {
+                file->MarkChanged();
+            }
         }
     }
 
-    f32 SaveFacade::getFloat(core::String key, f32 fallback)
+    bool SaveStoreHandle::isValid() const
     {
-        SaveFile* save = Resolve();
-        return save != nullptr ? save->Values().GetFloat(key.AsView(), fallback) : fallback;
+        RunSaves* saves = SavesFacade::Resolve();
+        return saves != nullptr && saves->Resolve(*this) != nullptr;
     }
 
-    void SaveFacade::setFloat(core::String key, f32 value)
+    core::String SaveStoreHandle::name() const
     {
-        if (SaveFile* save = Resolve(); save != nullptr && save->Values().SetFloat(key.AsView(), value))
+        RunSaves* saves = SavesFacade::Resolve();
+        return saves != nullptr ? saves->NameOf(*this) : core::String{};
+    }
+
+    bool SaveStoreHandle::has(core::String key) const
+    {
+        SaveFile* file = StoreOf(*this, false);
+        return file != nullptr && file->Values().Has(key.AsView());
+    }
+
+    void SaveStoreHandle::remove(core::String key) const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().Remove(key.AsView()));
+    }
+
+    void SaveStoreHandle::clear() const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().Clear());
+    }
+
+    i32 SaveStoreHandle::getInt(core::String key, i32 fallback) const
+    {
+        SaveFile* file = StoreOf(*this, false);
+        return file != nullptr ? file->Values().GetInt(key.AsView(), fallback) : fallback;
+    }
+
+    void SaveStoreHandle::setInt(core::String key, i32 value) const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().SetInt(key.AsView(), value));
+    }
+
+    f32 SaveStoreHandle::getFloat(core::String key, f32 fallback) const
+    {
+        SaveFile* file = StoreOf(*this, false);
+        return file != nullptr ? file->Values().GetFloat(key.AsView(), fallback) : fallback;
+    }
+
+    void SaveStoreHandle::setFloat(core::String key, f32 value) const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().SetFloat(key.AsView(), value));
+    }
+
+    bool SaveStoreHandle::getBool(core::String key, bool fallback) const
+    {
+        SaveFile* file = StoreOf(*this, false);
+        return file != nullptr ? file->Values().GetBool(key.AsView(), fallback) : fallback;
+    }
+
+    void SaveStoreHandle::setBool(core::String key, bool value) const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().SetBool(key.AsView(), value));
+    }
+
+    core::String SaveStoreHandle::getString(core::String key, core::String fallback) const
+    {
+        SaveFile* file = StoreOf(*this, false);
+        return file != nullptr ? file->Values().GetText(key.AsView(), fallback.AsView()) : fallback;
+    }
+
+    void SaveStoreHandle::setString(core::String key, core::String value) const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().SetText(key.AsView(), value.AsView()));
+    }
+
+    core::Array<f32> SaveStoreHandle::getFloats(core::String key) const
+    {
+        SaveFile* file = StoreOf(*this, false);
+        return file != nullptr ? file->Values().GetFloats(key.AsView()) : core::Array<f32>{};
+    }
+
+    void SaveStoreHandle::setFloats(core::String key, core::Array<f32> values) const
+    {
+        SaveFile* file = StoreOf(*this, true);
+        Changed(file, file != nullptr && file->Values().SetFloats(key.AsView(), Span<const f32>(values.Data(), values.Size())));
+    }
+
+    bool SaveStoreHandle::flush() const
+    {
+        RunSaves* saves = SavesFacade::Resolve();
+        if (saves == nullptr)
         {
-            save->MarkChanged();
+            return false;
+        }
+        if (saves->Resolve(*this) == nullptr)
+        {
+            saves->WarnStale();
+            return false;
+        }
+        return saves->Flush(*this);
+    }
+
+    // ---- the Saves facade ----
+
+    SaveStoreHandle SavesFacade::global()
+    {
+        RunSaves* saves = Resolve();
+        return saves != nullptr ? saves->GlobalHandle() : SaveStoreHandle{};
+    }
+
+    SaveStoreHandle SavesFacade::openSlot(core::String name)
+    {
+        return openSlot(Move(name), SlotWrites::AsItPlays);
+    }
+
+    SaveStoreHandle SavesFacade::openSlot(core::String name, SlotWrites writes)
+    {
+        RunSaves* saves = Resolve();
+        return saves != nullptr ? saves->OpenSlot(name.AsView(), writes) : SaveStoreHandle{};
+    }
+
+    SaveStoreHandle SavesFacade::readSlot(core::String name)
+    {
+        RunSaves* saves = Resolve();
+        return saves != nullptr ? saves->ReadSlot(name.AsView()) : SaveStoreHandle{};
+    }
+
+    SaveStoreHandle SavesFacade::openedSlot()
+    {
+        RunSaves* saves = Resolve();
+        return saves != nullptr ? saves->OpenedSlot() : SaveStoreHandle{};
+    }
+
+    void SavesFacade::closeSlot()
+    {
+        if (RunSaves* saves = Resolve())
+        {
+            saves->CloseSlot();
         }
     }
 
-    bool SaveFacade::getBool(core::String key, bool fallback)
+    core::Array<core::String> SavesFacade::slots()
     {
-        SaveFile* save = Resolve();
-        return save != nullptr ? save->Values().GetBool(key.AsView(), fallback) : fallback;
+        RunSaves* saves = Resolve();
+        return saves != nullptr ? saves->Slots() : core::Array<core::String>{};
     }
 
-    void SaveFacade::setBool(core::String key, bool value)
+    bool SavesFacade::hasSlot(core::String name)
     {
-        if (SaveFile* save = Resolve(); save != nullptr && save->Values().SetBool(key.AsView(), value))
-        {
-            save->MarkChanged();
-        }
+        RunSaves* saves = Resolve();
+        return saves != nullptr && saves->HasSlot(name.AsView());
     }
 
-    core::String SaveFacade::getString(core::String key, core::String fallback)
+    bool SavesFacade::deleteSlot(core::String name)
     {
-        SaveFile* save = Resolve();
-        return save != nullptr ? save->Values().GetText(key.AsView(), fallback.AsView()) : fallback;
+        RunSaves* saves = Resolve();
+        return saves != nullptr && saves->DeleteSlot(name.AsView());
     }
 
-    void SaveFacade::setString(core::String key, core::String value)
+    bool SavesFacade::copySlot(core::String from, core::String to)
     {
-        if (SaveFile* save = Resolve();
-            save != nullptr && save->Values().SetText(key.AsView(), value.AsView()))
-        {
-            save->MarkChanged();
-        }
+        RunSaves* saves = Resolve();
+        return saves != nullptr && saves->CopySlot(from.AsView(), to.AsView());
     }
 
-    core::Array<f32> SaveFacade::getFloats(core::String key)
+    f64 SavesFacade::slotTime(core::String name)
     {
-        SaveFile* save = Resolve();
-        return save != nullptr ? save->Values().GetFloats(key.AsView()) : core::Array<f32>{};
+        RunSaves* saves = Resolve();
+        return saves != nullptr ? static_cast<f64>(saves->SlotTime(name.AsView())) : 0.0;
     }
 
-    void SaveFacade::setFloats(core::String key, core::Array<f32> values)
+    bool SavesFacade::flush()
     {
-        if (SaveFile* save = Resolve(); save != nullptr &&
-                                       save->Values().SetFloats(key.AsView(), Span<const f32>(values.Data(), values.Size())))
-        {
-            save->MarkChanged();
-        }
-    }
-
-    bool SaveFacade::flush()
-    {
-        RunSaves* saves = script::CurrentService<RunSaves>();
+        RunSaves* saves = Resolve();
         return saves != nullptr && saves->Flush();
     }
 
-    REFLECT_MEMBERS(SaveFacade, "rtti::engine::runtime")
+    REFLECT_ENUM(SlotWrites, "rtti::engine::runtime")
     {
-        builder.Attribute("scriptName", "Save");
-        builder.Method<&SaveFacade::has>("has", {"key"});
-        builder.Method<&SaveFacade::remove>("remove", {"key"});
-        builder.Method<&SaveFacade::clear>("clear");
-        builder.Method<&SaveFacade::getInt>("getInt", {"key", "fallback"});
-        builder.Method<&SaveFacade::setInt>("setInt", {"key", "value"});
-        builder.Method<&SaveFacade::getFloat>("getFloat", {"key", "fallback"});
-        builder.Method<&SaveFacade::setFloat>("setFloat", {"key", "value"});
-        builder.Method<&SaveFacade::getBool>("getBool", {"key", "fallback"});
-        builder.Method<&SaveFacade::setBool>("setBool", {"key", "value"});
-        builder.Method<&SaveFacade::getString>("getString", {"key", "fallback"});
-        builder.Method<&SaveFacade::setString>("setString", {"key", "value"});
-        builder.Method<&SaveFacade::getFloats>("getFloats", {"key"});
-        builder.Method<&SaveFacade::setFloats>("setFloats", {"key", "values"});
-        builder.Method<&SaveFacade::flush>("flush");
+        builder.Value("AsItPlays", SlotWrites::AsItPlays).Value("AtSavePoints", SlotWrites::AtSavePoints);
+    }
+
+    REFLECT_VALUE(SaveStoreHandle, "rtti::engine::runtime")
+    {
+        builder.Attribute("scriptName", "SaveStore");
+        builder.Method<&SaveStoreHandle::isValid>("isValid");
+        builder.Method<&SaveStoreHandle::name>("name");
+        builder.Method<&SaveStoreHandle::has>("has", {"key"});
+        builder.Method<&SaveStoreHandle::remove>("remove", {"key"});
+        builder.Method<&SaveStoreHandle::clear>("clear");
+        builder.Method<&SaveStoreHandle::getInt>("getInt", {"key", "fallback"});
+        builder.Method<&SaveStoreHandle::setInt>("setInt", {"key", "value"});
+        builder.Method<&SaveStoreHandle::getFloat>("getFloat", {"key", "fallback"});
+        builder.Method<&SaveStoreHandle::setFloat>("setFloat", {"key", "value"});
+        builder.Method<&SaveStoreHandle::getBool>("getBool", {"key", "fallback"});
+        builder.Method<&SaveStoreHandle::setBool>("setBool", {"key", "value"});
+        builder.Method<&SaveStoreHandle::getString>("getString", {"key", "fallback"});
+        builder.Method<&SaveStoreHandle::setString>("setString", {"key", "value"});
+        builder.Method<&SaveStoreHandle::getFloats>("getFloats", {"key"});
+        builder.Method<&SaveStoreHandle::setFloats>("setFloats", {"key", "values"});
+        builder.Method<&SaveStoreHandle::flush>("flush");
+        builder.Constructor(); // some backends only materialize constructible foreign values
+    }
+
+    REFLECT_MEMBERS(SavesFacade, "rtti::engine::runtime")
+    {
+        builder.Attribute("scriptName", "Saves");
+        builder.Method<&SavesFacade::global>("global");
+        builder.Method<static_cast<SaveStoreHandle (*)(core::String)>(&SavesFacade::openSlot)>("openSlot", {"name"});
+        builder.Method<static_cast<SaveStoreHandle (*)(core::String, SlotWrites)>(&SavesFacade::openSlot)>("openSlot",
+                                                                                                       {"name", "writes"});
+        builder.Method<&SavesFacade::readSlot>("readSlot", {"name"});
+        builder.Method<&SavesFacade::openedSlot>("openedSlot");
+        builder.Method<&SavesFacade::closeSlot>("closeSlot");
+        builder.Method<&SavesFacade::slots>("slots");
+        builder.Method<&SavesFacade::hasSlot>("hasSlot", {"name"});
+        builder.Method<&SavesFacade::deleteSlot>("deleteSlot", {"name"});
+        builder.Method<&SavesFacade::copySlot>("copySlot", {"from", "to"});
+        builder.Method<&SavesFacade::slotTime>("slotTime", {"name"});
+        builder.Method<&SavesFacade::flush>("flush");
         builder.Constructor();
     }
 
@@ -646,8 +824,17 @@ namespace engine::runtime
         {
             RegisterSaveSections();   // reading a save file instantiates each section by name
             RegisterArrayType<f32>();           // getFloats/setFloats: a list crosses as array<float>
-            GlobalTypeRegistry().Register(SaveFacade::StaticType());
-            foundation::script::RegisterExtraFacadeName(u8"Save");
+            RegisterArrayType<core::String>(); // slots(): the names cross as array<string>
+            RttiRegisterEnum_SlotWrites();
+            GlobalTypeRegistry().Register(TypeOf<SlotWrites>());
+            RttiRegisterValue_SaveStoreHandle();
+            GlobalTypeRegistry().Register(TypeOf<SaveStoreHandle>());
+            GlobalTypeRegistry().Register(SavesFacade::StaticType());
+            foundation::script::RegisterExtraScriptRootType(&TypeOf<SaveStoreHandle>());
+            foundation::script::RegisterExtraFacadeName(u8"SaveStore");
+            foundation::script::RegisterExtraScriptRootType(&TypeOf<SlotWrites>());
+            foundation::script::RegisterExtraFacadeName(u8"SlotWrites");
+            foundation::script::RegisterExtraFacadeName(u8"Saves");
             return true;
         }();
         (void)once;

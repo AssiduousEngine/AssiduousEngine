@@ -19,6 +19,7 @@ export module dialogue.engine:facade;
 import foundation.core;
 import foundation.script.facades;
 import :run;
+import engine.run; // SaveStoreHandle, what useSave is given
 
 using namespace foundation::core;
 
@@ -51,6 +52,10 @@ export namespace dialogue
         /// Plays the speaker `speaker` as `entity` in what follows (an invalid entity: the cast's
         /// again).
         static void bind(String speaker, foundation::script::Entity entity);
+        /// Keeps the flags and a conversation's place in `store`, the game's (a slot it opened with
+        /// Saves.openSlot, or Saves.global() for a game with one save). Until it is given one they
+        /// last the run only. False for a slot read or a store that is not there.
+        static bool useSave(engine::runtime::SaveStoreHandle store);
     };
 
     /// Registers the facade and the notices for script. Called on each load (the domain's

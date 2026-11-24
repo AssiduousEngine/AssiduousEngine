@@ -1,15 +1,15 @@
 # Integration.ScriptFacades - subsystem script facades exercised end-to-end on the script backends
-# (Net.*, Audio.*, Http.*, RenderQuality.* and Text.* driven from AngelScript and Luau). These tests cross
+# (Net.*, Audio.*, Http.*, RenderQuality.*, Text.* and Saves.* driven from AngelScript and Luau). These tests cross
 # layers (scripting and a subsystem), so they live here rather than in the subsystem's own unit-test
 # suite, which stays backend-neutral. Each backend leg is #ifdef OPTION_HAS_<backend>-guarded (the global presence
 # macros on policy); link only the enabled backends via the ${SCRIPTLIB_*} target-or-empty aliases.
 add_executable(Integration.ScriptFacades TestsMain.cpp
     NetFacadeScriptTests.cpp AudioFacadeScriptTests.cpp HttpFacadeScriptTests.cpp
-    RenderQualityFacadeScriptTests.cpp TextFacadeScriptTests.cpp)
+    RenderQualityFacadeScriptTests.cpp TextFacadeScriptTests.cpp SavesFacadeScriptTests.cpp)
 target_link_libraries(Integration.ScriptFacades PRIVATE
     Foundation::Core Foundation::Script Foundation::Net Foundation::Net.Manager
     Foundation::Http Foundation::Http.Client Foundation::Http.Script
-    Foundation::Audio Engine::Audio Foundation::Audio.Resource Engine::Render
+    Foundation::Audio Engine::Audio Foundation::Audio.Resource Engine::Render Engine::Run
     Foundation::Content Foundation::Resource Foundation::VFS
     Foundation::Scene Foundation::Scene.Resource Foundation::Net.Replication
     ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}

@@ -161,16 +161,38 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
     CHECK(HasFacadeName(u8"DialogueLineNotice"));
     CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueFacade::StaticType().id) != nullptr);
 
-    // Every run gets a runner, its flags in the run's global store under the settings' prefix.
+    // Every run gets a runner. Its flags go in the store the game gives it, under the settings'
+    // prefix, and nowhere else: before it is given one they last the run only.
     {
         engine::runtime::ApplicationRun run;
+        const String folder = String(u8"scratch_dialogue_saves");
+        (void)RemoveDirectoryRecursive(folder.AsView());
+        run.SetSavesFolder(folder.AsView());
         auto* runner = run.Get<dialogue::DialogueRunService>();
         REQUIRE(runner != nullptr);
         CHECK_FALSE(runner->IsPlaying());
+        runner->SetFlag(u8"before", true);
+        CHECK(runner->Flag(u8"before")); // kept for the run
+        CHECK_FALSE(run.Saves().Global().Values().Has(u8"flag.before"));
+
+        const engine::runtime::SaveStoreHandle slot = run.Saves().OpenSlot(u8"1");
+        CHECK_FALSE(runner->UseSave(run.Saves().ReadSlot(u8"1"))); // a slot read is refused
+        REQUIRE(runner->UseSave(slot));
+        CHECK_FALSE(runner->Flag(u8"before")); // the run's scratch is no playthrough's
+        runner->SetFlag(u8"met_keeper", true);
+        CHECK(run.Saves().Resolve(slot)->Values().GetBool(u8"flag.met_keeper", false));
+        CHECK_FALSE(run.Saves().Global().Values().Has(u8"flag.met_keeper"));
+        CHECK(runner->Flag(u8"met_keeper"));
+
+        // A slot closed leaves the runner with no store: scratch again, never the global store.
+        run.Saves().CloseSlot();
+        runner->SetFlag(u8"after", true);
+        CHECK_FALSE(run.Saves().Global().Values().Has(u8"flag.after"));
+        REQUIRE(runner->UseSave(run.Saves().GlobalHandle())); // a game with one save
         runner->SetFlag(u8"met_keeper", true);
         CHECK(run.Saves().Global().Values().GetBool(u8"flag.met_keeper", false));
         CHECK(run.Saves().Global().HasChanges());
-        CHECK(runner->Flag(u8"met_keeper"));
+        (void)RemoveDirectoryRecursive(folder.AsView());
         CHECK_FALSE(runner->Resume()); // nothing saved to resume
         CHECK_FALSE(runner->Play(Guid{}, u8"gate")); // no such file: refused
     }

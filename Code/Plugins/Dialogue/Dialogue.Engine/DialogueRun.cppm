@@ -62,6 +62,12 @@ export namespace dialogue
 
         /// Plays the speaker `speaker` as `entity` in what follows (unassigned: the cast's again).
         void Bind(StringView speaker, foundation::scene::EntityHandle entity);
+        /// Keeps the flags and a conversation's place in `store` (the game's: a slot it opened, or the
+        /// global store). Until it is given one, or once that store is gone, they are kept in scratch
+        /// for the run, with one warning. Giving a store drops the scratch. False, and nothing
+        /// changed, for a slot read (read only) or a store that is not there.
+        bool UseSave(engine::runtime::SaveStoreHandle store);
+        [[nodiscard]] engine::runtime::SaveStoreHandle UsedSave() const noexcept { return m_store; }
         /// Loads `resource` for the dialogue file `id` in place of its cooked form (a preview of
         /// its text as it is edited); null goes back to the cooked one.
         void SetDialogue(const Guid& id, RefPtr<DialogueResource> resource);
@@ -147,7 +153,11 @@ export namespace dialogue
         bool m_hasScene = false;
         bool m_showBox = false;
         [[nodiscard]] bool BoxOn() const noexcept { return m_showBox || m_settings->stockBox; }
-        Array<String> m_scratchKeys; // the store of a run with no save
+        // The store the game gave (UseSave): null when there is none or it is gone, told once.
+        [[nodiscard]] engine::runtime::SaveFile* Store();
+        engine::runtime::SaveStoreHandle m_store;
+        bool m_warnedNoStore = false;
+        Array<String> m_scratchKeys; // the flags while no store is given
         Array<String> m_scratchValues;
         [[nodiscard]] String* Scratch(StringView key);
         void WriteScratch(StringView key, StringView value);
@@ -171,6 +181,8 @@ export namespace dialogue
 
         /// Plays the speaker `speaker` as `entity` (unassigned: the cast's entity again).
         void Bind(StringView speaker, foundation::scene::EntityHandle entity) { m_runHost.Bind(speaker, entity); }
+        /// The store the flags and a conversation's place are kept in (DialogueRunHost::UseSave).
+        bool UseSave(engine::runtime::SaveStoreHandle store) { return m_runHost.UseSave(store); }
 
     private:
         DialogueRunHost m_runHost;

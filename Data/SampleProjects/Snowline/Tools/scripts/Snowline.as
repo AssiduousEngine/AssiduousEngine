@@ -263,18 +263,18 @@ class Game : RunBehavior
     // A course opens with a bronze or better on the one before it; the first is always open.
     private bool unlocked(int i)
     {
-        return i == 0 || Save::getInt("medal." + courseName(i - 1), 0) >= 1;
+        return i == 0 || Saves::global().getInt("medal." + courseName(i - 1), 0) >= 1;
     }
 
     // The best medal and time won on a course, from the save.
     private string bestLine(int i)
     {
-        float best = Save::getFloat("best." + courseName(i), -1.0f);
+        float best = Saves::global().getFloat("best." + courseName(i), -1.0f);
         if (best < 0.0f)
         {
             return "Not ridden yet";
         }
-        return medalTitle(Save::getInt("medal." + courseName(i), 0)) + "   best " + clock(best);
+        return medalTitle(Saves::global().getInt("medal." + courseName(i), 0)) + "   best " + clock(best);
     }
 
     // Starts a course from the top: everything the last run counted is reset, and the scene loads
@@ -585,19 +585,19 @@ class Game : RunBehavior
     private void keepBest(float total)
     {
         string course = run::currentScene().name();
-        m_previousBest = Save::getFloat("best." + course, -1.0f);
+        m_previousBest = Saves::global().getFloat("best." + course, -1.0f);
         if (m_previousBest < 0.0f || total < m_previousBest)
         {
-            Save::setFloat("best." + course, total);
+            Saves::global().setFloat("best." + course, total);
             run::events().emit("NewBest", int(total * 100.0f + 0.5f));
         }
         int rank = medalRank(medalName(total));
-        if (rank > Save::getInt("medal." + course, 0))
+        if (rank > Saves::global().getInt("medal." + course, 0))
         {
-            Save::setInt("medal." + course, rank);
+            Saves::global().setInt("medal." + course, rank);
             m_endingDue = course == courseName(kCourseCount - 1);
         }
-        Save::flush();
+        Saves::global().flush();
     }
 
     // 3 gold, 2 silver, 1 bronze, 0 none.
@@ -660,7 +660,7 @@ class Game : RunBehavior
         screens().clear();
         screens().push(kEndingDoc);
         string last = courseName(kCourseCount - 1);
-        setText("end-headline", medalTitle(Save::getInt("medal." + last, 0)) + " on " + last);
+        setText("end-headline", medalTitle(Saves::global().getInt("medal." + last, 0)) + " on " + last);
         float total = 0.0f;
         bool allRidden = true;
         int golds = 0;
@@ -668,8 +668,8 @@ class Game : RunBehavior
         int bronzes = 0;
         for (int i = 0; i < kCourseCount; ++i)
         {
-            float best = Save::getFloat("best." + courseName(i), -1.0f);
-            int rank = Save::getInt("medal." + courseName(i), 0);
+            float best = Saves::global().getFloat("best." + courseName(i), -1.0f);
+            int rank = Saves::global().getInt("medal." + courseName(i), 0);
             setMedal("end-" + i + "-medal", rank);
             setText("end-" + i + "-best", best < 0.0f ? "not ridden" : medalTitle(rank) + "   " + clock(best));
             if (best < 0.0f)
