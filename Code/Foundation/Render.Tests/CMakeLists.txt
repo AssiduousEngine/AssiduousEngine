@@ -12,7 +12,7 @@ add_executable(Render.Tests
     MultiMeshLifecycleTests.cpp WindTests.cpp DebugScreenTextTests.cpp BindGroupCacheTests.cpp)
 
 target_link_libraries(Render.Tests PRIVATE Foundation::VFS
-    Foundation::Render Foundation::RenderGraph Foundation::RHI.Null Foundation::Geometry Foundation::Materials Foundation::Materials.PipelineCache Foundation::Shaders.System doctest::doctest)
+    Foundation::Render Foundation::RenderGraph Foundation::RHI.Null Foundation::Geometry Foundation::Materials Foundation::Materials.PipelineCache Foundation::Shaders.System Foundation::Profiler doctest::doctest)
 
 target_compile_definitions(Render.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

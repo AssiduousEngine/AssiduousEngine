@@ -20,6 +20,7 @@ import foundation.shaders.system;
 import foundation.materials.pipelinecache;
 import foundation.render;
 import foundation.rendergraph;
+import foundation.profiler;
 
 using namespace foundation::core;
 using namespace foundation::render;
@@ -27,6 +28,7 @@ namespace rhi = foundation::rhi;
 namespace geometry = foundation::geometry;
 namespace materials = foundation::materials;
 namespace shaders = foundation::shaders;
+namespace profiler = foundation::profiler;
 
 namespace
 {
@@ -441,6 +443,63 @@ TEST_CASE("SpriteRenderer draws every run of a view, however many the view resol
     } // the renderer, and its bind group over the texture, go first
     h.device.DestroyTextureView(view);
     h.device.DestroyTexture(texture);
+}
+
+TEST_CASE("MeshRenderer: a frame publishes the bytes it wrote for the GPU while the profiler records")
+{
+    // The rings are mapped memory the device's counters never see; a measurement reads these.
+    RenderHarness h;
+    if (!h.Init(64, 64))
+    {
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    materials::PipelineStateCache psoCache(shaderSystem, h.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(h.device).IsOk());
+    MeshRenderer meshRenderer(DefaultAllocator(), h.device, shaderSystem, psoCache, materialSystem,
+                              /*framesInFlight*/ 2);
+    REQUIRE(meshRenderer.Initialize().IsOk());
+
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+    MeshRenderData rd{};
+    rd.worldRadius = 1.0f;
+    rd.mesh = cube.Get();
+    rd.material = material.Get();
+    rd.rendererId = meshRenderer.RendererId();
+    rd.category = RenderCategories::Opaque;
+    const DrawItem item{0, &rd};
+
+    profiler::Profiler& p = profiler::Profiler::Get();
+    REQUIRE_FALSE(p.Armed());
+    p.Arm();
+    p.BeginFrame();
+    meshRenderer.PrepareFrame(1, 0);
+    RenderRecordContext ctx{};
+    Array<ResolvedDraw> out;
+    meshRenderer.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
+    meshRenderer.FinishFrame();
+    p.EndFrame();
+    const profiler::FrameRecord* frame = p.LatestFrame();
+    REQUIRE(frame != nullptr);
+    const auto counter = [&](StringView name)
+    {
+        for (const profiler::CounterValue& value : frame->counters)
+        {
+            if (StringView(p.Counters()[value.counter].name) == name)
+            {
+                return value.value;
+            }
+        }
+        return -1.0;
+    };
+    // One lone mesh: one instance record and its draw offsets.
+    CHECK(counter(u8"mesh.instances bytes") == static_cast<f64>(sizeof(GpuInstance)));
+    CHECK(counter(u8"mesh.offsets bytes") == static_cast<f64>(sizeof(GpuDrawOffsets)));
+    CHECK(counter(u8"mesh.bones bytes") == 0.0);
+    p.Disarm();
 }
 
 TEST_CASE("MeshRenderer: a probe's faces each get a view slot, and a view's runs share one")

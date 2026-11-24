@@ -1273,8 +1273,38 @@ namespace foundation::render
         }
     }
 
+    // What this frame wrote for the GPU, per kind, as profiler counters (a measurement reads them):
+    // the rings are mapped memory the device's own counters never see.
+    void MeshRenderer::PublishFrameBytes()
+    {
+        foundation::profiler::Profiler& profiler = foundation::profiler::Profiler::Get();
+        if (!profiler.Armed())
+        {
+            return;
+        }
+        if (!m_frameBytesCounters)
+        {
+            using foundation::profiler::CounterUnit;
+            m_offsetsBytesCounter = profiler.RegisterCounter(u8"mesh.offsets bytes", CounterUnit::Bytes);
+            m_instanceBytesCounter = profiler.RegisterCounter(u8"mesh.instances bytes", CounterUnit::Bytes);
+            m_viewBytesCounter = profiler.RegisterCounter(u8"mesh.views bytes", CounterUnit::Bytes);
+            m_lightBytesCounter = profiler.RegisterCounter(u8"mesh.lights bytes", CounterUnit::Bytes);
+            m_boneBytesCounter = profiler.RegisterCounter(u8"mesh.bones bytes", CounterUnit::Bytes);
+            m_frameBytesCounters = true;
+        }
+        const auto bytes = [](const DynamicUniformRing& ring)
+        { return static_cast<f64>(ring.FrameAllocatedSlots()) * static_cast<f64>(ring.SlotSize()); };
+        profiler.SetCounter(m_offsetsBytesCounter, bytes(m_offsetsRing));
+        profiler.SetCounter(m_instanceBytesCounter, bytes(m_instanceRing));
+        profiler.SetCounter(m_viewBytesCounter, static_cast<f64>(m_viewRing.FrameSlots()) * static_cast<f64>(kViewDataSlot) +
+                                                    bytes(m_shadowViewRing));
+        profiler.SetCounter(m_lightBytesCounter, bytes(m_lightRing) + bytes(m_localShadowRing));
+        profiler.SetCounter(m_boneBytesCounter, bytes(m_boneRing));
+    }
+
     void MeshRenderer::FinishFrame()
     {
+        PublishFrameBytes();
         m_viewRing.EndFrame();
         m_shadowViewRing.EndFrame();
         m_instanceRing.EndFrame();

@@ -720,6 +720,11 @@ export namespace foundation::render
         HashMap<u64, MotionHistory> m_motion{*m_allocator}; // by scene serial
         u64 m_motionScene = ~0ull;
         MotionHistory* m_motionLast = nullptr; // m_motion's entry for m_motionScene (reset when it rehashes)
+        // The frame's writes for the GPU as profiler counters, registered on first use.
+        void PublishFrameBytes();
+        bool m_frameBytesCounters = false;
+        u32 m_offsetsBytesCounter = 0, m_instanceBytesCounter = 0, m_viewBytesCounter = 0, m_lightBytesCounter = 0,
+            m_boneBytesCounter = 0;
 
         // Record `cur` as this frame's world (idempotent across a frame's views, which pass the same value) and
         // return the entity's previous-frame world in its scene (or `cur` if unknown). Indexed by entity
