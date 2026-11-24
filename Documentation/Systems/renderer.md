@@ -321,8 +321,8 @@ Port Sedulous's patterns (the best part of it), on our RHI:
  NOT pointer casts. Kills Sedulous's pointer-reuse hazard + the retry loop outright.
 
 As built: the rings are `DynamicUniformRing` (one buffer split into a region per frame in flight,
-serving per-view and per-object dynamic-offset uniforms, per-instance storage and the instance
-offsets stream) and `ViewUniformRing`; the mesh renderer sizes its view, shadow-view, object,
+serving per-view dynamic-offset uniforms, per-instance storage and the instance
+offsets stream) and `ViewUniformRing`; the mesh renderer sizes its view, shadow-view,
 instance, offsets, light, local-shadow and bone rings each frame for every pass that re-emits draws
 (the camera passes, each cascade and atlas tile, probe faces, picks), and logs once when a fixed
 budget runs out. Bones are a per-frame ring the mesh renderer fills for every scene's skeletons, not
@@ -503,9 +503,7 @@ Which entity is under a pixel (or inside a rect) of a view, answered by the GPU 
   (256-byte rows, the WebGPU/D3D12 pitch); the slot retires when the device ring has LEFT and
   RETURNED to the submitting frame index (the ThumbnailStage rule), then maps and decodes. Never
   WaitIdle.
-- **Ids per draw kind.** Single objects: the `Object` block's `PickIndex` and `PickGeneration`
-  (`object_block.hlsli`, `render::GpuObject`, one declaration the forward, depth and pick stages
-  all include). Instanced runs: the instance-stepped `pickOffsets` (`render::GpuPickDrawOffsets`:
+- **Ids per draw kind.** Meshes, a lone one as an instanced draw of one: the instance-stepped `pickOffsets` (`render::GpuPickDrawOffsets`:
   instance, bone base, generation, index + 1), which the pick pass fills itself, never the
   forward's `drawOffsets` (`render::GpuDrawOffsets`: instance, bone base, last frame's bone base,
   the fade as a float by its bits). MultiMesh sets: one entity for all instances, so the id rides
