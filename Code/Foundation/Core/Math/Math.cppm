@@ -49,10 +49,9 @@ export namespace foundation::core
     /// Neither infinite nor NaN.
     [[nodiscard]] inline bool IsFinite(f32 x) noexcept { return std::isfinite(x); }
     [[nodiscard]] inline f32 Ceil(f32 x) noexcept { return std::ceil(x); }
-    [[nodiscard]] inline f32 Round(f32 x) noexcept
-    {
-        return std::round(x);
-    } // round half away from zero
+    // Round half away from zero. The f64 twin keeps counts past 2^24 exact (MSVC C4244).
+    [[nodiscard]] inline f32 Round(f32 x) noexcept { return std::round(x); }
+    [[nodiscard]] inline f64 Round(f64 x) noexcept { return std::round(x); }
     [[nodiscard]] inline f32 Pow(f32 base, f32 exp) noexcept { return std::pow(base, exp); }
     [[nodiscard]] inline f32 Log(f32 x) noexcept { return std::log(x); } // natural log
     [[nodiscard]] inline f32 Exp(f32 x) noexcept { return std::exp(x); }

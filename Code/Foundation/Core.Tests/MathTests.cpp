@@ -28,6 +28,8 @@ TEST_CASE("math: scalar helpers")
     CHECK(Round(3.3f) == 3.0f);
     CHECK(Round(3.5f) == 4.0f);
     CHECK(Round(-3.5f) == -4.0f);
+    // Past 2^24 an f32 cannot hold every integer; the f64 overload keeps the count.
+    CHECK(Round(82000001.4) == 82000001.0);
 
     static_assert(Abs(-1.0f) == 1.0f);
 }

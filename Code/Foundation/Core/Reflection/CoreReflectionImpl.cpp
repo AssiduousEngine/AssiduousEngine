@@ -277,7 +277,7 @@ namespace foundation::core
             .Method<&Atan2>("Atan2", {"y", "x"}).Pure()
             .Method<&Floor>("Floor", {"x"}).Pure()
             .Method<&Ceil>("Ceil", {"x"}).Pure()
-            .Method<&Round>("Round", {"x"}).Pure()
+            .Method<static_cast<f32 (*)(f32)>(&Round)>("Round", {"x"}).Pure()
             .Method<&Pow>("Pow", {"base", "exp"}).Pure()
             .Method<&Log>("Log", {"x"}).Pure()
             .Method<&Exp>("Exp", {"x"}).Pure()
