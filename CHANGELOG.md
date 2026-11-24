@@ -7,6 +7,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Added
+
+- The player (and every application on the default app) takes `--measure <frames>`: after a
+  warm-up it averages that many frames from the profiler, every CPU scope and GPU pass, prints them
+  (and writes them with `--measure-out <file>`), and exits, for numbers that compare across builds.
+
 ### Changed
 
 - Scripts: a `VoiceHandle`'s slot is now `index`, as on every other handle; `isValid()` is unchanged.

@@ -70,6 +70,10 @@ namespace engine::runtime
 {
     void DefaultApplication::OnUpdate(IApplicationHost& host, core::f32 deltaTime)
     {
+        if (m_measureFrames > 0)
+        {
+            MeasureStep(host);
+        }
         // A back button nothing in the game handled (no GUI used it, no action binds it) is the
         // platform's: a phone puts the app in the background.
         if (m_gui != nullptr && m_gui->BackUnhandled())
@@ -801,10 +805,138 @@ namespace engine::runtime
         SetScreenshotOptions(rhi::ScreenshotOptionsFromArguments(argc, argv));
         for (int i = 1; i < argc; ++i)
         {
-            if (core::StringView(reinterpret_cast<const core::utf8char*>(argv[i])) == core::StringView(u8"--profile-overlay"))
+            const core::StringView arg(reinterpret_cast<const core::utf8char*>(argv[i]));
+            if (arg == core::StringView(u8"--profile-overlay"))
             {
                 m_profilerOverlayAtStart = true; // shown once the GUI is up (OnStartup)
             }
+            else if (arg == core::StringView(u8"--measure") && i + 1 < argc)
+            {
+                const core::Optional<core::i64> frames =
+                    core::ParseInt(core::StringView(reinterpret_cast<const core::utf8char*>(argv[++i])));
+                m_measureFrames = frames.HasValue() && frames.Value() > 0 ? static_cast<core::u64>(frames.Value()) : 0;
+            }
+            else if (arg == core::StringView(u8"--measure-out") && i + 1 < argc)
+            {
+                m_measureOut = core::String(reinterpret_cast<const core::utf8char*>(argv[++i]));
+            }
+        }
+    }
+
+    namespace
+    {
+        void AddMeasuredMs(core::HashMap<core::u32, core::f64>& sums, core::u32 name, core::f64 ms)
+        {
+            if (core::f64* sum = sums.Find(name))
+            {
+                *sum += ms;
+            }
+            else
+            {
+                sums.InsertOrAssign(name, ms);
+            }
+        }
+
+        // Milliseconds to the microsecond, for a report that reads and compares.
+        [[nodiscard]] core::f64 Micro(core::f64 ms) { return core::Round(ms * 1000.0) / 1000.0; }
+
+        void AppendMeasuredSums(core::String& out, const foundation::profiler::Profiler& profiler,
+                                const core::HashMap<core::u32, core::f64>& sums, core::u64 frames)
+        {
+            struct Row
+            {
+                core::u32 name;
+                core::f64 ms;
+            };
+            core::Array<Row> rows;
+            for (const auto& kv : sums)
+            {
+                rows.PushBack(Row{kv.key, kv.value / static_cast<core::f64>(frames)});
+            }
+            rows.Sort([](const Row& a, const Row& b) { return a.ms > b.ms; });
+            for (const Row& row : rows)
+            {
+                core::AppendFormat(out, u8"  {} ms  {}\n", Micro(row.ms), profiler.NameOf(row.name));
+            }
+        }
+    }
+
+    // After the warm-up, one profiler frame per update, read once its GPU passes are in.
+    void DefaultApplication::MeasureStep(IApplicationHost& host)
+    {
+        foundation::profiler::Profiler& profiler = foundation::profiler::Profiler::Get();
+        if (++m_measureUpdates == 1)
+        {
+            profiler.Arm();
+            return;
+        }
+        if (m_measureUpdates < kMeasureWarmupFrames || profiler.LatestRecordedFrame() < kMeasureGpuLagFrames)
+        {
+            return;
+        }
+        const core::u64 number = profiler.LatestRecordedFrame() - kMeasureGpuLagFrames;
+        if (m_measureFirst == 0)
+        {
+            m_measureFirst = number;
+        }
+        if (number < m_measureFirst + m_measured)
+        {
+            return; // read already
+        }
+        const foundation::profiler::FrameRecord* frame = profiler.Frame(m_measureFirst + m_measured);
+        ++m_measured;
+        if (frame != nullptr)
+        {
+            m_measureFrameMs += frame->Ms();
+            for (const foundation::profiler::ThreadFrame& thread : frame->threads)
+            {
+                for (const foundation::profiler::ScopeEvent& scope : thread.scopes)
+                {
+                    AddMeasuredMs(m_measureCpuMs, scope.name, core::TicksToMilliseconds(scope.endTick - scope.beginTick));
+                }
+            }
+            if (frame->gpuValid && !frame->gpu.IsEmpty())
+            {
+                core::u64 begin = ~0ull;
+                core::u64 end = 0;
+                for (const foundation::profiler::GpuPassEvent& pass : frame->gpu)
+                {
+                    AddMeasuredMs(m_measureGpuMs, pass.name, core::TicksToMilliseconds(pass.endTick - pass.beginTick));
+                    begin = pass.beginTick < begin ? pass.beginTick : begin;
+                    end = pass.endTick > end ? pass.endTick : end;
+                }
+                m_measureGpuFrameMs += core::TicksToMilliseconds(end - begin);
+                ++m_measureGpuFrames;
+            }
+        }
+        if (m_measured >= m_measureFrames)
+        {
+            ReportMeasurement(profiler);
+            host.RequestExit(0);
+            m_measureFrames = 0;
+        }
+    }
+
+    void DefaultApplication::ReportMeasurement(const foundation::profiler::Profiler& profiler)
+    {
+        core::String out;
+        core::AppendFormat(out, u8"=== measure: {}, {} frames after {} warm-up ===\n"
+                                u8"frame {} ms  gpu frame {} ms ({} frames with GPU passes)\n",
+                           m_measureLabel.IsEmpty() ? core::StringView(u8"(unlabelled)") : m_measureLabel.AsView(),
+                           m_measured, kMeasureWarmupFrames,
+                           Micro(m_measureFrameMs / static_cast<core::f64>(m_measured)),
+                           Micro(m_measureGpuFrames > 0 ? m_measureGpuFrameMs / static_cast<core::f64>(m_measureGpuFrames) : 0.0),
+                           m_measureGpuFrames);
+        out.Append(u8"cpu scopes, per frame (summed over threads and calls):\n");
+        AppendMeasuredSums(out, profiler, m_measureCpuMs, m_measured);
+        out.Append(u8"gpu passes, per frame:\n");
+        AppendMeasuredSums(out, profiler, m_measureGpuMs, m_measured);
+        core::ConsoleWrite(out.AsView());
+        if (!m_measureOut.IsEmpty())
+        {
+            const core::StringView text = out.AsView();
+            (void)core::WriteFile(m_measureOut.AsView(),
+                                  core::Span<const core::byte>(reinterpret_cast<const core::byte*>(text.Data()), text.Size()));
         }
     }
 

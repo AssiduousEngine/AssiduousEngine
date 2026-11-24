@@ -17,6 +17,7 @@
 // Usage: Engine.Player <projectDir> [--scene <source-db-path>] [--exit-after <seconds>]
 //                      [--quality <label>]  (start at that quality level; the choice is not kept)
 //                      [--profile-capture <seconds>] [--profile-overlay]
+//                      [--measure <frames> [--measure-out <file>]]  (average frames, report, exit)
 //                      [--data-root <dir>]  (engine data; default = the Data/.dataroot walk)
 //                      [--screenshot <png> [--screenshot-frame N | --screenshot-after S]
 //                       [--screenshot-count N] [--screenshot-exit]]
@@ -243,6 +244,13 @@ int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
         return 1;
     }
 
+    // What a --measure report names, taken before the options move into the application.
+    String measureLabel(options.projectDir);
+    if (!options.sceneOverride.IsEmpty())
+    {
+        measureLabel.Append(u8", scene ");
+        measureLabel.Append(options.sceneOverride.AsView());
+    }
     PlayerApplication app(static_cast<PlayerOptions&&>(options));
     // Engine data (shaders, built-in fonts): an explicit --data-root, else the discovery walk
     // from the executable (a dist stages Data/ beside the player). Resolved in Configure.
@@ -255,6 +263,7 @@ int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
         app.SetDataRoot(foundation::vfs::DataRootFromArguments(argc, argv).AsView());
     }
     app.OnCommandLine(argc, argv); // the base app's flags (--screenshot ...)
+    app.SetMeasureLabel(measureLabel.AsView()); // what a --measure report names
     app.SetExitAfterSeconds(exitAfterSeconds); // --exit-after
 #if BUILD_PROFILING
     // --profile-capture <seconds>: a capture from the start, to <user-data>/profiles.

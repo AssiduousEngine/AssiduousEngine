@@ -244,6 +244,13 @@ export namespace engine::runtime
         [[nodiscard]] ProfilerOverlayHost& ProfilerOverlay();
         /// Exit the host after this many seconds of updates (0 = never). The player's --exit-after.
         void SetExitAfterSeconds(core::f32 seconds) noexcept { m_exitAfterSeconds = seconds; }
+        /// `--measure <frames>`: after a warm-up, average this many frames from the profiler (every
+        /// CPU scope and GPU pass, per frame), print them, write them to `--measure-out <file>` if
+        /// given, and exit. For numbers that compare across builds; measure a RelWithDebInfo build.
+        void SetMeasureFrames(core::u64 frames) noexcept { m_measureFrames = frames; }
+        [[nodiscard]] bool Measuring() const noexcept { return m_measureFrames > 0; }
+        /// What the measurement's report names as the scene measured (a sample's own settings).
+        void SetMeasureLabel(core::StringView label) { m_measureLabel = core::String(label); }
 
     protected:
         /// The base OnRenderWindow is RenderFrame then FinishFrame. A subclass that draws its own
@@ -418,6 +425,23 @@ export namespace engine::runtime
         core::UniquePtr<ProfilerOverlayHost> m_profilerOverlay; // made on first show (F3, --profile-overlay)
         core::f32 m_exitAfterSeconds = 0.0f;
         core::f32 m_runSeconds = 0.0f;
+
+        // --measure: the frames it averages, the profiler frames read so far, and the sums by name.
+        void MeasureStep(IApplicationHost& host);
+        void ReportMeasurement(const foundation::profiler::Profiler& profiler);
+        static constexpr core::u64 kMeasureWarmupFrames = 120;
+        static constexpr core::u64 kMeasureGpuLagFrames = 4; // a frame's GPU passes arrive a few frames late
+        core::u64 m_measureFrames = 0;
+        core::String m_measureOut;
+        core::String m_measureLabel;
+        core::u64 m_measureUpdates = 0;
+        core::u64 m_measureFirst = 0; // the first profiler frame measured
+        core::u64 m_measured = 0;
+        core::f64 m_measureFrameMs = 0.0;
+        core::f64 m_measureGpuFrameMs = 0.0;
+        core::u64 m_measureGpuFrames = 0;
+        core::HashMap<core::u32, core::f64> m_measureCpuMs;
+        core::HashMap<core::u32, core::f64> m_measureGpuMs;
 
         engine::scene::SceneSubsystem* m_scenes = nullptr;
         // The live runs (every ApplicationRun), handed to the subsystem manager for every subsystem.
