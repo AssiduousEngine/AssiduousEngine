@@ -323,7 +323,9 @@ one; a property track's `source` - `component` (the default: a component of the 
 `settings` (a scene's settings, played on no part) or one a plugin registers - its `target` -
 `Transform` or a component's name, or a settings id such as `environment` - `property` and, for
 anything but the transform, `valueKind` Float, Float3, Color or Quat), `remove_track`, `key` (`track`, `channel` by
-name or index, `time`, a curve's `value`) and `remove_key`, `section` (`track`, `start`, `length`,
+name or index, `time`, a curve's `value`, and the key's `interpolation` - Constant, Linear or Cubic,
+the default - and `tangent` - Auto, the default, Smooth, Flat for an ease in and out, or Broken -
+which `sequence_read` shows on each key) and `remove_key`, `section` (`track`, `start`, `length`,
 and `fields` set by name: a clip's `clip` guid, `speed`, `blendIn`...) and `remove_section`,
 `marker` (`time`, `name`, `hold`) and `remove_marker`, and `set` (`track`, a `path` from the read's
 `fields` such as `keys.0.name` or `sections.1.clip`, or `part`, and its `value`). Each edit's

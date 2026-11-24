@@ -11,6 +11,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Scripts: `Text.parseFloat(text)` reads a decimal from a string, in every script language; text that
   is not one gives 0, or `otherwise` with `Text.parseFloat(text, otherwise)`.
+- MCP: `sequence_edit`'s `key` sets a key's interpolation and tangent mode by name (Flat for an
+  ease in and out), and `sequence_read` shows them on each key.
 - The player (and every application on the default app) takes `--measure <frames>`: after a
   warm-up it averages that many frames from the profiler, every CPU scope and GPU pass, prints them
   (and writes them with `--measure-out <file>`), and exits, for numbers that compare across builds.

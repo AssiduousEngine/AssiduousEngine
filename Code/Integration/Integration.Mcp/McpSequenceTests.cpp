@@ -160,5 +160,19 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"no target source 'weather'"));
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Juggle\"}]"));
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"Camera Cut"));
+
+    // A key's interpolation and tangent are set by name and read back; a name that is neither is refused.
+    JsonValue eased = JsonValue::MakeObject();
+    eased.Set(u8"guid", JsonValue::MakeString(guid));
+    eased.Set(u8"edits", Edits(u8"[{\"op\":\"key\",\"track\":3,\"time\":0,\"value\":0.3,\"tangent\":\"Flat\"},"
+                               u8"{\"op\":\"key\",\"track\":3,\"time\":2,\"value\":0.1,\"tangent\":\"Flat\",\"interpolation\":\"Constant\"}]"));
+    const Answer flat = Call(server, u8"sequence_edit", eased);
+    REQUIRE_FALSE(flat.error);
+    const JsonValue keys = flat.value.Get(u8"tracks").At(3).Get(u8"channels").At(0).Get(u8"keys");
+    CHECK(keys.At(0).Get(u8"tangent").AsString() == StringView(u8"Flat"));
+    CHECK(keys.At(0).Get(u8"interpolation").AsString() == StringView(u8"Cubic"));
+    CHECK(keys.At(1).Get(u8"interpolation").AsString() == StringView(u8"Constant"));
+    bad.Set(u8"edits", Edits(u8"[{\"op\":\"key\",\"track\":3,\"time\":1,\"tangent\":\"Wobbly\"}]"));
+    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"Auto, Smooth, Flat"));
     (void)RemoveDirectoryRecursive(u8"mcp_sequence");
 }

@@ -314,6 +314,8 @@ export namespace editor::mcp
                         JsonValue k = JsonValue::MakeObject();
                         k.Set(u8"time", JsonValue::MakeNumber(key.time));
                         k.Set(u8"value", JsonValue::MakeNumber(key.value));
+                        k.Set(u8"interpolation", JsonValue::MakeString(String(kInterpolationNames[static_cast<usize>(key.interpolation)])));
+                        k.Set(u8"tangent", JsonValue::MakeString(String(kTangentNames[static_cast<usize>(key.tangentMode)])));
                         keys.Add(Move(k));
                     }
                 else
@@ -416,6 +418,22 @@ export namespace editor::mcp
             if (!edit.Get(u8"track").IsNumber() || index < 0 || index >= static_cast<i64>(sequence.tracks.Size()))
                 return Err(Format(u8"`track` is a track's index (0 to {})", static_cast<i64>(sequence.tracks.Size()) - 1));
             return sequence.tracks[static_cast<usize>(index)].Get();
+        }
+
+        // A key's interpolation and tangent mode by name, as sequence_read shows them.
+        static constexpr StringView kInterpolationNames[] = {u8"Constant", u8"Linear", u8"Cubic"};
+        static constexpr StringView kTangentNames[] = {u8"Broken", u8"Auto", u8"Smooth", u8"Flat"};
+
+        template <typename E, usize N>
+        [[nodiscard]] static Result<E, String> EnumArg(const JsonValue& value, const StringView (&names)[N], StringView what)
+        {
+            for (usize i = 0; i < N; ++i)
+                if (value.IsString() && value.AsString().AsView() == names[i])
+                    return static_cast<E>(i);
+            String list;
+            for (usize i = 0; i < N; ++i)
+                list.Append(Format(u8"{}{}", i == 0 ? StringView{} : StringView(u8", "), names[i]).AsView());
+            return Err(Format(u8"key: `{}` is one of: {}", what, list.AsView()));
         }
 
         [[nodiscard]] static Result<usize, String> ChannelArg(const sequence::SequenceTrack& track, const JsonValue& edit)
@@ -537,12 +555,30 @@ export namespace editor::mcp
                 const i32 index = track.Value()->InsertKey(channel.Value(), static_cast<f32>(edit.Get(u8"time").AsNumber()));
                 if (index < 0)
                     return Err(String(u8"key: the channel takes no key"));
-                if (edit.Get(u8"value").IsNumber())
+                const JsonValue interpolation = edit.Get(u8"interpolation");
+                const JsonValue tangent = edit.Get(u8"tangent");
+                if (edit.Get(u8"value").IsNumber() || !interpolation.IsNull() || !tangent.IsNull())
                 {
                     Curve* curve = track.Value()->KeyCurve(channel.Value());
                     if (curve == nullptr)
                         return Err(String(u8"key: this channel's keys hold no number (set its fields instead)"));
-                    curve->Keys()[static_cast<usize>(index)].value = static_cast<f32>(edit.Get(u8"value").AsNumber());
+                    CurveKey& key = curve->Keys()[static_cast<usize>(index)];
+                    if (edit.Get(u8"value").IsNumber())
+                        key.value = static_cast<f32>(edit.Get(u8"value").AsNumber());
+                    if (!interpolation.IsNull())
+                    {
+                        Result<CurveKeyInterpolation, String> named = EnumArg<CurveKeyInterpolation>(interpolation, kInterpolationNames, u8"interpolation");
+                        if (!named.HasValue())
+                            return Err(Move(named.Error()));
+                        key.interpolation = named.Value();
+                    }
+                    if (!tangent.IsNull())
+                    {
+                        Result<CurveTangentMode, String> named = EnumArg<CurveTangentMode>(tangent, kTangentNames, u8"tangent");
+                        if (!named.HasValue())
+                            return Err(Move(named.Error()));
+                        key.tangentMode = named.Value();
+                    }
                     curve->ApplyTangentModes();
                 }
                 result.Set(u8"key", JsonValue::MakeNumber(index));
@@ -681,7 +717,7 @@ export namespace editor::mcp
                 u8"default: a part's component; settings: the scene's settings, no part; or a plugin's), target (a "
                 u8"component's name or Transform; a settings id such as environment), property (a path), valueKind "
                 u8"(Float, Float3, Color, Quat; Transform's are known)}; "
-                u8"remove_track {track}; key {track, channel (name or index; omit for one), time, value? (a curve's)}; "
+                u8"remove_track {track}; key {track, channel (name or index; omit for one), time, value? (a curve's), interpolation? (Constant, Linear, Cubic), tangent? (Auto, Smooth, Flat, Broken)}; "
                 u8"remove_key {track, channel, time}; section {track, start, length?, fields? (the section's fields by "
                 u8"name: clip, offset, speed...)}; remove_section {track, section}; marker {time, name?, hold?}; "
                 u8"remove_marker {marker}; set {track, path (a field's path from sequence_read, or part), value}. "
