@@ -442,6 +442,16 @@ export namespace engine::runtime
         core::u64 m_measureGpuFrames = 0;
         core::HashMap<core::u32, core::f64> m_measureCpuMs;
         core::HashMap<core::u32, core::f64> m_measureGpuMs;
+        // What the GPU counted per pass (where the device counts pipeline statistics), summed.
+        struct MeasuredPassCounts
+        {
+            core::f64 primitives = 0.0;
+            core::f64 vertices = 0.0;
+            core::f64 fragments = 0.0;
+            core::u64 frames = 0;
+        };
+        core::HashMap<core::u32, MeasuredPassCounts> m_measurePassCounts;
+        core::HashMap<core::u32, core::f64> m_measureCounters; // the profiler's counters, summed
 
         engine::scene::SceneSubsystem* m_scenes = nullptr;
         // The live runs (every ApplicationRun), handed to the subsystem manager for every subsystem.

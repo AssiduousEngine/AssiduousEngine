@@ -902,11 +902,27 @@ namespace engine::runtime
                 for (const foundation::profiler::GpuPassEvent& pass : frame->gpu)
                 {
                     AddMeasuredMs(m_measureGpuMs, pass.name, core::TicksToMilliseconds(pass.endTick - pass.beginTick));
+                    if (pass.hasCounts)
+                    {
+                        MeasuredPassCounts* counts = m_measurePassCounts.Find(pass.name);
+                        if (counts == nullptr)
+                        {
+                            counts = &m_measurePassCounts.InsertOrAssign(pass.name, MeasuredPassCounts{});
+                        }
+                        counts->primitives += static_cast<core::f64>(pass.counts.inputPrimitives);
+                        counts->vertices += static_cast<core::f64>(pass.counts.vertexInvocations);
+                        counts->fragments += static_cast<core::f64>(pass.counts.fragmentInvocations);
+                        ++counts->frames;
+                    }
                     begin = pass.beginTick < begin ? pass.beginTick : begin;
                     end = pass.endTick > end ? pass.endTick : end;
                 }
                 m_measureGpuFrameMs += core::TicksToMilliseconds(end - begin);
                 ++m_measureGpuFrames;
+            }
+            for (const foundation::profiler::CounterValue& counter : frame->counters)
+            {
+                AddMeasuredMs(m_measureCounters, counter.counter, counter.value);
             }
         }
         if (m_measured >= m_measureFrames)
@@ -931,6 +947,51 @@ namespace engine::runtime
         AppendMeasuredSums(out, profiler, m_measureCpuMs, m_measured);
         out.Append(u8"gpu passes, per frame:\n");
         AppendMeasuredSums(out, profiler, m_measureGpuMs, m_measured);
+        if (!m_measurePassCounts.IsEmpty())
+        {
+            out.Append(u8"gpu pass counts, per frame (pipeline statistics):\n");
+            struct PassRow
+            {
+                core::StringView name;
+                const MeasuredPassCounts* counts;
+            };
+            core::Array<PassRow> passes;
+            for (const auto& kv : m_measurePassCounts)
+            {
+                passes.PushBack(PassRow{profiler.NameOf(kv.key), &kv.value});
+            }
+            passes.Sort([](const PassRow& a, const PassRow& b) { return a.name.Compare(b.name) < 0; });
+            for (const PassRow& pass : passes)
+            {
+                const core::f64 frames = static_cast<core::f64>(pass.counts->frames);
+                core::AppendFormat(out, u8"  {}: {} primitives, {} vertex invocations, {} fragment invocations\n",
+                                   pass.name, core::Round(pass.counts->primitives / frames),
+                                   core::Round(pass.counts->vertices / frames), core::Round(pass.counts->fragments / frames));
+            }
+        }
+        if (!m_measureCounters.IsEmpty())
+        {
+            // The engine's counters (the device's draws and binds, memory, the renderer's bytes), by
+            // name, so two reports read line against line.
+            out.Append(u8"counters, per frame:\n");
+            const core::Span<const foundation::profiler::CounterInfo> infos = profiler.Counters();
+            struct Row
+            {
+                core::StringView name;
+                core::f64 value;
+            };
+            core::Array<Row> rows;
+            for (const auto& kv : m_measureCounters)
+            {
+                rows.PushBack(Row{kv.key < infos.Size() ? infos[kv.key].name.AsView() : core::StringView(u8"?"),
+                                  kv.value / static_cast<core::f64>(m_measured)});
+            }
+            rows.Sort([](const Row& a, const Row& b) { return a.name.Compare(b.name) < 0; });
+            for (const Row& row : rows)
+            {
+                core::AppendFormat(out, u8"  {}: {}\n", row.name, Micro(row.value));
+            }
+        }
         core::ConsoleWrite(out.AsView());
         if (!m_measureOut.IsEmpty())
         {
