@@ -66,3 +66,26 @@ TEST_CASE("text-facade: Luau reads a decimal from a string, and `otherwise` from
           u8"E = Text.parseFloat('', 7)\n");
 }
 #endif
+
+// Text.formatDate shows a Unix time as the local date by a pattern; Time.unixNow is the wall clock.
+TEST_CASE("text-facade: formatDate fills a pattern with the local date and time; unixNow is the wall clock")
+{
+    RegisterCoreTypes();
+    RegisterScriptFacadeReflection();
+    const f64 when = 1795467854.0; // 2026-11-24, in every zone within a day of it
+    const i64 local = static_cast<i64>(when) + GetLocalTimeOffset(static_cast<i64>(when));
+    const CivilTime civil = CivilTimeOf(local);
+    const String expected = Format(u8"{}-{}{}-{}{} {}{}:{}{}:{}{} at", civil.year, civil.month < 10 ? u8"0" : u8"", civil.month,
+                                   civil.day < 10 ? u8"0" : u8"", civil.day, civil.hour < 10 ? u8"0" : u8"", civil.hour,
+                                   civil.minute < 10 ? u8"0" : u8"", civil.minute, civil.second < 10 ? u8"0" : u8"", civil.second);
+    CHECK(TextFacade::formatDate(when, String(u8"YYYY-MM-DD hh:mm:ss at")) == expected.AsView());
+    CHECK(TextFacade::formatDate(when, String(u8"no tokens")) == StringView(u8"no tokens"));
+#ifdef OPTION_HAS_LUAU
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RegisterReflectedTypes(*manager);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(u8"Year = Text.formatDate(1795467854, 'YYYY')\nNow = Time.unixNow()\n", u8"date").IsOk());
+    CHECK(scriptContext->GetGlobal(u8"Year").Get<String>() == Format(u8"{}", civil.year).AsView());
+    CHECK(scriptContext->GetGlobal(u8"Now").Get<f64>() > 1.7e9);
+#endif
+}

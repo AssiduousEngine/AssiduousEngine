@@ -361,6 +361,9 @@ export namespace foundation::script
             ScriptRuntimeBinding* binding = Resolve();
             return binding != nullptr ? binding->deltaSeconds : 0.0f;
         }
+        /// The wall clock: seconds since 1970-01-01 UTC, as a save's time is kept ("saved 2 hours
+        /// ago" is the difference).
+        [[nodiscard]] static f64 unixNow() { return static_cast<f64>(core::GetUnixTime()); }
     };
 
     /// Random.value() in [0,1), Random.range(min,max) and Random.intRange(min,max).
@@ -411,6 +414,9 @@ export namespace foundation::script
             const Optional<f64> value = core::ParseFloat(text.AsView());
             return value.HasValue() ? static_cast<f32>(value.Value()) : otherwise;
         }
+        /// A Unix time (`Time.unixNow()`, a save's time) as the local date and time by `pattern`:
+        /// YYYY, MM, DD, hh, mm and ss are replaced, everything else is kept ("YYYY-MM-DD hh:mm").
+        [[nodiscard]] static String formatDate(f64 seconds, String pattern);
     };
 
     /// A bound scene handle. `scene.spawn(prefab,x,y,z)`, `scene.find(name)` and

@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scripts: `Time.unixNow()` (the wall clock in Unix seconds) and `Text.formatDate(seconds, pattern)`
+  (a local date and time by `YYYY`, `MM`, `DD`, `hh`, `mm`, `ss`).
 - Scripts: `Text.parseFloat(text)` reads a decimal from a string, in every script language; text that
   is not one gives 0, or `otherwise` with `Text.parseFloat(text, otherwise)`.
 - MCP: `sequence_edit`'s `key` sets a key's interpolation and tangent mode by name (Flat for an

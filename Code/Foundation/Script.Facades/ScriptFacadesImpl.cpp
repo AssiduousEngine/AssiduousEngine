@@ -99,6 +99,7 @@ namespace foundation::script
         builder.Attribute("scriptName", "Time");
         builder.Method<&TimeFacade::now>("now");
         builder.Method<&TimeFacade::delta>("delta");
+        builder.Method<&TimeFacade::unixNow>("unixNow");
         builder.Constructor();
     }
 
@@ -114,12 +115,53 @@ namespace foundation::script
         builder.Constructor();
     }
 
+    String TextFacade::formatDate(f64 seconds, String pattern)
+    {
+        const i64 unix = static_cast<i64>(seconds);
+        const CivilTime local = CivilTimeOf(unix + GetLocalTimeOffset(unix));
+        struct Token
+        {
+            StringView name;
+            u32 value;
+            u32 digits;
+        };
+        const Token tokens[] = {{u8"YYYY", static_cast<u32>(local.year), 4}, {u8"MM", local.month, 2}, {u8"DD", local.day, 2},
+                                {u8"hh", local.hour, 2},                   {u8"mm", local.minute, 2}, {u8"ss", local.second, 2}};
+        String out;
+        const StringView text = pattern.AsView();
+        usize i = 0;
+        while (i < text.Size())
+        {
+            bool replaced = false;
+            for (const Token& token : tokens)
+            {
+                if (text.SubStr(i, text.Size() - i).StartsWith(token.name))
+                {
+                    String number = Format(u8"{}", token.value);
+                    for (usize pad = number.Size(); pad < token.digits; ++pad)
+                        out.Append(u8"0");
+                    out.Append(number.AsView());
+                    i += token.name.Size();
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced)
+            {
+                out.Append(text.SubStr(i, 1));
+                ++i;
+            }
+        }
+        return out;
+    }
+
     REFLECT_MEMBERS(TextFacade, "rtti::script")
     {
         builder.Attribute("scriptName", "Text");
         // An arity family, as Entity::send is: parseFloat(text) and parseFloat(text, otherwise).
         builder.Method<static_cast<f32 (*)(String)>(&TextFacade::parseFloat)>("parseFloat", {"text"});
         builder.Method<static_cast<f32 (*)(String, f32)>(&TextFacade::parseFloat)>("parseFloat", {"text", "otherwise"});
+        builder.Method<&TextFacade::formatDate>("formatDate", {"seconds", "pattern"});
         builder.Constructor();
     }
 
