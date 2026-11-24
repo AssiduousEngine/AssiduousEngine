@@ -85,7 +85,7 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     args.Set(u8"guid", JsonValue::MakeString(guid));
     args.Set(u8"edits", Edits(u8"["
                               u8"{\"op\":\"add_part\",\"name\":\"Hero\"},"
-                              u8"{\"op\":\"add_track\",\"kind\":\"Property\",\"part\":\"Hero\",\"component\":\"Transform\",\"property\":\"position\"},"
+                              u8"{\"op\":\"add_track\",\"kind\":\"Property\",\"part\":\"Hero\",\"target\":\"Transform\",\"property\":\"position\"},"
                               u8"{\"op\":\"key\",\"track\":0,\"channel\":\"x\",\"time\":0,\"value\":0},"
                               u8"{\"op\":\"key\",\"track\":0,\"channel\":\"x\",\"time\":2,\"value\":10},"
                               u8"{\"op\":\"add_track\",\"kind\":\"Clip\",\"part\":\"Hero\"},"
@@ -94,7 +94,10 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
                               u8"{\"op\":\"key\",\"track\":2,\"time\":1.5},"
                               u8"{\"op\":\"set\",\"track\":2,\"path\":\"keys.0.name\",\"value\":\"cue\"},"
                               u8"{\"op\":\"set\",\"track\":2,\"path\":\"keys.0.value\",\"value\":\"gate\"},"
-                              u8"{\"op\":\"marker\",\"time\":1,\"name\":\"line\",\"hold\":true}"
+                              u8"{\"op\":\"marker\",\"time\":1,\"name\":\"line\",\"hold\":true},"
+                              // A scene's settings: a property track on no part.
+                              u8"{\"op\":\"add_track\",\"kind\":\"Property\",\"source\":\"settings\",\"target\":\"environment\","
+                              u8"\"property\":\"ambientIntensity\",\"valueKind\":\"Float\"}"
                               u8"]"));
     const Answer edited = Call(server, u8"sequence_edit", args);
     CAPTURE(reinterpret_cast<const char*>(edited.text.CStr()));
@@ -109,10 +112,12 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     const JsonValue& sequence = read.value;
     CHECK(sequence.Get(u8"parts").At(0).AsString() == StringView(u8"Hero"));
     CHECK(sequence.Get(u8"length").AsNumber() == doctest::Approx(2.0));
-    REQUIRE(sequence.Get(u8"tracks").Count() == 3);
+    REQUIRE(sequence.Get(u8"tracks").Count() == 4);
     const JsonValue walk = sequence.Get(u8"tracks").At(0);
     CHECK(walk.Get(u8"kindName").AsString() == StringView(u8"Property"));
     CHECK(walk.Get(u8"part").AsString() == StringView(u8"Hero"));
+    CHECK(walk.Get(u8"source").AsString() == StringView(u8"component"));
+    CHECK(walk.Get(u8"target").AsString() == StringView(u8"Transform"));
     CHECK(walk.Get(u8"channels").At(0).Get(u8"keys").At(1).Get(u8"value").AsNumber() == doctest::Approx(10.0));
     const JsonValue clip = sequence.Get(u8"tracks").At(1);
     CHECK(clip.Get(u8"kind").AsString() == StringView(u8"ClipSequenceTrack"));
@@ -123,6 +128,10 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     CHECK(cues.Get(u8"part").IsNull());
     CHECK(cues.Get(u8"fields").Get(u8"keys").At(0).Get(u8"name").AsString() == StringView(u8"cue"));
     CHECK(sequence.Get(u8"markers").At(0).Get(u8"hold").AsBool());
+    const JsonValue light = sequence.Get(u8"tracks").At(3);
+    CHECK(light.Get(u8"part").IsNull());
+    CHECK(light.Get(u8"source").AsString() == StringView(u8"settings"));
+    CHECK(light.Get(u8"target").AsString() == StringView(u8"environment"));
     bool clipKind = false;
     for (i64 i = 0; i < sequence.Get(u8"kinds").Count(); ++i)
         clipKind = clipKind || sequence.Get(u8"kinds").At(i).Get(u8"kindName").AsString() == StringView(u8"Clip");
@@ -143,6 +152,12 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     // A kind that plays on a part asks for one; an unknown kind names the known ones.
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Clip\"}]"));
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"give `part`"));
+    // So does a property track of a component; a source nobody registered is named.
+    bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Property\",\"target\":\"Transform\",\"property\":\"position\"}]"));
+    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"give `part`"));
+    bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Property\",\"source\":\"weather\",\"target\":\"rain\","
+                             u8"\"property\":\"amount\",\"valueKind\":\"Float\"}]"));
+    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"no target source 'weather'"));
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Juggle\"}]"));
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"Camera Cut"));
     (void)RemoveDirectoryRecursive(u8"mcp_sequence");

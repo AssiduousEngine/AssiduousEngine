@@ -73,7 +73,7 @@ namespace
                                s.bindings.PushBack(sequence::SequenceBinding{String(u8"Hero")});
                                RefPtr<sequence::PropertySequenceTrack> walk = MakeRef<sequence::PropertySequenceTrack>(DefaultAllocator());
                                walk->binding = 0;
-                               walk->property.componentType = String(propertyanimation::kTransformTarget);
+                               walk->property.target = String(propertyanimation::kTransformTarget);
                                walk->property.propertyPath = String(u8"position");
                                walk->property.kind = propertyanimation::TrackValueKind::Float3;
                                walk->property.channels[0].AddKey(Linear(0.0f, 0.0f));

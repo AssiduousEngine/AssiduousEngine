@@ -50,7 +50,7 @@ namespace
         RefPtr<PropertyAnimationClipResource> res =
             MakeRef<PropertyAnimationClipResource>(DefaultAllocator());
         PropertyTrack t;
-        t.componentType = String(u8"AnimTarget");
+        t.target = String(u8"AnimTarget");
         t.propertyPath = String(u8"position");
         t.kind = TrackValueKind::Float3;
         CurveKey a;
@@ -120,7 +120,7 @@ TEST_CASE("property animator: a kind/type mismatch disables the track (not a sil
         MakeRef<PropertyAnimationClipResource>(DefaultAllocator());
     {
         PropertyTrack t;
-        t.componentType = String(u8"AnimTarget");
+        t.target = String(u8"AnimTarget");
         t.propertyPath = String(u8"value");
         t.kind = TrackValueKind::Float3; // wrong: value is f32
         CurveKey k0;
@@ -162,7 +162,7 @@ TEST_CASE("property animator: a Transform track drives the entity's baked scene 
         MakeRef<PropertyAnimationClipResource>(DefaultAllocator());
     {
         PropertyTrack t;
-        t.componentType = String(u8"Transform");
+        t.target = String(u8"Transform");
         t.propertyPath = String(u8"position");
         t.kind = TrackValueKind::Float3;
         CurveKey a;
@@ -272,7 +272,7 @@ TEST_CASE("property animator: a track to a missing component/property is disable
         MakeRef<PropertyAnimationClipResource>(DefaultAllocator());
     {
         PropertyTrack good;
-        good.componentType = String(u8"AnimTarget");
+        good.target = String(u8"AnimTarget");
         good.propertyPath = String(u8"value");
         good.kind = TrackValueKind::Float;
         CurveKey a; a.time = 0.0f; a.value = 0.0f;
@@ -282,13 +282,13 @@ TEST_CASE("property animator: a track to a missing component/property is disable
         clip->clip.tracks.PushBack(Move(good));
 
         PropertyTrack badProp;
-        badProp.componentType = String(u8"AnimTarget");
+        badProp.target = String(u8"AnimTarget");
         badProp.propertyPath = String(u8"nonesuch");
         badProp.kind = TrackValueKind::Float;
         clip->clip.tracks.PushBack(Move(badProp));
 
         PropertyTrack badComp;
-        badComp.componentType = String(u8"NoSuchComponent");
+        badComp.target = String(u8"NoSuchComponent");
         badComp.propertyPath = String(u8"x");
         badComp.kind = TrackValueKind::Float;
         clip->clip.tracks.PushBack(Move(badComp));

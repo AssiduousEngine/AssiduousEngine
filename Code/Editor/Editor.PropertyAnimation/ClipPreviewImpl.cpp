@@ -28,7 +28,8 @@ namespace editor
             return type != nullptr && type->name != nullptr && type->name[0] != '<';
         }
 
-        void CollectInto(const TypeInfo& componentType, const TypeInfo& current, const String& prefix, Array<AnimatablePropertyInfo>& out)
+        void CollectInto(StringView source, StringView target, const TypeInfo& type, const TypeInfo& current, const String& prefix,
+                         Array<AnimatablePropertyInfo>& out)
         {
             for (const PropertyInfo& property : Properties(current))
             {
@@ -40,19 +41,19 @@ namespace editor
                 path += StringView(reinterpret_cast<const utf8char*>(property.name));
                 if (IsNested(property))
                 {
-                    CollectInto(componentType, *property.type, path, out);
+                    CollectInto(source, target, type, *property.type, path, out);
                     continue;
                 }
                 const Optional<propanim::TrackValueKind> kind = InferTrackKind(property.type);
-                if (!kind.HasValue() || !propanim::ResolveBinding(componentType, path.AsView()).IsResolved())
+                if (!kind.HasValue() || !propanim::ResolveBinding(type, path.AsView()).IsResolved())
                     continue; // only what the runtime can drive
-                out.PushBack(AnimatablePropertyInfo{String(StringView(reinterpret_cast<const utf8char*>(componentType.name))), Move(path), kind.Value()});
+                out.PushBack(AnimatablePropertyInfo{String(source), String(target), Move(path), kind.Value()});
             }
         }
 
         [[nodiscard]] String TrackKey(const propanim::PropertyTrack& track)
         {
-            return Format(u8"{}|{}", track.componentType, track.propertyPath);
+            return Format(u8"{}|{}|{}", track.source, track.target, track.propertyPath);
         }
     }
 
@@ -69,9 +70,9 @@ namespace editor
         return {};
     }
 
-    void CollectAnimatableProperties(const TypeInfo& componentType, Array<AnimatablePropertyInfo>& out)
+    void CollectAnimatableProperties(StringView source, StringView target, const TypeInfo& type, Array<AnimatablePropertyInfo>& out)
     {
-        CollectInto(componentType, componentType, String{}, out);
+        CollectInto(source, target, type, type, String{}, out);
     }
 
     Array<AnimatablePropertyInfo> ClipPreview::TrackSeeds(const Guid& entity) const
@@ -82,22 +83,27 @@ namespace editor
             return seeds;
         // Every entity has a transform (the scene's, not a reflected component), so its position,
         // rotation and scale come first.
-        seeds.PushBack(AnimatablePropertyInfo{String(propanim::kTransformTarget), String(u8"position"), propanim::TrackValueKind::Float3});
-        seeds.PushBack(AnimatablePropertyInfo{String(propanim::kTransformTarget), String(u8"rotation"), propanim::TrackValueKind::Quat});
-        seeds.PushBack(AnimatablePropertyInfo{String(propanim::kTransformTarget), String(u8"scale"), propanim::TrackValueKind::Float3});
+        const String component(propanim::kComponentSource);
+        seeds.PushBack(AnimatablePropertyInfo{component, String(propanim::kTransformTarget), String(u8"position"), propanim::TrackValueKind::Float3});
+        seeds.PushBack(AnimatablePropertyInfo{component, String(propanim::kTransformTarget), String(u8"rotation"), propanim::TrackValueKind::Quat});
+        seeds.PushBack(AnimatablePropertyInfo{component, String(propanim::kTransformTarget), String(u8"scale"), propanim::TrackValueKind::Float3});
         m_scene->ForEachManager(
             [&](scene::ComponentManagerBase& manager)
             {
-                if (manager.HasComponent(handle) && IsReflectedType(manager.ComponentType()))
-                    CollectAnimatableProperties(*manager.ComponentType(), seeds);
+                const TypeInfo* type = manager.ComponentType();
+                if (manager.HasComponent(handle) && IsReflectedType(type))
+                    CollectAnimatableProperties(propanim::kComponentSource, StringView(reinterpret_cast<const utf8char*>(type->name)), *type,
+                                                seeds);
             });
         return seeds;
     }
 
-    Variant ClipPreview::Read(const Guid& entity, StringView componentType, StringView propertyPath) const
+    Variant ClipPreview::Read(const Guid& entity, StringView source, StringView target, StringView propertyPath) const
     {
         const scene::EntityHandle handle = m_scene->FindEntity(entity);
-        return handle.IsAssigned() ? ReadTarget(handle, componentType, propertyPath) : Variant{};
+        return handle.IsAssigned()
+                   ? propanim::ReadTrackTarget(*m_scene, propanim::ResolveTrackTarget(*m_scene, source, target, propertyPath), handle)
+                   : Variant{};
     }
 
     void ClipPreview::Pose(const Guid& entity, const propanim::PropertyAnimationClip& clip, f32 time)
@@ -121,9 +127,10 @@ namespace editor
             Stop();
             for (const propanim::PropertyTrack& track : clip.tracks)
             {
-                Variant value = ReadTarget(handle, track.componentType.AsView(), track.propertyPath.AsView());
+                propanim::TrackTarget target = propanim::ResolveTrackTarget(*m_scene, track);
+                Variant value = propanim::ReadTrackTarget(*m_scene, target, handle);
                 if (!value.IsEmpty())
-                    m_kept.PushBack(Kept{track.componentType, track.propertyPath, Move(value)});
+                    m_kept.PushBack(Kept{Move(target), Move(value)});
             }
             m_tracks = Move(tracks);
             m_entity = entity;
@@ -133,8 +140,8 @@ namespace editor
         {
             // A channel with no keys keeps the entity's current value (an X-only track leaves Y and
             // Z alone).
-            const Variant current = ReadTarget(handle, track.componentType.AsView(), track.propertyPath.AsView());
-            WriteTarget(handle, track.componentType.AsView(), track.propertyPath.AsView(), track.SampleMerged(time, current));
+            const propanim::TrackTarget target = propanim::ResolveTrackTarget(*m_scene, track);
+            (void)propanim::ApplyTrack(*m_scene, target, handle, track, time);
         }
     }
 
@@ -145,20 +152,10 @@ namespace editor
         const scene::EntityHandle handle = m_scene->FindEntity(m_entity);
         if (handle.IsAssigned())
             for (const Kept& kept : m_kept)
-                WriteTarget(handle, kept.componentType.AsView(), kept.propertyPath.AsView(), kept.value);
+                (void)propanim::WriteTrackTarget(*m_scene, kept.target, handle, kept.value);
         m_kept.Clear();
         m_tracks.Clear();
         m_entity = Guid{};
         m_posing = false;
-    }
-
-    Variant ClipPreview::ReadTarget(scene::EntityHandle entity, StringView componentType, StringView propertyPath) const
-    {
-        return propanim::ReadTrackTarget(*m_scene, propanim::ResolveTrackTarget(*m_scene, componentType, propertyPath), entity);
-    }
-
-    void ClipPreview::WriteTarget(scene::EntityHandle entity, StringView componentType, StringView propertyPath, const Variant& value) const
-    {
-        (void)propanim::WriteTrackTarget(*m_scene, propanim::ResolveTrackTarget(*m_scene, componentType, propertyPath), entity, value);
     }
 }

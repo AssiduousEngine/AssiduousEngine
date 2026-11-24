@@ -43,7 +43,7 @@ namespace
         walk->sequence.bindings.PushBack(SequenceBinding{String(u8"Actor")});
         RefPtr<PropertySequenceTrack> track = MakeRef<PropertySequenceTrack>(DefaultAllocator());
         track->binding = 0;
-        track->property.componentType = String(propertyanimation::kTransformTarget);
+        track->property.target = String(propertyanimation::kTransformTarget);
         track->property.propertyPath = String(u8"position");
         track->property.kind = propertyanimation::TrackValueKind::Float3;
         CurveKey a;

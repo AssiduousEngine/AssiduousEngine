@@ -72,8 +72,8 @@ namespace editor
     {
         if (!track.name.IsEmpty())
             return track.name;
-        if (const auto* property = Cast<sequence::PropertySequenceTrack>(&track); property != nullptr && !property->property.componentType.IsEmpty())
-            return Format(u8"{}.{}", property->property.componentType, property->property.propertyPath);
+        if (const auto* property = Cast<sequence::PropertySequenceTrack>(&track); property != nullptr && !property->property.target.IsEmpty())
+            return Format(u8"{}.{}", property->property.target, property->property.propertyPath);
         return KindName(track);
     }
 

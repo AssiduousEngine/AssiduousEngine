@@ -111,7 +111,7 @@ namespace
             walkSource.sequence.bindings.PushBack(sequence::SequenceBinding{String(u8"keeper")});
             RefPtr<sequence::PropertySequenceTrack> move = MakeRef<sequence::PropertySequenceTrack>(DefaultAllocator());
             move->binding = 0;
-            move->property.componentType = String(propertyanimation::kTransformTarget);
+            move->property.target = String(propertyanimation::kTransformTarget);
             move->property.propertyPath = String(u8"position");
             move->property.kind = propertyanimation::TrackValueKind::Float3;
             CurveKey a;

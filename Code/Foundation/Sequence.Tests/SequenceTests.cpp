@@ -100,7 +100,7 @@ namespace
         RefPtr<PropertySequenceTrack> track = MakeRef<PropertySequenceTrack>(DefaultAllocator());
         track->name = String(u8"brightness");
         track->binding = binding;
-        track->property.componentType = String(u8"SeqLamp");
+        track->property.target = String(u8"SeqLamp");
         track->property.propertyPath = String(u8"brightness");
         track->property.kind = propertyanimation::TrackValueKind::Float;
         CurveKey a;
@@ -119,7 +119,7 @@ namespace
         RefPtr<PropertySequenceTrack> track = MakeRef<PropertySequenceTrack>(DefaultAllocator());
         track->name = String(u8"position");
         track->binding = binding;
-        track->property.componentType = String(propertyanimation::kTransformTarget);
+        track->property.target = String(propertyanimation::kTransformTarget);
         track->property.propertyPath = String(u8"position");
         track->property.kind = propertyanimation::TrackValueKind::Float3;
         CurveKey a;
@@ -412,7 +412,7 @@ TEST_CASE("sequence: a sequence reads back as it was written, every track by its
     REQUIRE(read.tracks.Size() == 3u);
     auto* position = Cast<PropertySequenceTrack>(read.tracks[0].Get());
     REQUIRE(position != nullptr);
-    CHECK(position->property.componentType.AsView() == propertyanimation::kTransformTarget);
+    CHECK(position->property.target.AsView() == propertyanimation::kTransformTarget);
     CHECK(position->property.Sample(0.5f).Get<Float3>().x == doctest::Approx(5.0f));
     CHECK(read.tracks[1]->muted);
     CHECK(read.tracks[1]->binding == 1);
@@ -504,7 +504,7 @@ TEST_CASE("sequence editing: a property track's channels are its parts; keys mov
 {
     EnsureRegistered();
     PropertySequenceTrack track;
-    track.property.componentType = String(propertyanimation::kTransformTarget);
+    track.property.target = String(propertyanimation::kTransformTarget);
     track.property.propertyPath = String(u8"position");
     track.property.kind = propertyanimation::TrackValueKind::Float3;
     REQUIRE(track.KeyChannelCount() == 3u);

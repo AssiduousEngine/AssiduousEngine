@@ -38,7 +38,7 @@ namespace
         PropertyAnimationClip clip;
 
         PropertyTrack pos;
-        pos.componentType = String(u8"Transform");
+        pos.target = String(u8"Transform");
         pos.propertyPath = String(u8"position");
         pos.kind = TrackValueKind::Float3;
         pos.channels[0].AddKey(K(0.0f, 0.0f, CurveKeyInterpolation::Cubic, 1.0f, 2.0f));
@@ -49,7 +49,7 @@ namespace
         clip.tracks.PushBack(Move(pos));
 
         PropertyTrack col;
-        col.componentType = String(u8"Light");
+        col.target = String(u8"Light");
         col.propertyPath = String(u8"light.color");
         col.kind = TrackValueKind::Color;
         for (u32 c = 0; c < 4; ++c)
@@ -60,7 +60,7 @@ namespace
         clip.tracks.PushBack(Move(col));
 
         PropertyTrack rot;
-        rot.componentType = String(u8"Transform");
+        rot.target = String(u8"Transform");
         rot.propertyPath = String(u8"rotation");
         rot.kind = TrackValueKind::Quat;
         rot.quatKeys.PushBack(QuatKey{0.0f, Quaternion::Identity});
@@ -113,7 +113,7 @@ TEST_CASE("propanim.resource: cooked-clip wire round-trips (counts + sample iden
     CHECK(rebuilt.duration == doctest::Approx(original.duration));
 
     // Track metadata and kinds survived.
-    CHECK(rebuilt.tracks[0].componentType.AsView() == StringView(u8"Transform"));
+    CHECK(rebuilt.tracks[0].target.AsView() == StringView(u8"Transform"));
     CHECK(rebuilt.tracks[0].propertyPath.AsView() == StringView(u8"position"));
     CHECK(rebuilt.tracks[0].kind == TrackValueKind::Float3);
     CHECK(rebuilt.tracks[1].propertyPath.AsView() == StringView(u8"light.color"));
@@ -150,7 +150,7 @@ TEST_CASE("propanim.resource: a malformed wire yields a safe partial clip, never
     // trackKind says 1 track but the pools are empty: FillClip must bound every index.
     PropertyAnimationClipSource src;
     src.trackKind.PushBack(static_cast<u8>(TrackValueKind::Float3));
-    src.trackComponent.PushBack(String(u8"C"));
+    src.trackTarget.PushBack(String(u8"C")); // no trackSource: a component's, as an empty source reads
     src.trackPath.PushBack(String(u8"p"));
     // channelKeyStart claims a key run past the (empty) key pool.
     src.channelKeyStart.PushBack(0u);

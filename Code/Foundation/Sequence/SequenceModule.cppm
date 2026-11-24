@@ -134,8 +134,8 @@ export namespace foundation::sequence
         /// When the track runs within a step, lower first: properties, then what reads them
         /// (animation, cameras), events last.
         [[nodiscard]] virtual i32 Order() const noexcept { return 0; }
-        /// Whether the track does nothing without an entity (a property track); an event track
-        /// reports to the play instead.
+        /// Whether the track does nothing without an entity (a property track whose source needs
+        /// one); an event track reports to the play instead.
         [[nodiscard]] virtual bool NeedsBinding() const noexcept { return true; }
         /// The track's runner for one play; null when it has nothing to do there (a warning says
         /// why when that is a fault).
@@ -219,6 +219,9 @@ export namespace foundation::sequence
         }
 
         void Serialize(ISerializer& ar) override;
+        /// Reads the track as saved one data version back (the sequence asset's legacy reader);
+        /// a kind whose fields did not change reads them as now.
+        virtual void ReadPreviousLayout(ISerializer& ar) { Serialize(ar); }
     };
 
     /// Moves the keys at `indices` of `keys` (sorted by their `time`) by `delta`, never before 0,
@@ -288,6 +291,10 @@ export namespace foundation::sequence
 
         [[nodiscard]] f32 Duration() const noexcept override { return property.Duration(); }
         [[nodiscard]] i32 Order() const noexcept override { return kPropertyTrackOrder; }
+        /// Bound to one of the cast when its target's source needs an entity (a component), to no
+        /// one otherwise (a scene's settings).
+        [[nodiscard]] bool NeedsBinding() const noexcept override;
+        void ReadPreviousLayout(ISerializer& ar) override;
         [[nodiscard]] UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const override;
         void Serialize(ISerializer& ar) override;
 
@@ -348,8 +355,9 @@ export namespace foundation::sequence
 
     /// Reads or writes a sequence: its duration, frame rate, bindings, markers, and each track as
     /// its kind's type id followed by its fields. A track kind this build cannot make fails the
-    /// payload (its fields cannot be skipped).
-    void SerializeSequence(ISerializer& ar, Sequence& sequence);
+    /// payload (its fields cannot be skipped). `previousLayout` reads a sequence saved one data
+    /// version back (each track through ReadPreviousLayout): the sequence asset's legacy reader.
+    void SerializeSequence(ISerializer& ar, Sequence& sequence, bool previousLayout = false);
 
     /// How a play ends when it reaches the end.
     enum class SequenceFinish : u8

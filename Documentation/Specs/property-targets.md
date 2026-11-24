@@ -44,17 +44,19 @@ sequences and property animation clips.
 
 ### A target source
 
-`PropertyTargetSource` is a reflected base in property animation; a source is a concrete subclass,
-registered as a track kind is (`RegisterPropertyTargetSource<T>()`), listed from the type registry
-(`PropertyTargetSources()`), and found by its `Id()`. It answers:
+`PropertyTargetSource` is an interface in property animation. A domain or a plugin registers an
+instance of its own (`RegisterPropertyTargetSource`) as it loads and takes it back by id
+(`UnregisterPropertyTargetSource`) as it unloads, as its track kinds come and go; the registry finds
+a source by its `Id()` (`FindPropertyTargetSource`) and lists them (`PropertyTargetSources()`). It
+answers:
 
 | Call | What it does |
 |---|---|
 | `Id()` | the stable name a track saves (`component`, `settings`) |
 | `NeedsEntity()` | whether a track of it is played on an entity |
-| `Resolve(scene, target, path)` | binds a target name and a property path on a scene: what the source keeps to find the instance again, the property chain, or why not (no such target, no such property, a property not of a kind a track writes) |
-| `Instance(scene, resolved, entity)` | the reflected instance to read and write this step, found again every time (pools move) |
-| `BeforeFirstWrite(scene, resolved)` and `AfterRestore(scene, resolved)` | what a source does around a play's writes (the settings source's profile, below); nothing by default |
+| `Resolve(scene, target)` | finds a target name on a scene: what the source keeps to find the instance again, and the reflected type the path walks (the property chain and the kind are checked once, for every source) |
+| `Read` and `Write` (scene, resolved, entity) | the value through the property chain, the instance found again every time (pools move); a source writes in its own way (the transform is read, changed and set back through the scene, so the world matrix follows) |
+| `BeginWrites(scene, resolved)` | what a source does before a player's first write to a target, and an object the player keeps and tells `Restored()` once it has put back what it changed (the settings source's profile, below); nothing by default |
 | `Targets(scene, entity)` | for the editors: the target names it offers on this scene (and entity, when it needs one), each with its reflected type, from which `CollectAnimatableProperties` lists the leaves |
 
 `PropertyTrack` names its target by `source`, `target` and `propertyPath` (`componentType` becomes
@@ -77,19 +79,22 @@ property) would be the audio's or the GUI's own registration.
 
 - A write goes to the scene's own block (`SettingsInstance()`), never to a profile: a profile is
   shared by every scene that uses it, and a track lights one scene.
-- **A system on a profile.** `BeforeFirstWrite` on a system whose values come from a profile
+- **A system on a profile.** `BeginWrites` on a system whose values come from a profile
   (`SettingsProfile()` not nil) makes the values in effect the scene's own
   (`CopySettingsProfileIntoScene()`), so the scene looks the same until the keys move it, and the
-  writes show. The player calls it once per resolved target per play, and remembers the profile.
+  writes show; the object it returns remembers the profile. A player calls it once per track per
+  play, after keeping the value it found.
 - **The finishes.** `Release` and `Hold` leave the scene on its own values as the track left them (a
   rift's light stays when its sequence ends). `Restore` puts back each value read before the play's
-  first write, then `AfterRestore` gives the system its profile again (`UseSettingsProfile`).
+  first write, then tells the source's object, which gives the system its profile again
+  (`UseSettingsProfile`).
   Runners release last first, so a system two tracks wrote goes back to its profile once, after
   both. A play never writes the scene file: in the editor, the preview's finish is `Restore` and the
   page stops it before a save, as for any property.
 - **A property animation clip** with a settings track writes the scene's settings while its entity's
-  animator plays (a lamp whose clip pulses the fog), under the same calls; the clip stopped puts
-  back what it changed.
+  animator plays (a lamp whose clip pulses the fog), under the same calls. The animator never puts
+  back what it writes, for any target, so a scene it takes off its profile stays on its own values;
+  the editor's clip preview restores, as a sequence's does.
 
 ### Bindings and the cast
 
@@ -125,7 +130,7 @@ source, so a settings track is bound to no one, never warns for an empty binding
 
 ## Order of work
 
-1. **The sources.** `PropertyTargetSource`, its registration and listing; the `component` source
+1. **The sources.** `PropertyTargetSource`, its registry; the `component` source
    (today's resolving, moved behind the interface, no change in what it does); the `settings`
    source with the profile's detach; `PropertyTrack`'s `source` and `target`, the data versions and
    their migration. Tests in `PropertyAnimation.Tests` on a scene with a settings system of the

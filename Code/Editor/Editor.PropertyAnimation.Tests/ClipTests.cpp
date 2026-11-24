@@ -81,7 +81,7 @@ namespace
     propanim::PropertyTrack Float3Track(StringView component, f32 x, f32 y, f32 z)
     {
         propanim::PropertyTrack track;
-        track.componentType = String(component);
+        track.target = String(component);
         track.propertyPath = String(u8"position");
         track.kind = propanim::TrackValueKind::Float3;
         track.channels[0].AddKey(Key(0.0f, x));
@@ -151,7 +151,7 @@ TEST_CASE("clip seeds: the four animatable kinds, nested leaves by their paths, 
     CHECK_FALSE(InferTrackKind(nullptr).HasValue());
 
     Array<AnimatablePropertyInfo> out;
-    CollectAnimatableProperties(TestComp::StaticType(), out);
+    CollectAnimatableProperties(u8"component", u8"TestComp", TestComp::StaticType(), out);
     REQUIRE(out.Size() == 4u); // position, rotation, intensity, light.tint: not flags
     bool tint = false;
     for (const AnimatablePropertyInfo& seed : out)
@@ -166,9 +166,9 @@ TEST_CASE("clip seeds: the four animatable kinds, nested leaves by their paths, 
     ClipPreview preview(sc);
     const Array<AnimatablePropertyInfo> seeds = preview.TrackSeeds(sc.GetEntityId(e));
     REQUIRE(seeds.Size() == 4u);
-    CHECK(seeds[0].componentType == String(u8"Transform"));
+    CHECK(seeds[0].target == String(u8"Transform"));
     CHECK(seeds[1].kind == propanim::TrackValueKind::Quat);
-    CHECK(seeds[3].componentType == String(u8"PreviewComp"));
+    CHECK(seeds[3].target == String(u8"PreviewComp"));
     CHECK(preview.TrackSeeds(Guid{}).IsEmpty());
 }
 
@@ -236,7 +236,7 @@ TEST_CASE("clip source: a channel per curve and per rotation, keys moved, delete
     bed.document->OnChanged = [&source]() { source.Refresh(); };
     bed.AddTrack(Float3Track(u8"Transform", 1.0f, 2.0f, 3.0f));
     propanim::PropertyTrack spin;
-    spin.componentType = String(u8"Transform");
+    spin.target = String(u8"Transform");
     spin.propertyPath = String(u8"rotation");
     spin.kind = propanim::TrackValueKind::Quat;
     spin.quatKeys.PushBack(propanim::QuatKey{0.0f, Quaternion::Identity});
@@ -320,7 +320,7 @@ TEST_CASE("clip preview: the entity posed, what it held put back, kept again whe
     preview.Pose(id, clip, 0.5f);
     CHECK(preview.IsPosing());
     CHECK(manager->Get(e)->position.y == doctest::Approx(200.0f));
-    CHECK(preview.Read(id, u8"PreviewComp", u8"position").Get<Float3>().z == doctest::Approx(300.0f));
+    CHECK(preview.Read(id, u8"component", u8"PreviewComp", u8"position").Get<Float3>().z == doctest::Approx(300.0f));
 
     // A transform track added: the preview saves and restores the transform too.
     clip.tracks.PushBack(Float3Track(u8"Transform", 9.0f, 9.0f, 9.0f));

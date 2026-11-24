@@ -48,6 +48,7 @@ namespace pipeline
     // The asset type's display name (the editor shows it as the asset's kind).
     REFLECT_MEMBERS(SequenceAsset, "rtti::pipeline::sequence")
     {
-        builder.Attribute("displayName", String(u8"Sequence"));
+        // v1: a property track's target names its source; v0's targets read as components.
+        builder.DataVersion(1).ReadsDataVersionsFrom(0).Attribute("displayName", String(u8"Sequence"));
     }
 }

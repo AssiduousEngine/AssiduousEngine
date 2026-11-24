@@ -7,7 +7,8 @@
 // whose tracks drive reflected properties on the owning entity's components. The manager ticks in
 // PostUpdate (before render extraction, the skeletal phase): it advances the play clock
 // (Once/Loop/PingPong), then writes each track through its target (propertyanimation's
-// TrackTarget, bound once per clip), which finds the live component again on every write. A track
+// TrackTarget, bound once per clip through the track's source: a component of the entity, or the
+// scene's settings), which finds the live instance again on every write. A track
 // that fails to resolve is disabled with one warning; the clip keeps playing its other tracks.
 
 module;
@@ -59,6 +60,7 @@ export namespace engine::animation
         i8 pingPongDir = 1;
         propanim::PropertyAnimationClipResource* boundClip = nullptr; // bindings built for this clip
         Array<propanim::TrackTarget> bindings; // one per track; an unresolved one is skipped
+        Array<bool> written;                   // per binding: its source told of the writes (BeginWrites)
 
         // Reflected playback ops for scripting. They reach scripts through the reflected-component
         // `.of(entity)` surface, with natural numeric types, so no facade library is needed. They
@@ -157,6 +159,13 @@ export namespace engine::animation
                         Min(a.bindings.Size(), clip.tracks.Size());
                     for (usize i = 0; i < trackCount; ++i)
                     {
+                        if (a.bindings[i].IsResolved() && !a.written[i])
+                        {
+                            // A clip never puts back what it wrote, so what the source does around the
+                            // writes (a scene's settings taken off their profile) is kept as it is.
+                            (void)a.bindings[i].source->BeginWrites(m_scene->Allocator(), *m_scene, a.bindings[i]);
+                            a.written[i] = true;
+                        }
                         (void)propanim::ApplyTrack(*m_scene, a.bindings[i], owner, clip.tracks[i], evalTime);
                     }
                 });
@@ -168,6 +177,7 @@ export namespace engine::animation
         void BuildBindings(PropertyAnimatorComponent& a, const propanim::PropertyAnimationClip& clip)
         {
             a.bindings.Clear();
+            a.written.Clear();
             for (const propanim::PropertyTrack& track : clip.tracks)
             {
                 propanim::TrackTarget target = propanim::ResolveTrackTarget(*m_scene, track);
@@ -175,20 +185,23 @@ export namespace engine::animation
                 {
                 case propanim::TrackTargetStatus::Resolved:
                     break;
-                case propanim::TrackTargetStatus::UnknownComponent:
-                    LOG_WARNING(u8"PropertyAnimation", u8"track targets unknown component type '{}' - disabled",
-                                track.componentType);
+                case propanim::TrackTargetStatus::UnknownSource:
+                    LOG_WARNING(u8"PropertyAnimation", u8"no target source '{}' is registered - track disabled", track.source);
+                    break;
+                case propanim::TrackTargetStatus::UnknownTarget:
+                    LOG_WARNING(u8"PropertyAnimation", u8"the scene has no {} '{}' - track disabled", track.source, track.target);
                     break;
                 case propanim::TrackTargetStatus::UnknownProperty:
                     LOG_WARNING(u8"PropertyAnimation", u8"track property '{}' not found on '{}' - disabled",
-                                track.propertyPath, track.componentType);
+                                track.propertyPath, track.target);
                     break;
                 case propanim::TrackTargetStatus::KindMismatch:
                     LOG_WARNING(u8"PropertyAnimation", u8"track '{}.{}' kind does not match the property type - disabled",
-                                track.componentType, track.propertyPath);
+                                track.target, track.propertyPath);
                     break;
                 }
                 a.bindings.PushBack(Move(target));
+                a.written.PushBack(false);
             }
         }
 

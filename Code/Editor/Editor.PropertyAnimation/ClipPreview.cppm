@@ -26,19 +26,22 @@ using namespace foundation::core;
 
 export namespace editor
 {
-    /// One animatable property of a component, from which a track is made.
+    /// One animatable property of a target (a component, a scene's settings), from which a track is
+    /// made: the track's source, target and path.
     struct AnimatablePropertyInfo
     {
-        String componentType;
+        String source;
+        String target;
         String propertyPath;
         foundation::propertyanimation::TrackValueKind kind = foundation::propertyanimation::TrackValueKind::Float;
     };
 
     /// A track kind for a reflected leaf type (f32, Float3, Color, Quaternion); empty for any other.
     [[nodiscard]] Optional<foundation::propertyanimation::TrackValueKind> InferTrackKind(const TypeInfo* leafType);
-    /// The animatable leaves of a component type (nested structs by their dotted paths), each of
-    /// which the runtime can resolve.
-    void CollectAnimatableProperties(const TypeInfo& componentType, Array<AnimatablePropertyInfo>& out);
+    /// The animatable leaves of `type` (nested structs by their dotted paths), each of which the
+    /// runtime can resolve, as properties of `target` under the source `source`.
+    void CollectAnimatableProperties(StringView source, StringView target, const TypeInfo& type,
+                                     Array<AnimatablePropertyInfo>& out);
 
     class ClipPreview
     {
@@ -50,9 +53,9 @@ export namespace editor
 
         /// What Add Track offers on `entity`: its transform's properties, then each component's.
         [[nodiscard]] Array<AnimatablePropertyInfo> TrackSeeds(const Guid& entity) const;
-        /// A track target's current value on `entity` (empty when there is no such entity, component
-        /// or property).
-        [[nodiscard]] Variant Read(const Guid& entity, StringView componentType, StringView propertyPath) const;
+        /// A track target's current value on `entity` (empty when there is no such entity, target or
+        /// property).
+        [[nodiscard]] Variant Read(const Guid& entity, StringView source, StringView target, StringView propertyPath) const;
 
         /// Poses `entity` with `clip` at `time`, first saving the values it overwrites so they can
         /// be restored.
@@ -65,18 +68,15 @@ export namespace editor
     private:
         struct Kept
         {
-            String componentType;
-            String propertyPath;
+            foundation::propertyanimation::TrackTarget target; // bound once: what it found lives as long as the scene
             Variant value;
         };
-        [[nodiscard]] Variant ReadTarget(foundation::scene::EntityHandle entity, StringView componentType, StringView propertyPath) const;
-        void WriteTarget(foundation::scene::EntityHandle entity, StringView componentType, StringView propertyPath, const Variant& value) const;
 
         foundation::scene::Scene* m_scene;
         bool m_posing = false;
         Guid m_entity;
         Array<Kept> m_kept;      // each target as it was before the preview
-        Array<String> m_tracks;  // the tracks the saved values belong to ("component|path" each)
+        Array<String> m_tracks;  // the tracks the saved values belong to ("source|target|path" each)
     };
 
     /// The transport's clock over a clip's length.

@@ -37,7 +37,8 @@ export namespace pipeline
         void Serialize(ISerializer& ar) override
         {
             pipeline::Asset::Serialize(ar);
-            source.Serialize(ar);
+            // v1 gave each track's target its source; a v0 clip's targets are components.
+            source.SerializeFields(ar, ar.Mode() == SerializeMode::Read && ar.Version() < 1);
         }
     };
 
@@ -56,7 +57,7 @@ export namespace pipeline
         }
         // v2: dropped the dead `loop` source field (loop is the animator component's loopMode).
         // v3: each key's tangent mode (keyTangentMode).
-        [[nodiscard]] u32 Version() const override { return 3; }
+        [[nodiscard]] u32 Version() const override { return 4; }
         [[nodiscard]] Status Build(const pipeline::Asset& asset,
                                    pipeline::AssetBuildContext& ctx) override
         {

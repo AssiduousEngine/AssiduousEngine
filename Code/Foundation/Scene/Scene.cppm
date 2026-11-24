@@ -570,6 +570,20 @@ export namespace foundation::scene
             return found;
         }
 
+        // The system whose settings block has the id `id` (`environment`), or null: for data that
+        // names a scene's settings as text (an animation track's target).
+        [[nodiscard]] SceneSystem* FindSystemBySettingsId(StringView id)
+        {
+            for (SceneSystem* s : m_sortedSystems)
+            {
+                if (s->SettingsType() != nullptr && s->SettingsId() == id)
+                {
+                    return s;
+                }
+            }
+            return nullptr;
+        }
+
         // The re-resolving component handle for `entity.get(Type)`: a resolve-mode Variant that
         // recomputes the live component address on every access (FindManagerByComponentType, then
         // GetComponentInstance per deref). Empty when no manager handles `componentType`. A dead

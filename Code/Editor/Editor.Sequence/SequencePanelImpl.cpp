@@ -44,12 +44,13 @@ namespace editor
             return RefPtr<sequence::SequenceTrack>(Cast<sequence::SequenceTrack>(made.Get()));
         }
 
-        [[nodiscard]] bool HasPropertyTrack(const sequence::Sequence& sequence, i32 binding, StringView componentType, StringView propertyPath)
+        [[nodiscard]] bool HasPropertyTrack(const sequence::Sequence& sequence, i32 binding, const AnimatablePropertyInfo& seed)
         {
             for (const RefPtr<sequence::SequenceTrack>& track : sequence.tracks)
                 if (const auto* property = Cast<sequence::PropertySequenceTrack>(track.Get());
-                    property != nullptr && track->binding == binding && property->property.componentType.AsView() == componentType &&
-                    property->property.propertyPath.AsView() == propertyPath)
+                    property != nullptr && track->binding == binding && property->property.source.AsView() == seed.source.AsView() &&
+                    property->property.target.AsView() == seed.target.AsView() &&
+                    property->property.propertyPath.AsView() == seed.propertyPath.AsView())
                     return true;
             return false;
         }
@@ -378,13 +379,13 @@ namespace editor
         if (!entity.IsNil())
             for (AnimatablePropertyInfo& seed : m_seeds.TrackSeeds(entity))
             {
-                if (HasPropertyTrack(sequence, part, seed.componentType.AsView(), seed.propertyPath.AsView()))
+                if (HasPropertyTrack(sequence, part, seed))
                     continue;
                 SequenceTrackOffer offer;
                 offer.kind = &sequence::PropertySequenceTrack::StaticType();
                 offer.binding = part;
                 offer.property = true;
-                offer.label = Format(u8"{}: {}.{}", partName, seed.componentType, seed.propertyPath);
+                offer.label = Format(u8"{}: {}.{}", partName, seed.target, seed.propertyPath);
                 offer.target = Move(seed);
                 offers.PushBack(Move(offer));
             }
@@ -404,14 +405,15 @@ namespace editor
             auto* property = Cast<sequence::PropertySequenceTrack>(track.Get());
             if (property == nullptr)
                 return;
-            property->property.componentType = offer.target.componentType;
+            property->property.source = offer.target.source;
+            property->property.target = offer.target.target;
             property->property.propertyPath = offer.target.propertyPath;
             property->property.kind = offer.target.kind;
             // It starts with what the part's entity shows now, keyed at the playhead.
             const String partName = m_document.Sequence().bindings[static_cast<usize>(offer.binding)].name;
             m_preview.Stop(); // read the entity as the scene has it, not as posed
-            const Variant value = m_seeds.Read(m_preview.BoundEntity(partName.AsView()), offer.target.componentType.AsView(),
-                                               offer.target.propertyPath.AsView());
+            const Variant value = m_seeds.Read(m_preview.BoundEntity(partName.AsView()), offer.target.source.AsView(),
+                                               offer.target.target.AsView(), offer.target.propertyPath.AsView());
             if (!value.IsEmpty())
                 KeyFirst(property->property, m_transport.Time(), value);
         }

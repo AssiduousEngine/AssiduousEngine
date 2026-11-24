@@ -1,4 +1,4 @@
-add_executable(PropertyAnimation.Tests TestsMain.cpp PropertyAnimationTests.cpp TrackTargetTests.cpp)
+add_executable(PropertyAnimation.Tests TestsMain.cpp PropertyAnimationTests.cpp TrackTargetTests.cpp TargetSourceTests.cpp)
 target_link_libraries(PropertyAnimation.Tests PRIVATE
     Foundation::PropertyAnimation Foundation::Scene Foundation::Core doctest::doctest)
 target_compile_definitions(PropertyAnimation.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

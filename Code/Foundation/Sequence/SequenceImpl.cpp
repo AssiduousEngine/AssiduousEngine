@@ -66,26 +66,29 @@ namespace foundation::sequence
 
     namespace
     {
-        // Writes a property track on its entity each step. The value it found there before its
-        // first write is kept, so a Restore finish (and the editor's preview) can put it back.
+        // Writes a property track each step, on its entity when its source needs one. The value it
+        // found before its first write is kept, so a Restore finish (and the editor's preview) can
+        // put it back; what its source does around the writes (a scene's settings detached from
+        // their profile) is told when it has.
         class PropertyRunner final : public SequenceTrackRunner
         {
         public:
-            PropertyRunner(scene::Scene& scene, scene::EntityHandle entity, const propertyanimation::PropertyTrack& track,
-                           propertyanimation::TrackTarget target)
-                : m_scene(&scene), m_entity(entity), m_track(&track), m_target(Move(target))
+            PropertyRunner(IAllocator& allocator, scene::Scene& scene, scene::EntityHandle entity,
+                           const propertyanimation::PropertyTrack& track, propertyanimation::TrackTarget target)
+                : m_allocator(&allocator), m_scene(&scene), m_entity(entity), m_track(&track), m_target(Move(target))
             {
             }
 
             void Evaluate(const SequenceStep& step) override
             {
-                if (!m_scene->IsValid(m_entity))
+                if (!HasPlace())
                 {
                     return;
                 }
                 if (!m_changed)
                 {
                     m_original = propertyanimation::ReadTrackTarget(*m_scene, m_target, m_entity);
+                    m_writes = m_target.source->BeginWrites(*m_allocator, *m_scene, m_target);
                     m_changed = true;
                 }
                 (void)propertyanimation::ApplyTrack(*m_scene, m_target, m_entity, *m_track, step.time);
@@ -93,18 +96,31 @@ namespace foundation::sequence
 
             void Release(bool restore) override
             {
-                if (restore && m_changed && !m_original.IsEmpty() && m_scene->IsValid(m_entity))
+                if (restore && m_changed && HasPlace())
                 {
-                    (void)propertyanimation::WriteTrackTarget(*m_scene, m_target, m_entity, m_original);
+                    if (!m_original.IsEmpty())
+                    {
+                        (void)propertyanimation::WriteTrackTarget(*m_scene, m_target, m_entity, m_original);
+                    }
+                    if (m_writes)
+                    {
+                        m_writes->Restored();
+                    }
                 }
+                m_writes = {};
                 m_changed = false;
             }
 
         private:
+            // The entity is there, or the source needs none.
+            [[nodiscard]] bool HasPlace() const { return !m_target.source->NeedsEntity() || m_scene->IsValid(m_entity); }
+
+            IAllocator* m_allocator;
             scene::Scene* m_scene;
             scene::EntityHandle m_entity;
             const propertyanimation::PropertyTrack* m_track;
             propertyanimation::TrackTarget m_target;
+            UniquePtr<propertyanimation::PropertyTargetWrites> m_writes;
             Variant m_original;
             bool m_changed = false;
         };
@@ -148,16 +164,20 @@ namespace foundation::sequence
         switch (target.status)
         {
         case propertyanimation::TrackTargetStatus::Resolved:
-            return MakeUnique<PropertyRunner>(*context.allocator, *context.scene, context.entity, property, Move(target));
-        case propertyanimation::TrackTargetStatus::UnknownComponent:
-            LOG_WARNING(u8"Sequence", u8"track '{}' targets unknown component type '{}' - skipped", name, property.componentType);
+            return MakeUnique<PropertyRunner>(*context.allocator, *context.allocator, *context.scene, context.entity, property,
+                                              Move(target));
+        case propertyanimation::TrackTargetStatus::UnknownSource:
+            LOG_WARNING(u8"Sequence", u8"track '{}': no target source '{}' is registered - skipped", name, property.source);
+            break;
+        case propertyanimation::TrackTargetStatus::UnknownTarget:
+            LOG_WARNING(u8"Sequence", u8"track '{}': the scene has no {} '{}' - skipped", name, property.source, property.target);
             break;
         case propertyanimation::TrackTargetStatus::UnknownProperty:
             LOG_WARNING(u8"Sequence", u8"track '{}': property '{}' not found on '{}' - skipped", name, property.propertyPath,
-                        property.componentType);
+                        property.target);
             break;
         case propertyanimation::TrackTargetStatus::KindMismatch:
-            LOG_WARNING(u8"Sequence", u8"track '{}': '{}.{}' is not of the track's kind - skipped", name, property.componentType,
+            LOG_WARNING(u8"Sequence", u8"track '{}': '{}.{}' is not of the track's kind - skipped", name, property.target,
                         property.propertyPath);
             break;
         }
@@ -168,6 +188,18 @@ namespace foundation::sequence
     {
         SequenceTrack::Serialize(ar);
         propertyanimation::SerializePropertyTrack(ar, property);
+    }
+
+    void PropertySequenceTrack::ReadPreviousLayout(ISerializer& ar)
+    {
+        SequenceTrack::Serialize(ar);
+        propertyanimation::SerializePropertyTrack(ar, property, /*previousLayout*/ true);
+    }
+
+    bool PropertySequenceTrack::NeedsBinding() const noexcept
+    {
+        const propertyanimation::PropertyTargetSource* source = propertyanimation::FindPropertyTargetSource(property.source.AsView());
+        return source == nullptr || source->NeedsEntity();
     }
 
     // === Editing a property track: a channel per curve (x, y, z; r, g, b, a), or the rotation's keys ===
@@ -399,7 +431,7 @@ namespace foundation::sequence
         return d;
     }
 
-    void SerializeSequence(ISerializer& ar, Sequence& sequence)
+    void SerializeSequence(ISerializer& ar, Sequence& sequence, bool previousLayout)
     {
         const bool reading = ar.Mode() == SerializeMode::Read;
         foundation::core::Serialize(ar, "duration", sequence.duration);
@@ -466,7 +498,14 @@ namespace foundation::sequence
                     return;
                 }
             }
-            track->Serialize(ar);
+            if (reading && previousLayout)
+            {
+                track->ReadPreviousLayout(ar);
+            }
+            else
+            {
+                track->Serialize(ar);
+            }
             ar.EndObject();
             if (reading)
             {

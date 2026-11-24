@@ -54,6 +54,7 @@ namespace pipeline
     // The asset types' reflection: their display names (the editor shows them as the asset's kind).
     REFLECT_MEMBERS(PropertyAnimationClipAsset, "rtti::pipeline::propertyanimation")
     {
-        builder.Attribute("displayName", String(u8"Property Animation Clip"));
+        // v1: each track's target names its source; v0's targets read as components.
+        builder.DataVersion(1).ReadsDataVersionsFrom(0).Attribute("displayName", String(u8"Property Animation Clip"));
     }
 }

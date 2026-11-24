@@ -54,7 +54,7 @@ namespace
     PropertyTrack FloatTrack(StringView component, StringView path, f32 from, f32 to)
     {
         PropertyTrack track;
-        track.componentType = String(component);
+        track.target = String(component);
         track.propertyPath = String(path);
         track.kind = TrackValueKind::Float;
         CurveKey a;
@@ -86,7 +86,7 @@ TEST_CASE("track target: a component's property reads and writes on any entity t
     lamps->Add(a).brightness = 2.0f;
     lamps->Add(b).brightness = 3.0f;
 
-    const TrackTarget target = ResolveTrackTarget(world, u8"TargetLamp", u8"brightness");
+    const TrackTarget target = ResolveTrackTarget(world, kComponentSource, u8"TargetLamp", u8"brightness");
     REQUIRE(target.IsResolved());
     CHECK(ReadTrackTarget(world, target, a).Get<f32>() == doctest::Approx(2.0f));
     CHECK(ReadTrackTarget(world, target, b).Get<f32>() == doctest::Approx(3.0f));
@@ -106,9 +106,10 @@ TEST_CASE("track target: the transform is written through the scene, so the worl
     scene::Scene world{DefaultAllocator()};
     const scene::EntityHandle e = world.CreateEntity(u8"Mover");
 
-    const TrackTarget target = ResolveTrackTarget(world, kTransformTarget, u8"position");
+    const TrackTarget target = ResolveTrackTarget(world, kComponentSource, kTransformTarget, u8"position");
     REQUIRE(target.IsResolved());
-    CHECK(target.transform);
+    CHECK(target.type == &TypeOf<Transform>()); // the scene's transform, no component
+    CHECK(target.object == nullptr);
     CHECK(WriteTrackTarget(world, target, e, Variant::From(Float3{4.0f, 5.0f, 6.0f})));
     CHECK(world.GetLocalTransform(e).position.x == doctest::Approx(4.0f));
     const Float3 worldPosition = TransformPoint(Float3{0.0f, 0.0f, 0.0f}, world.GetWorldMatrix(e));
@@ -122,9 +123,9 @@ TEST_CASE("track target: each reason a target does not resolve is told apart")
     scene::Scene world{DefaultAllocator()};
     world.AddSystem<TargetLampManager>();
 
-    CHECK(ResolveTrackTarget(world, u8"NoSuchComponent", u8"brightness").status == TrackTargetStatus::UnknownComponent);
-    CHECK(ResolveTrackTarget(world, u8"TargetLamp", u8"missing").status == TrackTargetStatus::UnknownProperty);
-    CHECK(ResolveTrackTarget(world, kTransformTarget, u8"missing").status == TrackTargetStatus::UnknownProperty);
+    CHECK(ResolveTrackTarget(world, kComponentSource, u8"NoSuchComponent", u8"brightness").status == TrackTargetStatus::UnknownTarget);
+    CHECK(ResolveTrackTarget(world, kComponentSource, u8"TargetLamp", u8"missing").status == TrackTargetStatus::UnknownProperty);
+    CHECK(ResolveTrackTarget(world, kComponentSource, kTransformTarget, u8"missing").status == TrackTargetStatus::UnknownProperty);
 
     // A Float3 track on a scalar property: every write would fail, so it does not resolve.
     PropertyTrack wrongKind = FloatTrack(u8"TargetLamp", u8"brightness", 0.0f, 1.0f);
@@ -144,7 +145,7 @@ TEST_CASE("track target: applying a track keeps the live value in channels witho
 
     // Only X is keyed: Y and Z stay where they are.
     PropertyTrack track;
-    track.componentType = String(u8"TargetLamp");
+    track.target = String(u8"TargetLamp");
     track.propertyPath = String(u8"offset");
     track.kind = TrackValueKind::Float3;
     CurveKey a;

@@ -36,7 +36,8 @@ export namespace pipeline
         void Serialize(ISerializer& ar) override
         {
             pipeline::Asset::Serialize(ar);
-            sequence::SerializeSequence(ar, sequence);
+            // v1 gave a property track's target its source; a v0 sequence's targets are components.
+            sequence::SerializeSequence(ar, sequence, ar.Mode() == SerializeMode::Read && ar.Version() < 1);
         }
     };
 
@@ -46,7 +47,7 @@ export namespace pipeline
     public:
         [[nodiscard]] const TypeInfo* AssetType() const override { return &SequenceAsset::StaticType(); }
         [[nodiscard]] const TypeInfo* ProductType() const override { return &sequence::SequenceSource::StaticType(); }
-        [[nodiscard]] u32 Version() const override { return 1; }
+        [[nodiscard]] u32 Version() const override { return 2; }
         [[nodiscard]] Status Build(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx) override
         {
             const SequenceAsset& authored = static_cast<const SequenceAsset&>(asset);

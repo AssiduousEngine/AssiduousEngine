@@ -144,7 +144,7 @@ export namespace editor
         // dopesheet shares that axis and a choice made there must not rezoom it under the mouse.
         void FitValues();
         void OpenTrackMenu();
-        [[nodiscard]] Variant EntityValue(StringView componentType, StringView propertyPath) const;
+        [[nodiscard]] Variant EntityValue(StringView source, StringView target, StringView propertyPath) const;
         template <typename T>
         [[nodiscard]] T* Find(StringView id) const;
 

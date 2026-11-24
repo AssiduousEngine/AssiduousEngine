@@ -42,7 +42,7 @@ namespace
     {
         RefPtr<sequence::PropertySequenceTrack> track = MakeRef<sequence::PropertySequenceTrack>(DefaultAllocator());
         track->binding = 0;
-        track->property.componentType = String(propertyanimation::kTransformTarget);
+        track->property.target = String(propertyanimation::kTransformTarget);
         track->property.propertyPath = String(u8"position");
         track->property.kind = propertyanimation::TrackValueKind::Float3;
         CurveKey a;

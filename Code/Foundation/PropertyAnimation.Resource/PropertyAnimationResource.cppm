@@ -49,8 +49,9 @@ export namespace foundation::propertyanimation
     public:
         f32 duration = 0.0f;
 
-        // Per track (N entries).
-        Array<String> trackComponent;
+        // Per track (N entries): its target's source and name, and its property path.
+        Array<String> trackSource;
+        Array<String> trackTarget;
         Array<String> trackPath;
         Array<u8> trackKind; // TrackValueKind
 
@@ -72,10 +73,28 @@ export namespace foundation::propertyanimation
         Array<f32> quatTime;
         Array<Float4> quatValue; // xyzw
 
-        void Serialize(ISerializer& ar) override
+        void Serialize(ISerializer& ar) override { SerializeFields(ar, false); }
+
+        // `previousLayout` reads a wire saved before a target had a source (its targets under
+        // `trackComponent`, every one a component's name): the clip asset's legacy reader, one data
+        // version back.
+        void SerializeFields(ISerializer& ar, bool previousLayout)
         {
             foundation::core::Serialize(ar, "duration", duration);
-            foundation::core::Serialize(ar, "trackComponent", trackComponent);
+            if (ar.Mode() == SerializeMode::Read && previousLayout)
+            {
+                foundation::core::Serialize(ar, "trackComponent", trackTarget);
+                trackSource.Clear();
+                for (usize i = 0; i < trackTarget.Size(); ++i)
+                {
+                    trackSource.PushBack(String(kComponentSource));
+                }
+            }
+            else
+            {
+                foundation::core::Serialize(ar, "trackSource", trackSource);
+                foundation::core::Serialize(ar, "trackTarget", trackTarget);
+            }
             foundation::core::Serialize(ar, "trackPath", trackPath);
             foundation::core::Serialize(ar, "trackKind", trackKind);
             foundation::core::Serialize(ar, "channelKeyStart", channelKeyStart);
@@ -97,7 +116,8 @@ export namespace foundation::propertyanimation
         static void FromClip(const PropertyAnimationClip& clip, PropertyAnimationClipSource& out)
         {
             out.duration = clip.duration;
-            out.trackComponent.Clear();
+            out.trackSource.Clear();
+            out.trackTarget.Clear();
             out.trackPath.Clear();
             out.trackKind.Clear();
             out.channelKeyStart.Clear();
@@ -115,7 +135,8 @@ export namespace foundation::propertyanimation
 
             for (const PropertyTrack& t : clip.tracks)
             {
-                out.trackComponent.PushBack(String(t.componentType.AsView()));
+                out.trackSource.PushBack(String(t.source.AsView()));
+                out.trackTarget.PushBack(String(t.target.AsView()));
                 out.trackPath.PushBack(String(t.propertyPath.AsView()));
                 out.trackKind.PushBack(static_cast<u8>(t.kind));
 
@@ -158,8 +179,9 @@ export namespace foundation::propertyanimation
             for (usize i = 0; i < trackCount; ++i)
             {
                 PropertyTrack t;
-                t.componentType =
-                    (i < trackComponent.Size()) ? String(trackComponent[i].AsView()) : String();
+                t.source = (i < trackSource.Size() && !trackSource[i].IsEmpty()) ? String(trackSource[i].AsView())
+                                                                                  : String(kComponentSource);
+                t.target = (i < trackTarget.Size()) ? String(trackTarget[i].AsView()) : String();
                 t.propertyPath = (i < trackPath.Size()) ? String(trackPath[i].AsView()) : String();
                 // Range-guard the kind: an out-of-range byte would make ChannelCount desync every
                 // later track's channel cursor. A corrupt kind reads as Float (a deterministic

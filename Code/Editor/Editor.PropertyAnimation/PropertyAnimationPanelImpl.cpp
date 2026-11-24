@@ -85,10 +85,11 @@ namespace editor
             }
         }
 
-        [[nodiscard]] bool HasTrack(const propanim::PropertyAnimationClip& clip, StringView componentType, StringView propertyPath)
+        [[nodiscard]] bool HasTrack(const propanim::PropertyAnimationClip& clip, const AnimatablePropertyInfo& seed)
         {
             for (const propanim::PropertyTrack& track : clip.tracks)
-                if (track.componentType.AsView() == componentType && track.propertyPath.AsView() == propertyPath)
+                if (track.source.AsView() == seed.source.AsView() && track.target.AsView() == seed.target.AsView() &&
+                    track.propertyPath.AsView() == seed.propertyPath.AsView())
                     return true;
             return false;
         }
@@ -105,7 +106,7 @@ namespace editor
     {
         PropertyAnimationPanel* self = this;
         m_document.OnChanged = [self]() { self->Changed(); };
-        m_source.CurrentValue = [self](const propanim::PropertyTrack& track) { return self->EntityValue(track.componentType.AsView(), track.propertyPath.AsView()); };
+        m_source.CurrentValue = [self](const propanim::PropertyTrack& track) { return self->EntityValue(track.source.AsView(), track.target.AsView(), track.propertyPath.AsView()); };
 
         // One axis serves the ruler, the dopesheet and the curve view; a scrub poses the entity.
         m_axis = MakeRef<gui::TimeAxis>(EditorRootAllocator());
@@ -300,9 +301,9 @@ namespace editor
                           });
     }
 
-    Variant PropertyAnimationPanel::EntityValue(StringView componentType, StringView propertyPath) const
+    Variant PropertyAnimationPanel::EntityValue(StringView source, StringView target, StringView propertyPath) const
     {
-        return m_preview.Read(m_entity, componentType, propertyPath);
+        return m_preview.Read(m_entity, source, target, propertyPath);
     }
 
     // === The tracks ===
@@ -311,22 +312,23 @@ namespace editor
     {
         Array<AnimatablePropertyInfo> offered;
         for (AnimatablePropertyInfo& seed : m_preview.TrackSeeds(m_entity))
-            if (!HasTrack(m_document.Clip(), seed.componentType.AsView(), seed.propertyPath.AsView()))
+            if (!HasTrack(m_document.Clip(), seed))
                 offered.PushBack(Move(seed));
         return offered;
     }
 
     void PropertyAnimationPanel::AddTrack(const AnimatablePropertyInfo& seed)
     {
-        if (!m_document.HasClip() || HasTrack(m_document.Clip(), seed.componentType.AsView(), seed.propertyPath.AsView()))
+        if (!m_document.HasClip() || HasTrack(m_document.Clip(), seed))
             return;
-        const Variant value = EntityValue(seed.componentType.AsView(), seed.propertyPath.AsView());
+        const Variant value = EntityValue(seed.source.AsView(), seed.target.AsView(), seed.propertyPath.AsView());
         const f32 time = m_transport.Time();
         m_preview.Stop(); // the tracks change, so the preview's saved values are taken again
         m_document.Edit(u8"propanim-add-track", [&seed, &value, time](propanim::PropertyAnimationClip& clip)
                         {
                             propanim::PropertyTrack track;
-                            track.componentType = seed.componentType;
+                            track.source = seed.source;
+                            track.target = seed.target;
                             track.propertyPath = seed.propertyPath;
                             track.kind = seed.kind;
                             if (!value.IsEmpty())
@@ -368,7 +370,7 @@ namespace editor
         for (const usize t : tracks)
         {
             const propanim::PropertyTrack& track = m_document.Clip().tracks[t];
-            values.PushBack(EntityValue(track.componentType.AsView(), track.propertyPath.AsView()));
+            values.PushBack(EntityValue(track.source.AsView(), track.target.AsView(), track.propertyPath.AsView()));
         }
         usize keyed = 0;
         for (const Variant& value : values)
@@ -425,7 +427,7 @@ namespace editor
         for (const AnimatablePropertyInfo& seed : offered)
         {
             const AnimatablePropertyInfo pick = seed;
-            (void)m_trackMenu->AddItem(Format(u8"{}.{}", seed.componentType, seed.propertyPath).AsView(), [self, pick]() { self->AddTrack(pick); });
+            (void)m_trackMenu->AddItem(Format(u8"{}.{}", seed.target, seed.propertyPath).AsView(), [self, pick]() { self->AddTrack(pick); });
         }
         if (offered.IsEmpty())
             m_trackMenu->AddItem(m_entity.IsNil() ? StringView(u8"Bind an entity first") : StringView(u8"Every property has a track"), []() {})->SetEnabled(false);

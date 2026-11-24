@@ -298,7 +298,8 @@ export namespace editor::mcp
             out.Set(u8"part", bound ? JsonValue::MakeString(sequence.bindings[static_cast<usize>(track.binding)].name) : JsonValue::MakeNull());
             if (const auto* property = Cast<sequence::PropertySequenceTrack>(&track))
             {
-                out.Set(u8"component", JsonValue::MakeString(property->property.componentType));
+                out.Set(u8"source", JsonValue::MakeString(property->property.source));
+                out.Set(u8"target", JsonValue::MakeString(property->property.target));
                 out.Set(u8"property", JsonValue::MakeString(property->property.propertyPath));
             }
             JsonValue channels = JsonValue::MakeArray();
@@ -471,23 +472,21 @@ export namespace editor::mcp
                 RefPtr<sequence::SequenceTrack> track(Cast<sequence::SequenceTrack>(made.Get()));
                 if (!track)
                     return Err(String(u8"add_track: the kind could not be made"));
-                const JsonValue partArg = edit.Get(u8"part");
-                if (!partArg.IsNull())
-                {
-                    track->binding = sequence.FindBinding(partArg.AsString().AsView());
-                    if (track->binding < 0)
-                        return Err(String(u8"add_track: no part of that `part` name (add_part first)"));
-                }
-                else if (track->NeedsBinding())
-                    return Err(Format(u8"add_track: a {} track plays on a part: give `part`", KindLabel(*kind)));
                 if (auto* property = Cast<sequence::PropertySequenceTrack>(track.Get()))
                 {
-                    property->property.componentType = edit.Get(u8"component").AsString();
+                    const String source = edit.Get(u8"source").AsString();
+                    property->property.source = source.IsEmpty() ? String(propertyanimation::kComponentSource) : source;
+                    property->property.target = edit.Get(u8"target").AsString();
                     property->property.propertyPath = edit.Get(u8"property").AsString();
-                    if (property->property.componentType.IsEmpty() || property->property.propertyPath.IsEmpty())
-                        return Err(String(u8"add_track: a property track needs `component` (or Transform) and `property`"));
+                    if (propertyanimation::FindPropertyTargetSource(property->property.source.AsView()) == nullptr)
+                        return Err(Format(u8"add_track: no target source '{}' (component, settings, or one a plugin registers)",
+                                          property->property.source));
+                    if (property->property.target.IsEmpty() || property->property.propertyPath.IsEmpty())
+                        return Err(String(u8"add_track: a property track needs `target` (a component's name or Transform; a "
+                                          u8"settings id with source settings) and `property`"));
                     const String valueKind = edit.Get(u8"valueKind").AsString();
-                    const bool transform = property->property.componentType.AsView() == propertyanimation::kTransformTarget;
+                    const bool transform = property->property.source.AsView() == propertyanimation::kComponentSource &&
+                                           property->property.target.AsView() == propertyanimation::kTransformTarget;
                     if (valueKind == StringView(u8"Float"))
                         property->property.kind = propertyanimation::TrackValueKind::Float;
                     else if (valueKind == StringView(u8"Float3"))
@@ -500,8 +499,19 @@ export namespace editor::mcp
                         property->property.kind = property->property.propertyPath == StringView(u8"rotation") ? propertyanimation::TrackValueKind::Quat
                                                                                                               : propertyanimation::TrackValueKind::Float3;
                     else
-                        return Err(String(u8"add_track: give `valueKind` (Float, Float3, Color or Quat) for a component's property"));
+                        return Err(String(u8"add_track: give `valueKind` (Float, Float3, Color or Quat) for the property"));
                 }
+                // Whether it plays on a part is the kind's, and a property track's source's, so it is
+                // asked once the source is known.
+                const JsonValue partArg = edit.Get(u8"part");
+                if (!partArg.IsNull())
+                {
+                    track->binding = sequence.FindBinding(partArg.AsString().AsView());
+                    if (track->binding < 0)
+                        return Err(String(u8"add_track: no part of that `part` name (add_part first)"));
+                }
+                else if (track->NeedsBinding())
+                    return Err(Format(u8"add_track: a {} track plays on a part: give `part`", KindLabel(*kind)));
                 if (!edit.Get(u8"name").IsNull())
                     track->name = edit.Get(u8"name").AsString();
                 sequence.tracks.PushBack(track);
@@ -646,7 +656,7 @@ export namespace editor::mcp
                 u8"A sequence asset (a cutscene timeline): its length and frame rate, its parts (the cast's names, "
                 u8"filled when it plays), its markers (a hold stops the playhead until the game resumes it), and each "
                 u8"track by index: its kind (type name, and the name the editor shows), its part (null: the whole "
-                u8"sequence), a property track's component and property, its key channels with their keys (a curve's "
+                u8"sequence), a property track's source, target and property, its key channels with their keys (a curve's "
                 u8"with values), its sections, and its reflected `fields` (the paths sequence_edit's `set` takes, such "
                 u8"as sections.0.clip). `kinds` lists every registered kind.",
                 SchemaBuilder().Str(u8"guid", u8"the sequence's guid (asset_list: type SequenceAsset)", true).Build(),
@@ -667,8 +677,10 @@ export namespace editor::mcp
                 u8"Edit a sequence asset: `edits` is a list applied in order, then the sequence is written once; a "
                 u8"refused edit refuses the call and nothing is written. Each edit is an object with `op`: "
                 u8"length {seconds}; add_part {name}; remove_part {name}; add_track {kind (a kind's type or editor "
-                u8"name), part (when the kind plays on one), name?, and for a property track component (Transform, or a "
-                u8"component's name), property (a path), valueKind (Float, Float3, Color, Quat; Transform's are known)}; "
+                u8"name), part (when the kind plays on one), name?, and for a property track source? (component, the "
+                u8"default: a part's component; settings: the scene's settings, no part; or a plugin's), target (a "
+                u8"component's name or Transform; a settings id such as environment), property (a path), valueKind "
+                u8"(Float, Float3, Color, Quat; Transform's are known)}; "
                 u8"remove_track {track}; key {track, channel (name or index; omit for one), time, value? (a curve's)}; "
                 u8"remove_key {track, channel, time}; section {track, start, length?, fields? (the section's fields by "
                 u8"name: clip, offset, speed...)}; remove_section {track, section}; marker {time, name?, hold?}; "

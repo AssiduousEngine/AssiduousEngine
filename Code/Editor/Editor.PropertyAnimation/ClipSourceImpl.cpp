@@ -113,7 +113,7 @@ namespace editor
 
     String ClipSource::TrackPath(const propanim::PropertyTrack& track)
     {
-        return Format(u8"{}.{}", track.componentType, track.propertyPath);
+        return Format(u8"{}.{}", track.target, track.propertyPath);
     }
 
     void ClipSource::ShowTracks(Span<const usize> tracks)
