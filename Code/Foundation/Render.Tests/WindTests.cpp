@@ -124,7 +124,7 @@ TEST_CASE("depth passes: a material's own depth and pick programs replace the bu
     RenderRecordContext ctx{};
     RefPtr<materials::Material> plain = materials::CreatePBR(u8"plain");
     const MeshRenderer::DepthLikeChoice builtIn =
-        MeshRenderer::DepthLikeFor(ctx, plain.Get(), /*instanced*/ false, /*pick*/ false);
+        MeshRenderer::DepthLikeFor(ctx, plain.Get(), /*pick*/ false);
     CHECK(builtIn.config.shaderName == u8"shadow_depth");
     CHECK_FALSE(builtIn.materialSet); // opaque, still: no set 2
     CHECK(builtIn.config.depthOnly);
@@ -134,25 +134,25 @@ TEST_CASE("depth passes: a material's own depth and pick programs replace the bu
     waves->pickShaderName = String(u8"waves.pick");
     waves->pipeline.cullMode = materials::CullModeConfig::None;
     const MeshRenderer::DepthLikeChoice depth =
-        MeshRenderer::DepthLikeFor(ctx, waves.Get(), /*instanced*/ true, /*pick*/ false);
+        MeshRenderer::DepthLikeFor(ctx, waves.Get(), /*pick*/ false);
     CHECK(depth.config.shaderName == u8"waves.depth");
     CHECK(depth.materialSet);
     CHECK(shaders::HasFlag(depth.config.shaderFlags, shaders::ShaderFlags::Instanced));
     CHECK(depth.config.depthOnly); // opaque: its vertex stage alone
     const MeshRenderer::DepthLikeChoice pick =
-        MeshRenderer::DepthLikeFor(ctx, waves.Get(), /*instanced*/ false, /*pick*/ true);
+        MeshRenderer::DepthLikeFor(ctx, waves.Get(), /*pick*/ true);
     CHECK(pick.config.shaderName == u8"waves.pick");
     CHECK(pick.config.cullMode == materials::CullModeConfig::None); // as the material draws
 
     // Masked: the cut-out's fragment runs, over the material's set 2.
     waves->pipeline.blendMode = materials::BlendMode::Masked;
     const MeshRenderer::DepthLikeChoice masked =
-        MeshRenderer::DepthLikeFor(ctx, waves.Get(), false, false);
+        MeshRenderer::DepthLikeFor(ctx, waves.Get(), false);
     CHECK_FALSE(masked.config.depthOnly);
     CHECK(shaders::HasFlag(masked.config.shaderFlags, shaders::ShaderFlags::AlphaTest));
 
     // No material: the built-in.
-    CHECK(MeshRenderer::DepthLikeFor(ctx, nullptr, false, true).config.shaderName == u8"pick_ids");
+    CHECK(MeshRenderer::DepthLikeFor(ctx, nullptr, true).config.shaderName == u8"pick_ids");
 }
 
 TEST_CASE("depth passes: the built-in shadow and prepass read a static mesh's slim depth stream")
@@ -165,7 +165,7 @@ TEST_CASE("depth passes: the built-in shadow and prepass read a static mesh's sl
     for (const bool masked : {false, true})
     {
         materials::Material* material = masked ? leaves.Get() : nullptr;
-        materials::PipelineConfig shadow = MeshRenderer::DepthLikeFor(ctx, material, /*instanced*/ true, false).config;
+        materials::PipelineConfig shadow = MeshRenderer::DepthLikeFor(ctx, material, false).config;
         CHECK(MeshRenderer::ChooseDepthLikeStream(shadow, /*skinned*/ false, /*depthStream*/ true, /*pick*/ false));
         CHECK(shadow.vertexLayout == materials::VertexLayoutType::DepthStream);
         CHECK(shaders::HasFlag(shadow.shaderFlags, shaders::ShaderFlags::DepthStream));
@@ -173,22 +173,22 @@ TEST_CASE("depth passes: the built-in shadow and prepass read a static mesh's sl
     }
 
     // A skinned mesh deforms from its full vertex and its skinning stream.
-    materials::PipelineConfig skinned = MeshRenderer::DepthLikeFor(ctx, nullptr, true, false).config;
+    materials::PipelineConfig skinned = MeshRenderer::DepthLikeFor(ctx, nullptr, false).config;
     CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(skinned, /*skinned*/ true, true, false));
     CHECK(skinned.vertexLayout == materials::VertexLayoutType::SkinnedMesh);
     CHECK_FALSE(shaders::HasFlag(skinned.shaderFlags, shaders::ShaderFlags::DepthStream));
 
     // The pick, a material's own depth program (a surface shader reads the normal and tangent), and
     // a mesh with no depth stream all take the full vertex.
-    materials::PipelineConfig pick = MeshRenderer::DepthLikeFor(ctx, nullptr, false, true).config;
+    materials::PipelineConfig pick = MeshRenderer::DepthLikeFor(ctx, nullptr, true).config;
     CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(pick, false, true, /*pick*/ true));
     CHECK(pick.vertexLayout == materials::VertexLayoutType::Mesh);
     RefPtr<materials::Material> waves = materials::CreatePBR(u8"waves");
     waves->depthShaderName = String(u8"waves.depth");
-    materials::PipelineConfig own = MeshRenderer::DepthLikeFor(ctx, waves.Get(), false, false).config;
+    materials::PipelineConfig own = MeshRenderer::DepthLikeFor(ctx, waves.Get(), false).config;
     CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(own, false, true, false));
     CHECK(own.vertexLayout == materials::VertexLayoutType::Mesh);
-    materials::PipelineConfig none = MeshRenderer::DepthLikeFor(ctx, nullptr, false, false).config;
+    materials::PipelineConfig none = MeshRenderer::DepthLikeFor(ctx, nullptr, false).config;
     CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(none, false, /*depthStream*/ false, false));
     CHECK(none.vertexLayout == materials::VertexLayoutType::Mesh);
 }
@@ -228,7 +228,7 @@ TEST_CASE("depth passes: an active effect selects its variant and binds the mate
     RenderRecordContext ctx{};
     RefPtr<materials::Material> card = materials::CreatePBR(u8"card");
     card->AddEffectGroup(WindTable());
-    const MeshRenderer::DepthLikeChoice still = MeshRenderer::DepthLikeFor(ctx, card.Get(), false, false);
+    const MeshRenderer::DepthLikeChoice still = MeshRenderer::DepthLikeFor(ctx, card.Get(), false);
     CHECK_FALSE(still.materialSet);
     CHECK_FALSE(shaders::HasFlag(still.config.shaderFlags, shaders::ShaderFlags::Wind));
 
@@ -236,7 +236,7 @@ TEST_CASE("depth passes: an active effect selects its variant and binds the mate
     for (int pass = 0; pass < 2; ++pass)
     {
         const bool pick = pass == 1;
-        const MeshRenderer::DepthLikeChoice sway = MeshRenderer::DepthLikeFor(ctx, card.Get(), true, pick);
+        const MeshRenderer::DepthLikeChoice sway = MeshRenderer::DepthLikeFor(ctx, card.Get(), pick);
         CHECK(sway.materialSet);
         CHECK(shaders::HasFlag(sway.config.shaderFlags, shaders::ShaderFlags::Wind));
         CHECK(sway.config.shaderName == (pick ? StringView(u8"pick_ids") : StringView(u8"shadow_depth")));
@@ -265,14 +265,14 @@ TEST_CASE("depth passes: each submesh draws with its own slot's material, a mask
     {
         const bool pick = pass == 1;
         MeshRenderer::DepthLikeRanges(ctx, bark.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2),
-                                      /*chain*/ false, /*instanced*/ false, pick, ranges);
+                                      /*chain*/ false, pick, ranges);
         REQUIRE(ranges.Size() == 2u);
         CHECK(ranges[0].material == bark.Get());
         CHECK(ranges[1].material == leaves.Get());
         CHECK_FALSE(ranges[1].whole);
         CHECK(ranges[1].startIndex == 300u);
         CHECK(ranges[1].indexCount == 120u);
-        const MeshRenderer::DepthLikeChoice cut = MeshRenderer::DepthLikeFor(ctx, ranges[1].material, false, pick);
+        const MeshRenderer::DepthLikeChoice cut = MeshRenderer::DepthLikeFor(ctx, ranges[1].material, pick);
         CHECK(shaders::HasFlag(cut.config.shaderFlags, shaders::ShaderFlags::AlphaTest));
         CHECK(cut.materialSet);
     }
@@ -280,33 +280,31 @@ TEST_CASE("depth passes: each submesh draws with its own slot's material, a mask
     // Two opaque slots draw alike: one draw of the whole mesh, as before.
     RefPtr<materials::Material> trim = materials::CreatePBR(u8"trim");
     const RefPtr<materials::Material> opaque[2] = {bark, trim};
-    MeshRenderer::DepthLikeRanges(ctx, bark.Get(), opaque, 2, Span<const geometry::SubMesh>(subs, 2), false, true,
-                                  false, ranges);
+    MeshRenderer::DepthLikeRanges(ctx, bark.Get(), opaque, 2, Span<const geometry::SubMesh>(subs, 2), false, false, ranges);
     REQUIRE(ranges.Size() == 1u);
     CHECK(ranges[0].whole);
 
     // One masked material in every slot: one whole draw with it.
     const RefPtr<materials::Material> allLeaves[2] = {leaves, leaves};
     MeshRenderer::DepthLikeRanges(ctx, leaves.Get(), allLeaves, 2, Span<const geometry::SubMesh>(subs, 2), false,
-                                  false, false, ranges);
+                                  false, ranges);
     REQUIRE(ranges.Size() == 1u);
     CHECK(ranges[0].whole);
     CHECK(ranges[0].material == leaves.Get());
 
     // No submeshes: the whole mesh with slot 0. A slot out of range draws as slot 0.
-    MeshRenderer::DepthLikeRanges(ctx, leaves.Get(), nullptr, 0, {}, false, false, false, ranges);
+    MeshRenderer::DepthLikeRanges(ctx, leaves.Get(), nullptr, 0, {}, false, false, ranges);
     REQUIRE(ranges.Size() == 1u);
     CHECK(ranges[0].whole);
     CHECK(ranges[0].material == leaves.Get());
     subs[1].materialIndex = 7;
-    MeshRenderer::DepthLikeRanges(ctx, bark.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2), false, false,
-                                  false, ranges);
+    MeshRenderer::DepthLikeRanges(ctx, bark.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2), false, false, ranges);
     REQUIRE(ranges.Size() == 1u); // both bark now: alike
     CHECK(ranges[0].material == bark.Get());
 
     // A LOD chain's level keeps its ranges even when they draw alike (the buffer holds every level).
     MeshRenderer::DepthLikeRanges(ctx, bark.Get(), opaque, 2, Span<const geometry::SubMesh>(subs, 2), /*chain*/ true,
-                                  false, false, ranges);
+                                  false, ranges);
     CHECK(ranges.Size() == 2u);
 }
 
@@ -336,16 +334,14 @@ TEST_CASE("depth passes: an item of a mesh split by category draws its own categ
     item.category = RenderCategories::Opaque;
     item.categorySlots = true;
     Array<MeshRenderer::DepthLikeRange> ranges;
-    MeshRenderer::DepthLikeRanges(ctx, frame.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2), false, false,
-                                  false, ranges, &item);
+    MeshRenderer::DepthLikeRanges(ctx, frame.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2), false, false, ranges, &item);
     REQUIRE(ranges.Size() == 1u);
     CHECK(ranges[0].material == frame.Get());
     CHECK_FALSE(ranges[0].whole); // the frame's indices, not the whole mesh's
     CHECK(ranges[0].indexCount == 60u);
 
     item.categorySlots = false; // not split: as before, the plain program for both, so one whole draw
-    MeshRenderer::DepthLikeRanges(ctx, frame.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2), false, false,
-                                  false, ranges, &item);
+    MeshRenderer::DepthLikeRanges(ctx, frame.Get(), slots, 2, Span<const geometry::SubMesh>(subs, 2), false, false, ranges, &item);
     REQUIRE(ranges.Size() == 1u);
     CHECK(ranges[0].whole);
 }
@@ -362,13 +358,13 @@ TEST_CASE("forward: an item of a mesh split by category draws its slots with the
     item.material = frame.Get();
     item.category = RenderCategories::Transparent;
     item.categorySlots = true;
-    const materials::PipelineConfig base = MeshRenderer::ConfigFor(item, frame.Get(), ctx, false);
+    const materials::PipelineConfig base = MeshRenderer::ConfigFor(item, frame.Get(), ctx);
     CHECK(base.colorTargetCount == 5u);
-    const materials::PipelineConfig own = MeshRenderer::SlotConfigFor(item, base, glass.Get(), ctx, false, false);
+    const materials::PipelineConfig own = MeshRenderer::SlotConfigFor(item, base, glass.Get(), ctx, false);
     CHECK(own.blendMode == materials::BlendMode::AlphaBlend);
     CHECK(own.colorTargetCount == 1u);
 
     item.categorySlots = false; // unsplit: the slot of another pass keeps the mesh's pipeline, as before
-    const materials::PipelineConfig kept = MeshRenderer::SlotConfigFor(item, base, glass.Get(), ctx, false, false);
+    const materials::PipelineConfig kept = MeshRenderer::SlotConfigFor(item, base, glass.Get(), ctx, false);
     CHECK(kept.colorTargetCount == 5u);
 }

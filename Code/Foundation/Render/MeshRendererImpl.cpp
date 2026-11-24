@@ -90,15 +90,6 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        // set 1 (non-instanced): per-object UBO (World, Tint), dynamic offset.
-        rhi::BindGroupLayoutEntry objEntry =
-            rhi::BindGroupLayoutEntry::UniformBuffer(0, rhi::ShaderStage::Vertex);
-        objEntry.hasDynamicOffset = true;
-        if (!MakeLayout(objEntry, m_objectLayout))
-        {
-            return Status{ErrorCode::Unknown};
-        }
-
         // set 1 (instanced): per-instance StructuredBuffer (read-only storage) and the draw's
         // InstanceSet block (its fade window, instance count and set pick id).
         {
@@ -173,10 +164,6 @@ namespace foundation::render
         rhi::BindGroupLayoutDesc svd{};
         svd.entries = Span<const rhi::BindGroupLayoutEntry>{shadowSet0, 2};
         if (!m_device->CreateBindGroupLayout(svd, m_shadowViewLayout).IsOk())
-        {
-            return Status{ErrorCode::Unknown};
-        }
-        if (!MakePipelineLayout(m_shadowViewLayout, m_objectLayout, m_shadowPipelineLayoutSingle))
         {
             return Status{ErrorCode::Unknown};
         }
@@ -281,7 +268,7 @@ namespace foundation::render
         }
         // Per-frame ring capacity covers every pass that re-emits draws: the depth prepass and the
         // forward, each CSM cascade, each local-atlas tile, probe faces and picks. Under-counting
-        // overflows the object, instance and offset rings, Allocate() fails and draws are dropped.
+        // overflows the instance and offset rings, Allocate() fails and draws are dropped.
         // Shadow passes are sized by their casters, not the view's draws: off-camera casters would
         // otherwise starve the camera's own draws, and meshes would vanish with their shadows drawn.
         const u32 drawCap = InstanceSlotsPerFrame(
@@ -290,7 +277,7 @@ namespace foundation::render
         // Pick passes take a shadow-view slot each, as shadow passes do.
         const u32 shadowViewCap = kMaxShadowPasses + m_pickPasses;
         if (!m_shadowViewRing.Reserve(shadowViewCap) ||
-            !m_objectRing.Reserve(drawCap) || !m_instanceRing.Reserve(drawCap) ||
+            !m_instanceRing.Reserve(drawCap) ||
             !m_offsetsRing.Reserve(drawCap) || !m_lightRing.Reserve(Max(kMaxLights, m_sceneLights)) ||
             !m_localShadowRing.Reserve(kMaxLocalShadows) || !m_boneRing.Reserve(m_boneSlotsWanted))
         {
@@ -301,10 +288,7 @@ namespace foundation::render
             return;
         } // device-local mirror of the bone staging ring (VS reads VRAM)
         if (!EnsureShadowViewBindGroup() ||
-            !EnsureBindGroup(m_objectRing, m_objectLayout, sizeof(GpuObject), m_objectBG,
-                             m_objectBGGen, /*whole*/ false) ||
-            !EnsureBindGroup(m_instanceRing, m_instanceLayout, 0, m_instanceBG, m_instanceBGGen,
-                             /*whole*/ true, m_noFadeSetBuf))
+            !EnsureInstanceBindGroup())
         {
             return;
         }
@@ -317,7 +301,6 @@ namespace foundation::render
             return;
         }
         m_shadowViewRing.BeginFrame(frameIndex);
-        m_objectRing.BeginFrame(frameIndex);
         m_instanceRing.BeginFrame(frameIndex);
         m_offsetsRing.BeginFrame(frameIndex);
         m_lightRing.BeginFrame(frameIndex);
@@ -1156,8 +1139,8 @@ namespace foundation::render
                 continue;
             }
             // Skinned and faded meshes batch like any other: identical (mesh, material) instances
-            // collapse into one instanced draw, and a lone one draws by the single path, which carries
-            // the same bones and fade per object.
+            // collapse into one instanced draw, and a lone one into an instanced draw of one, each
+            // instance with its own bones and fade.
             const bool headFaded = head->fade > 0.0f;
             // A run draws skinned or not by its head: an item that is the other breaks it.
             const bool headSkinned = head->boneMatrices != nullptr && head->boneCount > 0;
@@ -1185,15 +1168,8 @@ namespace foundation::render
             const GpuMesh* mesh = m_meshes.GetOrUpload(head->mesh);
             if (mesh != nullptr)
             {
-                if (runLen >= 2)
-                {
-                    ResolveInstanced(ctx, viewOffset, clusterBG, items, i, runLen, *head, *mesh,
-                                     out);
-                }
-                else
-                {
-                    ResolveSingle(ctx, viewOffset, clusterBG, *head, *mesh, out);
-                }
+                // A run of one draws as an instanced draw of one: one path for every mesh.
+                ResolveInstanced(ctx, viewOffset, clusterBG, items, i, runLen, *head, *mesh, out);
             }
             i = j;
         }
@@ -1272,9 +1248,8 @@ namespace foundation::render
                 ++i;
                 continue;
             }
-            // Skinned casters batch like static ones; a lone one draws by the single path (its bone
-            // base rides the object block there). A run draws skinned or not by its head, so an item
-            // that is the other breaks it.
+            // Skinned casters batch like static ones, a lone one as a run of one. A run draws skinned
+            // or not by its head, so an item that is the other breaks it.
             const bool headSkinned = head->boneMatrices != nullptr && head->boneCount > 0;
             usize j = i + 1;
             while (j < items.Size())
@@ -1292,15 +1267,7 @@ namespace foundation::render
             const GpuMesh* mesh = m_meshes.GetOrUpload(head->mesh);
             if (mesh != nullptr)
             {
-                if (runLen >= 2)
-                {
-                    ResolveDepthInstanced(ctx, shadowViewOffset, items, i, runLen, *mesh, out,
-                                          pick);
-                }
-                else
-                {
-                    ResolveDepthSingle(ctx, shadowViewOffset, *head, *mesh, out, pick);
-                }
+                ResolveDepthInstanced(ctx, shadowViewOffset, items, i, runLen, *mesh, out, pick);
             }
             i = j;
         }
@@ -1310,7 +1277,6 @@ namespace foundation::render
     {
         m_viewRing.EndFrame();
         m_shadowViewRing.EndFrame();
-        m_objectRing.EndFrame();
         m_instanceRing.EndFrame();
         m_boneRing.EndFrame();
         m_offsetsRing.EndFrame();
@@ -1341,130 +1307,6 @@ namespace foundation::render
         m_ready = false;
     }
 
-    void MeshRenderer::ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
-                                     rhi::BindGroupHandle clusterBG, const MeshRenderData& md,
-                                     const GpuMesh& mesh, Array<ResolvedDraw>& out)
-    {
-        materials::Material* mat = (md.material != nullptr) ? md.material : m_defaultMaterial.Get();
-        materials::PipelineConfig config = ConfigFor(md, ctx, /*instanced*/ false);
-
-        // GPU skinning: a skinned mesh draws the SKINNED permutation with the SkinnedMesh layout, binds the
-        // skin stream (buffer 1), and reads its bones from the shared device pool at boneBase (matrix
-        // units, computed once this frame by UploadSkinning). No per-pass upload here.
-        u32 boneBase = 0, prevBoneBase = 0;
-        bool skinned = md.boneMatrices != nullptr && md.boneCount > 0 && md.mesh != nullptr &&
-                       md.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
-        if (skinned)
-        {
-            const BoneSlot* s = m_boneStart.Find(md.boneMatrices);
-            if (s != nullptr)
-            {
-                boneBase = s->base;
-                prevBoneBase = s->prevBase; // last frame's pose: the skinned motion vectors
-                config.vertexLayout = materials::VertexLayoutType::SkinnedMesh;
-                config.shaderFlags |= shaders::ShaderFlags::Skinned;
-            }
-            else
-            {
-                skinned =
-                    false; // not uploaded (pool overflow): draw the bind pose rather than garbage
-            }
-        }
-
-        const DynamicUniformRing::Range obj = m_objectRing.Allocate();
-        if (!obj.ok)
-        {
-            return;
-        }
-        GpuObject od{};
-        od.world = md.world;
-        od.prevWorld = ctx.needsMotion ? PrevWorldFor(md.scene, md.entityId, md.world) : md.world;
-        od.tint = md.color;
-        od.boneBase = boneBase;
-        od.prevBoneBase = prevBoneBase;
-        od.fade = md.fade;
-        *static_cast<GpuObject*>(obj.ptr) = od;
-
-        // Shared per-submesh draw state (view, object and cluster sets, vertex and index buffers, skinning).
-        ResolvedDraw base{};
-        base.viewSet = m_viewBG;
-        base.viewOffset = viewOffset;
-        base.viewDynamic = true; // set 0
-        base.drawSet = m_objectBG;
-        base.drawOffset = obj.byteOffset;
-        base.drawDynamic = true;     // set 1
-        base.clusterSet = clusterBG; // set 3
-        base.vertexBuffer0 = mesh.vertexBuffer;
-        base.vertexOffset0 = mesh.vertexOffset;
-        if (skinned)
-        {
-            base.vertexBuffer1 = mesh.skinBuffer;
-            base.vertexOffset1 = mesh.skinOffset;
-        }
-        base.indexBuffer = mesh.indexBuffer;
-        base.indexFormat = mesh.indexFormat;
-        base.instanceCount = 1;
-
-        // Emit one draw for an index sub-range with `m`'s material (set 2 is its data-driven bind group),
-        // the mesh's own instance of it when the mesh overrides properties in that `slot`.
-        const auto emit = [&](materials::Material* m, u32 slot, u64 indexOffset, u32 indexCount)
-        {
-            materials::Material* use = (m != nullptr) ? m : mat;
-            rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*use);
-            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ false);
-            if (!plLayout.IsValid())
-            {
-                return;
-            }
-            const materials::PipelineConfig own = SlotConfigFor(md, config, m, ctx, /*instanced*/ false, skinned);
-            rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
-            if (!pso.IsValid())
-            {
-                return;
-            }
-            ResolvedDraw d = base;
-            d.pso = pso;
-            d.materialSet = m_materials->PrepareInstance(*InstanceFor(md, slot, use), set2);
-            d.indexOffset = indexOffset;
-            d.indexCount = indexCount;
-            out.PushBack(d);
-        };
-
-        // Multi-material: draw each submesh with its own material; otherwise one draw for the whole
-        // mesh. A LOD chain routes both branches through the selected level's submesh table, since
-        // the whole-buffer fast path would draw every level's concatenated indices at once.
-        const bool hasChain = md.mesh != nullptr && md.mesh->lodCount > 1;
-        if (md.mesh != nullptr && !md.mesh->subMeshes.IsEmpty() &&
-            (md.submeshMaterialCount > 0 || hasChain))
-        {
-            const Span<const geometry::SubMesh> subs =
-                hasChain ? md.mesh->SubMeshesForLod(SelectLod(ctx, md))
-                         : Span<const geometry::SubMesh>(md.mesh->subMeshes.Data(),
-                                                         md.mesh->subMeshes.Size());
-            const u64 stride = (mesh.indexFormat == rhi::IndexFormat::UInt16) ? 2u : 4u;
-            for (const geometry::SubMesh& sub : subs)
-            {
-                const bool inRange = sub.materialIndex >= 0 &&
-                                     static_cast<u32>(sub.materialIndex) < md.submeshMaterialCount;
-                materials::Material* m = inRange ? md.submeshMaterials[sub.materialIndex].Get() : nullptr;
-                u32 slot = inRange ? static_cast<u32>(sub.materialIndex) : 0u;
-                if (m == nullptr)
-                {
-                    m = md.material;
-                    slot = 0;
-                } // OOB/unresolved slot -> slot 0
-                if (md.categorySlots && MeshSlotCategory(m, md.fade) != md.category)
-                    continue; // another of this mesh's items draws it, in its own pass
-                emit(m, slot, mesh.indexOffset + static_cast<u64>(sub.startIndex) * stride,
-                     static_cast<u32>(sub.indexCount));
-            }
-        }
-        else
-        {
-            emit(mat, 0u, mesh.indexOffset, mesh.indexCount);
-        }
-    }
-
     void MeshRenderer::ResolveInstanced(const RenderRecordContext& ctx, u32 viewOffset,
                                         rhi::BindGroupHandle clusterBG, Span<const DrawItem> items,
                                         usize first, u32 count, const MeshRenderData& head,
@@ -1472,11 +1314,14 @@ namespace foundation::render
     {
         materials::Material* mat =
             (head.material != nullptr) ? head.material : m_defaultMaterial.Get();
-        materials::PipelineConfig config = ConfigFor(head, ctx, /*instanced*/ true);
+        materials::PipelineConfig config = ConfigFor(head, ctx);
         // Skinned instanced draw: the shared skin stream (joints, weights) is per mesh; each instance's
         // bone base rides in GpuDrawOffsets::boneBase (current) and prevBoneBase, so one draw skins N characters.
-        const bool skinned = head.boneMatrices != nullptr && head.mesh != nullptr &&
-                             head.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
+        // A skeleton the bone pool could not take (it overflowed) draws in its bind pose, not with
+        // another skeleton's bones.
+        const bool skinned = head.boneMatrices != nullptr && head.boneCount > 0 && head.mesh != nullptr &&
+                             head.mesh->IsSkinned() && mesh.skinBuffer.IsValid() &&
+                             m_boneStart.Find(head.boneMatrices) != nullptr;
         if (skinned)
         {
             config.vertexLayout = materials::VertexLayoutType::SkinnedMesh;
@@ -1551,17 +1396,19 @@ namespace foundation::render
         base.indexFormat = mesh.indexFormat;
         base.instanceCount = count;
 
-        // Emit one instanced draw for an index sub-range with `m`'s material (set 2 is its bind group).
-        const auto emit = [&](materials::Material* m, u64 indexOffset, u32 indexCount)
+        // Emit one instanced draw for an index sub-range with `m`'s material (set 2 is its bind group):
+        // the run's own instance of it when its mesh overrides properties in that `slot` (a mesh with
+        // overrides draws as a run of one), else the material's shared instance.
+        const auto emit = [&](materials::Material* m, u32 slot, u64 indexOffset, u32 indexCount)
         {
             materials::Material* use = (m != nullptr) ? m : mat;
             rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*use);
-            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ true);
+            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2);
             if (!plLayout.IsValid())
             {
                 return;
             }
-            const materials::PipelineConfig own = SlotConfigFor(head, config, m, ctx, /*instanced*/ true, skinned);
+            const materials::PipelineConfig own = SlotConfigFor(head, config, m, ctx, skinned);
             rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
             if (!pso.IsValid())
             {
@@ -1569,7 +1416,7 @@ namespace foundation::render
             }
             ResolvedDraw d = base;
             d.pso = pso;
-            d.materialSet = m_materials->PrepareInstance(*InstanceFor(use), set2);
+            d.materialSet = m_materials->PrepareInstance(*InstanceFor(head, slot, use), set2);
             d.indexOffset = indexOffset;
             d.indexCount = indexCount;
             out.PushBack(d);
@@ -1589,84 +1436,25 @@ namespace foundation::render
             const u64 stride = (mesh.indexFormat == rhi::IndexFormat::UInt16) ? 2u : 4u;
             for (const geometry::SubMesh& sub : subs)
             {
-                materials::Material* m =
-                    (sub.materialIndex >= 0 &&
-                     static_cast<u32>(sub.materialIndex) < head.submeshMaterialCount)
-                        ? head.submeshMaterials[sub.materialIndex].Get()
-                        : nullptr;
+                const bool inRange = sub.materialIndex >= 0 &&
+                                     static_cast<u32>(sub.materialIndex) < head.submeshMaterialCount;
+                materials::Material* m = inRange ? head.submeshMaterials[sub.materialIndex].Get() : nullptr;
+                u32 slot = inRange ? static_cast<u32>(sub.materialIndex) : 0u;
                 if (m == nullptr)
                 {
                     m = head.material;
+                    slot = 0;
                 } // OOB/unresolved slot -> slot 0
                 if (head.categorySlots && MeshSlotCategory(m, head.fade) != head.category)
                     continue; // another of this mesh's items draws it, in its own pass
-                emit(m, mesh.indexOffset + static_cast<u64>(sub.startIndex) * stride,
+                emit(m, slot, mesh.indexOffset + static_cast<u64>(sub.startIndex) * stride,
                      static_cast<u32>(sub.indexCount));
             }
         }
         else
         {
-            emit(mat, mesh.indexOffset, mesh.indexCount);
+            emit(mat, 0, mesh.indexOffset, mesh.indexCount);
         }
-    }
-
-    void MeshRenderer::ResolveDepthSingle(const RenderRecordContext& ctx, u32 shadowViewOffset,
-                                          const MeshRenderData& md, const GpuMesh& mesh,
-                                          Array<ResolvedDraw>& out, bool pick)
-    {
-        u32 boneBase = 0;
-        bool skinned = md.boneMatrices != nullptr && md.boneCount > 0 && md.mesh != nullptr &&
-                       md.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
-        if (skinned)
-        {
-            if (const BoneSlot* s = m_boneStart.Find(md.boneMatrices))
-            {
-                boneBase = s->base; // shared device pool (uploaded once this frame)
-            }
-            else
-            {
-                skinned = false;
-            }
-        }
-        const DynamicUniformRing::Range obj = m_objectRing.Allocate();
-        if (!obj.ok)
-        {
-            return;
-        }
-        GpuObject od{};
-        od.world = md.world;
-        od.prevWorld = md.world; // depth pass ignores prevWorld
-        od.tint = md.color;
-        od.boneBase = boneBase;
-        od.pickIndex = EntityTag::Index(md.entityId) + 1u; // pick pass: 0 is nothing
-        od.pickGeneration = EntityTag::Generation(md.entityId);
-        *static_cast<GpuObject*>(obj.ptr) = od;
-
-        ResolvedDraw d{};
-        d.viewSet = m_shadowViewBG;
-        d.viewOffset = shadowViewOffset;
-        d.viewDynamic = true; // set 0: light view
-        d.drawSet = m_objectBG;
-        d.drawOffset = obj.byteOffset;
-        d.drawDynamic = true; // set 1: object UBO
-        d.vertexBuffer0 = mesh.vertexBuffer;
-        d.vertexOffset0 = mesh.vertexOffset;
-        if (skinned)
-        {
-            d.vertexBuffer1 = mesh.skinBuffer;
-            d.vertexOffset1 = mesh.skinOffset;
-        } // buffer 1: skin stream
-        d.indexBuffer = mesh.indexBuffer;
-        d.indexOffset = mesh.indexOffset;
-        d.indexFormat = mesh.indexFormat;
-        d.indexCount = mesh.indexCount;
-        d.instanceCount = 1;
-        // Each submesh with its own slot's material, as the forward draws it (a masked slot cuts
-        // its holes in the prepass and the shadows), in this view's LOD level for a chain.
-        const bool chain = md.mesh != nullptr && md.mesh->lodCount > 1;
-        DepthLikeRanges(ctx, md.material, md.submeshMaterials, md.submeshMaterialCount,
-                        DepthLikeSubMeshes(ctx, md, chain), chain, /*instanced*/ false, pick, m_depthRanges, &md);
-        EmitDepthLike(ctx, d, mesh, Span<const DepthLikeRange>(m_depthRanges.Data(), m_depthRanges.Size()), /*instanced*/ false, pick, skinned, out);
     }
 
     void MeshRenderer::ResolveDepthInstanced(const RenderRecordContext& ctx, u32 shadowViewOffset,
@@ -1675,8 +1463,11 @@ namespace foundation::render
                                              bool pick)
     {
         const auto& head = *static_cast<const MeshRenderData*>(items[first].data);
-        const bool skinned = head.boneMatrices != nullptr && head.mesh != nullptr &&
-                             head.mesh->IsSkinned() && mesh.skinBuffer.IsValid();
+        // A skeleton the bone pool could not take (it overflowed) draws in its bind pose, not with
+        // another skeleton's bones.
+        const bool skinned = head.boneMatrices != nullptr && head.boneCount > 0 && head.mesh != nullptr &&
+                             head.mesh->IsSkinned() && mesh.skinBuffer.IsValid() &&
+                             m_boneStart.Find(head.boneMatrices) != nullptr;
         const DynamicUniformRing::Range inst = m_instanceRing.AllocateRange(count);
         const DynamicUniformRing::Range offs = m_offsetsRing.AllocateRange(count);
         if (!inst.ok || !offs.ok)
@@ -1756,8 +1547,8 @@ namespace foundation::render
         // (the head's bounds).
         const bool chain = head.mesh != nullptr && head.mesh->lodCount > 1;
         DepthLikeRanges(ctx, head.material, head.submeshMaterials, head.submeshMaterialCount,
-                        DepthLikeSubMeshes(ctx, head, chain), chain, /*instanced*/ true, pick, m_depthRanges, &head);
-        EmitDepthLike(ctx, d, mesh, Span<const DepthLikeRange>(m_depthRanges.Data(), m_depthRanges.Size()), /*instanced*/ true, pick, skinned, out);
+                        DepthLikeSubMeshes(ctx, head, chain), chain, pick, m_depthRanges, &head);
+        EmitDepthLike(ctx, d, mesh, Span<const DepthLikeRange>(m_depthRanges.Data(), m_depthRanges.Size()), pick, skinned, out);
     }
 
     void MeshRenderer::ResolveMultiMesh(const RenderRecordContext& ctx, u32 viewOffset,
@@ -1778,7 +1569,7 @@ namespace foundation::render
             return;
         }
         materials::Material* mat = (mm.material != nullptr) ? mm.material : m_defaultMaterial.Get();
-        materials::PipelineConfig config = ConfigFor(mm, ctx, /*instanced*/ true);
+        materials::PipelineConfig config = ConfigFor(mm, ctx);
         if (skinned)
         {
             config.vertexLayout = materials::VertexLayoutType::SkinnedMesh;
@@ -1815,12 +1606,12 @@ namespace foundation::render
         {
             materials::Material* use = (m != nullptr) ? m : mat;
             rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*use);
-            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ true);
+            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2);
             if (!plLayout.IsValid())
             {
                 return;
             }
-            const materials::PipelineConfig own = SlotConfigFor(mm, config, m, ctx, /*instanced*/ true, skinned);
+            const materials::PipelineConfig own = SlotConfigFor(mm, config, m, ctx, skinned);
             rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
             if (!pso.IsValid())
             {
@@ -1911,8 +1702,8 @@ namespace foundation::render
         // merged bounds).
         const bool chain = mm.mesh != nullptr && mm.mesh->lodCount > 1;
         DepthLikeRanges(ctx, mm.material, mm.submeshMaterials, mm.submeshMaterialCount,
-                        DepthLikeSubMeshes(ctx, mm, chain), chain, /*instanced*/ true, pick, m_depthRanges, &mm);
-        EmitDepthLike(ctx, d, mesh, Span<const DepthLikeRange>(m_depthRanges.Data(), m_depthRanges.Size()), /*instanced*/ true, pick, skinned, out);
+                        DepthLikeSubMeshes(ctx, mm, chain), chain, pick, m_depthRanges, &mm);
+        EmitDepthLike(ctx, d, mesh, Span<const DepthLikeRange>(m_depthRanges.Data(), m_depthRanges.Size()), pick, skinned, out);
     }
 
     Span<const geometry::SubMesh> MeshRenderer::DepthLikeSubMeshes(const RenderRecordContext& ctx,
@@ -1929,8 +1720,7 @@ namespace foundation::render
 
     void MeshRenderer::DepthLikeRanges(const RenderRecordContext& ctx, materials::Material* slot0,
                                        const RefPtr<materials::Material>* slots, u32 slotCount,
-                                       Span<const geometry::SubMesh> subMeshes, bool chain, bool instanced,
-                                       bool pick, Array<DepthLikeRange>& out, const MeshRenderData* only)
+                                       Span<const geometry::SubMesh> subMeshes, bool chain, bool pick, Array<DepthLikeRange>& out, const MeshRenderData* only)
     {
         const bool filter = only != nullptr && only->categorySlots;
         out.Clear();
@@ -1955,13 +1745,13 @@ namespace foundation::render
             return; // a LOD level is its ranges (the buffer holds every level), as is a filtered mesh's
         // One draw of the whole mesh when every range draws alike: one material, or the plain
         // program with no material set for all (opaque slots), as most meshes' shadows are.
-        const DepthLikeChoice first = DepthLikeFor(ctx, out[0].material, instanced, pick);
+        const DepthLikeChoice first = DepthLikeFor(ctx, out[0].material, pick);
         bool alike = true;
         for (usize i = 1; i < out.Size() && alike; ++i)
         {
             if (out[i].material == out[0].material)
                 continue;
-            const DepthLikeChoice other = DepthLikeFor(ctx, out[i].material, instanced, pick);
+            const DepthLikeChoice other = DepthLikeFor(ctx, out[i].material, pick);
             alike = !first.materialSet && !other.materialSet && other.config == first.config;
         }
         if (alike)
@@ -2005,23 +1795,23 @@ namespace foundation::render
     }
 
     bool MeshRenderer::DepthLikeDraw(const RenderRecordContext& ctx, materials::Material* material,
-                                     bool instanced, bool pick, bool skinned, bool depthStream, ResolvedDraw& d,
+                                     bool pick, bool skinned, bool depthStream, ResolvedDraw& d,
                                      bool& usesDepthStream)
     {
-        const DepthLikeChoice choice = DepthLikeFor(ctx, material, instanced, pick);
+        const DepthLikeChoice choice = DepthLikeFor(ctx, material, pick);
         materials::PipelineConfig config = choice.config;
         usesDepthStream = false;
         d.alphaThreshold = -1.0f;
         const auto skin = [skinned, depthStream, pick, &usesDepthStream](materials::PipelineConfig& c)
         { usesDepthStream = ChooseDepthLikeStream(c, skinned, depthStream, pick); };
         skin(config);
-        rhi::PipelineLayoutHandle const plain = instanced ? m_shadowPipelineLayoutInstanced : m_shadowPipelineLayoutSingle;
+        rhi::PipelineLayoutHandle const plain = m_shadowPipelineLayoutInstanced;
         rhi::PipelineLayoutHandle layout = plain;
         rhi::BindGroupHandle matSet{};
         if (choice.materialSet && material != nullptr)
         {
             rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*material);
-            layout = GetOrCreateShadowMaskedLayout(set2, instanced);
+            layout = GetOrCreateShadowMaskedLayout(set2);
             materials::MaterialInstance* const instance = InstanceFor(material);
             matSet = m_materials->PrepareInstance(*instance, set2);
             // A built-in program cuts out at the material's own threshold, as its forward draw
@@ -2037,7 +1827,7 @@ namespace foundation::render
                 layout = plain;
                 matSet = {};
                 d.alphaThreshold = -1.0f;
-                config = pick ? PickConfigFor(ctx, instanced, false) : ShadowConfigFor(ctx, instanced, false);
+                config = pick ? PickConfigFor(ctx, false) : ShadowConfigFor(ctx, false);
                 skin(config);
             }
         }
@@ -2052,7 +1842,7 @@ namespace foundation::render
 
     void MeshRenderer::EmitDepthLike(const RenderRecordContext& ctx, const ResolvedDraw& base,
                                      const GpuMesh& mesh, Span<const DepthLikeRange> ranges,
-                                     bool instanced, bool pick, bool skinned, Array<ResolvedDraw>& out)
+                                     bool pick, bool skinned, Array<ResolvedDraw>& out)
     {
         const u64 stride = (mesh.indexFormat == rhi::IndexFormat::UInt16) ? 2u : 4u;
         const bool depthStream = mesh.depthBuffer.IsValid();
@@ -2060,7 +1850,7 @@ namespace foundation::render
         {
             ResolvedDraw d = base;
             bool usesDepthStream = false;
-            if (!DepthLikeDraw(ctx, range.material, instanced, pick, skinned, depthStream, d, usesDepthStream))
+            if (!DepthLikeDraw(ctx, range.material, pick, skinned, depthStream, d, usesDepthStream))
                 continue;
             if (usesDepthStream)
             {
@@ -2099,14 +1889,14 @@ namespace foundation::render
 
     MeshRenderer::DepthLikeChoice MeshRenderer::DepthLikeFor(const RenderRecordContext& ctx,
                                                              const materials::Material* material,
-                                                             bool instanced, bool pick)
+                                                             bool pick)
     {
         const bool masked =
             material != nullptr && material->pipeline.blendMode == materials::BlendMode::Masked;
         const shaders::ShaderFlags effects = MaterialEffectFlags(material);
         DepthLikeChoice choice;
-        choice.config = pick ? PickConfigFor(ctx, instanced, masked, effects)
-                             : ShadowConfigFor(ctx, instanced, masked, effects);
+        choice.config = pick ? PickConfigFor(ctx, masked, effects)
+                             : ShadowConfigFor(ctx, masked, effects);
         // The material's shader has its own program for this pass (it moves its vertices, or cuts
         // out with its own alpha): drawn with it, over the material's set 2 it was generated for.
         const StringView own =
@@ -2129,18 +1919,15 @@ namespace foundation::render
     }
 
     materials::PipelineConfig MeshRenderer::ShadowConfigFor(const RenderRecordContext& ctx,
-                                                            bool instanced, bool masked,
+                                                            bool masked,
                                                             shaders::ShaderFlags effects)
     {
         materials::PipelineConfig c{};
         c.shaderName = u8"shadow_depth";
         c.shaderFlags |= effects; // the caster moves as the mesh does (a swaying card's shadow sways)
         c.vertexLayout = materials::VertexLayoutType::Mesh;
-        c.instanced = instanced;
-        if (instanced)
-        {
-            c.shaderFlags |= shaders::ShaderFlags::Instanced;
-        }
+        c.instanced = true;
+        c.shaderFlags |= shaders::ShaderFlags::Instanced;
         // Masked casters run the alpha-test fragment (it samples cutout alpha and discards) so their shadows
         // have holes; opaque casters stay vertex-only (depthOnly, no fragment).
         c.depthOnly = !masked;
@@ -2182,18 +1969,15 @@ namespace foundation::render
     }
 
     materials::PipelineConfig MeshRenderer::PickConfigFor(const RenderRecordContext& ctx,
-                                                          bool instanced, bool masked,
+                                                          bool masked,
                                                           shaders::ShaderFlags effects)
     {
         materials::PipelineConfig c{};
         c.shaderName = u8"pick_ids";
         c.shaderFlags |= effects; // the pick follows the mesh as it moves
         c.vertexLayout = materials::VertexLayoutType::Mesh;
-        c.instanced = instanced;
-        if (instanced)
-        {
-            c.shaderFlags |= shaders::ShaderFlags::Instanced;
-        }
+        c.instanced = true;
+        c.shaderFlags |= shaders::ShaderFlags::Instanced;
         if (masked)
         {
             c.shaderFlags |= shaders::ShaderFlags::AlphaTest; // cutouts are not pickable holes
@@ -2212,23 +1996,21 @@ namespace foundation::render
     }
 
     materials::PipelineConfig MeshRenderer::ConfigFor(const MeshRenderData& md,
-                                                      const RenderRecordContext& ctx,
-                                                      bool instanced)
+                                                      const RenderRecordContext& ctx)
     {
-        return ConfigFor(md, md.material, ctx, instanced);
+        return ConfigFor(md, md.material, ctx);
     }
 
     materials::PipelineConfig MeshRenderer::SlotConfigFor(const MeshRenderData& md,
                                                           const materials::PipelineConfig& base,
                                                           const materials::Material* slot,
-                                                          const RenderRecordContext& ctx, bool instanced,
-                                                          bool skinned)
+                                                          const RenderRecordContext& ctx, bool skinned)
     {
         if (slot == nullptr || slot == md.material)
         {
             return base;
         }
-        materials::PipelineConfig config = ConfigFor(md, slot, ctx, instanced);
+        materials::PipelineConfig config = ConfigFor(md, slot, ctx);
         // A slot of another blend class (a transparent slot on an opaque mesh) belongs to another
         // pass, whose targets this one does not have: it keeps the mesh's pipeline. An item of a
         // mesh split by category draws its own pass's slots alone, each with its own pipeline.
@@ -2245,7 +2027,7 @@ namespace foundation::render
     }
 
     materials::PipelineConfig MeshRenderer::ConfigFor(const MeshRenderData& md, const materials::Material* material,
-                                                      const RenderRecordContext& ctx, bool instanced)
+                                                      const RenderRecordContext& ctx)
     {
         materials::PipelineConfig config =
             (material != nullptr) ? material->pipeline : materials::PipelineConfig::ForOpaqueMesh(u8"forward");
@@ -2254,11 +2036,8 @@ namespace foundation::render
         // transparent pass at 1, so the forward mesh PSO matches its pass's MSAA attachments. Shadow
         // PSOs use ShadowConfigFor and are unaffected; shadows stay single-sample.
         config.sampleCount = ctx.sampleCount;
-        config.instanced = instanced;
-        if (instanced)
-        {
-            config.shaderFlags |= shaders::ShaderFlags::Instanced;
-        }
+        config.instanced = true;
+        config.shaderFlags |= shaders::ShaderFlags::Instanced;
         config.shaderFlags |= MaterialEffectFlags(material); // its active effects (the Wind group sways it)
         if (md.fade > 0.0f)
         {
@@ -2330,15 +2109,14 @@ namespace foundation::render
         return m_device->CreatePipelineLayout(pld, out).IsOk();
     }
 
-    rhi::PipelineLayoutHandle MeshRenderer::GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2,
-                                                                     bool instanced)
+    rhi::PipelineLayoutHandle MeshRenderer::GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2)
     {
-        const u64 key = (set2.Key() * 2u) + (instanced ? 1u : 0u);
+        const u64 key = set2.Key();
         if (rhi::PipelineLayoutHandle* cached = m_shadowMaskedLayouts.Find(key))
         {
             return *cached;
         }
-        rhi::BindGroupLayoutHandle set1 = instanced ? m_instanceLayout : m_objectLayout;
+        rhi::BindGroupLayoutHandle set1 = m_instanceLayout;
         // The built-in programs' cut-out threshold (GpuCutoutPush) is the fragment's push block; a
         // material's own program ignores it.
         rhi::BindGroupLayoutHandle layouts[] = {m_shadowViewLayout, set1, set2};
@@ -2519,15 +2297,14 @@ namespace foundation::render
         return m_materials->PrepareInstance(*InstanceFor(material), layout);
     }
 
-    rhi::PipelineLayoutHandle MeshRenderer::GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2,
-                                                                 bool instanced)
+    rhi::PipelineLayoutHandle MeshRenderer::GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2)
     {
-        const u64 key = (set2.Key() * 2u) + (instanced ? 1u : 0u);
+        const u64 key = set2.Key();
         if (rhi::PipelineLayoutHandle* cached = m_pipelineLayouts.Find(key))
         {
             return *cached;
         }
-        rhi::BindGroupLayoutHandle set1 = instanced ? m_instanceLayout : m_objectLayout;
+        rhi::BindGroupLayoutHandle set1 = m_instanceLayout;
         rhi::PipelineLayoutHandle layout{};
         if (!MakePipelineLayout(m_viewLayout, set1, set2, m_clusterLayout, layout))
         {
@@ -2571,35 +2348,32 @@ namespace foundation::render
         m_device->DestroyBuffer(buffer); // kept by the device while a frame in flight uses it
     }
 
-    bool MeshRenderer::EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayoutHandle layout,
-                                       u64 bindSize, rhi::BindGroupHandle& bg, u32& bgGen, bool whole,
-                                       rhi::BufferHandle secondUniform)
+    bool MeshRenderer::EnsureInstanceBindGroup()
     {
-        if (bg.IsValid() && bgGen == ring.Generation())
+        if (m_instanceBG.IsValid() && m_instanceBGGen == m_instanceRing.Generation())
         {
             return true;
         }
-        ReleaseBindGroup(bg);
-        bg = {};
-        rhi::BufferHandle buffer = ring.Buffer();
-        if (!buffer.IsValid())
+        ReleaseBindGroup(m_instanceBG);
+        m_instanceBG = {};
+        const rhi::BufferHandle buffer = m_instanceRing.Buffer();
+        if (!buffer.IsValid() || !m_noFadeSetBuf.IsValid())
         {
             return false;
         }
         const rhi::BindGroupEntry be[] = {
-            rhi::BindGroupEntry::BufferEntry(buffer, 0, whole ? ring.ByteCapacity() : bindSize),
-            rhi::BindGroupEntry::BufferEntry(secondUniform, 0,
-                                             secondUniform.IsValid() ? m_device->Describe(secondUniform)->size : 0u),
+            rhi::BindGroupEntry::BufferEntry(buffer, 0, m_instanceRing.ByteCapacity()),
+            rhi::BindGroupEntry::BufferEntry(m_noFadeSetBuf, 0, m_device->Describe(m_noFadeSetBuf)->size),
         };
         rhi::BindGroupDesc bgd{};
-        bgd.layout = layout;
-        bgd.entries = Span<const rhi::BindGroupEntry>{be, secondUniform.IsValid() ? 2u : 1u};
-        if (!m_device->CreateBindGroup(bgd, bg).IsOk())
+        bgd.layout = m_instanceLayout;
+        bgd.entries = Span<const rhi::BindGroupEntry>{be, 2u};
+        if (!m_device->CreateBindGroup(bgd, m_instanceBG).IsOk())
         {
-            bg = {};
+            m_instanceBG = {};
             return false;
         }
-        bgGen = ring.Generation();
+        m_instanceBGGen = m_instanceRing.Generation();
         return true;
     }
 
@@ -3088,11 +2862,6 @@ namespace foundation::render
             m_device->DestroySampler(m_envSampler);
             m_envSampler = {};
         }
-        if (m_objectBG)
-        {
-            m_device->DestroyBindGroup(m_objectBG);
-            m_objectBG = {};
-        }
         if (m_noFadeSetBuf)
         {
             m_device->DestroyBuffer(m_noFadeSetBuf);
@@ -3181,11 +2950,6 @@ namespace foundation::render
             }
         }
         m_shadowMaskedLayouts.Clear();
-        if (m_shadowPipelineLayoutSingle)
-        {
-            m_device->DestroyPipelineLayout(m_shadowPipelineLayoutSingle);
-            m_shadowPipelineLayoutSingle = {};
-        }
         if (m_shadowPipelineLayoutInstanced)
         {
             m_device->DestroyPipelineLayout(m_shadowPipelineLayoutInstanced);
@@ -3195,11 +2959,6 @@ namespace foundation::render
         {
             m_device->DestroyBindGroupLayout(m_viewLayout);
             m_viewLayout = {};
-        }
-        if (m_objectLayout)
-        {
-            m_device->DestroyBindGroupLayout(m_objectLayout);
-            m_objectLayout = {};
         }
         if (m_instanceLayout)
         {

@@ -7,11 +7,10 @@
 /// owns the built-in forward shader (two permutations), the GPU rings and the mesh cache,
 /// and records draws for the mesh `DrawItem`s it is handed.
 ///
-/// Hybrid instancing: a run of consecutive draws sharing one mesh and material is issued as
-/// a single instanced draw; a lone draw takes the simpler per-object path. Both read the
-/// view-projection from a shared per-view UBO (set 0). The per-object path adds a per-object
-/// UBO (set 1, world and tint, dynamic offset); the instanced path adds a per-instance
-/// `StructuredBuffer<InstanceData>` (set 1) indexed by a uint4 draw offsets vertex stream
+/// Every mesh draws instanced: a run of consecutive draws sharing one mesh and material is issued
+/// as one instanced draw, and a lone draw as an instanced draw of one. Each reads the
+/// view-projection from a shared per-view UBO (set 0) and a per-instance
+/// `StructuredBuffer<GpuInstance>` (set 1) indexed by a uint4 draw offsets vertex stream
 /// (location 5, instance-stepped). That is portable base-plus-offset addressing; SV_InstanceID
 /// differs between DX12 and Vulkan. Transparent draws are never instanced, since back-to-front
 /// order must win.
@@ -104,19 +103,6 @@ export namespace foundation::render
     static_assert(sizeof(GpuView) == 656, "cbuffer View layout drift");
     static_assert(offsetof(GpuView, jitter) == 576);
     static_assert(offsetof(GpuView, prevJitter) == 584);
-    // A single object's per-draw block (cbuffer Object, object_block.hlsli; set 1 binding 0), one
-    // declaration the forward, shadow depth and pick vertex stages all include: each pass writes
-    // and reads the fields it uses, by name.
-    struct GpuObject
-    {
-        Float4x4 world;
-        Float4x4 prevWorld;
-        Color tint;
-        u32 boneBase = 0, prevBoneBase = 0;
-        u32 pickIndex = 0, pickGeneration = 0; // pick pass only (EntityTag index + 1, generation)
-        f32 fade = 0.0f; // the screen-door fade, 0 is solid (forward pass, the DITHER variant)
-        u32 _objectPad0 = 0, _objectPad1 = 0, _objectPad2 = 0;
-    }; // 176 (cbuffer Object)
     struct GpuInstance
     {
         Float4x4 world;
@@ -185,7 +171,6 @@ export namespace foundation::render
     // GPU-layout contract: these mirror HLSL cbuffer and StructuredBuffer elements and use the packed
     // Float4x4 (64B, tight). A stray SIMD Matrix4 (also 64B, but 16-byte aligned) would shift members
     // through padding; the guards pin the exact byte layout the shaders expect.
-    static_assert(sizeof(GpuObject) == 176, "cbuffer Object layout drift");
     static_assert(sizeof(GpuInstance) == 144,
                   "StructuredBuffer<GpuInstance> element layout drift");
     // The pick pass's set-0 view (cbuffer PickView in pick_ids.vs): the cropped VP, the WIND clock
@@ -215,8 +200,6 @@ export namespace foundation::render
               m_shadowViewRing(device, framesInFlight, kViewSlot,
                                rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst,
                                u8"mesh.shadowView"),
-              m_objectRing(device, framesInFlight, kViewSlot,
-                           rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst, u8"mesh.object"),
               m_instanceRing(device, framesInFlight, sizeof(GpuInstance),
                              rhi::BufferUsage::StorageRead | rhi::BufferUsage::CopyDst,
                              u8"mesh.instances"),
@@ -256,7 +239,7 @@ export namespace foundation::render
         void SetSceneLights(u32 lights) override { m_sceneLights = lights; }
         void SetShadowCasterDraws(u32 draws) override { m_shadowCasterDraws = draws; }
 
-        /// The per-frame slots the object, instance and offset rings need. Each camera pass (the
+        /// The per-frame slots the instance and offset rings need. Each camera pass (the
         /// depth prepass, the forward, a probe face, a pick) re-emits at most the views' draws;
         /// each shadow pass (a cascade, a local tile) at most its scene's casters, which the
         /// camera does not cull. Sized for the larger of the two in every pass, so neither can
@@ -340,12 +323,12 @@ export namespace foundation::render
         [[nodiscard]] static f32 CutoutThreshold(const materials::MaterialInstance& instance) noexcept;
         [[nodiscard]] static DepthLikeChoice DepthLikeFor(const RenderRecordContext& ctx,
                                                           const materials::Material* material,
-                                                          bool instanced, bool pick);
+                                                          bool pick);
 
         // The forward pipeline of one submesh slot's material: a slot draws with its own program (a
         // custom shader on one slot, PBR on the rest), over the mesh's per-draw state (its fade).
         [[nodiscard]] static materials::PipelineConfig ConfigFor(const MeshRenderData& md, const materials::Material* material,
-                                                          const RenderRecordContext& ctx, bool instanced);
+                                                          const RenderRecordContext& ctx);
         // A submesh's pipeline: its slot material's when that differs from the mesh's and draws in
         // the same pass (the same colour targets), or always for an item of a mesh split by
         // category (MeshRenderData::categorySlots: every slot it draws is of its pass); else the
@@ -354,8 +337,7 @@ export namespace foundation::render
         [[nodiscard]] static materials::PipelineConfig SlotConfigFor(const MeshRenderData& md,
                                                               const materials::PipelineConfig& base,
                                                               const materials::Material* slot,
-                                                              const RenderRecordContext& ctx, bool instanced,
-                                                              bool skinned);
+                                                              const RenderRecordContext& ctx, bool skinned);
 
         // One range of a mesh's depth-like draw: its material and its indices (`whole`: the mesh's
         // whole index range).
@@ -376,8 +358,7 @@ export namespace foundation::render
         // alone.
         static void DepthLikeRanges(const RenderRecordContext& ctx, materials::Material* slot0,
                                     const RefPtr<materials::Material>* slots, u32 slotCount,
-                                    Span<const geometry::SubMesh> subMeshes, bool chain, bool instanced,
-                                    bool pick, Array<DepthLikeRange>& out, const MeshRenderData* only = nullptr);
+                                    Span<const geometry::SubMesh> subMeshes, bool chain, bool pick, Array<DepthLikeRange>& out, const MeshRenderData* only = nullptr);
 
         // The depth a blended material's pipeline uses in the transparent pass, which reads the
         // depth buffer but never writes it (its bundle is depth-read-only): a writing mode becomes
@@ -497,10 +478,6 @@ export namespace foundation::render
         [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
     private:
 
-        void ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
-                           rhi::BindGroupHandle clusterBG, const MeshRenderData& md, const GpuMesh& mesh,
-                           Array<ResolvedDraw>& out);
-
         void ResolveInstanced(const RenderRecordContext& ctx, u32 viewOffset,
                               rhi::BindGroupHandle clusterBG, Span<const DrawItem> items, usize first,
                               u32 count, const MeshRenderData& head, const GpuMesh& mesh,
@@ -509,10 +486,6 @@ export namespace foundation::render
         // The shared body of ResolveDepthOnly (pick = false) and ResolvePickIds (pick = true).
         void ResolveDepthLike(const RenderRecordContext& ctx, Span<const DrawItem> items,
                               Array<ResolvedDraw>& out, bool pick);
-
-        void ResolveDepthSingle(const RenderRecordContext& ctx, u32 shadowViewOffset,
-                                const MeshRenderData& md, const GpuMesh& mesh,
-                                Array<ResolvedDraw>& out, bool pick);
 
         void ResolveDepthInstanced(const RenderRecordContext& ctx, u32 shadowViewOffset,
                                    Span<const DrawItem> items, usize first, u32 count,
@@ -526,11 +499,10 @@ export namespace foundation::render
         // when no pipeline is had. With `depthStream` (the mesh has one), a shadow or depth prepass
         // draw of the built-in program reads it (VertexLayoutType::DepthStream), and `usesDepthStream`
         // says so: the caller binds the stream.
-        bool DepthLikeDraw(const RenderRecordContext& ctx, materials::Material* material, bool instanced,
-                           bool pick, bool skinned, bool depthStream, ResolvedDraw& d, bool& usesDepthStream);
+        bool DepthLikeDraw(const RenderRecordContext& ctx, materials::Material* material, bool pick, bool skinned, bool depthStream, ResolvedDraw& d, bool& usesDepthStream);
         // Pushes `base` once per range, each with its range's pipeline, material set and indices.
         void EmitDepthLike(const RenderRecordContext& ctx, const ResolvedDraw& base, const GpuMesh& mesh,
-                           Span<const DepthLikeRange> ranges, bool instanced, bool pick, bool skinned,
+                           Span<const DepthLikeRange> ranges, bool pick, bool skinned,
                            Array<ResolvedDraw>& out);
 
         // Forward draw for a MultiMesh: bind this set's persistent InstanceData (set 1) and the shared draw offsets
@@ -550,17 +522,17 @@ export namespace foundation::render
         // Depth-only PSO config for the shadow pass. Back-face culling and a small depth and slope bias push
         // shadow acne off lit surfaces; the shader adds a normal-offset bias on top.
         [[nodiscard]] static materials::PipelineConfig
-        ShadowConfigFor(const RenderRecordContext& ctx, bool instanced, bool masked = false,
+        ShadowConfigFor(const RenderRecordContext& ctx, bool masked = false,
                         shaders::ShaderFlags effects = shaders::ShaderFlags::None);
 
         // Pick-id PSO config: the depth-only layouts with the `pick_ids` fragment writing the
         // RG32Uint id target (ctx.colorFormat), single-sample, no bias, masked materials alpha-tested.
         [[nodiscard]] static materials::PipelineConfig
-        PickConfigFor(const RenderRecordContext& ctx, bool instanced, bool masked,
+        PickConfigFor(const RenderRecordContext& ctx, bool masked,
                       shaders::ShaderFlags effects = shaders::ShaderFlags::None);
 
         [[nodiscard]] static materials::PipelineConfig
-        ConfigFor(const MeshRenderData& md, const RenderRecordContext& ctx, bool instanced);
+        ConfigFor(const MeshRenderData& md, const RenderRecordContext& ctx);
 
         bool MakeLayout(const rhi::BindGroupLayoutEntry& entry, rhi::BindGroupLayoutHandle& out);
 
@@ -577,10 +549,9 @@ export namespace foundation::render
         bool MakePipelineLayout3(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
                                  rhi::BindGroupLayoutHandle set2, rhi::PipelineLayoutHandle& out);
 
-        // Masked-shadow pipeline layout for a material set-2 layout, cached by (set2, instanced): light view
+        // Masked-shadow pipeline layout for a material set-2 layout, cached by (set2): light view
         // (0), object or instance (1), material (2). Retired with the renderer.
-        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2,
-                                                                         bool instanced);
+        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2);
 
         // The default material: a standard PBR material (materials::CreatePBR) used whenever a draw
         // carries no material. Its set-2 layout and bind group flow through the same data-driven path as any
@@ -609,12 +580,11 @@ export namespace foundation::render
         // default-sampler fallbacks for unset slots). `material` is non-null (callers substitute the default).
         [[nodiscard]] rhi::BindGroupHandle MaterialBindGroup(materials::Material* material);
 
-        // The forward pipeline layout for a given material set-2 layout, cached by (set2 layout, instanced).
-        // set0: view; set1: object (single) or instances (instanced); set2: material; set3: clusters.
-        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2,
-                                                                     bool instanced);
+        // The forward pipeline layout for a given material set-2 layout, cached by (set2 layout).
+        // set0: view; set1: instances; set2: material; set3: clusters.
+        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2);
 
-        // Per-frame bind groups (view, shadow view, object, instance) are rebuilt when their inputs change;
+        // Per-frame bind groups (view, shadow view, instance) are rebuilt when their inputs change;
         // the directional shadow view, for example, alternates per in-flight slot, so the view BG rebuilds every
         // frame. The old one may still be referenced by an in-flight command buffer: the device keeps it
         // until that buffer has run.
@@ -627,12 +597,9 @@ export namespace foundation::render
 
         void ReleaseBuffer(rhi::BufferHandle buffer);
 
-        // (Re)create a bind group over a ring's buffer when the ring (re)allocated. `whole` binds
-        // the entire buffer (storage, indexed); otherwise a `bindSize` window (dynamic-offset UBO).
-        // `secondUniform`, when given, is bound whole as binding 1 (the instanced set's InstanceSet).
-        bool EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayoutHandle layout, u64 bindSize,
-                             rhi::BindGroupHandle& bg, u32& bgGen, bool whole,
-                             rhi::BufferHandle secondUniform = {});
+        // (Re)create the instanced set-1 bind group when the instance ring (re)allocated: the whole
+        // ring (read as Instances[slot]) and, as binding 1, the no-fade InstanceSet.
+        bool EnsureInstanceBindGroup();
 
         // The set-0 bind group spans two rings: the per-view UBO (dynamic-offset window of one
         // GpuView) and the light list (the whole light buffer, read as Lights[lightOffset + i]). Slots
@@ -674,17 +641,15 @@ export namespace foundation::render
         u32 m_frameIndex = 0; // this frame's index (selects the offsets buffer's frame-in-flight slot)
 
         rhi::BindGroupLayoutHandle m_viewLayout{};
-        rhi::BindGroupLayoutHandle m_objectLayout{};
         rhi::BindGroupLayoutHandle m_instanceLayout{};
         rhi::BindGroupLayoutHandle m_clusterLayout{};
         rhi::BindGroupLayoutHandle m_shadowViewLayout{}; // set 0 for the depth-only shadow pipeline
-        rhi::PipelineLayoutHandle m_shadowPipelineLayoutSingle{};
         rhi::PipelineLayoutHandle m_shadowPipelineLayoutInstanced{};
-        // Forward pipeline layouts, keyed by (material set-2 layout, instanced); built on demand so each
+        // Forward pipeline layouts, keyed by (material set-2 layout); built on demand so each
         // material's own set-2 layout drives the PSO (which supports custom shaders).
         HashMap<u64, rhi::PipelineLayoutHandle> m_pipelineLayouts{*m_allocator};
         HashMap<u64, rhi::PipelineLayoutHandle>
-            m_shadowMaskedLayouts{*m_allocator}; // masked-shadow 3-set layouts (by set-2, instanced)
+            m_shadowMaskedLayouts{*m_allocator}; // masked-shadow 3-set layouts (by set-2)
 
         // Material set-2 resources. The default material (standard PBR) backs draws with no material;
         // instances carry per-material overrides and flow through the material system's data-driven BG path.
@@ -708,7 +673,6 @@ export namespace foundation::render
         ViewUniformRing m_viewRing; // one slot per distinct view block a frame
         DynamicUniformRing m_shadowViewRing;
         GpuView m_passView{}; // the pass's view block, copied per faded instanced set with its window
-        DynamicUniformRing m_objectRing;
         DynamicUniformRing m_instanceRing;
         DynamicUniformRing m_offsetsRing;
         DynamicUniformRing m_lightRing;
@@ -814,7 +778,6 @@ export namespace foundation::render
         rhi::BindGroupHandle m_shadowViewBG{};
         u32 m_shadowViewBGGen = 0;
         u32 m_shadowViewBGBoneGen = 0;
-        rhi::BindGroupHandle m_objectBG{};
         rhi::BindGroupHandle m_instanceBG{};
         // The InstanceSet a per-frame instanced batch binds: no fade, each instance its own id.
         rhi::BufferHandle m_noFadeSetBuf{};
@@ -846,7 +809,7 @@ export namespace foundation::render
         u32 m_captureFacePasses = 0;    // # probe-capture face passes (caster re-emits) this frame
         u32 m_pickPasses = 0;           // # pick passes (id re-emits) this frame
         u32 m_shadowCasterDraws = 0;    // the shadow passes' caster draws this frame (all views)
-        u32 m_objectBGGen = 0, m_instanceBGGen = 0;
+        u32 m_instanceBGGen = 0;
 
         // --- MultiMesh (instanced-mesh) persistent buffers ---
         // Each InstancedMeshComponent (a "set") owns a persistent InstanceData storage buffer and a set-1 bind

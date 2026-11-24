@@ -480,6 +480,11 @@ TEST_CASE("MeshRenderer: a probe's faces each get a view slot, and a view's runs
     meshRenderer.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
     meshRenderer.FinishFrame();
     REQUIRE(out.Size() == 1u);
+    // A lone mesh draws as an instanced draw of one: its record in the instance ring at set 1,
+    // its slot in the draw offsets stream; there is no per-object path.
+    CHECK(out[0].instanceCount == 1u);
+    CHECK_FALSE(out[0].drawDynamic);
+    CHECK(out[0].vertexBuffer1.IsValid());
 
     // The capture frame: the main view, three runs of it, then six faces, each its own camera.
     constexpr u32 kFaces = 6;
