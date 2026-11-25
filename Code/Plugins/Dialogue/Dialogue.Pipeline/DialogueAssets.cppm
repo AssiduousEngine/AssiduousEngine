@@ -92,6 +92,11 @@ export namespace dialogue
                     const DialogueSourceReader& readSource, const Guid& self);
     };
 
+    /// The project's levels as the cook reads them: each scene in `db` a conversation names, loaded
+    /// once into a scratch scene (its prefabs placed, as a load places them) for its entities' names;
+    /// null for one that is not there or does not load.
+    [[nodiscard]] UniquePtr<IDialogueLevels> MakeDialogueLevels(content::IContentDatabase& db, IAllocator& allocator);
+
     /// Parses `text` and checks it against `project`, its assets reached through `db` and the
     /// levels its conversations name loaded into scratch scenes from `allocator`.
     [[nodiscard]] DialogueParse CookDialogue(StringView text, const DialogueSettings& settings,

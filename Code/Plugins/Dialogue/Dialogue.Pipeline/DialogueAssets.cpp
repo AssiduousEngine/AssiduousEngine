@@ -286,6 +286,11 @@ namespace dialogue
         }
     }
 
+    UniquePtr<IDialogueLevels> MakeDialogueLevels(content::IContentDatabase& db, IAllocator& allocator)
+    {
+        return MakeUnique<LoadedLevels>(allocator, db, allocator);
+    }
+
     DialogueParse CookDialogue(StringView text, const DialogueSettings& settings, const DialogueProject& project,
                                content::IContentDatabase* db, IAllocator& allocator)
     {

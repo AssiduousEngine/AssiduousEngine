@@ -132,6 +132,17 @@ TEST_CASE("dialogue parse: a conversation names its level, and a file holds seve
     CHECK(parse.conversations[1].steps[0].lineId == StringView(u8"second.1"));
 }
 
+// A level is one word, a dialogue asset's name: more words, or `in` with none, is no header.
+TEST_CASE("dialogue parse: a conversation's level is one word")
+{
+    const DialogueParse spaced = Parse(u8"conversation square in Old Village\n"
+                                       u8"@ keeper: One.\n");
+    CHECK(HasProblem(spaced, 1, u8"`conversation <id> [in <level>]`"));
+    const DialogueParse alone = Parse(u8"conversation alone in\n"
+                                      u8"@ keeper: One.\n");
+    CHECK(HasProblem(alone, 1, u8"`conversation <id> [in <level>]`"));
+}
+
 TEST_CASE("dialogue parse: a choice compiles to its answers' table, then each answer's statements")
 {
     const DialogueParse parse = Parse(u8"conversation ask\n"
