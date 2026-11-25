@@ -167,6 +167,7 @@ namespace engine::runtime
         m_slot = nullptr;
         m_slotName = String(*m_allocator);
         m_reads.Clear();
+        m_times.Clear();
         m_folder = String(folder, *m_allocator);
         (void)m_global.Open(m_folder.IsEmpty() ? StringView{} : GlobalPath().AsView());
         m_global.SetSerial(m_nextSerial++); // a handle to the store before reaches nothing
@@ -177,17 +178,73 @@ namespace engine::runtime
         return m_clock != nullptr ? m_clock() : GetUnixTime();
     }
 
+    String RunSaves::GlobalFile(StringView folder, IAllocator& allocator)
+    {
+        return PathJoin(folder, kGlobalFile, allocator);
+    }
+
+    String RunSaves::SlotFile(StringView folder, StringView name, IAllocator& allocator)
+    {
+        String file(kSlotPrefix, allocator);
+        file.Append(FoldSlotName(name).AsView());
+        file.Append(kSlotSuffix);
+        return PathJoin(folder, file.AsView(), allocator);
+    }
+
     String RunSaves::GlobalPath() const
     {
-        return PathJoin(m_folder.AsView(), kGlobalFile, *m_allocator);
+        return GlobalFile(m_folder.AsView(), *m_allocator);
     }
 
     String RunSaves::SlotPath(StringView folded) const
     {
-        String file(kSlotPrefix, *m_allocator);
-        file.Append(folded);
-        file.Append(kSlotSuffix);
-        return PathJoin(m_folder.AsView(), file.AsView(), *m_allocator);
+        return SlotFile(m_folder.AsView(), folded, *m_allocator);
+    }
+
+    const RunSaves::KnownTime* RunSaves::FindTime(StringView folded) const noexcept
+    {
+        for (const KnownTime& known : m_times)
+        {
+            if (known.name.AsView() == folded)
+            {
+                return &known;
+            }
+        }
+        return nullptr;
+    }
+
+    void RunSaves::KnowTime(StringView folded, i64 savedAt) const
+    {
+        for (KnownTime& known : m_times)
+        {
+            if (known.name.AsView() == folded)
+            {
+                known.savedAt = savedAt;
+                return;
+            }
+        }
+        m_times.PushBack(KnownTime{String(folded, *m_allocator), savedAt});
+    }
+
+    void RunSaves::ForgetTime(StringView folded) const
+    {
+        for (usize i = 0; i < m_times.Size(); ++i)
+        {
+            if (m_times[i].name.AsView() == folded)
+            {
+                m_times.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
+    void RunSaves::FlushSlot()
+    {
+        if (m_slot.Get() != nullptr && m_slotWrites == SlotWrites::AsItPlays)
+        {
+            (void)m_slot->Flush(Now());
+            KnowTime(m_slotName.AsView(), m_slot->SavedAt());
+        }
     }
 
     bool RunSaves::IsSlotName(StringView name) noexcept
@@ -250,9 +307,9 @@ namespace engine::runtime
 
     void RunSaves::LetGoOfSlot(bool write)
     {
-        if (m_slot.Get() != nullptr && write && m_slotWrites == SlotWrites::AsItPlays)
+        if (write)
         {
-            (void)m_slot->Flush(Now());
+            FlushSlot();
         }
         m_slot = nullptr;
         m_slotName = String(*m_allocator);
@@ -271,16 +328,18 @@ namespace engine::runtime
             return {m_slot->Serial()};
         }
         const String path = SlotPath(folded.AsView());
-        const bool made = !FileExists(path.AsView());
         UniquePtr<SaveFile> file = MakeUnique<SaveFile>(*m_allocator, *m_allocator);
         if (!file->Open(path.AsView()))
         {
             return {}; // the warning named the file; the open slot stays as it was
         }
-        if (made && !file->WriteAsIs())
+        // A new slot, or one whose unreadable file was just set aside: its file is written now,
+        // empty and never saved, so the slot is there from the start.
+        if (!FileExists(path.AsView()) && !file->WriteAsIs())
         {
             return {}; // a slot that cannot be made is not opened
         }
+        KnowTime(folded.AsView(), file->SavedAt());
         LetGoOfSlot(true);
         file->SetSerial(m_nextSerial++);
         m_slot = Move(file);
@@ -305,9 +364,11 @@ namespace engine::runtime
         UniquePtr<SaveFile> file = MakeUnique<SaveFile>(*m_allocator, *m_allocator);
         if (!file->Read(path.AsView()))
         {
+            ForgetTime(folded.AsView());
             LOG_WARNING(u8"Save", u8"could not read the slot '{}' ('{}'); it is left as it is", folded.AsView(), path.AsView());
             return {};
         }
+        KnowTime(folded.AsView(), file->SavedAt());
         file->SetSerial(m_nextSerial++);
         const SaveStoreHandle handle{file->Serial()};
         m_reads.PushBack(SlotRead{Move(folded), Move(file)});
@@ -354,12 +415,18 @@ namespace engine::runtime
             {
                 continue; // not a file this engine wrote
             }
+            if (const KnownTime* known = FindTime(name.AsView()))
+            {
+                listed.PushBack(ListedSlot{name, known->savedAt}); // read or written this run already
+                continue;
+            }
             SaveFile file(*m_allocator);
             if (!file.Read(SlotPath(name.AsView()).AsView()))
             {
                 LOG_WARNING(u8"Save", u8"could not read the slot '{}'; it is left out of the slots, and left as it is", name.AsView());
                 continue;
             }
+            KnowTime(name.AsView(), file.SavedAt());
             listed.PushBack(ListedSlot{name, file.SavedAt()});
         }
         // The one saved last first; never saved (0) last; equal times by name.
@@ -404,6 +471,7 @@ namespace engine::runtime
             LetGoOfSlot(false);
         }
         ForgetReads(folded.AsView());
+        ForgetTime(folded.AsView());
         const bool deleted = FileDelete(SlotPath(folded.AsView()).AsView());
         if (deleted)
         {
@@ -439,6 +507,7 @@ namespace engine::runtime
             return false;
         }
         ForgetReads(target.AsView());
+        ForgetTime(target.AsView()); // the copy's time is the source's, read when next asked
         if (!WriteFileAtomic(SlotPath(target.AsView()).AsView(), Span<const byte>(bytes.Value().Data(), bytes.Value().Size()), *m_allocator)
                  .IsOk())
         {
@@ -460,8 +529,17 @@ namespace engine::runtime
         {
             return m_slot->SavedAt(); // as last written
         }
+        if (const KnownTime* known = FindTime(folded.AsView()))
+        {
+            return known->savedAt;
+        }
         SaveFile file(*m_allocator);
-        return file.Read(SlotPath(folded.AsView()).AsView()) ? file.SavedAt() : 0;
+        if (!file.Read(SlotPath(folded.AsView()).AsView()))
+        {
+            return 0;
+        }
+        KnowTime(folded.AsView(), file.SavedAt());
+        return file.SavedAt();
     }
 
     SaveFile* RunSaves::Resolve(SaveStoreHandle handle) noexcept
@@ -507,6 +585,7 @@ namespace engine::runtime
         if (m_slot.Get() != nullptr && m_slotWrites == SlotWrites::AsItPlays)
         {
             written = m_slot->Flush(now) && written;
+            KnowTime(m_slotName.AsView(), m_slot->SavedAt());
         }
         return written;
     }
@@ -518,7 +597,15 @@ namespace engine::runtime
             return false;
         }
         SaveFile* file = Resolve(handle);
-        return file != nullptr && file->Flush(Now());
+        if (file == nullptr || !file->Flush(Now()))
+        {
+            return false;
+        }
+        if (file == m_slot.Get())
+        {
+            KnowTime(m_slotName.AsView(), file->SavedAt());
+        }
+        return true;
     }
 
     String RunSaves::NameOf(SaveStoreHandle handle) const

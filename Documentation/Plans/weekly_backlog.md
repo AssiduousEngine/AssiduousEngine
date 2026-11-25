@@ -277,10 +277,9 @@ the original sketch covered and the build left out, untracked until the audit:
   API, `PushScreenOverlay` / `RemoveScreenOverlay`, has no run yet and only the shared tier's
   overlay layer; give it a run as `ScreensFor` has, keeping truly global overlays, a debug badge,
   shared). Check what Sedulous does first.
-- **Save data follow-ups** (2026-10-04, Documentation/Archive/save-data-history.md "Not now"; the web backend
-  was built 2026-10-04, d7237f84): an MCP tool to read or clear the play-in-editor save, so an agent testing a "best
-  score" can start from nothing without editing `Editor/` by hand; the player's audio volumes still
-  written at shutdown only, not through the atomic write at the moment they change.
+- **Save data follow-up** (2026-10-04, Documentation/Archive/save-data-history.md "Not now"; the
+  MCP tools for play in editor's saves were built with the save slots, 2026-11-24): the player's audio
+  volumes are still written at shutdown only, not through the atomic write at the moment they change.
 - **The editor crashes when the Console panel is squeezed very short** (found 2026-10-03, taking
   PaperKid's screenshots): with the dock layout's top area at 97% of the window height, the editor
   asserts on start in `LogView`'s list adapter (`LogView::Adapter::BindView`, `LogView.cppm:381`,

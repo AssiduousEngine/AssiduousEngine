@@ -225,6 +225,8 @@ TEST_CASE("saves: an unreadable slot is set aside when opened, and left out of t
     const SaveStoreHandle opened = saves.OpenSlot(u8"bad");
     REQUIRE(opened.IsSet()); // an empty slot in its place
     CHECK(FileExists(Format(u8"{}.unreadable", bad.AsView()).AsView()));
+    CHECK(saves.HasSlot(u8"bad")); // its empty file written at once, as a new slot's is
+    CHECK(saves.Slots().Size() == 2u);
     (void)FileDelete(Format(u8"{}.unreadable", bad.AsView()).AsView());
 }
 
@@ -237,7 +239,9 @@ TEST_CASE("saves: a slot opened at save points is written only by its own flush"
     saves.Open(folder.AsView());
     const SaveStoreHandle slot = saves.OpenSlot(u8"one", SlotWrites::AtSavePoints);
     SetInt(saves, slot, u8"x", 1);
+    CHECK(saves.SlotTime(u8"one") == 0); // made, never saved
     REQUIRE(saves.Flush(slot)); // a save point
+    CHECK(saves.SlotTime(u8"one") == 800);
     SetInt(saves, slot, u8"x", 2);
     REQUIRE(saves.Flush());     // a general flush (the run stopping, the background) leaves it
     saves.CloseSlot();          // and so does closing it
@@ -255,4 +259,34 @@ TEST_CASE("saves: with no folder, the global store lasts the run and there are n
     CHECK_FALSE(saves.OpenSlot(u8"one").IsSet());
     CHECK(saves.Slots().IsEmpty());
     CHECK(saves.Flush()); // nothing to write, and that is fine
+}
+
+TEST_CASE("saves: the files' names are spelled in one place, a slot's folded")
+{
+    CHECK(RunSaves::GlobalFile(u8"Game.saves", DefaultAllocator()) == PathJoin(u8"Game.saves", u8"global.save.xml"));
+    CHECK(RunSaves::SlotFile(u8"Game.saves", u8"Slot1", DefaultAllocator()) == PathJoin(u8"Game.saves", u8"slot-slot1.save.xml"));
+}
+
+TEST_CASE("saves: a slot's time read once for a menu stays right through this run's writes")
+{
+    const String folder = FreshFolder(u8"times");
+    RunSaves saves(DefaultAllocator());
+    saves.SetClock(&TestClock);
+    saves.Open(folder.AsView());
+    g_now = 100;
+    SetInt(saves, saves.OpenSlot(u8"a"), u8"x", 1);
+    saves.CloseSlot();
+    CHECK(saves.SlotTime(u8"a") == 100);
+    REQUIRE(saves.Slots().Size() == 1u);
+    g_now = 200;
+    SetInt(saves, saves.OpenSlot(u8"a"), u8"x", 2); // written again through the open slot
+    REQUIRE(saves.Flush());
+    CHECK(saves.SlotTime(u8"a") == 200);
+    saves.CloseSlot();
+    CHECK(saves.SlotTime(u8"a") == 200);
+    REQUIRE(saves.CopySlot(u8"a", u8"b"));
+    CHECK(saves.SlotTime(u8"b") == 200); // the copy keeps the source's
+    REQUIRE(saves.DeleteSlot(u8"a"));
+    CHECK(saves.SlotTime(u8"a") == 0);
+    CHECK(saves.Slots().Size() == 1u);
 }

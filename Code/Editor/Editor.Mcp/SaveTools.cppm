@@ -45,14 +45,14 @@ export namespace editor::mcp::detail
         const JsonValue slot = args.Get(u8"slot");
         if (slot.IsNull() || (slot.IsString() && slot.AsString().IsEmpty()))
         {
-            return PathJoin(folder, u8"global.save.xml");
+            return engine::runtime::RunSaves::GlobalFile(folder, editor::EditorRootAllocator());
         }
         const String name = slot.AsString();
         if (!engine::runtime::RunSaves::IsSlotName(name.AsView()))
         {
             return Err(Format(u8"`slot` '{}' is not a slot name (1 to 32 letters, digits, '-' and '_')", name.AsView()));
         }
-        return PathJoin(folder, Format(u8"slot-{}.save.xml", engine::runtime::RunSaves::FoldSlotName(name.AsView()).AsView()).AsView());
+        return engine::runtime::RunSaves::SlotFile(folder, name.AsView(), editor::EditorRootAllocator());
     }
 
     [[nodiscard]] inline JsonValue SaveValuesJson(const foundation::settings::SaveValues& values)
@@ -149,7 +149,7 @@ export namespace editor::mcp
                 JsonValue out = JsonValue::MakeObject();
                 out.Set(u8"folder", JsonValue::MakeString(folder));
                 JsonValue global = JsonValue::MakeObject();
-                global.Set(u8"exists", JsonValue::MakeBool(FileExists(PathJoin(folder.AsView(), u8"global.save.xml").AsView())));
+                global.Set(u8"exists", JsonValue::MakeBool(FileExists(engine::runtime::RunSaves::GlobalFile(folder.AsView(), editor::EditorRootAllocator()).AsView())));
                 global.Set(u8"savedAt", JsonValue::MakeNumber(static_cast<f64>(saves.Global().SavedAt())));
                 out.Set(u8"global", Move(global));
                 JsonValue slots = JsonValue::MakeArray();

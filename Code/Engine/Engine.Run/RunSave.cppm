@@ -212,6 +212,10 @@ export namespace engine::runtime
         // name is one slot on every platform.
         [[nodiscard]] static bool IsSlotName(StringView name) noexcept;
         [[nodiscard]] static String FoldSlotName(StringView name);
+        // The files in a saves folder, the one place their names are spelled: the global store's,
+        // and the slot `name`'s (folded; `name` already a slot name).
+        [[nodiscard]] static String GlobalFile(StringView folder, IAllocator& allocator);
+        [[nodiscard]] static String SlotFile(StringView folder, StringView name, IAllocator& allocator);
 
     private:
         struct SlotRead
@@ -219,12 +223,25 @@ export namespace engine::runtime
             String name;
             UniquePtr<SaveFile> file;
         };
+        // A slot's saved time as last read or written by this run, so a menu's Slots, SlotTime and
+        // ReadSlot read each file once. Kept by every write this run makes to the slot; a file
+        // changed from outside the run (none while it plays) is read again by Forget.
+        struct KnownTime
+        {
+            String name;
+            i64 savedAt = 0;
+        };
 
         [[nodiscard]] String GlobalPath() const;
         [[nodiscard]] String SlotPath(StringView folded) const;
         // The folded name when it is a slot name and there is a folder; else a warning and nothing.
         [[nodiscard]] bool CheckSlotName(StringView name, StringView call, String& folded) const;
         void ForgetReads(StringView folded);
+        void KnowTime(StringView folded, i64 savedAt) const;
+        void ForgetTime(StringView folded) const;
+        [[nodiscard]] const KnownTime* FindTime(StringView folded) const noexcept;
+        // Writes the open slot by its rule; its time known after.
+        void FlushSlot();
         void LetGoOfSlot(bool write);
 
         IAllocator* m_allocator;
@@ -234,6 +251,7 @@ export namespace engine::runtime
         String m_slotName;
         SlotWrites m_slotWrites = SlotWrites::AsItPlays;
         Array<SlotRead> m_reads;
+        mutable Array<KnownTime> m_times;
         u64 m_nextSerial = 1;
         SaveClock m_clock = nullptr;
         bool m_warnedStale = false;
