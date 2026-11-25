@@ -1,9 +1,12 @@
 # A persistent instance table for meshes
 
-> APPROVED 2026-11-23 (the user: work on it on a branch). Steps 1 to 3 built on branch
-> `instance-table` and measured (Results): in this form the table does not pay on the CPU, and the
-> branch is not merged. The decisions take the recommendations below. Read on branch `rhi-handles`
-> at `0ecd5188a`; line numbers will drift.
+> ARCHIVED 2026-11-25, merged to master. Steps 1 and 2 were built on branch `instance-table` and
+> measured (Results): in this form the table does not pay on the CPU, and its GPU cost was not
+> settled. The user merged it after playing the sample games on it without regressions, as the
+> store a retained scene for meshes would build on. The commit before the merge is tagged
+> `pre-instance-table` (93cf7e941), for bisecting a regression. Non-authoritative: the spec as
+> approved and measured, kept as the record of what was built and why. Read on branch
+> `rhi-handles` at `0ecd5188a`; line numbers will drift.
 
 ## Goal
 

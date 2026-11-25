@@ -1166,11 +1166,11 @@ is the work list). Priority order preserved:
    sort 6.47ms, pass record single-threaded while extraction is already
    job-parallel. renderer.md section 7 pre-designed the thread-range seam;
    fill it. Target: CPU below the ~30ms GPU -> GPU-bound -> Godot parity.
-2. **Shadow instance reuse across cascades (1b)** (measured again 2026-11-23, branch
-   `instance-table`: at 100000 stress spheres `shadow.resolve` is about 1.9 ms, and writing each
-   instance's record once instead of per pass, the persistent instance table, saved the resolves
-   1.4 to 3.5 ms but its upload gave it back; see `Specs/instance-table.md` Results before
-   picking this up) - shadow.resolve 8.96ms:
+2. **Shadow instance reuse across cascades (1b)** (measured again 2026-11-23 on the instance
+   table: at 100000 stress spheres `shadow.resolve` is about 1.9 ms, and writing each instance's
+   record once instead of per pass, the persistent instance table, saved the resolves 1.4 to 3.5 ms
+   but its upload gave it back; the table is on master since 2026-11-25, see
+   `Archive/instance-table-history.md` Results before picking this up) - shadow.resolve 8.96ms:
    each of 4 cascades independently re-fills InstanceData. Build caster
    instance data ONCE, per cascade emit only a DataOffsets index list (the
    prepass->forward sharing extended to shadows). NOTE the recorded

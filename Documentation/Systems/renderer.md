@@ -848,7 +848,7 @@ gates by both. Occlusion culling does not exist (backlog: Hi-Z from the depth pr
   (`ScreenOverlayView::safeArea`) keeps the frame and its screens clear of a phone's bars and
   cutout. On a desktop nothing turns.
 
-### 13.2 The instance table (branch `instance-table`, not merged)
+### 13.2 The instance table
 
 Every plain mesh's per-object record (`GpuInstance`: world, last frame's world, tint) lives in one
 GPU-only buffer kept across frames, the `InstanceTable` (`InstanceTable.cppm`), owned by the mesh
@@ -861,18 +861,19 @@ renderer and bound whole at set 1 as `Instances`.
   up, across the job system. The changed slots are copied in runs through a staging ring, between a
   shader-read to copy transition and back, since every frame writes what an earlier frame's passes
   may still read. The CPU mirror is the motion history.
-- **Every draw reads the table.** Every mesh draws instanced on master too, but writes its record
-  per pass into the instance ring; with the table a run, or one mesh alone, writes only its 16-byte
-  draw offsets (the slot, bone bases, fade or pick id) per pass.
+- **Every draw reads the table.** Every mesh draws instanced: a run, or one mesh alone, writes only
+  its 16-byte draw offsets (the slot, bone bases, fade or pick id) per pass, where it wrote its
+  whole record per pass into the instance ring before the table.
 - **Slots**: the items one entity is split into share its slot; an entity that takes a freed index
   takes a new slot, with no motion on its first frame; a scene not extracted this frame keeps its
   slots, one gone for 120 frames drops them; an item with no entity has a slot for its frame alone.
-- **Counters**: as on master, the renderer publishes the bytes a frame wrote for the GPU by kind
-  (`mesh.offsets`, `mesh.instances`, `mesh.views`, `mesh.lights`, `mesh.bones`); here
-  `mesh.instances` is the table's staged bytes. Each part of the upload has its own profiler scope.
+- **Counters**: the renderer publishes the bytes a frame wrote for the GPU by kind
+  (`mesh.offsets`, `mesh.instances`, `mesh.views`, `mesh.lights`, `mesh.bones`); `mesh.instances`
+  is the table's staged bytes. Each part of the upload has its own profiler scope.
 
-Measured, it does not pay in this form: the resolves save what was expected, and the upload gives
-it back (the spec's Results, `Specs/instance-table.md`).
+Measured, it does not pay on the CPU in this form: the resolves save what was expected, and the
+upload gives it back (`Archive/instance-table-history.md`, Results). It is merged as the store a
+retained scene for meshes would build on, writing it from changes instead of a walk. The commit before it is tagged `pre-instance-table`, for bisecting.
 
 ---
 
