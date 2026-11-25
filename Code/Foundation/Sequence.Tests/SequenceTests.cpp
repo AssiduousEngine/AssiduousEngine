@@ -823,6 +823,23 @@ TEST_CASE("sequence: a marker and a runner's hold: the earlier wins, Resume lets
         CHECK(play.IsHeld());
         CHECK(play.Time() == doctest::Approx(0.5f));
     }
+    SUBCASE("the runner first: the marker after it is reported where it is, not early")
+    {
+        stage.sequence.markers.PushBack(SequenceMarker{0.75f, String(u8"line"), true});
+        Recorder recorder;
+        SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+        play.SetListener(&recorder);
+        play.Play();
+        play.Advance(0.9f); // past both: the runner's, the earlier, holds
+        CHECK(play.Time() == doctest::Approx(0.5f));
+        CHECK(recorder.heard.IsEmpty()); // the marker is not reached yet
+        stage.line.read = true;
+        play.Advance(0.5f); // on to the marker, which holds there
+        CHECK(play.IsHeld());
+        CHECK(play.Time() == doctest::Approx(0.75f));
+        REQUIRE(recorder.heard.Size() == 1u);
+        CHECK(recorder.heard[0] == StringView(u8"held:line"));
+    }
     SUBCASE("at one time, both hold; Resume lets go of both")
     {
         stage.sequence.markers.PushBack(SequenceMarker{0.5f, String(u8"line"), true});
