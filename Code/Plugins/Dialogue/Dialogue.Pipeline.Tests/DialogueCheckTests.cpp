@@ -362,3 +362,37 @@ TEST_CASE("dialogue check: a conversation's level: its entities named, a missing
                                               u8"@ keeper: Here.\n");
     CHECK(HasProblem(wrong, 1, u8"`door_creak` is of type AudioClipAsset, which is no level"));
 }
+
+// What a file tells the others' checks: its conversations, and each flag it writes (set or clear) and
+// reads (if), once each, whatever the order or the repeats.
+TEST_CASE("dialogue check: a file's facts are its conversations and the flags it sets and reads, once each")
+{
+    const DialogueParse parse = ParseDialogue(u8"conversation gate\n"
+                                              u8"set met\n"
+                                              u8"if met\n"
+                                              u8"@ keeper: Again.\n"
+                                              u8"end\n"
+                                              u8"clear met\n"
+                                              u8"conversation farewell\n"
+                                              u8"if met\n"
+                                              u8"@ keeper: Bye.\n"
+                                              u8"end\n"
+                                              u8"if not asked\n"
+                                              u8"set asked\n"
+                                              u8"end\n",
+                                              {});
+    REQUIRE(parse.Ok());
+    Array<String> conversations;
+    Array<String> flagsSet;
+    Array<String> flagsRead;
+    CollectDialogueFacts(parse, conversations, flagsSet, flagsRead);
+    REQUIRE(conversations.Size() == 2u);
+    CHECK(conversations[0] == StringView(u8"gate"));
+    CHECK(conversations[1] == StringView(u8"farewell"));
+    REQUIRE(flagsSet.Size() == 2u); // met (set, then cleared: once), asked
+    CHECK(flagsSet[0] == StringView(u8"met"));
+    CHECK(flagsSet[1] == StringView(u8"asked"));
+    REQUIRE(flagsRead.Size() == 2u); // met (read twice: once), asked
+    CHECK(flagsRead[0] == StringView(u8"met"));
+    CHECK(flagsRead[1] == StringView(u8"asked"));
+}
