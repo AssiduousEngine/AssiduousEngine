@@ -28,9 +28,11 @@ glibc_floor() { objdump -T "$1" 2>/dev/null | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | 
 ver_le() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]; }
 
 # --- 1. configure: Clang 21 + GCC 14 libstdc++, static C++ runtime ---------------------------
+# C# scripting off: the image has no .NET SDK, and a Deck build runs scripts in AngelScript and Luau.
 log "Configure ($BUILD): Clang 21 + GCC 14 libstdc++, static libstdc++/libgcc"
 cmake -S . -B "$BUILD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
+    -DOPTION_ENABLE_DOTNET=OFF \
     -DCMAKE_C_COMPILER=clang-21 \
     -DCMAKE_CXX_COMPILER=clang++-21 \
     -DCMAKE_ASM_COMPILER=clang++-21 \

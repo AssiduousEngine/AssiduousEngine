@@ -41,7 +41,7 @@ enables AI agents to build entire games, from initial project setup to fully pla
 - **Networking** with state replication.
 - **Scripting** in AngelScript or Luau over the engine's reflected facades: entity, scene and run
   behaviors, with coroutines, events, messages and an in-editor debugger. The same behaviors can
-  be written in C++ instead.
+  be written in C++ instead, or in C# (experimental).
 - **Plugins:** official plugins a project enables, and a project's own native C++ code as a plugin
   package of up to four parts: components and the scene systems that update them, behaviors in
   C++ and script facades; asset types and their cooks; MCP tools and export steps; editor pages

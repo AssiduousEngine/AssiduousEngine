@@ -38,6 +38,10 @@
   links against Core), so configuring with an MSVC older than 19.51 stops with an error naming the
   one to install. With both installed, `build-msvc.cmd` picks the newer toolset itself.
 - A Vulkan 1.3 (or, on Windows, D3D12) capable GPU to run anything that draws.
+- The .NET 10 SDK (`dotnet` on the path), for C# scripting, which a desktop build includes by
+  default: it generates the C# bindings and builds the engine's managed runtime and the C# tests.
+  Without it, configure with `-DOPTION_ENABLE_DOTNET=OFF`. Web and Android builds leave C# out
+  unless an export of a C# game turns it on.
 - For web builds, emsdk 6.0.5 with the project's response file patch applied; see
   [Guides/emscripten-windows.md](Guides/emscripten-windows.md).
 - For Android builds, the Android NDK r30 (`30.0.16248370`) named by `ANDROID_NDK_HOME`; to

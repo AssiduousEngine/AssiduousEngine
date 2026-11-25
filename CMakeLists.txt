@@ -186,9 +186,15 @@ option(OPTION_PLUGIN_IMGUI  "Build the Dear ImGui debug-UI plugin (imgui.engine)
 # its vendored lib to have built (reconciled after ThirdParty is added, before the backend subdirs).
 option(OPTION_ENABLE_ANGELSCRIPT "Build the AngelScript script backend" ON)
 option(OPTION_ENABLE_LUAU        "Build the Luau script backend" ON)
-# C# scripting (experimental): the engine hosts .NET through hostfxr on the desktop. Needs the .NET
-# SDK; off by default while it is an experiment (Documentation/Specs/dotnet-scripting.md).
-option(OPTION_ENABLE_DOTNET      "Build the .NET host for C# scripting (experimental)" OFF)
+# C# scripting: the engine hosts .NET through hostfxr on the desktop. Needs the .NET SDK, so it is on
+# by default for a desktop build and off for the web and Android, where a C# game is compiled into
+# its program (the exporter turns it on for one).
+if(EMSCRIPTEN OR ANDROID)
+    set(DOTNET_BY_DEFAULT OFF)
+else()
+    set(DOTNET_BY_DEFAULT ON)
+endif()
+option(OPTION_ENABLE_DOTNET      "Build the .NET host for C# scripting" ${DOTNET_BY_DEFAULT})
 option(OPTION_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
 # A web (Emscripten) build ships a game, not the authoring toolchain: force the tooling group off

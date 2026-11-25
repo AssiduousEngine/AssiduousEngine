@@ -9,6 +9,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scripts: C#, beside AngelScript and Luau (experimental): entity, scene and run behaviors written in
+  C# over the same facades, built into the project's assembly by the cook. On by default in a
+  desktop build, which needs the .NET 10 SDK (`-DOPTION_ENABLE_DOTNET=OFF` leaves it out); a web
+  export of a C# game compiles it in. Holdout, a first-person shooter, is its sample.
 - Projects: a **Present mode** setting (Display): vsync, the default, mailbox or immediate, which do
   not wait for the display; an export preset's own window can set its own. The player presents in it
   (it always waited for the display before), and `--present-mode <name>` presents another for one run.

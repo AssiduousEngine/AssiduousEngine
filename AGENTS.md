@@ -18,6 +18,8 @@ cmake --build build/clang -j4                          # everything
 - Build at `-j4`, one build at a time, and never beside another heavy build (a second ninja,
   the Steam Deck container, another engine's build). Two ninjas on one tree corrupt its dyndep
   state; two heavy builds at once run the machine out of memory.
+- A desktop build includes C# scripting and needs the .NET 10 SDK (`dotnet` on the path);
+  `-DOPTION_ENABLE_DOTNET=OFF` leaves it out.
 - Point the compiler's temp at the disk for big builds: `export TMPDIR=$PWD/build/tmp` (an
   absolute path; `/tmp` is a small tmpfs).
 - A tool built before a change does not have it: rebuild the editor, the player or `Tools.Mcp`
@@ -87,6 +89,7 @@ generators, sounds), each with a README:
 - **Shader Gallery** (`ShaderGallery`): the custom shaders sample, a hall of lesson shaders.
 - **Masquerade**: the networking and crowds sample, a masked ball for up to four players.
 - **Millbrook**: the dialogue sample, a village readying its fair, told in conversations.
+- **Holdout**: a first-person shooter in C#, a yard held against waves.
 - **NativeSample**: a game's own native code, a plugin package of all four parts, a scene its
   Spin component turns, and its game logic as native behaviors.
 

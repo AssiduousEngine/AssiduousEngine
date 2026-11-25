@@ -97,6 +97,13 @@ jobs:
           sudo rm -f /swapfile /mnt/swapfile
           sudo fallocate -l 12G /mnt/swapfile && sudo chmod 600 /mnt/swapfile
           sudo mkswap /mnt/swapfile && sudo swapon /mnt/swapfile
+      # C# scripting is on by default for a desktop build: the bindings generator, the engine's
+      # managed runtime and the C# tests build with the .NET SDK (the projects target net10.0).
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       # The AUTHORING TOOL (editor) - one downloadable package.
       - name: Build editor distribution
         run: CXX_COMPILER=clang++-21 C_COMPILER=clang-21 OUT=dist/Assiduous-Editor-Linux64 scripts/build-editor-dist.sh
@@ -166,6 +173,13 @@ jobs:
           if (-not $sdk) { throw "Vulkan SDK not present after install" }
           "VULKAN_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "VULKAN_SDK=$sdk"
+      # C# scripting is on by default for a desktop build: the bindings generator, the engine's
+      # managed runtime and the C# tests build with the .NET SDK (the projects target net10.0).
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       # The AUTHORING TOOL (editor) - one downloadable package.
       - name: Build editor distribution
         run: pwsh scripts/build-editor-dist.ps1 -Out dist/Assiduous-Editor-Win64
@@ -324,6 +338,13 @@ jobs:
           sudo rm -f /swapfile /mnt/swapfile
           sudo fallocate -l 12G /mnt/swapfile && sudo chmod 600 /mnt/swapfile
           sudo mkswap /mnt/swapfile && sudo swapon /mnt/swapfile
+      # C# scripting is on by default for a desktop build: the bindings generator, the engine's
+      # managed runtime and the C# tests build with the .NET SDK (the projects target net10.0).
+      - name: Install .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Build the Steam Deck template
         run: |
           VERSION="$(grep -oP '^\s*VERSION\s+\K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | head -1)"
