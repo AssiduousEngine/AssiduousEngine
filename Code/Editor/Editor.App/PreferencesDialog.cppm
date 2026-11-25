@@ -22,6 +22,7 @@ export module editor.app:preferences_dialog;
 
 import foundation.core;
 import foundation.gui;
+import foundation.graphics; // the present modes by name
 import foundation.rhi; // PresentMode, Preferences' frame rate
 import foundation.settings;
 import editor.core;
@@ -203,7 +204,7 @@ export namespace editor::app
                 onChange(Find<gui::Button>(Format(u8"pref-density-{}", density).AsView()),
                          [self, name]() { self->Change([&name](EditorLook& look) { look.density = name; }); });
             }
-            for (const EditorPresentMode& entry : kEditorPresentModes)
+            for (const foundation::graphics::NamedPresentMode& entry : foundation::graphics::kPresentModes)
             {
                 const foundation::rhi::PresentMode mode = entry.mode;
                 onChange(Find<gui::Button>(Format(u8"pref-present-{}", entry.name).AsView()),
@@ -599,7 +600,7 @@ export namespace editor::app
                     segment->SetChecked(m_look.density.AsView() == density);
             if (auto* motion = Find<gui::CheckBox>(u8"pref-motion"))
                 motion->SetChecked(m_look.reduceMotion);
-            for (const EditorPresentMode& entry : kEditorPresentModes)
+            for (const foundation::graphics::NamedPresentMode& entry : foundation::graphics::kPresentModes)
                 if (auto* segment = Find<gui::Button>(Format(u8"pref-present-{}", entry.name).AsView()))
                     segment->SetChecked(m_look.presentMode == entry.mode);
             if (auto* scale = Find<gui::Slider>(u8"pref-scale"))

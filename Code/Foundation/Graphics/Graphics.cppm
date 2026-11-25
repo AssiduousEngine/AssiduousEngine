@@ -160,6 +160,37 @@ export namespace foundation::graphics
         bool preRotate = false;
     };
 
+    /// A present mode by the name settings files, command lines and scripts give it.
+    struct NamedPresentMode
+    {
+        core::StringView name;
+        rhi::PresentMode mode;
+    };
+    /// The present modes offered by name, in their order: vsync first, the default. Mailbox and
+    /// immediate do not wait for the display; a surface without the one asked for takes the other,
+    /// then vsync.
+    inline constexpr NamedPresentMode kPresentModes[] = {
+        {u8"vsync", rhi::PresentMode::Fifo},
+        {u8"mailbox", rhi::PresentMode::Mailbox},
+        {u8"immediate", rhi::PresentMode::Immediate},
+    };
+    /// The name of `mode`; vsync's for a mode not offered by name.
+    [[nodiscard]] inline core::StringView PresentModeName(rhi::PresentMode mode) noexcept
+    {
+        for (const NamedPresentMode& entry : kPresentModes)
+            if (entry.mode == mode)
+                return entry.name;
+        return kPresentModes[0].name;
+    }
+    /// The present mode named `name`, or null when none has that name.
+    [[nodiscard]] inline const NamedPresentMode* FindPresentMode(core::StringView name) noexcept
+    {
+        for (const NamedPresentMode& entry : kPresentModes)
+            if (entry.name == name)
+                return &entry;
+        return nullptr;
+    }
+
     class GraphicsDevice; // forward (RenderWindow refs it; defined complete below)
     class RenderWindow;   // forward (FrameContext refs it)
 

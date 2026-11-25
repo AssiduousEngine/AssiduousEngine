@@ -468,3 +468,19 @@ TEST_CASE("graphics: a minimized window takes a new present mode when it is show
     REQUIRE(rw.Swap() != nullptr);
     CHECK(static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap())->m_presentMode == foundation::rhi::PresentMode::Mailbox);
 }
+
+TEST_CASE("graphics: a present mode is found by its name, and named back")
+{
+    using foundation::rhi::PresentMode;
+    REQUIRE(FindPresentMode(u8"vsync") != nullptr);
+    CHECK(FindPresentMode(u8"vsync")->mode == PresentMode::Fifo);
+    REQUIRE(FindPresentMode(u8"mailbox") != nullptr);
+    CHECK(FindPresentMode(u8"mailbox")->mode == PresentMode::Mailbox);
+    REQUIRE(FindPresentMode(u8"immediate") != nullptr);
+    CHECK(FindPresentMode(u8"immediate")->mode == PresentMode::Immediate);
+    CHECK(FindPresentMode(u8"uncapped") == nullptr);
+    CHECK(FindPresentMode(u8"VSync") == nullptr); // names are kept as written
+    for (const NamedPresentMode& entry : kPresentModes)
+        CHECK(PresentModeName(entry.mode) == entry.name);
+    CHECK(PresentModeName(PresentMode::FifoRelaxed) == StringView(u8"vsync")); // not offered by name
+}

@@ -58,27 +58,6 @@ export namespace editor::app
         foundation::rhi::PresentMode presentMode = foundation::rhi::PresentMode::Fifo; // vsync
     };
 
-    /// The present modes Preferences offers, by the name the settings file keeps, in their order:
-    /// vsync first, the default.
-    struct EditorPresentMode
-    {
-        StringView name;
-        foundation::rhi::PresentMode mode;
-    };
-    inline constexpr EditorPresentMode kEditorPresentModes[] = {
-        {u8"vsync", foundation::rhi::PresentMode::Fifo},
-        {u8"mailbox", foundation::rhi::PresentMode::Mailbox},
-        {u8"immediate", foundation::rhi::PresentMode::Immediate},
-    };
-    /// The name the settings file keeps for `mode`; vsync's for a mode Preferences does not offer.
-    [[nodiscard]] inline StringView PresentModeName(foundation::rhi::PresentMode mode) noexcept
-    {
-        for (const EditorPresentMode& entry : kEditorPresentModes)
-            if (entry.mode == mode)
-                return entry.name;
-        return kEditorPresentModes[0].name;
-    }
-
     /// The densities the editor's sheets give (Editor/density-<name>.css), in their order.
     inline constexpr StringView kEditorDensities[] = {u8"compact", u8"default", u8"comfortable"};
     /// The accents Preferences offers, each a fill that white text is legible on; azure is the
@@ -124,9 +103,8 @@ export namespace editor::app
                 look.density = String(density);
         look.reduceMotion = ui->reduceMotion;
         look.uiScale = Clamp(ui->uiScale, editor::kUiScaleMin, editor::kUiScaleMax);
-        for (const EditorPresentMode& entry : kEditorPresentModes)
-            if (ui->presentMode.AsView() == entry.name)
-                look.presentMode = entry.mode;
+        if (const foundation::graphics::NamedPresentMode* named = foundation::graphics::FindPresentMode(ui->presentMode.AsView()))
+            look.presentMode = named->mode;
         return look;
     }
     /// Stores `look` into the user's settings, keeping the section's other fields.
@@ -137,7 +115,7 @@ export namespace editor::app
         ui.density = look.density;
         ui.reduceMotion = look.reduceMotion;
         ui.uiScale = look.uiScale;
-        ui.presentMode = String(PresentModeName(look.presentMode));
+        ui.presentMode = String(foundation::graphics::PresentModeName(look.presentMode));
     }
 
     /// The keys the satellite libraries' widgets need, which a host binds once for its GUI (as it
@@ -441,7 +419,7 @@ export namespace editor::app
             const usize refused = PresentWindowsIn(Span<foundation::graphics::RenderWindow* const>(windows.Data(), windows.Size()), m_look.presentMode);
             if (refused > 0)
                 LOG_WARNING(u8"Editor", u8"{} window(s) cannot present as '{}' on this device; they keep the mode they had",
-                            refused, PresentModeName(m_look.presentMode));
+                            refused, foundation::graphics::PresentModeName(m_look.presentMode));
         }
 
     public:
