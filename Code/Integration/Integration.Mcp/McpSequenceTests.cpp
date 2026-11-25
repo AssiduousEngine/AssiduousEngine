@@ -158,6 +158,13 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Property\",\"source\":\"weather\",\"target\":\"rain\","
                              u8"\"property\":\"amount\",\"valueKind\":\"Float\"}]"));
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"no target source 'weather'"));
+    // A component named by its shown name is refused, pointed at its type name; one named by nothing too.
+    bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Property\",\"part\":\"Hero\",\"target\":\"Light\","
+                             u8"\"property\":\"intensity\",\"valueKind\":\"Float\"}]"));
+    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"'LightComponent'"));
+    bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Property\",\"part\":\"Hero\",\"target\":\"Lamp\","
+                             u8"\"property\":\"intensity\",\"valueKind\":\"Float\"}]"));
+    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"no component 'Lamp'"));
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Juggle\"}]"));
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"Camera Cut"));
 

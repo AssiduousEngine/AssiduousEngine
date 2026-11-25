@@ -23,7 +23,9 @@ import foundation.content;
 import foundation.mcp;
 import foundation.propertyanimation;
 import foundation.sequence;
+import foundation.scene;
 import sequence.pipeline;
+import engine.composition; // AddAllSceneManagers: every component a track can key, to check a target by
 import editor.project;
 import :session;
 
@@ -412,6 +414,35 @@ export namespace editor::mcp
 
         // === One edit ===
 
+        /// Whether a component source's `target` names a component (by its type name, as a scene finds
+        /// it) or the Transform. The reason otherwise, pointing a display name ("Light") at its type
+        /// name ("LightComponent").
+        [[nodiscard]] static Result<bool, String> CheckComponentTarget(StringView target)
+        {
+            if (target == propertyanimation::kTransformTarget)
+                return true;
+            foundation::scene::Scene every{editor::EditorRootAllocator()};
+            engine::AddAllSceneManagers(every);
+            if (every.FindManagerByComponentName(target) != nullptr)
+                return true;
+            String meant;
+            every.ForEachManager(
+                [&](foundation::scene::ComponentManagerBase& manager)
+                {
+                    const TypeInfo* type = manager.ComponentType();
+                    if (!meant.IsEmpty() || type == nullptr || type->name == nullptr)
+                        return;
+                    const Variant* shown = FindAttribute(*type, "displayName");
+                    if (shown != nullptr && shown->Is<String>() && shown->Get<String>().AsView() == target)
+                        meant = String(reinterpret_cast<const utf8char*>(type->name));
+                });
+            if (!meant.IsEmpty())
+                return Err(Format(u8"add_track: no component '{}' by that name; a target names the component's type: '{}'", target,
+                                  meant.AsView()));
+            return Err(Format(u8"add_track: no component '{}' (a target names a component's type, as LightComponent, or Transform)",
+                              target));
+        }
+
         [[nodiscard]] static Result<sequence::SequenceTrack*, String> TrackArg(sequence::Sequence& sequence, const JsonValue& edit)
         {
             const i64 index = edit.Get(u8"track").AsInt(-1);
@@ -500,8 +531,14 @@ export namespace editor::mcp
                         return Err(Format(u8"add_track: no target source '{}' (component, settings, or one a plugin registers)",
                                           property->property.source));
                     if (property->property.target.IsEmpty() || property->property.propertyPath.IsEmpty())
-                        return Err(String(u8"add_track: a property track needs `target` (a component's name or Transform; a "
+                        return Err(String(u8"add_track: a property track needs `target` (a component's type name or Transform; a "
                                           u8"settings id with source settings) and `property`"));
+                    if (property->property.source.AsView() == propertyanimation::kComponentSource)
+                    {
+                        Result<bool, String> named = CheckComponentTarget(property->property.target.AsView());
+                        if (!named.HasValue())
+                            return Err(Move(named.Error()));
+                    }
                     const String valueKind = edit.Get(u8"valueKind").AsString();
                     const bool transform = property->property.source.AsView() == propertyanimation::kComponentSource &&
                                            property->property.target.AsView() == propertyanimation::kTransformTarget;
@@ -715,7 +752,7 @@ export namespace editor::mcp
                 u8"length {seconds}; add_part {name}; remove_part {name}; add_track {kind (a kind's type or editor "
                 u8"name), part (when the kind plays on one), name?, and for a property track source? (component, the "
                 u8"default: a part's component; settings: the scene's settings, no part; or a plugin's), target (a "
-                u8"component's name or Transform; a settings id such as environment), property (a path), valueKind "
+                u8"component's type name, as LightComponent, or Transform; a settings id such as environment), property (a path), valueKind "
                 u8"(Float, Float3, Color, Quat; Transform's are known)}; "
                 u8"remove_track {track}; key {track, channel (name or index; omit for one), time, value? (a curve's), interpolation? (Constant, Linear, Cubic), tangent? (Auto, Smooth, Flat, Broken)}; "
                 u8"remove_key {track, channel, time}; section {track, start, length?, fields? (the section's fields by "

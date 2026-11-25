@@ -321,7 +321,7 @@ refused edit refuses the whole call, naming which and why, and writes nothing): 
 `add_part` / `remove_part`, `add_track` (a `kind` by either name; `part` when the kind plays on
 one; a property track's `source` - `component` (the default: a component of the part's entity),
 `settings` (a scene's settings, played on no part) or one a plugin registers - its `target` -
-`Transform` or a component's name, or a settings id such as `environment` - `property` and, for
+`Transform` or a component's type name (`LightComponent`, not its shown name `Light`; a name that is neither is refused), or a settings id such as `environment` - `property` and, for
 anything but the transform, `valueKind` Float, Float3, Color or Quat), `remove_track`, `key` (`track`, `channel` by
 name or index, `time`, a curve's `value`, and the key's `interpolation` - Constant, Linear or Cubic,
 the default - and `tangent` - Auto, the default, Smooth, Flat for an ease in and out, or Broken -

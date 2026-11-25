@@ -48,7 +48,7 @@ def cart_rolls():
     guid = fresh("CartRolls")
     edits = [{"op": "length", "seconds": 4.0},
              {"op": "add_part", "name": "Cart"},
-             {"op": "add_track", "kind": "Property", "part": "Cart", "component": "Transform", "property": "position"}]
+             {"op": "add_track", "kind": "Property", "part": "Cart", "target": "Transform", "property": "position"}]
     for channel, a, b in zip("xyz", START, END):
         edits.append({"op": "key", "track": 0, "channel": channel, "time": 0.0, "value": a})
         edits.append({"op": "key", "track": 0, "channel": channel, "time": 4.0, "value": b})

@@ -33,6 +33,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- MCP: `sequence_edit` refuses a property track whose target names no component, and points a
+  component's shown name at its type name (`Light` is `LightComponent`).
 - Saves: a game's saves are a folder, `<project>.saves/` (in the user data directory for the player,
   in the project's `Editor/` folder for play in editor), holding the global store
   (`global.save.xml`) and the game's slots. The `Save` facade is replaced by `Saves`, which hands out
