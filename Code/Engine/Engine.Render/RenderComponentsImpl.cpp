@@ -970,6 +970,38 @@ namespace engine::render
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
+    DisplayChoice* DisplayFacade::Resolve()
+    {
+        return foundation::script::CurrentService<DisplayChoice>(); // the calling script's run's
+    }
+
+    Array<String> DisplayFacade::presentModes()
+    {
+        const DisplayChoice* choice = Resolve();
+        return choice != nullptr ? choice->presentModes : Array<String>{};
+    }
+
+    String DisplayFacade::presentMode()
+    {
+        const DisplayChoice* choice = Resolve();
+        return choice != nullptr ? choice->presentMode : String{};
+    }
+
+    bool DisplayFacade::setPresentMode(String name)
+    {
+        DisplayChoice* choice = Resolve();
+        return choice != nullptr && choice->ChoosePresentMode(name.AsView());
+    }
+
+    REFLECT_MEMBERS(DisplayFacade, "rtti::engine::render")
+    {
+        builder.Attribute("scriptName", "Display");
+        builder.Method<&DisplayFacade::presentModes>("presentModes");
+        builder.Method<&DisplayFacade::presentMode>("presentMode");
+        builder.Method<&DisplayFacade::setPresentMode>("setPresentMode", {"name"});
+        builder.Constructor(); // some backends only materialize constructible foreign classes
+    }
+
     void RegisterRenderScriptFacade()
     {
         RegisterRenderComponentReflection(); // ensure component TypeData (including `of`) is built first
@@ -1034,5 +1066,8 @@ namespace engine::render
         RegisterArrayType<String>();
         GlobalTypeRegistry().Register(RenderQualityFacade::StaticType());
         foundation::script::RegisterExtraFacadeName(u8"RenderQuality");
+        // How the run's window presents (Display.presentModes() lists them as array<string>).
+        GlobalTypeRegistry().Register(DisplayFacade::StaticType());
+        foundation::script::RegisterExtraFacadeName(u8"Display");
     }
 } // namespace engine::render

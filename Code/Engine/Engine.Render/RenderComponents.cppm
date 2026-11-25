@@ -1244,6 +1244,56 @@ export namespace engine::render
         static bool set(String label);
     };
 
+    /// How a run's window presents, and what choosing another mode does. The host fills it and gives
+    /// it to the run: the player offers the modes its window takes, presents in a choice and keeps
+    /// it in the user's settings; a Game tab offers the same and keeps a choice for the session
+    /// without presenting in it, since it draws in the editor's windows, which present as the
+    /// editor's preferences say. Scripts reach it through the `Display` facade.
+    class DisplayChoice
+    {
+    public:
+        Array<String> presentModes; // the modes offered, by name ("vsync", "mailbox", "immediate")
+        String presentMode;         // the mode presented in
+        /// Presents in the mode named, one of presentModes; false when the window refused it.
+        Function<bool(StringView name)> choosePresentMode;
+
+        [[nodiscard]] bool OffersPresentMode(StringView name) const noexcept
+        {
+            for (const String& offered : presentModes)
+                if (offered.AsView() == name)
+                    return true;
+            return false;
+        }
+        /// Presents in the mode named `name`; false, and nothing changes, when the run does not
+        /// offer it or the window refused it.
+        bool ChoosePresentMode(StringView name)
+        {
+            if (!OffersPresentMode(name))
+                return false;
+            if (choosePresentMode && !choosePresentMode(name))
+                return false;
+            presentMode = String(name);
+            return true;
+        }
+    };
+
+    /// The `Display` script facade over the calling run's DisplayChoice: `Display.presentModes()`,
+    /// `.presentMode()` and `.setPresentMode(name)` in Luau, `Display::` in AngelScript. A run that
+    /// offers no modes lists none, reads an empty name and refuses a set.
+    class DisplayFacade final : public Object
+    {
+        RTTI_OBJECT(DisplayFacade, Object)
+    public:
+        [[nodiscard]] static DisplayChoice* Resolve();
+        /// The present modes the window takes, by name, vsync first.
+        [[nodiscard]] static Array<String> presentModes();
+        /// The mode the window presents in.
+        [[nodiscard]] static String presentMode();
+        /// Presents in the mode named `name` now, and keeps the choice; false for a mode the run
+        /// does not offer or the window refused.
+        static bool setPresentMode(String name);
+    };
+
     RTTI_DEFINE_OBJECT(EnvironmentProfile, "rtti::engine::render")
     RTTI_DEFINE_OBJECT(PostProcessProfile, "rtti::engine::render")
     RTTI_DEFINE_OBJECT(RenderQualityLevel, "rtti::engine::render")
