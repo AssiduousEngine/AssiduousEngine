@@ -114,6 +114,19 @@ namespace foundation::script::dotnet
             for (const TypeInfo* scalar : scalars)
                 if (scalar->id == id)
                     return scalar;
+            // A type the bindings reach through the registered ones (a component's enum, an
+            // EntityRef), found as the generator found it; walked again when the registry grows.
+            thread_local Array<const TypeInfo*> t_reached;
+            thread_local usize t_registered = ~usize{0};
+            const Array<const TypeInfo*> registered = GlobalTypeRegistry().All();
+            if (registered.Size() != t_registered)
+            {
+                t_reached = ReachableTypes(Span<const TypeInfo* const>{registered.Data(), registered.Size()});
+                t_registered = registered.Size();
+            }
+            for (const TypeInfo* reached : t_reached)
+                if (reached->id == id)
+                    return reached;
             return nullptr;
         }
 
@@ -474,6 +487,19 @@ namespace foundation::script::dotnet
             out.kind = DotNetValueKind::Bytes;
             out.type = variant.Type();
             out.size = sizeof(entity);
+            return Status{};
+        }
+        // A resource reference crosses as the Guid of what it names.
+        if (const TypeInfo* referenced = variant.Type(); referenced != nullptr && IsReferenceType(*referenced))
+        {
+            const Guid* id = variant.ValuePointer() != nullptr ? referenced->reference->Id(variant.ValuePointer()) : nullptr;
+            const Guid named = id != nullptr ? *id : Guid{};
+            if (out.data == nullptr || out.size < sizeof(Guid))
+                return Status{ErrorCode::OutOfRange};
+            std::memcpy(out.data, static_cast<const void*>(&named), sizeof(Guid));
+            out.kind = DotNetValueKind::Bytes;
+            out.type = &TypeOf<Guid>();
+            out.size = sizeof(Guid);
             return Status{};
         }
         if (const String* text = variant.TryGet<String>())

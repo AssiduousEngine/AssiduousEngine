@@ -25,6 +25,12 @@ export namespace foundation::script::dotnet
     /// reference or container, every property a field whose type is a scalar or another such type.
     [[nodiscard]] Array<const TypeInfo*> BindableValueTypes();
 
+    /// `types` and the types their members reach that are not among them: the enums, the values of
+    /// their own bytes and the reflected records their properties, parameters, results and list
+    /// elements are (a component's enum, an EntityRef, a sequence's cast entry), which C# binds beside
+    /// them although the engine never registers them.
+    [[nodiscard]] Array<const TypeInfo*> ReachableTypes(Span<const TypeInfo* const> types);
+
     /// The C# source binding `types` (a namespace `Engine`), with a `Layouts.FirstMismatch()` C#
     /// calls at start. A member C# cannot have (a type it has no form for, a name it cannot take, an
     /// overload it cannot tell apart) is left out, and named in `leftOut` with why: "Type.member: why".

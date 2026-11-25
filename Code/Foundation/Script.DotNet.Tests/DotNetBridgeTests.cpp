@@ -8,6 +8,7 @@
 #include "Core/Reflection/Reflect.h"
 
 import foundation.core;
+import foundation.resource; // Ref<T>: a reference crossing as its guid
 import foundation.script.dotnet;
 
 using namespace foundation::core;
@@ -270,4 +271,37 @@ TEST_CASE("dotnet bridge: lists cross as handles, read by element and made from 
     CHECK(engine.listSize(&none, &size) < 0);
     u64 length = 0;
     CHECK(StringView(engine.lastError(&length), static_cast<usize>(length)) == StringView(u8"not a list"));
+}
+
+namespace
+{
+    class Crate final : public Object
+    {
+        RTTI_OBJECT(Crate, Object)
+    };
+}
+RTTI_DEFINE_OBJECT(Crate, "rtti::tests::dotnetbridge")
+
+// A resource reference (a component's mesh, an audio source's clip) crosses as the Guid of what it
+// names, into the caller's bytes: what C# reads it as.
+TEST_CASE("dotnet bridge: a resource reference crosses as its guid")
+{
+    RegisterCoreTypes();
+    (void)EngineFunctions(DefaultAllocator()); // the bridge's allocator
+    foundation::resource::Ref<Crate> crate;
+    crate.id = Guid{0x1234, 0x5678};
+    const Variant held = Variant::From(crate);
+    REQUIRE(held.Type() != nullptr);
+    REQUIRE(IsReferenceType(*held.Type()));
+    Guid read;
+    DotNetValue out = Bytes(TypeOf<Guid>(), &read);
+    REQUIRE(FromVariant(held, out).IsOk());
+    CHECK(out.kind == DotNetValueKind::Bytes);
+    CHECK(out.type->id == TypeOf<Guid>().id);
+    CHECK(read == crate.id);
+
+    // None named: the nil guid.
+    const Variant unset = Variant::From(foundation::resource::Ref<Crate>{});
+    REQUIRE(FromVariant(unset, out).IsOk());
+    CHECK(read.IsNil());
 }

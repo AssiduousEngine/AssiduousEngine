@@ -61,7 +61,7 @@ add_custom_target(Script.DotNet.TestGame DEPENDS ${TESTGAME_OUT}/TestGame.dll ${
 
 add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp DotNetBindingsTests.cpp DotNetRuntimeTests.cpp DotNetScriptTests.cpp)
 add_dependencies(Script.DotNet.Tests Script.DotNet.Probe Script.DotNet.TestGame)
-target_link_libraries(Script.DotNet.Tests PRIVATE Foundation::Script.DotNet Foundation::Script.Facades doctest::doctest)
+target_link_libraries(Script.DotNet.Tests PRIVATE Foundation::Script.DotNet Foundation::Script.Facades Foundation::Resource doctest::doctest)
 target_compile_definitions(Script.DotNet.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
     PROBE_DIR="${PROBE_OUT}"

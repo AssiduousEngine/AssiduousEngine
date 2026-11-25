@@ -144,24 +144,37 @@ TEST_CASE("dotnet bindings: pure methods are computed in C#, operators are C#'s"
 
 namespace
 {
+    enum class Shade : i32
+    {
+        Light,
+        Dark,
+    };
+
     struct Shelf
     {
+        static i32 Rank(Shade shade) { return static_cast<i32>(shade); }
         static Array<String> Titles() { return {}; }
         static i32 Count(Array<f32> weights) { return static_cast<i32>(weights.Size()); }
         static i32 Nested(Array<Array<i32>> grid) { return static_cast<i32>(grid.Size()); }
         static i32 Twice(i32 a) { return a * 2; }
     };
 }
+// Reflected, never registered with the global registry: a member reaches it.
+REFLECT_ENUM(Shade, "rtti::tests::dotnetbindings")
+{
+    builder.Value("Light", Shade::Light).Value("Dark", Shade::Dark);
+}
 REFLECT_VALUE(Shelf, "rtti::tests::dotnetbindings")
 {
+    builder.Method<&Shelf::Rank>("Rank", {"shade"});
     builder.Method<&Shelf::Titles>("Titles").Method<&Shelf::Count>("Count", {"weights"}).Method<&Shelf::Nested>("Nested", {"grid"});
     // Twice registered twice: the second has the first's C# signature.
     builder.Method<&Shelf::Twice>("Twice").Method<&Shelf::Twice>("Twice");
 }
 
-// A list crosses as a C# array (a result taken and given back, an argument packed for the call),
-// and what C# cannot have is named with why rather than missing: a list of lists, and an overload
-// C# cannot tell from another.
+// A list crosses as a C# array (a result taken and given back, an argument packed for the call); an
+// enum a member reaches is bound although nothing registered it; and what C# cannot have is named
+// with why rather than missing: a list of lists, and an overload C# cannot tell from another.
 TEST_CASE("dotnet bindings: lists are C# arrays, and what is left out is named")
 {
     RegisterCoreTypes();
@@ -169,8 +182,10 @@ TEST_CASE("dotnet bindings: lists are C# arrays, and what is left out is named")
     RegisterArrayType<f32>();
     RegisterArrayType<i32>();
     RegisterArrayType<Array<i32>>();
+    RttiRegisterEnum_Shade();
     RttiRegisterValue_Shelf();
     GlobalTypeRegistry().Register(TypeOf<Shelf>());
+    REQUIRE(GlobalTypeRegistry().FindById(TypeOf<Shade>().id) == nullptr); // only reached through Shelf
     const TypeInfo* types[] = {&TypeOf<Shelf>()};
     Array<String> leftOut;
     const String source = GenerateCSharpBindings(Span<const TypeInfo* const>{types, 1}, &leftOut);
@@ -180,6 +195,10 @@ TEST_CASE("dotnet bindings: lists are C# arrays, and what is left out is named")
     CHECK(source.AsView().Contains(u8"public static int Count(float[] weights)"));
     CHECK(source.AsView().Contains(u8"using ListArg l0 = new(weights);"));
     CHECK_FALSE(source.AsView().Contains(u8"Nested("));
+    // The enum Shelf's Rank takes, bound beside it, and the bridge finds it by id as C# asks.
+    CHECK(source.AsView().Contains(u8"public enum Shade"));
+    CHECK(source.AsView().Contains(u8"public static int Rank(Shade shade)"));
+    CHECK(EngineFunctions(DefaultAllocator()).typeById(TypeOf<Shade>().id) != nullptr);
     REQUIRE(leftOut.Size() == 2u);
     REQUIRE(leftOut[0].AsView().StartsWith(u8"Shelf.Nested: a parameter ("));
     CHECK(leftOut[0].AsView().EndsWith(u8") has no C# form"));

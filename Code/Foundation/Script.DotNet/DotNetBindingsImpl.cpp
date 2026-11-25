@@ -103,6 +103,7 @@ namespace foundation::script::dotnet
             Any,   // a script value of any type (Variant): C# object, its form chosen at the call
             Handler, // a script delegate the engine calls back (IScriptDelegate): C# ScriptHandler
             List,    // an engine container of numbers, text, values or classes: a C# array
+            Reference, // a resource reference (Ref<T>): read as the Guid of what it names
         };
 
         struct Bound
@@ -166,6 +167,8 @@ namespace foundation::script::dotnet
                     return Shape::Any;
                 if (type->id == IScriptDelegate::StaticType().id)
                     return isReturn ? Shape::None : Shape::Handler; // a handler is only ever given
+                if (IsReferenceType(*type))
+                    return isReturn ? Shape::Reference : Shape::None; // assigning an asset binds it: not offered
                 if (type->container != nullptr)
                     return ListElementShape(type) != Shape::None ? Shape::List : Shape::None;
                 const Bound* b = Find(type);
@@ -189,7 +192,7 @@ namespace foundation::script::dotnet
                     return packed ? shape : Shape::None;
                 }
                 return shape == Shape::Text || shape == Shape::Struct || shape == Shape::Opaque || shape == Shape::Component ||
-                               shape == Shape::Class
+                               shape == Shape::Class || shape == Shape::Reference
                            ? shape
                            : Shape::None;
             }
@@ -206,6 +209,8 @@ namespace foundation::script::dotnet
                     return String(u8"object");
                 if (type->id == IScriptDelegate::StaticType().id)
                     return String(u8"ScriptHandler");
+                if (IsReferenceType(*type))
+                    return String(u8"Guid");
                 if (type->container != nullptr)
                     return Format(u8"{}[]", CSharpName(type->container->elementType));
                 const Bound* b = Find(type);
@@ -224,8 +229,9 @@ namespace foundation::script::dotnet
 
         // The bound types of `types`, each given its shape and C# name; a value type whose fields
         // are all scalars or structs becomes a struct of fields, any other one is held opaquely.
-        Surface Classify(Span<const TypeInfo* const> types)
+        Surface Classify(Span<const TypeInfo* const> given)
         {
+            const Array<const TypeInfo*> types = ReachableTypes(given);
             Surface surface;
             Array<String> taken;
             for (const TypeInfo* type : types)
@@ -390,6 +396,12 @@ namespace foundation::script::dotnet
                 AppendFormat(out, u8"        DotNetValue result = default;\n        {}&result);\n        return Bridge.TakeList<{}>(result);\n", call,
                              surface.CSharpName(returned->container->elementType));
                 break;
+            case Shape::Reference:
+                AppendFormat(out,
+                             u8"        Guid returned = default;\n        DotNetValue result = DotNetValue.OfBytes(0, &returned, sizeof(Guid));\n"
+                             u8"        {}&result);\n        return returned;\n",
+                             call);
+                break;
             default:
                 break;
             }
@@ -411,12 +423,13 @@ namespace foundation::script::dotnet
                              b.name, b.name);
         }
 
-        // A type as a left-out member's reason names it.
+        // A type as a left-out member's reason names it; one made without reflection has no name.
         String TypeLabel(const TypeInfo* type)
         {
             if (type == nullptr)
                 return String(u8"none");
-            return String(StringView(reinterpret_cast<const utf8char*>(type->name)));
+            const StringView name(reinterpret_cast<const utf8char*>(type->name));
+            return name == StringView(u8"<value>") ? String(u8"a type without reflection") : String(name);
         }
 
         // Records that `member` of `b` is not in C#, and why.
@@ -458,8 +471,9 @@ namespace foundation::script::dotnet
                     EmitCallAndReturn(out, surface, property.type, Format(u8"Bridge.GetProperty(s_p{}, &self, ", i).AsView());
                     out.Append(StringView(u8"        }\n"));
                     // A list property is read as an array; writing one back is not offered.
+                    // A reference is read as its guid; assigning an asset binds it, which C# cannot yet.
                     const bool readOnly = (static_cast<u32>(property.flags) & static_cast<u32>(PropertyFlags::ReadOnly)) != 0 ||
-                                          shape == Shape::List;
+                                          shape == Shape::List || shape == Shape::Reference;
                     if (!readOnly && (b.shape == Shape::Class || b.shape == Shape::Component))
                     {
                         AppendFormat(out, u8"        set\n        {{\n        if (s_p{} == 0) s_p{} = Bridge.PropertyAt(EngineType, {});\n", i,
@@ -596,6 +610,52 @@ namespace foundation::script::dotnet
                                  b.name, b.name);
             }
         }
+    }
+
+    Array<const TypeInfo*> ReachableTypes(Span<const TypeInfo* const> types)
+    {
+        Array<const TypeInfo*> reached;
+        const auto known = [&reached](const TypeInfo* type)
+        {
+            for (const TypeInfo* t : reached)
+                if (t->id == type->id)
+                    return true;
+            return false;
+        };
+        for (const TypeInfo* type : types)
+            if (type != nullptr && !known(type))
+                reached.PushBack(type);
+        // A type a member reaches that is not given itself, through the elements of a list too: an
+        // enum, a value of its own bytes, or a reflected record of fields (an entry holding text,
+        // which C# holds as a handle to a copy). Never an engine object: those are given or not at
+        // all. Each one added is walked in its turn.
+        const auto reach = [&reached, &known](const TypeInfo* type)
+        {
+            while (type != nullptr && type->container != nullptr)
+                type = type->container->elementType;
+            if (type == nullptr || known(type) || IsReferenceType(*type))
+                return;
+            const bool record = type->propertyCount > 0 && !IsDerivedFrom(type, &Object::StaticType());
+            if (type->enumeratorCount == 0 && !IsScriptValue(type) && !record)
+                return;
+            reached.PushBack(type);
+        };
+        for (usize i = 0; i < reached.Size(); ++i)
+        {
+            const TypeInfo& type = *reached[i];
+            for (u32 p = 0; p < type.propertyCount; ++p)
+                reach(type.properties[p].type);
+            for (u32 m = 0; m < type.methodCount; ++m)
+            {
+                const MethodInfo& method = type.methods[m];
+                if (method.returnType != nullptr)
+                    reach(method.returnType());
+                for (u32 p = 0; p < method.paramCount; ++p)
+                    if (method.params[p].type != nullptr)
+                        reach(method.params[p].type());
+            }
+        }
+        return reached;
     }
 
     Array<const TypeInfo*> BindableValueTypes()
