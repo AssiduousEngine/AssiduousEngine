@@ -109,8 +109,19 @@ TEST_CASE("saves: opening another slot writes the first and stales its handles; 
     const SaveStoreHandle again = saves.OpenSlot(u8"SLOT1");
     CHECK(GetInt(saves, again, u8"place") == 4);
     CHECK(saves.OpenedSlotName() == StringView(u8"slot1"));
-    CHECK(FileExists(File(folder, u8"slot-slot1.save.xml").AsView()));
-    CHECK_FALSE(FileExists(File(folder, u8"slot-Slot1.save.xml").AsView()));
+    // One file, named in lower case: read from the folder's listing, since a file system that
+    // ignores case (Windows, macOS) finds slot-Slot1 as slot-slot1.
+    Array<String> files;
+    (void)ListDirectory(
+        folder.AsView(), [](void* out, StringView entry, bool) { static_cast<Array<String>*>(out)->PushBack(String(entry)); }, &files);
+    usize slot1 = 0;
+    for (const String& f : files)
+        if (f.AsView().EndsWith(u8"lot1.save.xml"))
+        {
+            ++slot1;
+            CHECK(f == StringView(u8"slot-slot1.save.xml"));
+        }
+    CHECK(slot1 == 1u);
 
     CHECK_FALSE(saves.OpenSlot(u8"").IsSet());
     CHECK_FALSE(saves.OpenSlot(u8"no spaces").IsSet());

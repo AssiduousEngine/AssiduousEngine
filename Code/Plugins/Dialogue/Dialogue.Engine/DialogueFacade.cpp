@@ -13,6 +13,7 @@ module dialogue.engine;
 import foundation.core;
 import foundation.script;
 import foundation.script.facades;
+import engine.run; // SaveStoreHandle, what useSave takes
 
 using namespace foundation::core;
 
