@@ -21,6 +21,26 @@ import foundation.core;
 
 using namespace foundation::core;
 
+// The entry points by the names the runtime defines, which the code below calls: each resolves to
+// the runtime's definition when it is linked in, else to its stand-in.
+extern "C"
+{
+    i32 DotNetRuntime_Present();
+    i32 DotNetRuntime_Initialize(const void*);
+    i32 DotNetRuntime_LoadAssembly(isize, const byte*, i32, const byte*, i32);
+    i32 DotNetRuntime_CreateInstance(isize, const utf8char*, i32, void*, i32, isize*);
+    i32 DotNetRuntime_Invoke(isize, const utf8char*, i32, void*, i32, void*);
+    i32 DotNetRuntime_Bind(isize, const utf8char*, i32, i32, i32*);
+    i32 DotNetRuntime_InvokeBound(i32, void*, i32, void*);
+    i32 DotNetRuntime_GetField(isize, const utf8char*, i32, void*);
+    void DotNetRuntime_Release(isize);
+    void DotNetRuntime_ReleaseOwner(isize);
+    i32 DotNetRuntime_LoadedAssemblyCount();
+    i32 DotNetRuntime_DescribeClass(isize, const utf8char*, i32, void*, i32, const utf8char**, i32*);
+    i32 DotNetRuntime_DescribeAssembly(const byte*, i32, const utf8char**, i32*);
+    const utf8char* DotNetRuntime_LastError(i32* length);
+}
+
 #if defined(_MSC_VER) && !defined(__clang__)
 // MSVC has no weak definitions: each name falls back to its stand-in only when nothing defines it.
 #define DOTNET_STAND_IN(name) __pragma(comment(linker, "/alternatename:" #name "=" #name "_standin"))
