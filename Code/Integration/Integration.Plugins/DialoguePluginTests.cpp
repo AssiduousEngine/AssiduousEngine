@@ -209,3 +209,22 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
     CHECK(GlobalTypeRegistry().FindById(cooked) == nullptr);
     embedded.OnShutdown(host);
 }
+
+// A host with no engine (a cook, a tool) loads the plugin too: its engine part registers the cooked
+// types itself, not only through the domain it adds where there is an engine, so they read there.
+TEST_CASE("plugins: a host with no engine services loads dialogue: its cooked types are registered, with no domain")
+{
+    runtime::SubsystemManager subsystems{DefaultAllocator()};
+    runtime::PluginHost plugins(DefaultAllocator(), subsystems, runtime::HostRole::Player, engine::project::kEngineVersionString);
+    runtime::EnabledPlugin entry;
+    entry.id = String(kDialogue);
+    engine::project::ProjectSettings settings;
+    settings.plugins.PushBack(Move(entry));
+    const runtime::PluginLoadReport report = engine::project::LoadProjectPlugins(plugins, runtime::LinkedPluginList(), settings);
+    REQUIRE(report.loaded.Size() == 1u);
+    CHECK_FALSE(HasDomain(kDialogue)); // nothing to add it to
+    CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueSource::StaticType().id) != nullptr);
+    CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueCastSource::StaticType().id) != nullptr);
+    plugins.Unload();
+    CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueSource::StaticType().id) == nullptr); // taken out with it
+}
