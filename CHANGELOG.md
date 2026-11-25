@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scripts: `scene.sequences.make(sequence)` makes a play that waits for its parts; `bind` them, then
+  `start()` plays time 0 on them. A part bound after `play()` missed time 0 and was warned of.
 - Samples: Millbrook's title keeps three games in save slots (Continue, New game, Load with each
   game's progress and when it was saved, Delete), the saves demo; its credits count the fairs opened
   over every game.

@@ -200,6 +200,10 @@ plays them:
   `SequencePlay`, already at time 0. `play(sequence, finish)` ends it as `"release"` (the default:
   what it moved stays where it is), `"hold"` (everything stays as its last frame left it until
   `stop()`) or `"restore"` (every value it changed goes back).
+- A sequence with parts to fill is made, bound, then started: `scene.sequences.make(sequence)` (or
+  `make(sequence, finish)`) returns its play, not started; `bind(name, entity)` fills each part;
+  `start()` starts it at time 0 with them filled. `play()` is `make` and `start` at once, for a
+  sequence with no parts, since a part bound after the start misses time 0 (and is warned of).
 - On the play: `bind(name, entity)` fills a name, during the play too (an actor spawned for the
   scene); `pause()`, `resume()` (also what lets a hold go), `seek(time)`, `setSpeed(speed)`,
   `stop()`, `time()`, `duration()`, `isPlaying()`, `isHeld()`, and `id()`. A play that has ended is

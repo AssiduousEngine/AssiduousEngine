@@ -449,9 +449,11 @@ class Game : RunBehavior
         m_near = -1;
         UIWidget::of(find("hud-talk")).removeClass("shown");
         scene.find("Player").send("Hold", true);
-        // held at its end, so the credits come up over black; Back to the village lets it go
-        m_endingPlay = scene.sequences.play(kFairOpens, "hold");
+        // held at its end, so the credits come up over black; Back to the village lets it go. Made,
+        // its camera bound, then started, so its first frame is the camera's.
+        m_endingPlay = scene.sequences.make(kFairOpens, "hold");
         m_endingPlay.bind("EndingCamera", scene.find("EndingCamera")); // a play fills its parts itself
+        m_endingPlay.start();
         m_ending = int(m_endingPlay.id());
     }
 

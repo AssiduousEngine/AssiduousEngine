@@ -54,6 +54,9 @@ export namespace engine::sequence
         /// Fills the sequence's name `name` with `entity` (an actor spawned for the scene). False
         /// when the sequence has no such name or the play has ended.
         bool bind(String name, foundation::script::Entity entity) const;
+        /// Starts a play made with `scene.sequences.make` once its parts are bound, at time 0 on
+        /// them; on a play under way, from the start again. False once the play has ended.
+        bool start() const;
         void stop() const;
         void pause() const;
         /// Continues after a pause or from a hold (a line of dialogue answered).
@@ -105,6 +108,14 @@ export namespace engine::sequence
         /// sequence.
         u32 Play(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id, foundation::sequence::SequenceFinish finish = foundation::sequence::SequenceFinish::Release,
                  scene::EntityHandle owner = {}, const Function<void(foundation::sequence::SequencePlay&)>& prepare = {});
+        /// A play of `sequence` made and not started: its parts are filled (Find(id)->Bind) before
+        /// Start begins it at time 0, so time 0 is applied on them. It waits, stepping nothing,
+        /// until Start or Stop. Its id, or 0 when there is no sequence.
+        u32 Make(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id,
+                 foundation::sequence::SequenceFinish finish = foundation::sequence::SequenceFinish::Release, scene::EntityHandle owner = {});
+        /// Starts the play numbered `id` at time 0 (again from the start when it has begun). False
+        /// once it has ended.
+        bool Start(u32 id);
         /// The play numbered `id`, or null once it has ended.
         [[nodiscard]] foundation::sequence::SequencePlay* Find(u32 id) noexcept;
         /// Ends the play numbered `id` (its finish decides what it puts back).
@@ -195,10 +206,15 @@ export namespace engine::sequence
     {
         scene::WeakSceneRef scene;
 
-        /// Starts `sequence` (an asset id) and returns its play; ends as "release".
+        /// Starts `sequence` (an asset id) and returns its play; ends as "release". For a sequence
+        /// with no parts to fill: one with parts is made, bound, then played (make).
         [[nodiscard]] SequencePlayHandle play(Guid sequence) const;
         /// The same, ending as `finish`: "release", "hold" or "restore".
         [[nodiscard]] SequencePlayHandle play(Guid sequence, String finish) const;
+        /// Makes a play of `sequence` that waits for its parts: bind them, then `start()` starts it at
+        /// time 0 with them filled.
+        [[nodiscard]] SequencePlayHandle make(Guid sequence) const;
+        [[nodiscard]] SequencePlayHandle make(Guid sequence, String finish) const;
         void stopAll() const;
         /// The play `entity`'s sequence component is running, or an ended one when it runs none.
         [[nodiscard]] SequencePlayHandle of(foundation::script::Entity entity) const;

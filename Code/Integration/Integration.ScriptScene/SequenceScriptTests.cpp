@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// A behavior plays a sequence in every language: scene.sequences.play(id) loads it through the
-// run's resources and returns its play, the behavior fills a name with an entity, and what the play
+// A behavior plays a sequence in every language: scene.sequences.make(id) loads it through the
+// run's resources and returns its play, not started; the behavior fills a name with an entity and
+// starts it, so time 0 is played on the entity and no part is found empty; and what the play
 // reports reaches the behavior's on<Name> as a SequenceNotice naming that play.
 
 #include <doctest/doctest.h>
@@ -148,10 +149,11 @@ namespace
             components->Add(e).behaviors.PushBack(Move(behavior));
         }
 
-        // Plays a second and a half: the behavior starts the sequence, it runs to its end, and its
-        // reports are delivered.
+        // Plays two seconds: the behavior starts the sequence, it runs to its end, and its reports
+        // are delivered. What the sequences warn is kept.
         void Run()
         {
+            GlobalLogger().AddSink(&warnings);
             scene.Start();
             scene.SetSimulationEnabled(true);
             for (int i = 0; i < 8; ++i)
@@ -160,7 +162,20 @@ namespace
                 run.Events().Drain(); // the run drains at the top of a frame
                 scene.Update(0.25f);
             }
+            GlobalLogger().RemoveSink(&warnings);
         }
+
+        // The sequences' warnings while it ran: a part found empty is one.
+        class Warnings final : public ILogSink
+        {
+        public:
+            Array<String> lines;
+            void Write(LogLevel level, StringView category, StringView message) noexcept override
+            {
+                if (category == StringView(u8"Sequence") && level >= LogLevel::Warning)
+                    lines.PushBack(String(message));
+            }
+        } warnings;
 
         [[nodiscard]] String GuidText() const
         {
@@ -182,8 +197,9 @@ TEST_CASE("sequences: an AngelScript behavior plays a sequence and hears its not
                     u8"    private SequencePlay play;\n"
                     u8"    Director(Entity entity) {{ self = entity; }}\n"
                     u8"    void onStart() {{\n"
-                    u8"        play = self.scene.sequences.play(Guid(\"{}\"));\n"
+                    u8"        play = self.scene.sequences.make(Guid(\"{}\"));\n"
                     u8"        play.bind(\"Actor\", self);\n"
+                    u8"        play.start();\n"
                     u8"    }}\n"
                     u8"    void onSequenceEvent(SequenceNotice@ notice) {{\n"
                     u8"        if (notice.play == play.id()) {{ self.setName(notice.name + \" \" + notice.value); }}\n"
@@ -197,6 +213,7 @@ TEST_CASE("sequences: an AngelScript behavior plays a sequence and hears its not
     s.Run();
     CHECK(s.scene.GetEntityName(actor) == StringView(u8"cue gate done"));
     CHECK(s.scene.GetLocalTransform(actor).position.x == doctest::Approx(10.0f));
+    CHECK(s.warnings.lines.IsEmpty()); // bound before it started: no part was found empty
 }
 #endif
 
@@ -209,8 +226,9 @@ TEST_CASE("sequences: a Luau behavior plays a sequence and hears its notices")
              Format(u8"Director = EntityBehavior.class()\n"
                     u8"function Director.new(entity) return setmetatable({{ entity = entity }}, Director) end\n"
                     u8"function Director:onStart()\n"
-                    u8"    self.play = self.entity.scene.sequences:play(Guid.new(\"{}\"))\n"
+                    u8"    self.play = self.entity.scene.sequences:make(Guid.new(\"{}\"))\n"
                     u8"    self.play:bind(\"Actor\", self.entity)\n"
+                    u8"    self.play:start()\n"
                     u8"end\n"
                     u8"function Director:onSequenceEvent(notice)\n"
                     u8"    if notice.play == self.play:id() then self.entity:setName(notice.name .. \" \" .. notice.value) end\n"
@@ -225,5 +243,6 @@ TEST_CASE("sequences: a Luau behavior plays a sequence and hears its notices")
     s.Run();
     CHECK(s.scene.GetEntityName(actor) == StringView(u8"cue gate done"));
     CHECK(s.scene.GetLocalTransform(actor).position.x == doctest::Approx(10.0f));
+    CHECK(s.warnings.lines.IsEmpty()); // bound before it started: no part was found empty
 }
 #endif

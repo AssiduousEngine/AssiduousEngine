@@ -115,6 +115,33 @@ namespace engine::sequence
     u32 SequenceSystem::Play(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id, foundation::sequence::SequenceFinish finish, scene::EntityHandle owner,
                              const Function<void(foundation::sequence::SequencePlay&)>& prepare)
     {
+        const u32 playId = Make(Move(sequence), id, finish, owner);
+        if (playId == 0)
+        {
+            return 0;
+        }
+        if (prepare)
+        {
+            prepare(*Find(playId));
+        }
+        (void)Start(playId);
+        return playId;
+    }
+
+    bool SequenceSystem::Start(u32 id)
+    {
+        foundation::sequence::SequencePlay* play = Find(id);
+        if (play == nullptr)
+        {
+            return false;
+        }
+        play->Play();
+        return true;
+    }
+
+    u32 SequenceSystem::Make(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id, foundation::sequence::SequenceFinish finish,
+                             scene::EntityHandle owner)
+    {
         if (m_scene == nullptr || !sequence)
         {
             return 0;
@@ -128,13 +155,7 @@ namespace engine::sequence
         running->play->finish = finish;
         running->play->SetListener(running->reporter.Get());
         const u32 playId = running->id;
-        foundation::sequence::SequencePlay* play = running->play.Get();
         m_plays.PushBack(Move(running));
-        if (prepare)
-        {
-            prepare(*play);
-        }
-        play->Play();
         return playId;
     }
 
@@ -379,6 +400,13 @@ namespace engine::sequence
         return p != nullptr && p->Bind(name.AsView(), entity.Handle());
     }
 
+    bool SequencePlayHandle::start() const
+    {
+        scene::Scene* owner = scene.Get();
+        SequenceSystem* system = owner != nullptr && play != 0 ? owner->GetSystem<SequenceSystem>() : nullptr;
+        return system != nullptr && system->Start(play);
+    }
+
     void SequencePlayHandle::stop() const
     {
         scene::Scene* owner = scene.Get();
@@ -451,6 +479,15 @@ namespace engine::sequence
 
     SequencePlayHandle SceneSequencesFacade::play(Guid sequence, String finish) const
     {
+        const SequencePlayHandle handle = make(sequence, Move(finish));
+        (void)handle.start();
+        return handle;
+    }
+
+    SequencePlayHandle SceneSequencesFacade::make(Guid sequence) const { return make(sequence, String(u8"release")); }
+
+    SequencePlayHandle SceneSequencesFacade::make(Guid sequence, String finish) const
+    {
         SequencePlayHandle handle;
         scene::Scene* owner = scene.Get();
         foundation::resource::ResourceManager* resources = foundation::script::CurrentRunResources();
@@ -468,11 +505,11 @@ namespace engine::sequence
         ref.Bind(*resources);
         if (ref.Get() == nullptr)
         {
-            LOG_WARNING(u8"Sequence", u8"scene.sequences.play: no sequence asset with that id");
+            LOG_WARNING(u8"Sequence", u8"scene.sequences: no sequence asset with that id");
             return handle;
         }
         handle.scene = scene;
-        handle.play = system->Play(RefPtr<foundation::sequence::SequenceResource>(ref.Get()), sequence, ParseSequenceFinish(finish.AsView()));
+        handle.play = system->Make(RefPtr<foundation::sequence::SequenceResource>(ref.Get()), sequence, ParseSequenceFinish(finish.AsView()));
         return handle;
     }
 
@@ -510,6 +547,7 @@ namespace engine::sequence
         builder.Attribute("scriptName", "SequencePlay");
         builder.Method<&SequencePlayHandle::id>("id");
         builder.Method<&SequencePlayHandle::bind>("bind", {"name", "entity"});
+        builder.Method<&SequencePlayHandle::start>("start");
         builder.Method<&SequencePlayHandle::stop>("stop");
         builder.Method<&SequencePlayHandle::pause>("pause");
         builder.Method<&SequencePlayHandle::resume>("resume");
@@ -536,6 +574,10 @@ namespace engine::sequence
             "play", {"sequence"});
         builder.Method<static_cast<SequencePlayHandle (SceneSequencesFacade::*)(Guid, String) const>(&SceneSequencesFacade::play)>(
             "play", {"sequence", "finish"});
+        builder.Method<static_cast<SequencePlayHandle (SceneSequencesFacade::*)(Guid) const>(&SceneSequencesFacade::make)>(
+            "make", {"sequence"});
+        builder.Method<static_cast<SequencePlayHandle (SceneSequencesFacade::*)(Guid, String) const>(&SceneSequencesFacade::make)>(
+            "make", {"sequence", "finish"});
         builder.Method<&SceneSequencesFacade::stopAll>("stopAll");
         builder.Method<&SceneSequencesFacade::of>("of", {"entity"});
     }
