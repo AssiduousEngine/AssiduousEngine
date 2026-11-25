@@ -9,6 +9,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- MCP: `save_list`, `save_read`, `save_write` and `save_delete` read and write play in editor's saves
+  (the global store and the slots), so a test save, a story set just before a beat, is written by a
+  tool; the writes wait while a Game tab plays.
+- Editor: Game > Open Saves Folder shows play in editor's saves, and Game > Clear Saves... deletes
+  them (asking first), for a new game.
 - Scripts: `Time.unixNow()` (the wall clock in Unix seconds) and `Text.formatDate(seconds, pattern)`
   (a local date and time by `YYYY`, `MM`, `DD`, `hh`, `mm`, `ss`).
 - Scripts: `Text.parseFloat(text)` reads a decimal from a string, in every script language; text that

@@ -243,6 +243,10 @@ export namespace editor::app
         void OpenFromManager(StringView directory);
         void CreateFromManager(StringView directory, StringView name);
         void AskMcpFolders(editor::EditorProject& project, const Array<String>& folders);
+        // Play in editor's saves (Game > Open Saves Folder, Clear Saves...).
+        [[nodiscard]] String PlaySavesFolder();
+        void OpenPlaySaves();
+        void AskClearPlaySaves();
         bool OpenProject(StringView directory, bool seed);
         void CloseProjectToManager();
         void Later(Function<void()> work);

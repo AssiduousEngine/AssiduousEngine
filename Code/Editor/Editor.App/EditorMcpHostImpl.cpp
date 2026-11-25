@@ -46,6 +46,14 @@ namespace editor::app
         { (void)ctx->NotifyAssetExternallyModified(assetId); };
         // An agent's settings change reapplies what depends on the settings, as the dialog's Save does.
         m_session->onSettingsChanged = [ctx]() { ctx->NotifyProjectSettingsChanged(); };
+        // A Game tab's run holds play in editor's saves until it stops: the save tools wait for it.
+        m_session->savesInUse = [ctx]()
+        {
+            for (const UniquePtr<editor::EditorPage>& open : ctx->OpenPages())
+                if (const editor::IGameRunPage* run = editor::ServiceOf<editor::IGameRunPage>(open.Get()); run != nullptr && run->IsRunning())
+                    return true;
+            return false;
+        };
         foundation::mcp::RegisterHostInfoTool(
             m_server, Move(buildStamp),
             Function<JsonValue()>{[this]()

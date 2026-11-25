@@ -39,6 +39,10 @@ export namespace editor::mcp
         /// project_settings_set saved new settings: the editor host re-applies what depends on
         /// them, as its Project Settings dialog's Save does; the stdio host leaves it unset.
         Function<void()> onSettingsChanged;
+        /// Whether a run is using play in editor's saves now (a Game tab playing), so the save tools
+        /// refuse to write what its run would write over as it stops. The editor host sets it; the
+        /// stdio host plays nothing and leaves it unset.
+        Function<bool()> savesInUse;
         /// The process's plugin host, which loaded the project's plugins: plugin_list reports each
         /// entry against it and plugin_settings_set edits the settings it holds. Null where the
         /// host loads no plugins.

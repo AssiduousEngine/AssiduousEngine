@@ -256,6 +256,8 @@ export namespace editor::app
         const EditorContext* context = nullptr;
         Function<void()> play;
         Function<void()> playNewInstance;
+        Function<void()> openSaves;  ///< play in editor's saves folder, in the file manager
+        Function<void()> clearSaves; ///< asks, then deletes them: a new game
     };
     inline void RegisterGameActions(EditorActionRegistry& actions, GameActions run)
     {
@@ -266,6 +268,16 @@ export namespace editor::app
                     detail::NeedsProject(run.context, detail::Declare(u8"game.playNewInstance", u8"Play New Instance",
                                                                       u8"Play the project in a fresh Game page", u8"Game/Play New Instance", 101)),
                     Move(run.playNewInstance));
+        detail::Add(actions,
+                    detail::NeedsProject(run.context, detail::Declare(u8"game.openSaves", u8"Open Saves Folder",
+                                                                      u8"Show play in editor's saves (the global store and the slots) in the file manager",
+                                                                      u8"Game/Open Saves Folder", 200)),
+                    Move(run.openSaves));
+        detail::Add(actions,
+                    detail::NeedsProject(run.context, detail::Declare(u8"game.clearSaves", u8"Clear Saves...",
+                                                                      u8"Delete play in editor's saves, so the next play starts a new game",
+                                                                      u8"Game/Clear Saves...", 201)),
+                    Move(run.clearSaves));
     }
 
     /// What View's actions run.

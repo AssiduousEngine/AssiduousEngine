@@ -58,6 +58,7 @@ export namespace editor::app
             Stop();
             m_session->onAssetWritten = nullptr;
             m_session->onSettingsChanged = nullptr;
+            m_session->savesInUse = nullptr;
         }
         EditorMcpHost(const EditorMcpHost&) = delete;
         EditorMcpHost& operator=(const EditorMcpHost&) = delete;

@@ -1142,6 +1142,60 @@ namespace editor::app
         box->OpenModal(*root);
     }
 
+    // Play in editor's saves for the open project: its Editor/<project>.saves folder.
+    String EditorApplication::PlaySavesFolder()
+    {
+        const editor::EditorProject* project = m_session.Project();
+        if (project == nullptr)
+            return String();
+        return PathJoin(project->EditorStateRoot().AsView(),
+                        engine::project::SavesFolder(project->Settings().name.AsView(), m_editorAllocator).AsView());
+    }
+
+    void EditorApplication::OpenPlaySaves()
+    {
+        const String folder = PlaySavesFolder();
+        if (folder.IsEmpty())
+            return;
+        (void)CreateDirectories(folder.AsView()); // shown even before the first play wrote it
+        if (foundation::shell::IDialogService* dialogs = ShellDialogs())
+            dialogs->OpenPath(folder.AsView());
+    }
+
+    // Clear Saves asks first, and waits for a Game tab's run, which writes the saves as it stops.
+    void EditorApplication::AskClearPlaySaves()
+    {
+        gui::SceneRoot* root = m_window.Root();
+        if (root == nullptr || m_session.Project() == nullptr)
+            return;
+        for (const UniquePtr<editor::EditorPage>& open : m_context.OpenPages())
+            if (const editor::IGameRunPage* run = editor::ServiceOf<editor::IGameRunPage>(open.Get()); run != nullptr && run->IsRunning())
+            {
+                m_context.Notify(editor::NoticeKind::Warning, u8"Stop the Game tab first: its run writes the saves as it stops.");
+                return;
+            }
+        auto box = MakeRef<gui::MessageBox>(m_editorAllocator);
+        box->Configure(u8"Clear the saves?",
+                       u8"Play in editor's saves for this project are deleted: the global store (with the controls "
+                       u8"you rebound) and every slot, so the next play starts a new game. A player's saves are not "
+                       u8"touched.",
+                       gui::MessageBox::Buttons::Ok);
+        box->ClearButtons();
+        (void)box->AddButton(u8"Cancel", u8"cancel", gui::DialogRole::Cancel);
+        (void)box->AddButton(u8"Clear", u8"clear", gui::DialogRole::Primary);
+        EditorApplication* self = this;
+        gui::MessageBox* raw = box.Get();
+        const String folder = PlaySavesFolder();
+        (void)box->AddEventListener(gui::EventType::Changed, [self, raw, folder](const gui::Event&)
+                                    {
+                                        if (raw->GetResultName() != StringView(u8"clear"))
+                                            return;
+                                        if (DirectoryExists(folder.AsView()) && !RemoveDirectoryRecursive(folder.AsView()))
+                                            self->m_context.Notify(editor::NoticeKind::Warning, u8"The saves could not be deleted.");
+                                    });
+        box->OpenModal(*root);
+    }
+
     // The open project lists folders outside it for its MCP tools that the user has not answered:
     // asked once, per project and folder. Don't Allow is the default and is remembered too.
     void EditorApplication::AskMcpFolders(editor::EditorProject& project, const Array<String>& folders)
@@ -1316,6 +1370,8 @@ namespace editor::app
         game.context = &m_context;
         game.play = [self]() { self->m_pages->OpenGame(false); };
         game.playNewInstance = [self]() { self->m_pages->OpenGame(true); };
+        game.openSaves = [self]() { self->OpenPlaySaves(); };
+        game.clearSaves = [self]() { self->AskClearPlaySaves(); };
         RegisterGameActions(actions, Move(game));
 
         ViewActions view;

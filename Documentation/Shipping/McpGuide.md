@@ -469,6 +469,17 @@ gone). An
 override changes how an already swaying material sways; whether it sways at all is the shared
 material's Strength.
 
+**Saves (test states)**: play in editor keeps its own saves in the project's
+`Editor/<Game>.saves/` folder, apart from a player's: the global store and the game's slots.
+`save_list` lists them (each slot's `savedAt`, the slot saved last first, as `Saves.slots()`
+orders them); `save_read` shows a store's values (`slot`, or none for the global store), each
+`{key, kind, value}` with kind bool, int, float, text or floats; `save_write` sets them (`clear`,
+`remove`, `values`), checked in full before anything is written, and saves the store with the
+current time, so a slot it writes is Continue's; `save_delete` takes a slot, or `all` for a new
+game. To play a beat of a story, write the flags and the place the beat starts from (the dialogue's
+flags are `flag.<name>` bools in the store the game hands the dialogue) and play. The writes are
+refused while a Game tab plays: its run writes the saves as it stops, so `pie_stop` first.
+
 **Diagnostics**: `log_write` a marker -> do the risky thing -> `log_read` with
 `sinceSequence` = the marker's sequence to see exactly what the engine said after it.
 
@@ -508,8 +519,8 @@ read the file before trusting it, and leave the judgement of how it looks to the
   regenerated without it after) or a scripted route, and a results screen by finishing a run.
   Take a few times around the moment (`[23.9, 24.3, 24.7, 25.1]`) and pick one. A run that
   finishes writes the game's saves: copy the project's `Editor/<Game>.saves/` folder aside right
-  before, run with a test save that unlocks what the shot needs, and copy the user's back
-  after; never reuse an older backup, since the user plays between runs.
+  before, write a test save that unlocks what the shot needs (`save_write`), run, and copy the
+  user's back after; never reuse an older backup, since the user plays between runs.
 - *A scene in the editor*: `viewport_frame` the entities (or `viewport_camera_set` a position and
   a `lookAt`), then `viewport_screenshot` (`<page>-<pid>-<n>.png`), which brings the page to
   front since a hidden viewport never renders.

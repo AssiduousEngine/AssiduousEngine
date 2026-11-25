@@ -69,6 +69,8 @@ export namespace editor
     public:
         /// Stops the run, if one is going; the tab stays open.
         virtual void StopRun() = 0;
+        /// Whether a run is going (or starting): it holds play in editor's saves until it stops.
+        [[nodiscard]] virtual bool IsRunning() const noexcept = 0;
 
     protected:
         ~IGameRunPage() = default;

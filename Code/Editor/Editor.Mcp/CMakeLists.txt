@@ -18,6 +18,7 @@ target_link_libraries(Editor.Mcp PUBLIC
     Engine::Project Engine::Render # project_settings_set: the reflected settings, the MSAA levels
     Foundation::Mcp.Reflection Foundation::Mcp.Script # the engine surface root registers their tools too
     Pipeline::Sequence Foundation::Sequence Foundation::PropertyAnimation # sequence_read, sequence_edit
+    Engine::Run Foundation::Settings # the save tools: play in editor's saves as the game reads them
     Foundation::Mcp Foundation::Json Foundation::Core Foundation::Policy)
 
 target_sources(Editor.Mcp
@@ -48,6 +49,7 @@ target_sources(Editor.Mcp
             ProjectExport.cppm
             SceneReference.cppm
             SequenceTools.cppm
+            SaveTools.cppm
             ProjectTools.cppm
     PRIVATE
         SceneReferenceImpl.cpp)
