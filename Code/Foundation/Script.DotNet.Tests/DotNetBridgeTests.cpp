@@ -163,3 +163,111 @@ TEST_CASE("dotnet bridge: arguments in their parameters' forms take the typed ca
     CHECK(TypedCallCount() == before);
     (void)code; // the Variant call decides whether it takes a double for a float
 }
+
+namespace
+{
+    struct Lister
+    {
+        static Array<String> Words(i32 count)
+        {
+            Array<String> words;
+            for (i32 i = 0; i < count; ++i)
+                words.PushBack(Format(u8"w{}", i));
+            return words;
+        }
+        static i32 Letters(Array<String> words)
+        {
+            i32 total = 0;
+            for (const String& word : words)
+                total += static_cast<i32>(word.Size());
+            return total;
+        }
+        static Array<f32> Doubled(Array<f32> values)
+        {
+            for (f32& value : values)
+                value *= 2.0f;
+            return values;
+        }
+    };
+
+    DotNetValue Text(const char8_t* text, u64 size)
+    {
+        DotNetValue v;
+        v.kind = DotNetValueKind::Text;
+        v.data = const_cast<char8_t*>(text);
+        v.size = size;
+        return v;
+    }
+}
+REFLECT_VALUE(Lister, "rtti::tests::dotnetbridge")
+{
+    builder.Method<&Lister::Words>("Words").Method<&Lister::Letters>("Letters").Method<&Lister::Doubled>("Doubled");
+}
+
+// A list crosses as C# drives it: a list result is a handle whose elements are read one by one (text
+// into the thread's buffer, a number into the caller's bytes), and a list argument is made from its
+// elements and converted by the call into its parameter's container.
+TEST_CASE("dotnet bridge: lists cross as handles, read by element and made from elements")
+{
+    RegisterCoreTypes();
+    RegisterArrayType<String>();
+    RegisterArrayType<f32>();
+    RttiRegisterValue_Lister();
+    GlobalTypeRegistry().Register(TypeOf<Lister>());
+    const DotNetEngineFunctions& engine = EngineFunctions(DefaultAllocator());
+    const TypeInfo* lister = engine.typeById(TypeOf<Lister>().id);
+    REQUIRE(lister != nullptr);
+
+    // A list of text back: three elements, each read as text.
+    i32 three = 3;
+    DotNetValue count[] = {Bytes(TypeOf<i32>(), &three)};
+    DotNetValue words{};
+    REQUIRE(engine.invoke(engine.methodAt(lister, MethodIndex(*lister, u8"Words", 1)), nullptr, count, 1, &words) == 0);
+    REQUIRE(words.kind == DotNetValueKind::Handle);
+    u64 size = 0;
+    REQUIRE(engine.listSize(&words, &size) == 0);
+    REQUIRE(size == 3u);
+    for (u64 i = 0; i < size; ++i)
+    {
+        DotNetValue element{};
+        REQUIRE(engine.listAt(&words, i, &element) == 0);
+        REQUIRE(element.kind == DotNetValueKind::Text);
+        CHECK(StringView(static_cast<const utf8char*>(element.data), static_cast<usize>(element.size)) == Format(u8"w{}", i).AsView());
+    }
+    DotNetValue past{};
+    CHECK(engine.listAt(&words, 3, &past) < 0); // past the end
+    engine.releaseHandle(words.data);
+
+    // A list of text given: made from its elements, converted by the call into its Array<String>.
+    DotNetValue given[] = {Text(u8"ab", 2), Text(u8"cde", 3)};
+    DotNetValue list{};
+    REQUIRE(engine.makeList(given, 2, &list) == 0);
+    REQUIRE(list.kind == DotNetValueKind::Handle);
+    i32 letters = 0;
+    DotNetValue result = Bytes(TypeOf<i32>(), &letters);
+    REQUIRE(engine.invoke(engine.methodAt(lister, MethodIndex(*lister, u8"Letters", 1)), nullptr, &list, 1, &result) == 0);
+    CHECK(letters == 5);
+    engine.releaseHandle(list.data);
+
+    // Numbers both ways: each element's bytes in, each read back into the caller's bytes.
+    f32 values[] = {1.5f, -2.0f};
+    DotNetValue numbers[] = {Bytes(TypeOf<f32>(), &values[0]), Bytes(TypeOf<f32>(), &values[1])};
+    REQUIRE(engine.makeList(numbers, 2, &list) == 0);
+    DotNetValue doubled{};
+    REQUIRE(engine.invoke(engine.methodAt(lister, MethodIndex(*lister, u8"Doubled", 1)), nullptr, &list, 1, &doubled) == 0);
+    engine.releaseHandle(list.data);
+    REQUIRE(engine.listSize(&doubled, &size) == 0);
+    REQUIRE(size == 2u);
+    f32 read = 0.0f;
+    DotNetValue element = Bytes(TypeOf<f32>(), &read);
+    REQUIRE(engine.listAt(&doubled, 1, &element) == 0);
+    CHECK(element.kind == DotNetValueKind::Bytes);
+    CHECK(read == doctest::Approx(-4.0f));
+    engine.releaseHandle(doubled.data);
+
+    // No list: refused, with a reason.
+    DotNetValue none = Bytes(TypeOf<i32>(), &three);
+    CHECK(engine.listSize(&none, &size) < 0);
+    u64 length = 0;
+    CHECK(StringView(engine.lastError(&length), static_cast<usize>(length)) == StringView(u8"not a list"));
+}

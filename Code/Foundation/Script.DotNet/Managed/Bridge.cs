@@ -55,6 +55,9 @@ public unsafe struct EngineFunctions
     public delegate* unmanaged<nint, ulong> TypeIdOf;
     public delegate* unmanaged<ulong*, byte*> LastError;
     public delegate* unmanaged<nint, void*, int> ComponentAlive;
+    public delegate* unmanaged<DotNetValue*, ulong*, int> ListSize;
+    public delegate* unmanaged<DotNetValue*, ulong, DotNetValue*, int> ListAt;
+    public delegate* unmanaged<DotNetValue*, uint, DotNetValue*, int> MakeList;
 }
 
 /// <summary>A call into the engine that failed; the engine's reason is the message.</summary>
@@ -159,6 +162,52 @@ public unsafe struct AnyArg : IDisposable
     public DotNetValue Value => m_value;
 
     public void Dispose() => m_text.Dispose();
+}
+
+// An argument the engine takes as a list, from a C# array: each element packed as AnyArg packs one,
+// made into an engine list the call converts into its parameter's container. Null crosses as an
+// empty list. Disposing gives the list back.
+public unsafe struct ListArg : IDisposable
+{
+    DotNetValue m_value;
+
+    public ListArg(System.Collections.IList? items)
+    {
+        m_value = default;
+        int count = items?.Count ?? 0;
+        byte* storage = (byte*)NativeMemory.Alloc((nuint)Math.Max(count, 1) * AnyArg.Capacity);
+        var packed = new AnyArg[count];
+        DotNetValue[] elements = new DotNetValue[count];
+        try
+        {
+            for (int i = 0; i < count; ++i)
+            {
+                packed[i] = new AnyArg(items![i], storage + i * AnyArg.Capacity);
+                elements[i] = packed[i].Value;
+            }
+            fixed (DotNetValue* first = elements)
+            {
+                DotNetValue made = default;
+                Bridge.MakeList(first, (uint)count, &made);
+                m_value = made;
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < count; ++i)
+                packed[i].Dispose();
+            NativeMemory.Free(storage);
+        }
+    }
+
+    public DotNetValue Value => m_value;
+
+    public void Dispose()
+    {
+        if (m_value.Kind == ValueKind.Handle && m_value.Data != null)
+            Bridge.ReleaseHandle((nint)m_value.Data);
+        m_value = default;
+    }
 }
 
 public static unsafe class Bridge
@@ -292,6 +341,47 @@ public static unsafe class Bridge
     {
         ReleaseQueuedHandles();
         if (s_engine.SetProperty(property, self, value) < 0)
+            throw new EngineException(LastError());
+    }
+
+    /// <summary>A list from the engine (a handle to its container) as a C# array, each element read
+    /// as AnyOf reads a value; the handle stays the caller's. None, or no list, is an empty array.</summary>
+    public static T[] ListOf<T>(DotNetValue list)
+    {
+        if (list.Kind != ValueKind.Handle || list.Data == null)
+            return Array.Empty<T>();
+        ulong count = 0;
+        if (s_engine.ListSize(&list, &count) < 0)
+            throw new EngineException(LastError());
+        var items = new T[count];
+        byte* storage = stackalloc byte[AnyArg.Capacity];
+        for (ulong i = 0; i < count; ++i)
+        {
+            DotNetValue element = DotNetValue.OfBytes(0, storage, AnyArg.Capacity);
+            if (s_engine.ListAt(&list, i, &element) < 0)
+                throw new EngineException(LastError());
+            items[i] = (T)AnyOf(element)!;
+        }
+        return items;
+    }
+
+    /// <summary>A list result as a C# array, the handle given back.</summary>
+    public static T[] TakeList<T>(DotNetValue list)
+    {
+        try
+        {
+            return ListOf<T>(list);
+        }
+        finally
+        {
+            if (list.Kind == ValueKind.Handle && list.Data != null)
+                ReleaseHandle((nint)list.Data);
+        }
+    }
+
+    public static void MakeList(DotNetValue* items, uint count, DotNetValue* result)
+    {
+        if (s_engine.MakeList(items, count, result) < 0)
             throw new EngineException(LastError());
     }
 

@@ -2,6 +2,9 @@
 add_executable(Tools.DotNetBindings Main.cpp)
 # The whole script surface: every facade and every component's reflection, as an application's scripts see it.
 target_link_libraries(Tools.DotNetBindings PRIVATE Foundation::Script.DotNet Engine::Composition)
+# What C# leaves out of that surface is exactly LeftOut.txt's lines, each with its reason.
+add_test(NAME Tools.DotNetBindings.LeftOut
+         COMMAND Tools.DotNetBindings ${CMAKE_CURRENT_BINARY_DIR}/LeftOutCheck.g.cs --left-out ${CMAKE_CURRENT_SOURCE_DIR}/LeftOut.txt)
 
 # The engine's managed runtime (Engine.Runtime.dll and its runtimeconfig), built with the bindings
 # into DotNet/ beside the binaries, where the engine looks for it.

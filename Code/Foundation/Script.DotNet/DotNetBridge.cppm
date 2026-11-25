@@ -72,6 +72,14 @@ export namespace foundation::script::dotnet
         /// Whether a scene component held as a value (its entity's bytes under the component's
         /// type, see FromVariant) is there: 1 when its entity has it, else 0.
         i32 (*componentAlive)(const TypeInfo* type, const void* data) = nullptr;
+        /// How many elements a list (a handle to an engine container, as a list result crosses) holds.
+        i32 (*listSize)(const DotNetValue* list, u64* count) = nullptr;
+        /// Element `index` of a list into `out`, as a result crosses: bytes into out->data when they
+        /// fit out->size, text into the thread's buffer, anything else as a handle the caller owns.
+        i32 (*listAt)(const DotNetValue* list, u64 index, DotNetValue* out) = nullptr;
+        /// A list of `count` values, as a handle the caller owns: what a list argument crosses as.
+        /// The call it is given to converts it into its parameter's container, element by element.
+        i32 (*makeList)(const DotNetValue* items, u32 count, DotNetValue* out) = nullptr;
     };
 
     /// The table, filled; handles are made from `allocator` (the host's), the first call's.

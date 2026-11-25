@@ -5,6 +5,7 @@
 // (built with them) calling Float3's reflected methods through the bridge on CoreCLR.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
+#include "Core/Reflection/Reflect.h"
 #include <string>
 
 import foundation.core;
@@ -48,7 +49,8 @@ TEST_CASE("dotnet bindings: C# calls Float3's reflected methods through the gene
     INFO(std::string(reinterpret_cast<const char*>(host.Failure().Data()), host.Failure().Size()));
     REQUIRE(run != nullptr);
     // 32000 for Dot (32), then Cross (-3, 6, -3) as 700 + 60 + 7. -1: the table's layout refused;
-    // -2: a struct's layout differs; -3: a call failed.
+    // -2: a struct's layout differs; -3: a call failed; -6 to -8: a list of text, of numbers or none
+    // did not come back as it went.
     const int got = run(&EngineFunctions(DefaultAllocator()));
     u64 length = 0;
     const utf8char* why = EngineFunctions(DefaultAllocator()).lastError(&length);
@@ -138,4 +140,48 @@ TEST_CASE("dotnet bindings: pure methods are computed in C#, operators are C#'s"
     REQUIRE(quaternion != StringView::kNotFound);
     const StringView after = source.AsView().SubStr(quaternion, source.Size() - quaternion);
     CHECK(after.SubStr(0, after.Find(StringView(u8"\n}\n"))).Contains(u8"Bridge.Invoke("));
+}
+
+namespace
+{
+    struct Shelf
+    {
+        static Array<String> Titles() { return {}; }
+        static i32 Count(Array<f32> weights) { return static_cast<i32>(weights.Size()); }
+        static i32 Nested(Array<Array<i32>> grid) { return static_cast<i32>(grid.Size()); }
+        static i32 Twice(i32 a) { return a * 2; }
+    };
+}
+REFLECT_VALUE(Shelf, "rtti::tests::dotnetbindings")
+{
+    builder.Method<&Shelf::Titles>("Titles").Method<&Shelf::Count>("Count", {"weights"}).Method<&Shelf::Nested>("Nested", {"grid"});
+    // Twice registered twice: the second has the first's C# signature.
+    builder.Method<&Shelf::Twice>("Twice").Method<&Shelf::Twice>("Twice");
+}
+
+// A list crosses as a C# array (a result taken and given back, an argument packed for the call),
+// and what C# cannot have is named with why rather than missing: a list of lists, and an overload
+// C# cannot tell from another.
+TEST_CASE("dotnet bindings: lists are C# arrays, and what is left out is named")
+{
+    RegisterCoreTypes();
+    RegisterArrayType<String>(); // the containers' descriptions, as the facades that use them register
+    RegisterArrayType<f32>();
+    RegisterArrayType<i32>();
+    RegisterArrayType<Array<i32>>();
+    RttiRegisterValue_Shelf();
+    GlobalTypeRegistry().Register(TypeOf<Shelf>());
+    const TypeInfo* types[] = {&TypeOf<Shelf>()};
+    Array<String> leftOut;
+    const String source = GenerateCSharpBindings(Span<const TypeInfo* const>{types, 1}, &leftOut);
+    INFO(std::string(reinterpret_cast<const char*>(source.Data()), source.Size()));
+    CHECK(source.AsView().Contains(u8"public static string[] Titles()"));
+    CHECK(source.AsView().Contains(u8"return Bridge.TakeList<string>(result);"));
+    CHECK(source.AsView().Contains(u8"public static int Count(float[] weights)"));
+    CHECK(source.AsView().Contains(u8"using ListArg l0 = new(weights);"));
+    CHECK_FALSE(source.AsView().Contains(u8"Nested("));
+    REQUIRE(leftOut.Size() == 2u);
+    REQUIRE(leftOut[0].AsView().StartsWith(u8"Shelf.Nested: a parameter ("));
+    CHECK(leftOut[0].AsView().EndsWith(u8") has no C# form"));
+    CHECK(leftOut[1] == StringView(u8"Shelf.Twice: another overload takes the same C# types"));
 }

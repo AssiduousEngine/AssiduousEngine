@@ -335,6 +335,67 @@ namespace foundation::script::dotnet
             return written.IsOk() ? 0 : -static_cast<i32>(written.Code());
         }
 
+        // The container a list handle holds, and the instance to read it through; false when the
+        // value is no handle to a container.
+        bool ListOf(const DotNetValue* list, const ContainerInfo*& container, Instance& instance)
+        {
+            if (list == nullptr || list->kind != DotNetValueKind::Handle || list->data == nullptr)
+                return false;
+            Variant& held = *static_cast<Variant*>(list->data);
+            const TypeInfo* type = held.Type();
+            if (type == nullptr || !IsContainer(*type))
+                return false;
+            container = type->container;
+            instance = ToInstance(held);
+            return instance.Pointer() != nullptr;
+        }
+
+        i32 ListSize(const DotNetValue* list, u64* count)
+        {
+            t_error.Clear();
+            const ContainerInfo* container = nullptr;
+            Instance instance;
+            if (count == nullptr || !ListOf(list, container, instance))
+                return Fail(ErrorCode::InvalidArgument, u8"not a list");
+            *count = container->size(instance);
+            return 0;
+        }
+
+        i32 ListAt(const DotNetValue* list, u64 index, DotNetValue* out)
+        {
+            t_error.Clear();
+            const ContainerInfo* container = nullptr;
+            Instance instance;
+            if (out == nullptr || !ListOf(list, container, instance))
+                return Fail(ErrorCode::InvalidArgument, u8"not a list");
+            const usize count = container->size(instance);
+            if (index >= count)
+                return Fail(ErrorCode::OutOfRange, Format(u8"element {} of a list of {}", index, count).AsView());
+            const Status written = FromVariant(container->getAt(instance, static_cast<usize>(index)), *out);
+            return written.IsOk() ? 0 : -static_cast<i32>(written.Code());
+        }
+
+        i32 MakeList(const DotNetValue* items, u32 count, DotNetValue* out)
+        {
+            t_error.Clear();
+            if (out == nullptr || (items == nullptr && count > 0))
+                return Fail(ErrorCode::InvalidArgument, u8"no list");
+            Array<Variant> list;
+            list.Reserve(count);
+            for (u32 i = 0; i < count; ++i)
+            {
+                list.PushBack(ToVariant(items[i]));
+                if (list.Back().IsEmpty() && items[i].kind != DotNetValueKind::Empty)
+                    return Fail(ErrorCode::InvalidArgument, Format(u8"element {} has no value form", i).AsView());
+            }
+            const Variant made = Variant::From<Array<Variant>>(Move(list));
+            out->kind = DotNetValueKind::Handle;
+            out->type = made.Type();
+            out->data = s_allocator->New<Variant>(made);
+            out->size = 0;
+            return 0;
+        }
+
         u32 TypeSizeOf(const TypeInfo* type) { return type != nullptr ? type->size : 0u; }
 
         u64 TypeIdOf(const TypeInfo* type) { return type != nullptr ? type->id : 0u; }
@@ -500,6 +561,7 @@ namespace foundation::script::dotnet
             s_allocator = &allocator;
         static const DotNetEngineFunctions functions = []
         {
+            RegisterArrayType<Variant>(); // what a list argument is made as (makeList), read as a list
             DotNetEngineFunctions f;
             f.typeById = &TypeById;
             f.methodAt = &MethodAt;
@@ -513,6 +575,9 @@ namespace foundation::script::dotnet
             f.typeIdOf = &TypeIdOf;
             f.lastError = &LastError;
             f.componentAlive = &ComponentAlive;
+            f.listSize = &ListSize;
+            f.listAt = &ListAt;
+            f.makeList = &MakeList;
             return f;
         }();
         return functions;

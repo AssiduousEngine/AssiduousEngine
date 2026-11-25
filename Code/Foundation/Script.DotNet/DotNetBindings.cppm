@@ -26,6 +26,7 @@ export namespace foundation::script::dotnet
     [[nodiscard]] Array<const TypeInfo*> BindableValueTypes();
 
     /// The C# source binding `types` (a namespace `Engine`), with a `Layouts.FirstMismatch()` C#
-    /// calls at start. Methods whose signature holds a type C# has no form for are left out.
-    [[nodiscard]] String GenerateCSharpBindings(Span<const TypeInfo* const> types);
+    /// calls at start. A member C# cannot have (a type it has no form for, a name it cannot take, an
+    /// overload it cannot tell apart) is left out, and named in `leftOut` with why: "Type.member: why".
+    [[nodiscard]] String GenerateCSharpBindings(Span<const TypeInfo* const> types, Array<String>* leftOut = nullptr);
 }

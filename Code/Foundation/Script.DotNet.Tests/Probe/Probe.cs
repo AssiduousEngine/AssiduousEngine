@@ -78,6 +78,25 @@ public static unsafe class UsesBindings
         float r = Engine.Random.range(1.0f, 2.0f);
         if (r < 1.0f || r > 2.0f)
             return -4;
+        // Lists through the engine both ways: packed as a list argument is, read back as a list
+        // result is (the engine's makeList, listSize and listAt).
+        using (var words = new Engine.ListArg(new[] { "ab", "cde" }))
+        {
+            string[] back = Engine.Bridge.ListOf<string>(words.Value);
+            if (back.Length != 2 || back[0] != "ab" || back[1] != "cde")
+                return -6;
+        }
+        using (var numbers = new Engine.ListArg(new[] { 1.5f, -2.0f }))
+        {
+            float[] back = Engine.Bridge.ListOf<float>(numbers.Value);
+            if (back.Length != 2 || back[0] != 1.5f || back[1] != -2.0f)
+                return -7;
+        }
+        using (var none = new Engine.ListArg(null))
+        {
+            if (Engine.Bridge.ListOf<int>(none.Value).Length != 0)
+                return -8;
+        }
         // 32 and (-3, 6, -3), encoded so the host can check all four.
         return (int)dot * 1000 + (int)(cross.x + 10) * 100 + (int)(cross.y) * 10 + (int)(cross.z + 10);
     }

@@ -102,6 +102,7 @@ namespace foundation::script::dotnet
             Component, // a scene component, held as a value: its entity (the engine finds it again)
             Any,   // a script value of any type (Variant): C# object, its form chosen at the call
             Handler, // a script delegate the engine calls back (IScriptDelegate): C# ScriptHandler
+            List,    // an engine container of numbers, text, values or classes: a C# array
         };
 
         struct Bound
@@ -165,8 +166,32 @@ namespace foundation::script::dotnet
                     return Shape::Any;
                 if (type->id == IScriptDelegate::StaticType().id)
                     return isReturn ? Shape::None : Shape::Handler; // a handler is only ever given
+                if (type->container != nullptr)
+                    return ListElementShape(type) != Shape::None ? Shape::List : Shape::None;
                 const Bound* b = Find(type);
                 return b != nullptr ? b->shape : Shape::None;
+            }
+
+            // The shape of a container's elements when C# can hold it as an array: each element
+            // crosses as Bridge.AnyOf reads one and AnyArg packs one, which take these.
+            Shape ListElementShape(const TypeInfo* type) const
+            {
+                const TypeInfo* element = type->container->elementType;
+                if (element == nullptr || element->container != nullptr)
+                    return Shape::None;
+                const Shape shape = ShapeOf(element, true);
+                if (shape == Shape::Scalar)
+                {
+                    const StringView name = ScalarName(*element);
+                    const bool packed = name == StringView(u8"float") || name == StringView(u8"double") || name == StringView(u8"int") ||
+                                        name == StringView(u8"uint") || name == StringView(u8"long") || name == StringView(u8"ulong") ||
+                                        name == StringView(u8"bool");
+                    return packed ? shape : Shape::None;
+                }
+                return shape == Shape::Text || shape == Shape::Struct || shape == Shape::Opaque || shape == Shape::Component ||
+                               shape == Shape::Class
+                           ? shape
+                           : Shape::None;
             }
 
             String CSharpName(const TypeInfo* type) const
@@ -181,6 +206,8 @@ namespace foundation::script::dotnet
                     return String(u8"object");
                 if (type->id == IScriptDelegate::StaticType().id)
                     return String(u8"ScriptHandler");
+                if (type->container != nullptr)
+                    return Format(u8"{}[]", CSharpName(type->container->elementType));
                 const Bound* b = Find(type);
                 return b != nullptr ? b->name : String{};
             }
@@ -303,6 +330,9 @@ namespace foundation::script::dotnet
             case Shape::Handler:
                 AppendFormat(out, u8"        args[{}] = Bridge.Lend({});\n", index, name);
                 break;
+            case Shape::List:
+                AppendFormat(out, u8"        using ListArg l{} = new({});\n        args[{}] = l{}.Value;\n", index, name, index, index);
+                break;
             case Shape::Any:
                 // Packed by the value's own type, into storage of its own: several in one call never
                 // share a buffer, and text is freed when the call returns.
@@ -356,6 +386,10 @@ namespace foundation::script::dotnet
                              u8"        {}&result);\n        return Bridge.AnyOf(result);\n",
                              call);
                 break;
+            case Shape::List:
+                AppendFormat(out, u8"        DotNetValue result = default;\n        {}&result);\n        return Bridge.TakeList<{}>(result);\n", call,
+                             surface.CSharpName(returned->container->elementType));
+                break;
             default:
                 break;
             }
@@ -377,7 +411,22 @@ namespace foundation::script::dotnet
                              b.name, b.name);
         }
 
-        void EmitMembers(String& out, const Surface& surface, const Bound& b)
+        // A type as a left-out member's reason names it.
+        String TypeLabel(const TypeInfo* type)
+        {
+            if (type == nullptr)
+                return String(u8"none");
+            return String(StringView(reinterpret_cast<const utf8char*>(type->name)));
+        }
+
+        // Records that `member` of `b` is not in C#, and why.
+        void LeaveOut(Array<String>* leftOut, const Bound& b, StringView member, StringView why)
+        {
+            if (leftOut != nullptr)
+                leftOut->PushBack(Format(u8"{}.{}: {}", b.name, member, why));
+        }
+
+        void EmitMembers(String& out, const Surface& surface, const Bound& b, Array<String>* leftOut)
         {
             const TypeInfo& type = *b.type;
             Array<String> signatures; // a C# method's name, parameter types and staticness: one each
@@ -391,7 +440,13 @@ namespace foundation::script::dotnet
                     const StringView rawName = NameOf(property.name);
                     const Shape shape = surface.ShapeOf(property.type, true);
                     if (!IsIdentifier(rawName) || shape == Shape::None || shape == Shape::Void || rawName == b.name.AsView())
+                    {
+                        LeaveOut(leftOut, b, rawName,
+                                 !IsIdentifier(rawName)       ? String(u8"its name is no C# identifier").AsView()
+                                 : rawName == b.name.AsView() ? String(u8"it is named as its type").AsView()
+                                                              : Format(u8"its type ({}) has no C# form", TypeLabel(property.type)).AsView());
                         continue;
+                    }
                     memberNames.PushBack(String(rawName));
                     // A component's handle is a value whose property writes reach the engine, so a
                     // setter changes nothing of it: readonly, which lets `X.of(e).speed = 4` compile.
@@ -402,7 +457,9 @@ namespace foundation::script::dotnet
                     EmitSelf(out, b);
                     EmitCallAndReturn(out, surface, property.type, Format(u8"Bridge.GetProperty(s_p{}, &self, ", i).AsView());
                     out.Append(StringView(u8"        }\n"));
-                    const bool readOnly = (static_cast<u32>(property.flags) & static_cast<u32>(PropertyFlags::ReadOnly)) != 0;
+                    // A list property is read as an array; writing one back is not offered.
+                    const bool readOnly = (static_cast<u32>(property.flags) & static_cast<u32>(PropertyFlags::ReadOnly)) != 0 ||
+                                          shape == Shape::List;
                     if (!readOnly && (b.shape == Shape::Class || b.shape == Shape::Component))
                     {
                         AppendFormat(out, u8"        set\n        {{\n        if (s_p{} == 0) s_p{} = Bridge.PropertyAt(EngineType, {});\n", i,
@@ -421,13 +478,22 @@ namespace foundation::script::dotnet
             {
                 const MethodInfo& method = type.methods[m];
                 const StringView rawName = NameOf(ScriptMethodName(method));
-                if (!IsIdentifier(rawName) || rawName == b.name.AsView() || (!method.isStatic && b.shape == Shape::Enum))
+                if (!method.isStatic && b.shape == Shape::Enum)
+                    continue; // a C# enum has no members
+                if (!IsIdentifier(rawName) || rawName == b.name.AsView())
+                {
+                    LeaveOut(leftOut, b, rawName, !IsIdentifier(rawName) ? StringView(u8"its name is no C# identifier")
+                                                                          : StringView(u8"it is named as its type"));
                     continue;
+                }
                 bool nameTaken = false;
                 for (const String& n : memberNames)
                     nameTaken = nameTaken || n.AsView() == rawName;
                 if (nameTaken)
+                {
+                    LeaveOut(leftOut, b, rawName, u8"a property has its name");
                     continue;
+                }
                 const TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
                 bool bindable = surface.ShapeOf(returned, true) != Shape::None;
                 String signature(rawName);
@@ -438,10 +504,27 @@ namespace foundation::script::dotnet
                     if (bindable)
                         AppendFormat(signature, u8",{}", surface.CSharpName(paramType));
                 }
-                for (const String& s : signatures)
-                    bindable = bindable && s.AsView() != signature.AsView(); // C# overloads by types, not staticness
                 if (!bindable)
+                {
+                    const TypeInfo* missing = surface.ShapeOf(returned, true) == Shape::None ? returned : nullptr;
+                    for (u32 p = 0; missing == nullptr && p < method.paramCount; ++p)
+                    {
+                        const TypeInfo* paramType = method.params[p].type != nullptr ? method.params[p].type() : nullptr;
+                        if (surface.ShapeOf(paramType, false) == Shape::None)
+                            missing = paramType;
+                    }
+                    LeaveOut(leftOut, b, rawName, Format(u8"{} ({}) has no C# form", missing == returned ? StringView(u8"its result") : StringView(u8"a parameter"),
+                                                         TypeLabel(missing)).AsView());
                     continue;
+                }
+                bool overload = true;
+                for (const String& s : signatures)
+                    overload = overload && s.AsView() != signature.AsView(); // C# overloads by types, not staticness
+                if (!overload)
+                {
+                    LeaveOut(leftOut, b, rawName, u8"another overload takes the same C# types");
+                    continue;
+                }
                 signatures.PushBack(Move(signature));
                 // An operator the method implements, written as C#'s on a value type (a + b, v * 2,
                 // -v): it calls the method. Equality stays a method: C#'s == asks for Equals and
@@ -526,7 +609,7 @@ namespace foundation::script::dotnet
         return values;
     }
 
-    String GenerateCSharpBindings(Span<const TypeInfo* const> types)
+    String GenerateCSharpBindings(Span<const TypeInfo* const> types, Array<String>* leftOut)
     {
         Surface surface = Classify(types);
         // In name order, so the generated file reads the same from one build to the next.
@@ -610,7 +693,7 @@ namespace foundation::script::dotnet
                     AppendFormat(checks, u8"        if ({}.EngineType != 0 && sizeof({}) < Bridge.TypeSize({}.EngineType)) return \"{} size\";\n", b.name, b.name, b.name,
                                  b.name);
                 }
-                EmitMembers(out, surface, b);
+                EmitMembers(out, surface, b, leftOut);
                 out.Append(StringView(u8"}\n\n"));
                 break;
             }
@@ -626,7 +709,7 @@ namespace foundation::script::dotnet
                              u8"    public readonly bool isValid()\n    {{\n        {} copy = this;\n"
                              u8"        return Bridge.ComponentAlive(EngineType, &copy);\n    }}\n",
                              b.name);
-                EmitMembers(out, surface, b);
+                EmitMembers(out, surface, b, leftOut);
                 out.Append(StringView(u8"}\n\n"));
                 break;
             }
@@ -635,7 +718,7 @@ namespace foundation::script::dotnet
                 AppendFormat(out, u8"public sealed unsafe partial class {} : EngineObject\n{{\n", b.name);
                 AppendFormat(out, u8"    internal {}(DotNetValue handle) : base(handle) {{ }}\n", b.name);
                 AppendFormat(out, u8"    internal static nint EngineType => Types.Get(0x{}ul);\n", HexOf(type.id));
-                EmitMembers(out, surface, b);
+                EmitMembers(out, surface, b, leftOut);
                 out.Append(StringView(u8"}\n\n"));
                 break;
             }
