@@ -40,7 +40,8 @@
 - A Vulkan 1.3 (or, on Windows, D3D12) capable GPU to run anything that draws.
 - The .NET 10 SDK (`dotnet` on the path), for C# scripting, which a desktop build includes by
   default: it generates the C# bindings and builds the engine's managed runtime and the C# tests.
-  Without it, configure with `-DOPTION_ENABLE_DOTNET=OFF`. Web and Android builds leave C# out
+  On Ubuntu 26.04, `sudo apt install dotnet-sdk-10.0`; elsewhere, Microsoft's installer for the
+  platform. Without it, configure with `-DOPTION_ENABLE_DOTNET=OFF`. Web and Android builds leave C# out
   unless an export of a C# game turns it on.
 - For web builds, emsdk 6.0.5 with the project's response file patch applied; see
   [Guides/emscripten-windows.md](Guides/emscripten-windows.md).

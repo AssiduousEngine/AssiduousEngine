@@ -262,14 +262,12 @@ jobs:
             cmake ninja-build g++-15 pkg-config xvfb ca-certificates \
             libvulkan-dev vulkan-tools vulkan-validationlayers mesa-vulkan-drivers \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
-            libxtst-dev libwayland-dev wayland-protocols libxkbcommon-dev libasound2-dev
+            libxtst-dev libwayland-dev wayland-protocols libxkbcommon-dev libasound2-dev \
+            dotnet-sdk-10.0
+          # .NET from the image's own archive, with what it needs (ICU, OpenSSL): C# scripting is on
+          # by default for a desktop build.
           g++-15 --version
-      # C# scripting is on by default for a desktop build: the bindings generator, the engine's
-      # managed runtime and the C# tests build with the .NET SDK (the projects target net10.0).
-      - name: Install .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+          dotnet --version
 
       - name: Configure
         # Not the preset: the build dir must live on the /mnt volume (see above), and the
