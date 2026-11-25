@@ -469,6 +469,10 @@ export namespace editor
         // The levels the run offers its scripts (RenderQuality): the project's, the one the tab
         // plays at, and a script's choice moving the quality dropdown for the session.
         engine::render::RenderQualityChoice m_qualityChoice;
+        // How the game asks to present (Display): the project's mode at a start, a script's choice
+        // kept for the session. Nothing presents in it: the tab draws in the editor's windows,
+        // which present as the editor's preferences say.
+        engine::render::DisplayChoice m_displayChoice;
         String m_resolutionSignature; // what the choices were built from
         String m_resolutionKey;       // the chosen entry, kept across rebuilds, saved per project
         f32 m_resolutionRefresh = 0.0f;

@@ -229,7 +229,8 @@ those before it (its fonts are the UI's), `guiLoadingDocumentId`, a `.xml` docum
 boot splash shows through the engine GUI instead of the engine's own (its load progress the GUI's data
 value `bootProgress`, 0 to 1), and the
 display: `renderWidth`/`renderHeight`, the resolution the game draws at, 0 for its output's size,
-`renderFit`, and the player's `windowWidth`, `windowHeight`, `windowMode` and `windowResizable`,
+`renderFit`, and the player's `windowWidth`, `windowHeight`, `windowMode`, `windowResizable` and
+`presentMode` (`Vsync`, the default, or `Mailbox` or `Immediate`, which do not wait for the display),
 and the quality: `qualityLevelIds`, the game's `Render Quality` levels in the order an options menu
 lists them, and `defaultQualityId`, the one it starts at where no export preset picks another, null
 for the list's last, and `mcpFolders`, the folders outside the project its MCP tools work in, each
@@ -381,7 +382,9 @@ its own `qualityLevelId`; the export carries them into the dist. The player star
 saved choice (a script's `RenderQuality.set`, kept in the user's settings), else the preset's level,
 else the project's default, else the list's last (the engine's own highest, 4x MSAA and no
 antialiasing, when the game lists none), and the Game tab plays at the project's. A game's options
-menu lists the levels by their `label` through `RenderQuality.levels()`. A level's
+menu lists the levels by their `label` through `RenderQuality.levels()`, and the present modes through
+`Display.presentModes()` (`Display.setPresentMode(name)` presents in one at once; the player keeps it
+over the project's `presentMode`, and `--present-mode <name>` overrides both for one run). A level's
 MSAA count and antialiasing are the scene pass's; an `Off` tier turns its effect off whatever the
 scene asks, `shadowDistanceMax` shortens the scene's shadow reach, and no tier turns an effect on.
 Which antialiasing runs is the level's alone: a scene's post settings keep only how TAA and FXAA

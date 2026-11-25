@@ -37,11 +37,13 @@ target_sources(Engine.DefaultApp
     PRIVATE
         DefaultApplicationImpl.cpp   # out-of-line defs (see DefaultApplication.cppm)
         QualityLevelsImpl.cpp        # the quality levels a run offers (see QualityLevels.cppm)
+        DisplaySettingsImpl.cpp      # how a run's window presents (see DisplaySettings.cppm)
     PUBLIC
         FILE_SET runtime_defaultapp_modules TYPE CXX_MODULES FILES
             DefaultApplication.cppm
             ProfilerOverlayHost.cppm
-            QualityLevels.cppm)
+            QualityLevels.cppm
+            DisplaySettings.cppm)
 
 target_link_libraries(Engine.DefaultApp PUBLIC Engine::GUI) # the engine GUI
 # The engine version a plugin host checks plugins against, and the project's quality levels a run

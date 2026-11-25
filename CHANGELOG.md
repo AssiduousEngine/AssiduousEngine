@@ -9,6 +9,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Projects: a **Present mode** setting (Display): vsync, the default, mailbox or immediate, which do
+  not wait for the display; an export preset's own window can set its own. The player presents in it
+  (it always waited for the display before), and `--present-mode <name>` presents another for one run.
+- Scripts: `Display.presentModes()`, `Display.presentMode()` and `Display.setPresentMode(name)` for a
+  game's options menu: the window presents in the choice at once, and the player keeps it for the
+  next run. In the Game tab a choice lasts the session and the editor's windows keep their own.
 - Scripts: `scene.sequences.make(sequence)` makes a play that waits for its parts; `bind` them, then
   `start()` plays time 0 on them. A part bound after `play()` missed time 0 and was warned of.
 - Samples: Millbrook's title keeps three games in save slots (Continue, New game, Load with each

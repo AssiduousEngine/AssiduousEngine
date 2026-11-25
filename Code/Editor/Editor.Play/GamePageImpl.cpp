@@ -258,6 +258,7 @@ namespace editor
             m_qualityChoice.choose = [self](const engine::render::OfferedQualityLevel& level)
             { (void)self->SelectQuality(Format(u8"{}", level.id).AsView()); };
             m_run->Register<engine::render::RenderQualityChoice>(m_qualityChoice);
+            m_run->Register<engine::render::DisplayChoice>(m_displayChoice);
         }
 
         // The tab is built from its markup: the bar over the stage, and the game beside the debugger.
@@ -457,6 +458,8 @@ namespace editor
             if (m_context->Resources() != nullptr)
                 (void)engine::runtime::OfferQualityLevels(m_qualityChoice, project.Settings(), *m_context->Resources(), Guid{});
             SyncQualityChoice();
+            engine::runtime::OfferPresentModes(
+                m_displayChoice, engine::runtime::StartupPresentMode(project.Settings(), m_displayChoice.presentMode.AsView()));
             m_scriptErrors.context = m_context;
             m_run->SetRunBehaviorErrorHandler(&m_scriptErrors);
             EnableDebugging();
@@ -937,6 +940,7 @@ namespace editor
             m_run->SetInputSource(m_input != nullptr ? &m_input->ShellSource() : nullptr);
             m_run->Binding().requestExit = Function<void(i32)>{}; // it points at this page
             m_run->Remove<engine::render::RenderQualityChoice>(); // this page's member
+            m_run->Remove<engine::render::DisplayChoice>();       // this page's member
         }
         // Destroy this tab's extra instance (which unregisters its scene manager and tears down its
         // run host) so nothing dangling is ticked or rendered after the tab closes. Does nothing for

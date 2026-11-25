@@ -385,6 +385,56 @@ TEST_CASE("game tab: its run offers the project's levels to scripts; a script's 
     (void)RemoveDirectoryRecursive(levelsDir.AsView());
 }
 
+TEST_CASE("game tab: its run offers the present modes, starting in the project's; a script's choice lasts the session")
+{
+    // Display in a Game tab: the run lists the modes and reads the project's; a script's choice is
+    // kept through a stop and a play, and presents nowhere, since the tab draws in the editor's
+    // windows.
+    const String dir(u8"scratch_game_page_display_choice");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    project->Settings().presentMode = engine::project::PresentMode::Mailbox;
+    {
+        foundation::settings::Settings store{DefaultAllocator()};
+        EditorContext context{DefaultAllocator()};
+        context.SetProject(project.Get());
+        context.SetProjectEditorSettings(&store);
+        SceneHost host;
+        engine::runtime::ApplicationRun instance;
+        {
+            GameEditorPage::Services services;
+            services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
+            GameEditorPage page(context, host, Move(services), nullptr, &instance, u8"game-page");
+            page.Play();
+            page.OnUpdate(host, 1.0f / 60.0f);
+            REQUIRE(page.IsRunning());
+
+            engine::render::DisplayChoice* choice = instance.Get<engine::render::DisplayChoice>();
+            REQUIRE(choice != nullptr);
+            REQUIRE(choice->presentModes.Size() == 3u);
+            CHECK(choice->presentModes[0] == StringView(u8"vsync"));
+            CHECK(choice->presentMode == StringView(u8"mailbox")); // the project's
+            CHECK_FALSE(choice->choosePresentMode); // nothing presents in it
+
+            CHECK(choice->ChoosePresentMode(u8"immediate"));
+            CHECK_FALSE(choice->ChoosePresentMode(u8"uncapped"));
+            page.Stop();
+            page.Play();
+            page.OnUpdate(host, 1.0f / 60.0f);
+            CHECK(choice->presentMode == StringView(u8"immediate")); // kept for the session
+            page.Stop();
+            page.OnClose();
+        }
+        CHECK(instance.Get<engine::render::DisplayChoice>() == nullptr); // the page's, gone with it
+        context.SetProjectEditorSettings(nullptr);
+        context.SetProject(nullptr);
+    }
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir.AsView());
+}
+
 TEST_CASE("game page: the Game tab plays at the project's starting quality level")
 {
     // The player starts at the project's level; the Game tab plays the game at the same one.

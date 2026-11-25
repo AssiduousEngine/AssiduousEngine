@@ -48,6 +48,11 @@ namespace engine::player
         UniquePtr<foundation::vfs::PakFileSystem> contentPak;
         String sceneOverride; // source-DB path; empty means the manifest's defaultScene
         String qualityOverride; // a quality level's label to start at, ahead of the saved choice (not kept)
+        String presentModeOverride; // a present mode's name to start in, ahead of the saved choice (not kept)
+        // The mode the window is made in, from the manifest and presentModeOverride where the host
+        // reads them before the window exists (the desktop's); the run's start switches to the
+        // player's saved choice.
+        foundation::rhi::PresentMode presentMode = foundation::rhi::PresentMode::Fifo;
         f32 exitAfterSeconds = 0.0f;
     };
 
@@ -64,6 +69,7 @@ namespace engine::player
         {
             foundation::graphics::RenderWindowDesc desc;
             desc.preRotate = true;
+            desc.presentMode = m_options.presentMode;
             return desc;
         }
 
@@ -276,6 +282,43 @@ namespace engine::player
                 };
             }
 
+            // How the window presents: --present-mode for this run, else the player's saved choice,
+            // else the project's (an export preset's in a dist). The run offers the modes to its
+            // scripts (Display): a choice presents at once and is kept for the next run.
+            {
+                auto& display = PrimaryRun().Add<engine::render::DisplayChoice>();
+                const String saved = engine::runtime::SavedPresentMode(m_userSettings);
+                const StringView start = engine::runtime::StartupPresentMode(m_settings, saved.AsView(), m_options.presentModeOverride.AsView());
+                if (!m_options.presentModeOverride.IsEmpty() && start != m_options.presentModeOverride.AsView())
+                    LOG_WARNING(u8"Player", u8"--present-mode '{}': no mode has that name (vsync, mailbox or immediate)", m_options.presentModeOverride);
+                engine::runtime::OfferPresentModes(display, start);
+                foundation::graphics::RenderWindow* window = host.MainRenderWindow();
+                if (window != nullptr)
+                {
+                    const foundation::graphics::NamedPresentMode* named = foundation::graphics::FindPresentMode(start);
+                    if (named != nullptr && window->PresentMode() != named->mode && !window->SetPresentMode(named->mode))
+                        LOG_WARNING(u8"Player", u8"the window cannot present as '{}'", start);
+                    display.presentMode = String(foundation::graphics::PresentModeName(window->PresentMode()));
+                }
+                LOG_INFO(u8"Player", u8"present mode '{}'", display.presentMode);
+                PlayerApplication* self = this;
+                runtime::IApplicationHost* owner = &host;
+                display.choosePresentMode = [self, owner](StringView name)
+                {
+                    const foundation::graphics::NamedPresentMode* named = foundation::graphics::FindPresentMode(name);
+                    foundation::graphics::RenderWindow* shown = owner->MainRenderWindow();
+                    if (named == nullptr || (shown != nullptr && !shown->SetPresentMode(named->mode)))
+                    {
+                        LOG_WARNING(u8"Player", u8"the window cannot present as '{}'; it keeps the mode it had", name);
+                        return false;
+                    }
+                    engine::runtime::KeepPresentMode(self->m_userSettings, name);
+                    self->SaveUserSettings();
+                    LOG_INFO(u8"Player", u8"present mode '{}' chosen", name);
+                    return true;
+                };
+            }
+
             // The project's default audio bus layout: cooked mixer data, handed to the engine.
             // Nil or unresolved: the built-in neutral four-bus layout.
             if (Audio() != nullptr && Audio()->Engine() != nullptr &&
@@ -397,6 +440,7 @@ namespace engine::player
         {
             engine::audio::RegisterAudioSettingsTypes();
             engine::runtime::RegisterQualityUserSettingsType();
+            engine::runtime::RegisterDisplayUserSettingsType();
             foundation::vfs::NativeFileSystem userFs(foundation::core::GetUserDataDirectory().AsView(), AppRoot());
             UniquePtr<IStream> stream = userFs.Open(UserSettingsFileName().AsView(), FileMode::Read);
             if (stream && !m_userSettings.Load(*stream, foundation::xml::XmlSerializerFactory()).IsOk())

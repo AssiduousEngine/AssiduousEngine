@@ -23,6 +23,7 @@ export module engine.defaultapp;
 export import foundation.rhi.capture; // ScreenshotCapture and the --screenshot flags (this API takes ScreenshotOptions)
 export import :profiler_overlay; // ProfilerOverlayHost (F3, --profile-overlay)
 export import :quality; // the quality levels a run offers, and the player's saved choice
+export import :display; // how a run's window presents, and the player's saved choice
 
 import foundation.core;
 import foundation.rhi;

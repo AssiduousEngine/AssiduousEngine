@@ -16,6 +16,7 @@
 //
 // Usage: Engine.Player <projectDir> [--scene <source-db-path>] [--exit-after <seconds>]
 //                      [--quality <label>]  (start at that quality level; the choice is not kept)
+//                      [--present-mode <vsync|mailbox|immediate>]  (present so; the choice is not kept)
 //                      [--profile-capture <seconds>] [--profile-overlay]
 //                      [--measure <frames> [--measure-out <file>]]  (average frames, report, exit)
 //                      [--data-root <dir>]  (engine data; default = the Data/.dataroot walk)
@@ -53,6 +54,7 @@ import foundation.shell;
 import foundation.shell.sdl3;
 import foundation.graphics;
 import foundation.graphics.gpu;
+import foundation.rhi; // the window's present mode
 import foundation.runtime;
 import foundation.runtime.client;
 import foundation.profiler;
@@ -179,6 +181,10 @@ int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
         {
             options.qualityOverride = String(StringView(reinterpret_cast<const utf8char*>(argv[i + 1])));
         }
+        if (std::strcmp(argv[i], "--present-mode") == 0)
+        {
+            options.presentModeOverride = String(StringView(reinterpret_cast<const utf8char*>(argv[i + 1])));
+        }
         if (std::strcmp(argv[i], "--exit-after") == 0)
         {
             options.exitAfterSeconds = static_cast<f32>(std::atof(argv[i + 1]));
@@ -201,6 +207,11 @@ int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
             LOG_WARNING(u8"Player", u8"no manifest in '{}', the default window", options.projectDir);
         }
     }
+    // The window is made in the mode it starts in, so the run's start has nothing to switch, unless
+    // the player saved another choice.
+    options.presentMode = engine::runtime::PresentModeOf(manifest.presentMode);
+    if (const graphics::NamedPresentMode* asked = graphics::FindPresentMode(options.presentModeOverride.AsView()))
+        options.presentMode = asked->mode;
     options.gameRoot = Move(mounts.game);
     options.contentPak = Move(mounts.content);
     // Captures are named after the game.
