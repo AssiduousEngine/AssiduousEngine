@@ -346,7 +346,7 @@ file wins, the other kept beside it), and writes it when `Save` flushes. Steam d
 `ISteamRemoteStorage` (so the engine decides when and what), rather than Auto-Cloud (configured on
 Steam's site, which a project can still choose instead, with the plugin's cloud setting off).
 
-Since the save slots spec (`Specs/save-slots.md`, approved 2026-11-24) a game's saves are a folder,
+Since the save slots spec (`Archive/save-slots-history.md`, built 2026-11-24) a game's saves are a folder,
 `<project>.saves/`: the global store (`global.save.xml`) and a file per slot
 (`slot-<name>.save.xml`). The cloud keeps the folder as files. Each write of a store is carried
 there, and so is each delete, when it is made (deleting a slot removes the cloud copy too). Before

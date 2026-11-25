@@ -150,7 +150,7 @@ writes whatever changed; `flush` writes at once; and when the app goes to the ba
 (`DefaultApplication::OnEnterBackground`, a phone's home button) every instance's saves are written,
 since the platform may end the app there without asking. Writes are whole and atomic
 (`WriteFileAtomic`), so a crash never leaves a torn save. Specs:
-`Documentation/Archive/save-data-history.md`, `Documentation/Specs/save-slots.md`.
+`Documentation/Archive/save-data-history.md`, `Documentation/Archive/save-slots-history.md`.
 
 ## Standalone vs editor + headless
 

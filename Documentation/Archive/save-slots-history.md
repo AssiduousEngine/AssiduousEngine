@@ -1,14 +1,12 @@
 # Save slots
 
-> STATUS: APPROVED 2026-11-24. Proposed and revised three times that day: after review (the order of
-> slots, names on every platform, cloud sync, copying onto the open slot, which store the dialogue
-> plugin writes), then made greenfield with stores handed explicitly (user: no save needs keeping;
-> "explicit piping may be better than implicit assumption about global vs slot"), then reviewed again
-> (Millbrook green through every phase, the global store's time, save points and `Saves.flush()`,
-> the C# side). Sized M, in phases S0 to S3, green after each.
-> Origin: the first game needs a title menu (New Game, Continue, Load), and the engine keeps one
-> save per game (user, 2026-11-24: "how do other engines do save slots?", then "write the save
-> slots spec"). Read CONVENTIONS.md first.
+> ARCHIVED 2026-11-24, fully built on master (the stores, the Saves facade and the SaveStore a
+> script holds, the dialogue given its store, the MCP save tools and the Game menu, Millbrook's
+> title); what it left open is in Documentation/Plans/weekly_backlog.md ("Left over from the save
+> slots spec"). Non-authoritative: the original spec, approved 2026-11-24 after two reviews, kept as
+> the record of what was built and why; the authoritative description is
+> Documentation/Systems/application-run.md ("Save data") and Documentation/Shipping/Scripting.md
+> ("Saving").
 
 ## Goal
 

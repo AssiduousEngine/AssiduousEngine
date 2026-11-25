@@ -22,6 +22,16 @@ Proposed and still wanted; each spec holds its design:
 - `Specs/script-run-modules.md`: one script module per run, hot reload that migrates live state, P0
   to P2. Its origin was a fault seen on the Sedulous side; whether it is wanted here is the user's.
 
+## Left over from the save slots spec (archived 2026-11-24)
+
+- The dotnet branch, at its next rebase: the C# bindings of `Saves`, `SaveStore` and `SlotWrites`,
+  and Holdout's script moved off `Save` to `Saves.global()`.
+- The docs site (its own repository): the saving page (`Saves`, `SaveStore`, slots,
+  `Dialogue.useSave`, `Text.formatDate`, `Time.unixNow`) and the MCP save tools.
+- Cloud saves (online.md, O4): a slot deleted on one machine while another was offline comes back
+  from the other; a record of deleted slots in the global store is the likely answer.
+- The wasm and ASAN lanes have not run on the save slots series (clang 211/211 after each phase).
+
 ## Left over from the property targets spec (archived 2026-11-24)
 
 - Keying a baked environment field re-bakes the whole prefilter chain every frame a track moves it
