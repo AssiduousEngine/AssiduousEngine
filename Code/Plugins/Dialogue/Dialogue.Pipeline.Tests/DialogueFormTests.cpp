@@ -88,6 +88,7 @@ TEST_CASE("dialogue forms: what is not a form is refused, and why")
     (void)Refusal(u8"wave [at <who:entity>");          // a group not closed
     (void)Refusal(u8"wave at <who:entity>]");          // a close with nothing open
     (void)Refusal(u8"wave [at [<who:entity>]]");       // a group in a group
+    (void)Refusal(u8"wave [at [<who:entity>]");        // a group in a group, with every bracket matched but one
     (void)Refusal(u8"wave []");                        // an empty group
     (void)Refusal(u8"wave <who>");                     // no kind
     (void)Refusal(u8"wave <who:person>");              // an unknown kind

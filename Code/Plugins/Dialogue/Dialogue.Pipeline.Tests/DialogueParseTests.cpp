@@ -229,6 +229,7 @@ TEST_CASE("dialogue parse: the built-in statements")
     CHECK(staged.steps[6].seconds == doctest::Approx(0.5f));
     CHECK(staged.steps[6].hasColor);
     CHECK(staged.steps[6].color.z == doctest::Approx(1.0f));
+    CHECK(staged.steps[6].color.w == doctest::Approx(1.0f)); // six digits: opaque
     CHECK(staged.steps[7].kind == DialogueStepKind::Sequence);
     CHECK(staged.steps[7].name == StringView(u8"gate_open"));
     CHECK(staged.steps[7].waits);
@@ -347,6 +348,16 @@ TEST_CASE("dialogue parse: every problem at its line")
     {
         CHECK(parse.problems[i - 1].line <= parse.problems[i].line);
     }
+}
+
+// A quoted word is an argument's text, never one of the form's words: "to" in quotes does not stand
+// for the form's `to`.
+TEST_CASE("dialogue parse: a quoted word never matches a form's literal word")
+{
+    const DialogueParse parse = Parse(u8"conversation quoted\n"
+                                      u8"move Player \"to\" Old Well\n");
+    CHECK_FALSE(parse.Ok());
+    CHECK(HasProblem(parse, 2, u8"the nearest is `move"));
 }
 
 TEST_CASE("dialogue parse: an empty file has nothing and no problem")
