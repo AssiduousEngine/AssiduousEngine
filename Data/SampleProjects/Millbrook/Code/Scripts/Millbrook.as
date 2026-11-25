@@ -9,10 +9,13 @@
 //     round to the waterwheel, and the conversation resumes there (Dialogue::resume).
 //   * fair_cat_seen: once Pip has asked, reaching the windmill's foot shows her cat there (a flag
 //     the game provides; the settings list fair_* as the game's).
-// The global store keeps every flag and a conversation's place (handed to the dialogue at the
-// start): each conversation's end saves, and a game that starts with a conversation in progress
-// resumes it.
-// The game opens on the title over the village (Begin, or Carry on with a save under way). When the
+// Each game is a save slot (three: "1", "2", "3"), the saves demo: the title's Continue opens the
+// slot saved last, New game the first empty one (or asks which to replace), Load lists them with how
+// far each fair has come and when it was saved. The slot opened is handed to the dialogue
+// (Dialogue::useSave), which keeps its flags and a conversation's place in it: each conversation's
+// end saves, and a game that starts with a conversation in progress resumes it. The global store
+// keeps what every game shares: how many fairs have opened, on the credits.
+// The game opens on the title over the village. When the
 // mayor has called everyone (the flag opening), the ending plays (Sequences/FairOpens: its camera,
 // the lanterns lit on its LightLanterns event, its lines in the stock box), then the credits; the
 // flag fair_opened keeps the lanterns lit after. Pause (Escape or Start) holds the village still
@@ -28,6 +31,8 @@ const Guid kFairTune = Guid("8754cba6-29ef-4d5f-8b1b-7193cf8df3e6"); // the fair
 const float kTalkReach = 2.6f;   // how near the player must be to talk with someone (m)
 const float kWalkSpeed = 1.6f;   // a villager's walk (m/s)
 const float kCatReach = 5.0f;    // how near the windmill the player sees the cat (m)
+const int kSlots = 3;            // the saves the title offers, slots "1" to "3"
+const string kFairsKey = "fairs.opened"; // the global store's count of fairs opened, over every game
 
 // The villagers: the entity each is in the square (its model's name), what the prompt calls them,
 // and the conversation that starts when the player talks with them, in its dialogue file.
@@ -90,6 +95,8 @@ class Game : RunBehavior
     private int m_ending = 0;        // the ending's play id (a notice's play); 0 none
     private SequencePlay m_endingPlay; // held on its last frame (black) behind the credits
     private bool m_paused = false;
+    private SaveStore m_slot;         // the game in play, its slot open; invalid at the title
+    private bool m_replacing = false; // the slots list picks a game to replace (New game, all used)
     // Where the village begins, read as the run starts: what a session moves (the villagers' walks,
     // the player's errand, the cart's roll), which a new game puts back.
     private array<string> m_placed;
@@ -98,42 +105,207 @@ class Game : RunBehavior
 
     void onStart()
     {
-        // The flags and a conversation's place are kept in the game's one save, the global store.
-        Dialogue::useSave(Saves::global());
         rememberStart();
         Audio::playMusic(kFairTune);
         idleAll();
-        lightLanterns(Dialogue::flag("fair_opened"));
+        lightLanterns(false); // no game yet: the title's village is the one every game begins in
         showTitle();
     }
 
-    // ---- the title and the credits ----
+    // ---- the title and the saves ----
     private void showTitle()
     {
         m_playing = false;
         run::setTimeScale(0.0f); // the village holds still behind the title
         screens().clear();
         screens().push(kTitleDoc);
-        const bool underWay = Dialogue::flag("met_mayor");
-        Button::of(find("begin-btn")).text = underWay ? "Carry on" : "Begin";
-        if (!underWay)
+        array<string>@ saved = Saves::slots();
+        const bool any = saved.length() > 0 && Saves::slotTime(saved[0]) > 0; // saved last first
+        if (!any)
         {
-            UIWidget::of(find("new-btn")).addClass("gone"); // nothing to start over from
+            UIWidget::of(find("continue-btn")).addClass("gone"); // nothing to go on with
         }
-        wire("begin-btn", EventHandler(this.onBegin));
+        if (saved.length() == 0)
+        {
+            UIWidget::of(find("load-btn")).addClass("gone");
+        }
+        wire("continue-btn", EventHandler(this.onContinue));
         wire("new-btn", EventHandler(this.onNewGame));
+        wire("load-btn", EventHandler(this.onLoad));
         wire("quit-btn", EventHandler(this.onQuit));
+        wire("slots-back", EventHandler(this.onSlotsBack));
+        for (int n = 1; n <= kSlots; n++)
+        {
+            wire("slot-" + n, EventHandler(this.onSlot));
+            wire("slot-" + n + "-delete", EventHandler(this.onSlotDelete));
+        }
     }
 
-    // Starts over: the save's flags and its place in a conversation go (the player's controls stay,
-    // kept apart from them), the village is put back as it began, and the lanterns are dark.
+    private bool onContinue(GuiEvent e)
+    {
+        array<string>@ saved = Saves::slots();
+        if (saved.length() > 0)
+        {
+            play(saved[0]);
+        }
+        return true;
+    }
+
+    // A new game in the first empty slot; with all of them used, the list asks which to replace.
     private bool onNewGame(GuiEvent e)
     {
-        Saves::global().clear();
-        Saves::global().flush();
+        for (int n = 1; n <= kSlots; n++)
+        {
+            if (!Saves::hasSlot("" + n))
+            {
+                play("" + n);
+                return true;
+            }
+        }
+        showSlots(true);
+        return true;
+    }
+
+    private bool onLoad(GuiEvent e)
+    {
+        showSlots(false);
+        return true;
+    }
+
+    private bool onSlotsBack(GuiEvent e)
+    {
+        UIWidget::of(find("slots-card")).addClass("gone");
+        UIWidget::of(find("title-card")).removeClass("gone");
+        return true;
+    }
+
+    // The list of the three, each with its game's summary, read without opening it.
+    private void showSlots(bool replacing)
+    {
+        m_replacing = replacing;
+        Label::of(find("slots-head")).text = replacing ? "All three are in use: which game gives way?" : "Load a game";
+        for (int n = 1; n <= kSlots; n++)
+        {
+            const string name = "" + n;
+            Button::of(find("slot-" + n)).text = "Game " + n + ": " + summary(name);
+            UIWidget@ remove = UIWidget::of(find("slot-" + n + "-delete"));
+            if (Saves::hasSlot(name) && !replacing)
+            {
+                remove.removeClass("gone");
+            }
+            else
+            {
+                remove.addClass("gone");
+            }
+        }
+        UIWidget::of(find("title-card")).addClass("gone");
+        UIWidget::of(find("slots-card")).removeClass("gone");
+    }
+
+    // How far a game's fair has come (its dialogue flags) and when it was saved; "empty" for none.
+    private string summary(const string &in name)
+    {
+        if (!Saves::hasSlot(name))
+        {
+            return "empty";
+        }
+        SaveStore game = Saves::readSlot(name);
+        string stage = "just arrived";
+        if (game.getBool("flag.fair_opened", false))
+        {
+            stage = "the fair is open";
+        }
+        else if (game.getBool("flag.fair_ready", false))
+        {
+            stage = "the fair is ready";
+        }
+        else if (game.getBool("flag.met_mayor", false))
+        {
+            stage = "readying the fair";
+        }
+        return stage + ", " + saved(Saves::slotTime(name));
+    }
+
+    // "saved 2 hours ago", or the date once it is days ago.
+    private string saved(double at)
+    {
+        if (at <= 0.0)
+        {
+            return "not saved yet";
+        }
+        const double ago = Time::unixNow() - at;
+        if (ago < 60.0)
+        {
+            return "saved just now";
+        }
+        if (ago < 3600.0)
+        {
+            return "saved " + int(ago / 60.0) + " min ago";
+        }
+        if (ago < 86400.0)
+        {
+            const int hours = int(ago / 3600.0);
+            return "saved " + hours + (hours == 1 ? " hour ago" : " hours ago");
+        }
+        return "saved " + Text::formatDate(at, "DD/MM/YYYY");
+    }
+
+    private bool onSlot(GuiEvent e)
+    {
+        const string name = slotOf(e);
+        if (name.isEmpty())
+        {
+            return true;
+        }
+        if (m_replacing)
+        {
+            Saves::deleteSlot(name); // a new game in its place
+        }
+        else if (!Saves::hasSlot(name))
+        {
+            return true; // an empty slot loads nothing; New game makes one
+        }
+        play(name);
+        return true;
+    }
+
+    private bool onSlotDelete(GuiEvent e)
+    {
+        const string name = slotOf(e);
+        if (!name.isEmpty())
+        {
+            Saves::deleteSlot(name);
+            showSlots(false);
+        }
+        return true;
+    }
+
+    // The slot a row's button names, by its id ("slot-2", "slot-2-delete": "2").
+    private string slotOf(GuiEvent e)
+    {
+        for (int n = 1; n <= kSlots; n++)
+        {
+            if (e.id == "slot-" + n || e.id == "slot-" + n + "-delete")
+            {
+                return "" + n;
+            }
+        }
+        return "";
+    }
+
+    // Opens the game `name` (made when new) and plays it: the dialogue keeps its flags in it, the
+    // village is put back as every game begins, and its lanterns lit if its fair has opened.
+    private void play(const string &in name)
+    {
+        m_slot = Saves::openSlot(name);
+        if (!m_slot.isValid())
+        {
+            return;
+        }
+        Dialogue::useSave(m_slot);
         putBack();
-        lightLanterns(false);
-        return onBegin(e);
+        lightLanterns(Dialogue::flag("fair_opened"));
+        begin();
     }
 
     private void rememberStart()
@@ -179,7 +351,7 @@ class Game : RunBehavior
         idleAll();
     }
 
-    private bool onBegin(GuiEvent e)
+    private void begin()
     {
         screens().clear();
         screens().push(kHudDoc);
@@ -189,7 +361,6 @@ class Game : RunBehavior
         m_talkedLastFrame = true; // the press that began is not a talk
         // A save made mid conversation goes on where it was.
         Dialogue::resume();
-        return true;
     }
 
     private bool onQuit(GuiEvent e) { run::requestExit(0); return true; }
@@ -199,6 +370,8 @@ class Game : RunBehavior
         m_playing = false;
         screens().clear();
         screens().push(kCreditsDoc);
+        const int fairs = Saves::global().getInt(kFairsKey, 1);
+        Label::of(find("credits-fairs")).text = fairs == 1 ? "The first fair opened here" : "Fairs opened here: " + fairs;
         wire("back-btn", EventHandler(this.onBackToVillage));
     }
 
@@ -264,7 +437,8 @@ class Game : RunBehavior
         }
         m_walker = -1;
         idleAll(); // a villager stopped mid-walk stands
-        Saves::global().flush();
+        Saves::closeSlot(); // written, then let go: the title has no game open
+        m_slot = SaveStore();
         showTitle();
         return true;
     }
@@ -297,7 +471,9 @@ class Game : RunBehavior
         }
         m_ending = 0;
         Dialogue::setFlag("fair_opened", true);
-        Saves::global().flush();
+        SaveStore shared = Saves::global();
+        shared.setInt(kFairsKey, shared.getInt(kFairsKey, 0) + 1); // over every game
+        Saves::flush();
         run::currentScene().find("Player").send("Hold", false);
         showCredits();
     }
@@ -523,7 +699,7 @@ class Game : RunBehavior
         {
             return; // a line the ending's sequence showed, not a conversation
         }
-        Saves::global().flush();
+        Saves::flush();
         if (Dialogue::flag("opening") && !Dialogue::flag("fair_opened"))
         {
             playEnding(run::currentScene());

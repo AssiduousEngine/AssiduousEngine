@@ -1,10 +1,12 @@
-<!-- The credits, after the fair opens: who made what (CREDITS.md in full), and Back to the village,
-     where the lanterns stay lit. Styled by MillbrookSheet.css. -->
+<!-- The credits, after the fair opens: how many fairs have opened over every game saved here (the
+     global store's count, Millbrook.as), who made what (CREDITS.md in full), and Back to the
+     village, where the lanterns stay lit. Styled by MillbrookSheet.css. -->
 <Screen class="fades" nav-default="back-btn" back="none">
   <Panel class="centre">
     <Panel class="card credits-card">
       <Label class="title-name" text="Millbrook"/>
       <Label class="title-lead" text="The fair is open"/>
+      <Label id="credits-fairs" class="credit-head" text=""/>
       <Label class="credit-head" text="Models"/>
       <Label class="credit" text="Mini Characters, Fantasy Town Kit and Nature Kit by Kenney (CC0)"/>
       <Label class="credit-head" text="Sky"/>

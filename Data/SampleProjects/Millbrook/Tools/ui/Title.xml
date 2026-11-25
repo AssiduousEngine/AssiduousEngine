@@ -1,16 +1,35 @@
-<!-- The title, over the village at dusk: the game's name, what it is about, and Begin (or Carry on,
-     when the save holds a game under way, with New game beside it; Millbrook.as sets the text and
-     hides New game when there is nothing to start over from), and Quit. The screen stack's
-     back is off: the game's own actions take it. Styled by MillbrookSheet.css. -->
-<Screen class="fades" nav-default="begin-btn" back="none">
+<!-- The title, over the village at dusk: the game's name, what it is about, and the saves, three
+     slots. Continue (when a game has been saved) opens the one saved last; New game opens the
+     first empty slot, or asks which game to replace when all three are used; Load lists the three,
+     each with how far its fair has come and when it was saved, and a Delete; Quit. The list is the
+     second card, shown in place of the first (Millbrook.as fills it and switches them). The
+     screen stack's back is off: the game's own actions take it. Styled by MillbrookSheet.css. -->
+<Screen class="fades" nav-default="continue-btn" back="none">
   <Panel class="centre">
-    <Panel class="card title-card">
+    <Panel id="title-card" class="card title-card">
       <Label class="title-name" text="Millbrook"/>
       <Label class="title-lead" text="The fair opens tonight, if the village is ready"/>
-      <Button id="begin-btn" class="tag" text="Begin"/>
+      <Button id="continue-btn" class="tag" text="Continue"/>
       <Button id="new-btn" class="tag" text="New game"/>
+      <Button id="load-btn" class="tag" text="Load"/>
       <Button id="quit-btn" class="tag" text="Quit"/>
       <Label class="title-hint" text="WASD or stick to walk, Shift to run, E or A to talk and go on"/>
+    </Panel>
+    <Panel id="slots-card" class="card slots-card gone">
+      <Label id="slots-head" class="title-lead" text="Load a game"/>
+      <Panel class="slot-row">
+        <Button id="slot-1" class="tag slot"/>
+        <Button id="slot-1-delete" class="tag slot-delete" text="Delete"/>
+      </Panel>
+      <Panel class="slot-row">
+        <Button id="slot-2" class="tag slot"/>
+        <Button id="slot-2-delete" class="tag slot-delete" text="Delete"/>
+      </Panel>
+      <Panel class="slot-row">
+        <Button id="slot-3" class="tag slot"/>
+        <Button id="slot-3-delete" class="tag slot-delete" text="Delete"/>
+      </Panel>
+      <Button id="slots-back" class="tag" text="Back"/>
     </Panel>
   </Panel>
 </Screen>

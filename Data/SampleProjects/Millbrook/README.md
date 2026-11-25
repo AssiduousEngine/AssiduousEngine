@@ -17,9 +17,10 @@ what you have done and whom you have met.
 - **Pip's cat**: she last saw it by the windmill. Go and look, then tell her.
 
 After each, you tally what is left; when all three are done the mayor calls everyone to the
-fountain, the lanterns are lit and the fair opens, then the credits. The village keeps what you have
-done in its save, and a game saved partway through a conversation goes on from there. With a game
-under way, the title offers Carry on and New game, which starts over with the village as it began.
+fountain, the lanterns are lit and the fair opens, then the credits. Each game is one of three
+saves: the title's Continue goes on with the one saved last, New game starts another (or asks which
+to replace when all three are used), and Load lists them, each with how far its fair has come and
+when it was saved. A game saved partway through a conversation goes on from there.
 
 Controls: W A S D (or the left stick) to walk, relative to the camera; Left Shift (pressing the left
 stick) to run; E (A) to talk, to go on past a line and to choose the focused answer (the mouse
@@ -41,7 +42,11 @@ right to talk, run and turn, and a small pause button at the top-left.
 - **The stock box**: the plugin's own dialogue box, restyled by the sample's sheet.
 - **A cutscene with lines**: the ending is a sequence with a camera cut, an event that lights the
   lanterns, a sound, a fade and a Dialogue Lines track, each line held until the player goes on.
-- **Saves**: flags and a conversation's place, resumed on the next start.
+- **Save slots**: three games side by side (`Saves.openSlot`), each handed to the dialogue plugin
+  (`Dialogue.useSave`), which keeps its flags and a conversation's place in it; the title's Load
+  list read without opening them (`Saves.readSlot`, `Saves.slotTime`, `Text.formatDate`); and the
+  global store (`Saves.global()`) for what every game shares, the count of fairs opened on the
+  credits.
 
 ## Project layout
 

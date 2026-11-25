@@ -26,7 +26,7 @@ in `generated/` (gitignored); the imported copies live in the project's `Sources
 5. **Scripts and screens**: `importscripts.py` imports the screens (`ui/*.xml`, styled by
    `ui/MillbrookSheet.css`, the project's GUI sheet) and `scripts/*.as`, filling each
    `{{Type:Name}}` with that asset's id, and makes `Millbrook.as` (the game: the title, talking,
-   the commands, the pause menu, the ending, the credits, saves) the startup script. The rest: the player
+   the commands, the pause menu, the ending, the credits, the three save slots) the startup script. The rest: the player
    (`Player`) and the quarter-turn camera (`CameraRig`).
 6. **The conversations**: `dialogue.py` imports `dialogue/*.dialogue` (Square, Bakery, Mill), writes
    the cast and the dialogue assets, imports the stock box's sheet (`box/MillbrookBox.css`), sets

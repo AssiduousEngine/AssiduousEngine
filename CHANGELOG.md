@@ -9,6 +9,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Samples: Millbrook's title keeps three games in save slots (Continue, New game, Load with each
+  game's progress and when it was saved, Delete), the saves demo; its credits count the fairs opened
+  over every game.
 - MCP: `save_list`, `save_read`, `save_write` and `save_delete` read and write play in editor's saves
   (the global store and the slots), so a test save, a story set just before a beat, is written by a
   tool; the writes wait while a Game tab plays.
