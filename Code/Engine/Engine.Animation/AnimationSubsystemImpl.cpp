@@ -15,6 +15,8 @@ module engine.animation;
 import engine.domain;
 import foundation.animation.resource;
 import foundation.propertyanimation.resource;
+import foundation.animation; // AnimationClip: the clip list registered as an array type
+import foundation.resource;  // Ref<T>
 
 import foundation.core;
 import foundation.script;
@@ -366,6 +368,8 @@ namespace engine::animation
             // The meshEntities lists reflect as containers (the inspector's list editor and the
             // prefab spawn's EntityRef remap walker both introspect through ContainerInfo).
             core::RegisterArrayType<foundation::scene::EntityRef>();
+            // An instanced crowd's clips: a list of references, as a mesh's materials are.
+            core::RegisterArrayType<foundation::resource::Ref<foundation::animation::AnimationClip>>();
             RttiRegisterEnum_RootMotionMode();
             RttiRegisterEnum_AimBeyondLimits();
             RttiRegisterValue_SkeletalAnimationComponent();

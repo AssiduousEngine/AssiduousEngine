@@ -11,6 +11,7 @@ import foundation.core;
 import foundation.scene;
 import foundation.scene.resource;
 import foundation.animation;
+import foundation.resource; // Ref<T>: the clip references
 import engine.animation;
 import engine.render;
 import foundation.render; // SelectPose (how an instance picks its pose)
@@ -119,4 +120,29 @@ TEST_CASE("instanced skinning: the skeleton, clips and targets are saved with th
     CHECK(skinning->speed == doctest::Approx(1.5f));
     REQUIRE(skinning->targets.Size() == 1u);
     CHECK(skinning->targets[0].id == partId);
+}
+
+// The clips reflect as a list of clip references, as a mesh's materials do, so the inspector's list
+// editor, the MCP tools and every script language walk them by element and read each one's guid.
+TEST_CASE("instanced skinning: its clips reflect as a list of clip references")
+{
+    RegisterCoreTypes();
+    engine::animation::RegisterAnimationComponentReflection();
+    const TypeInfo& type = TypeOf<engine::animation::InstancedSkinningComponent>();
+    const PropertyInfo* clips = FindProperty(type, "clips");
+    REQUIRE(clips != nullptr);
+    REQUIRE(clips->type->container != nullptr);
+    const TypeInfo* element = clips->type->container->elementType;
+    REQUIRE(element != nullptr);
+    CHECK(IsReferenceType(*element));
+
+    engine::animation::InstancedSkinningComponent skinning;
+    skinning.clips.PushBack(foundation::resource::Ref<animation::AnimationClip>{});
+    skinning.clips.PushBack(foundation::resource::Ref<animation::AnimationClip>{});
+    skinning.clips[1].id = Guid{0x21, 0x22};
+    const Instance list(clips->address(Instance(&skinning, &type)), clips->type);
+    REQUIRE(clips->type->container->size(list) == 2u);
+    const Instance second = clips->type->container->addressAt(list, 1);
+    REQUIRE(second.Pointer() != nullptr);
+    CHECK(*element->reference->Id(second.Pointer()) == Guid{0x21, 0x22});
 }
