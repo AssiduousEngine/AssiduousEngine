@@ -205,6 +205,7 @@ export namespace editor
         u32 windowHeight = 720;
         engine::project::WindowMode windowMode = engine::project::WindowMode::Windowed;
         bool windowResizable = true;
+        engine::project::PresentMode presentMode = engine::project::PresentMode::Vsync;
         // This platform is held its own way (a phone-facing Web preset says Landscape, so a game
         // that takes any shape on a desktop is presented turned on a phone held upright).
         bool overridesOrientation = false;
@@ -256,6 +257,7 @@ export namespace editor
             SerializeAppended(ar, "windowHeight", windowHeight);
             SerializeAppended(ar, "windowMode", windowMode);
             SerializeAppended(ar, "windowResizable", windowResizable);
+            SerializeAppended(ar, "presentMode", presentMode);
             SerializeAppended(ar, "overridesOrientation", overridesOrientation);
             SerializeAppended(ar, "orientation", orientation);
             SerializeAppended(ar, "includeShaderSource", includeShaderSource);

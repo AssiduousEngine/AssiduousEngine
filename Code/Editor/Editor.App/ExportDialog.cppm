@@ -662,6 +662,7 @@ export namespace editor::app
             SizeRow(u8"windowHeight", preset.windowHeight, u8"Window height", 1.0);
             EnumRow(u8"windowMode", SettingEnum("windowMode"), static_cast<i64>(preset.windowMode), u8"Window mode", kDisplay);
             Row(u8"windowResizable", gui::PropertyKind::Bool, gui::Variant(preset.windowResizable), u8"Resizable", kDisplay);
+            EnumRow(u8"presentMode", SettingEnum("presentMode"), static_cast<i64>(preset.presentMode), u8"Present mode", kDisplay);
             Row(u8"overridesOrientation", gui::PropertyKind::Bool, gui::Variant(preset.overridesOrientation), u8"Own orientation", kDisplay,
                 u8"This platform is held its own way.");
             EnumRow(u8"orientation", SettingEnum("orientation"), static_cast<i64>(preset.orientation), u8"Orientation", kDisplay);
@@ -736,7 +737,7 @@ export namespace editor::app
             };
             for (StringView path : {StringView(u8"renderWidth"), StringView(u8"renderHeight"), StringView(u8"renderFit")})
                 show(path, preset.overridesRender);
-            for (StringView path : {StringView(u8"windowWidth"), StringView(u8"windowHeight"), StringView(u8"windowMode"), StringView(u8"windowResizable")})
+            for (StringView path : {StringView(u8"windowWidth"), StringView(u8"windowHeight"), StringView(u8"windowMode"), StringView(u8"windowResizable"), StringView(u8"presentMode")})
                 show(path, preset.overridesWindow);
             show(u8"orientation", preset.overridesOrientation);
             // A field of one platform's (the Android app's) shows for a preset of that platform.
@@ -796,6 +797,7 @@ export namespace editor::app
             preset.windowHeight = number(u8"windowHeight");
             preset.windowMode = static_cast<engine::project::WindowMode>(choice(u8"windowMode"));
             preset.windowResizable = flag(u8"windowResizable");
+            preset.presentMode = static_cast<engine::project::PresentMode>(choice(u8"presentMode"));
             preset.overridesOrientation = flag(u8"overridesOrientation");
             preset.orientation = static_cast<ScreenOrientation>(choice(u8"orientation"));
             const i64 level = choice(u8"qualityLevel");

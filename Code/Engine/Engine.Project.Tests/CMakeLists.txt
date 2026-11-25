@@ -2,7 +2,8 @@
 
 add_executable(Engine.Project.Tests
     TestsMain.cpp
-    QualityLevelTests.cpp)
+    QualityLevelTests.cpp
+    PresentModeTests.cpp)
 
 target_link_libraries(Engine.Project.Tests PRIVATE Engine::Project Foundation::Core doctest::doctest)
 

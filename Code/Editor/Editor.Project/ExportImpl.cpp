@@ -114,6 +114,8 @@ namespace editor
         label(u8"Window mode");
         builder.Property<&ExportPreset::windowResizable>("windowResizable");
         label(u8"Window resizable");
+        builder.Property<&ExportPreset::presentMode>("presentMode");
+        label(u8"Present mode");
         builder.Property<&ExportPreset::overridesOrientation>("overridesOrientation");
         label(u8"Own orientation");
         builder.Property<&ExportPreset::orientation>("orientation");
@@ -1866,6 +1868,7 @@ namespace editor
             dist.windowHeight = preset.windowHeight;
             dist.windowMode = preset.windowMode;
             dist.windowResizable = preset.windowResizable;
+            dist.presentMode = preset.presentMode;
         }
         if (preset.overridesOrientation)
         {

@@ -399,6 +399,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
         engine::project::ProjectSettings dist;
         readDist(dist);
         CHECK(dist.renderWidth == 1920u);
+        CHECK(dist.presentMode == engine::project::PresentMode::Vsync); // the project's
     }
 
     // The window alone: the render size stays the project's.
@@ -408,6 +409,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
     handheld.windowHeight = 800;
     handheld.windowMode = engine::project::WindowMode::Fullscreen;
     handheld.windowResizable = false;
+    handheld.presentMode = engine::project::PresentMode::Immediate;
     REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), handheld).IsOk());
     {
         engine::project::ProjectSettings dist;
@@ -416,6 +418,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
         CHECK(dist.windowHeight == 800u);
         CHECK(dist.windowMode == engine::project::WindowMode::Fullscreen);
         CHECK_FALSE(dist.windowResizable);
+        CHECK(dist.presentMode == engine::project::PresentMode::Immediate);
     }
 
     // The render size too.
@@ -541,7 +544,7 @@ TEST_CASE("export: a preset describes its fields through reflection")
         CHECK(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
         ++labelled;
     }
-    CHECK(labelled == 31u);
+    CHECK(labelled == 32u);
     const PropertyInfo* files = FindProperty(type, "additionalFiles");
     REQUIRE(files != nullptr);
     CHECK(IsContainer(*files->type));

@@ -158,6 +158,14 @@ export namespace engine::project
         Borderless, // a borderless window covering the whole display, at the display's own size
     };
 
+    /// How the player's window presents its frames.
+    enum class PresentMode : u8
+    {
+        Vsync,     // waits for the display: a frame each refresh at most, no tearing
+        Mailbox,   // does not wait: the newest frame shows at the next refresh, no tearing
+        Immediate, // does not wait: a frame shows at once, and may tear
+    };
+
     // The shared, committed part of a project (the Project.xml payload), and also the dist
     // manifest (player.xml), which is the same shape without editor-only concerns.
     class ProjectSettings final : public ISerializable
@@ -204,6 +212,10 @@ export namespace engine::project
         u32 windowHeight = 720;
         WindowMode windowMode = WindowMode::Windowed;
         bool windowResizable = true;
+        // How the window presents. A game's options menu changes it (Display.setPresentMode), and
+        // the player keeps that choice over this one. Appended: a manifest saved before it reads
+        // vsync.
+        PresentMode presentMode = PresentMode::Vsync;
         // The shape the game is made for: Any takes the window's; Landscape or Portrait is
         // presented turned on a window of the other shape (a landscape game on a phone held
         // upright).
@@ -370,6 +382,7 @@ export namespace engine::project
                 ar.GuidValue(defaultQualityId);
             }
             SerializeAppended(ar, "mcpFolders", mcpFolders);
+            SerializeAppended(ar, "presentMode", presentMode);
             if (!nativeModule.IsEmpty())
             {
                 foundation::runtime::EnabledPlugin entry = NativeModulePackageEntry(nativeModule.AsView());

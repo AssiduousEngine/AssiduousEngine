@@ -24,6 +24,13 @@ namespace engine::project
             .Value("Borderless", WindowMode::Borderless);
     }
 
+    REFLECT_ENUM(PresentMode, "rtti::engine::project")
+    {
+        builder.Value("Vsync", PresentMode::Vsync)
+            .Value("Mailbox", PresentMode::Mailbox)
+            .Value("Immediate", PresentMode::Immediate);
+    }
+
     REFLECT_MEMBERS(ProjectSettings, "rtti::engine::project")
     {
         // 9 carried two settings of a removed UI library; 9 and 10 named the native game module by
@@ -35,6 +42,7 @@ namespace engine::project
         // tools' choices): FitMode is the core's.
         RegisterCoreTypes();
         RttiRegisterEnum_WindowMode();
+        RttiRegisterEnum_PresentMode();
         const auto asset = [&builder](StringView label, StringView type, StringView emptyText,
                                       StringView category)
         {
@@ -110,6 +118,9 @@ namespace engine::project
             .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
         builder.Property<&ProjectSettings::windowResizable>("windowResizable")
             .PropAttribute(kSettingLabelAttribute, String(u8"Window resizable"))
+            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+        builder.Property<&ProjectSettings::presentMode>("presentMode")
+            .PropAttribute(kSettingLabelAttribute, String(u8"Present mode"))
             .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
         builder.Property<&ProjectSettings::orientation>("orientation")
             .PropAttribute(kSettingLabelAttribute, String(u8"Orientation"))
