@@ -91,10 +91,19 @@ but an override of such a component's fields on a prefab instance is dropped wit
 (`:736-741`). Opening a project with a plugin missing would then lose edits on save. It must be
 kept, as the whole records are.
 
-**G5. Plugins load before scenes and the script surface.** A part's `OnLoad` must run before the
-first scene is built and before `RegisterAllScriptFacades`, and a subsystem that needs
-`RenderSubsystem` at `OnReady` must find it. The order is checked and tested for the player, the
-editor and the headless tools.
+**G5. Plugins load before scenes and the script surface.** Checked on the branch: it holds
+already. The player loads the project's plugins after the base startup and before the initial
+scene (`Engine.Player/PlayerApplication.h`, the `CreatePluginHost` call in its configure), so a
+part finds the engine's subsystems, and a subsystem a part adds to the running manager is brought
+up at once (`SubsystemManager.cppm`). The editor loads them at project open, before any page reads
+their types, and reloads them by capturing and restoring every live scene
+(`Editor.App/EditorSession.cppm`, `LoadPlugins`, `ReloadPlugins`). A part's domain registers its
+facade after the engine's (`RegisterAllScriptFacades` runs in the app's configure), before any
+script compiles; `AddSceneManager` reaches live scenes and later ones. Integration.Plugins covers
+each: NativeSample's component turning a player's scene, AngelScript and Luau reaching a plugin's
+component and Dialogue's facade, a package's contributions arriving and leaving in the editor and
+the cook. What no plugin has done yet is register a renderer from a subsystem's `OnReady`, as
+particles and terrain do; their moves test it in the player and the editor.
 
 **G6. Dead links and imports go.** Imports and links that use nothing, found in the study:
 particles in `Engine.Player/PlayerMain.cpp`, `WebMain.cpp` and `Tools.Export`; terrain and
