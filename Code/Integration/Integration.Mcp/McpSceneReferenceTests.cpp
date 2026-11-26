@@ -23,6 +23,7 @@ import editor.project;
 import editor.mcp;
 import engine.render;             // the render profiles, a product the reference names
 import foundation.texture.resource; // texture::Texture (a product made from two cooked forms)
+import foundation.geometry;          // geometry::StaticMesh, SkinnedMesh (what a mesh slot names)
 import foundation.geometry.resource; // geometry::StaticMeshSource (a cooked form a reference names)
 
 using namespace foundation::core;
@@ -174,7 +175,8 @@ TEST_CASE("integration.mcp: scene reference - an EntityRef field is `ref: entity
     const editor::mcp::SceneReference reference = f.Generate();
 
     // mesh.mesh is a Ref<StaticMesh>. The geometry module's description gives StaticMeshSource as
-    // its cooked form, and the builder for that form gives the asset type.
+    // its cooked form; the builder for that form gives the asset type, and the skinned mesh's
+    // builder, whose source derives from it, a second (the factory builds a skinned mesh from it).
     const JsonValue mesh = editor::mcp::FindSchemaEntry(reference.schema, u8"mesh");
     REQUIRE(mesh.IsObject());
     const JsonValue meshField = Field(mesh.Get(u8"fields"), u8"mesh");
@@ -183,7 +185,10 @@ TEST_CASE("integration.mcp: scene reference - an EntityRef field is `ref: entity
     CHECK(meshField.Get(u8"ref").Get(u8"resource").AsString() == StringView(u8"StaticMesh"));
     CHECK(meshField.Get(u8"ref").Get(u8"asset").AsString() == StringView(u8"StaticMeshAsset"));
     CHECK_FALSE(Lists(mesh.Get(u8"unreflected"), u8"mesh"));
-    CHECK_FALSE(meshField.Get(u8"ref").Has(u8"assets")); // one cooked form, one asset type
+    REQUIRE(meshField.Get(u8"ref").Has(u8"assets"));
+    const JsonValue meshAssets = meshField.Get(u8"ref").Get(u8"assets");
+    REQUIRE(meshAssets.Count() == 2);
+    CHECK(meshAssets.At(1).AsString() == StringView(u8"SkinnedMeshAsset"));
 
     // camera.target is a Ref<Texture>, whose factory reads two cooked forms (a texture and a
     // render texture), so the field lists both asset types. A camera draws into the second.
@@ -390,6 +395,15 @@ TEST_CASE("integration.mcp: a reference's product joins to the source asset type
     REQUIRE(behaviors.Size() == 2u);
     CHECK(((behaviors[0] == u8"ScriptClassAsset" && behaviors[1] == u8"NativeBehaviorAsset") ||
            (behaviors[0] == u8"NativeBehaviorAsset" && behaviors[1] == u8"ScriptClassAsset")));
+    // A mesh slot (a MeshComponent's, a Ref<StaticMesh>) takes static and skinned meshes, as its
+    // factory builds either; a skinned mesh's slot takes skinned meshes alone.
+    const Array<String> staticMeshes = names(foundation::geometry::StaticMesh::StaticType());
+    REQUIRE(staticMeshes.Size() == 2u);
+    CHECK(((staticMeshes[0] == u8"StaticMeshAsset" && staticMeshes[1] == u8"SkinnedMeshAsset") ||
+           (staticMeshes[0] == u8"SkinnedMeshAsset" && staticMeshes[1] == u8"StaticMeshAsset")));
+    const Array<String> skinnedMeshes = names(foundation::geometry::SkinnedMesh::StaticType());
+    REQUIRE(skinnedMeshes.Size() == 1u);
+    CHECK(skinnedMeshes[0] == u8"SkinnedMeshAsset");
     // A cooked form itself, such as a collision shape's mesh, accepts each asset that cooks to that
     // form or to one derived from it: a skinned mesh source derives from a static mesh source.
     const Array<String> meshes = names(foundation::geometry::StaticMeshSource::StaticType());

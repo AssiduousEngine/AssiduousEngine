@@ -977,15 +977,17 @@ namespace editor::mcp
         }
         for (const TypeInfo* cooked : cookedForms)
         {
-            // Every builder making the cooked form gives its asset type: a behavior class is
-            // cooked from a script's asset and from a native behavior's.
+            // Every builder making the cooked form, or one derived from it, gives its asset type: a
+            // behavior class is cooked from a script's asset and from a native behavior's, and a
+            // static mesh's factory reads a skinned mesh's source too (it builds a skinned mesh).
             bool made = false;
             builders.ForEach(
                 [&](const pipeline::IAssetBuilder& builder)
                 {
                     const TypeInfo* output = builder.ProductType();
                     const TypeInfo* asset = builder.AssetType();
-                    if (cooked == nullptr || output == nullptr || asset == nullptr || output->id != cooked->id)
+                    if (cooked == nullptr || output == nullptr || asset == nullptr ||
+                        (output->id != cooked->id && !IsDerivedFrom(output, cooked)))
                     {
                         return;
                     }
