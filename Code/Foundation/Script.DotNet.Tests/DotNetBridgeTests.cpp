@@ -270,7 +270,8 @@ TEST_CASE("dotnet bridge: lists cross as handles, read by element and made from 
     DotNetValue none = Bytes(TypeOf<i32>(), &three);
     CHECK(engine.listSize(&none, &size) < 0);
     u64 length = 0;
-    CHECK(StringView(engine.lastError(&length), static_cast<usize>(length)) == StringView(u8"not a list"));
+    const utf8char* reason = engine.lastError(&length); // asked first: the length is set by the call
+    CHECK(StringView(reason, static_cast<usize>(length)) == StringView(u8"not a list"));
 }
 
 namespace
