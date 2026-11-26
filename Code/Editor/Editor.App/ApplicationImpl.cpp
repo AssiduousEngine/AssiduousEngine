@@ -1581,6 +1581,9 @@ namespace editor::app
             PROFILE_SCOPE("Editor.Home");
             m_home->Refresh();
         }
+        // What the pages and panels showed, hid or changed above is laid out before the draw: a
+        // badge shown as a run starts is drawn in its place, not first in its bar's corner.
+        m_window.LayOutChanges();
     }
 
     // Updates the status bar: the running job (its title, progress and step count), else a cook

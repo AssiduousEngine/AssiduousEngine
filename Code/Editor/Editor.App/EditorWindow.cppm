@@ -364,6 +364,12 @@ export namespace editor::app
             }
             m_host->Update(deltaTime);
         }
+        /// Lays out what the pages changed after Update, before the draw (see GuiHost::LayOutChanges).
+        void LayOutChanges()
+        {
+            if (m_host)
+                m_host->LayOutChanges();
+        }
         /// Draws the GUI into `frame`'s window (the main window or a floating panel's).
         void Render(foundation::graphics::FrameContext& frame)
         {

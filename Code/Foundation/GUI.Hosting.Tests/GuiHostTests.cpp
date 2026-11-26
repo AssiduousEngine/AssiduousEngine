@@ -748,3 +748,38 @@ TEST_CASE("gui.hosting: content whose node is not shown (a page behind another t
     bed.host->RemoveContent(second);
     bed.host->RemoveContent(first);
 }
+
+// An application changes its GUI between the host's Update and the draw (the editor's pages run
+// after the panes are laid out): a node it shows there is laid out by LayOutChanges before the
+// draw, so it is drawn in its place rather than where it sat before it was ever laid out.
+TEST_CASE("gui.hosting: what changes after Update is laid out before the draw")
+{
+    Bed bed;
+    RefPtr<SceneRoot> root = bed.MakeRoot();
+    bed.host->AttachWindow(*bed.main, root);
+    auto row = MakeRef<Panel>(DefaultAllocator());
+    row->EditLayoutStyle([](LayoutStyle& s) { s.Direction = FlexDirection::Row; });
+    root->AddChild(row.Get());
+    const auto fixed = [&row](f32 width)
+    {
+        auto panel = MakeRef<Panel>(DefaultAllocator());
+        panel->EditLayoutStyle([width](LayoutStyle& s) {
+            s.Width = LayoutLength::Px(width);
+            s.Height = LayoutLength::Px(10.0f);
+        });
+        row->AddChild(panel.Get());
+        return panel;
+    };
+    auto first = fixed(100.0f);
+    auto badge = fixed(40.0f);
+    badge->SetDisplayed(false); // shown only later, as a page shows a badge
+    bed.Frame(bed.main.Get());
+
+    // The application's update, after the host's: the badge is shown, and has no place yet.
+    bed.host->Update(1.0f / 60.0f);
+    badge->SetDisplayed(true);
+    CHECK(badge->GetPosition().x == doctest::Approx(0.0f)); // where it would be drawn now
+    bed.host->LayOutChanges();
+    CHECK(badge->GetPosition().x == doctest::Approx(100.0f)); // beside the first, before any draw
+    CHECK(first->GetPosition().x == doctest::Approx(0.0f));
+}

@@ -567,6 +567,23 @@ export namespace foundation::gui
             m_bakesRecorded = false;
         }
 
+        /// Styles and lays out again what changed since Update, and places the hosted contents, so
+        /// what an application changes between Update and the draw (a page showing a badge, a label
+        /// shown as a run starts) draws where it is laid out, not first where it was. Each pass
+        /// visits only what changed, so a frame with nothing changed costs a walk of nothing.
+        void LayOutChanges()
+        {
+            PROFILE_SCOPE("GUI.Panes.Changes");
+            for (const Attached& attached : m_attached)
+                for (const UniquePtr<GuiWindowData::Pane>& pane : attached.Data->Panes)
+                {
+                    StyleAndLayOut(*pane->Root, pane->Styles);
+                    if (pane->Root->NeedsRedraw())
+                        attached.Data->NeedsFrame = true;
+                }
+            PlaceContents();
+        }
+
         /// Draws `frame`'s window: its panes when any needs a frame (else the batch drawn last) and
         /// the overlay, then the baker's queue (once a frame, before any pass samples it), the
         /// layers, and the pass.
