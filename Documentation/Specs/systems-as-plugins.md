@@ -104,6 +104,31 @@ audio in `Editor.Scene` and Tools.Export. The player's audio imports stay: `Play
 included after them, applies the bus layout and the user's volumes. Each is checked by building
 without it.
 
+**G8. A plugin's own Foundation library.** Each candidate has Foundation code: its types, its
+resources and their factories, and the wrapper over its third-party library. It fits none of the
+parts, which follow the hosts that load them (plugins.md, decision 2): the Pipeline and Editor parts
+need it as much as the Engine part does. A package therefore also holds `<Name>.Foundation`
+(`Plugins::<Name>.Foundation`), a library that is not a part:
+- No host loads it and it has no entry, so the manifest's `parts` does not list it.
+- It links Foundation libraries and third-party code only, as the engine's own Foundation layer
+  does.
+- The parts link by what their hosts hold, not in a chain (today each part links the previous
+  one PUBLIC, `cmake/Plugins.cmake`, `util_add_plugin_part`, so a headless cook links the plugin's
+  runtime). Decided (user, 2026-11-26): the Engine and Pipeline parts each link the Foundation
+  library alone; Tooling links Pipeline; Editor links Tooling and Engine, as the editor hosts both.
+- A new helper, `util_add_plugin_library(Foundation)`, builds it the way `util_add_engine_library`
+  builds an engine library: static, or shared in a shared build, so the parts in every host share
+  one copy of its registrations.
+- In a shared build it ships beside the parts: the plugin library list the build writes
+  (`plugin-libraries.txt`) and export's staging carry it.
+- Its tests are `<Name>.Foundation.Tests`.
+
+plugins.md gains the library kind and the links with it. Dialogue changes with them: its Pipeline
+part uses the Engine part's types today (`DialogueSettings`, `DialogueConversation`,
+`DialogueStep`). Those partitions import Foundation alone, so they become `Dialogue.Foundation`:
+`:settings`, `:conversation`, `:cast`, `:resources` and `:linetrack`. The Engine part keeps what
+plays a conversation and needs the engine: `:runner`, `:run`, `:stockbox` and `:facade`.
+
 **G7 (optional). Plugin shaders.** A plugin's own shader folder, mounted beside `Engine/Shaders`
 in development and cooked into the pack at export. Until it exists, a plugin's shaders stay in
 `Data/Engine/Shaders`, as Imgui's do; that costs only pack size.
@@ -115,16 +140,27 @@ Web and Android64, added to `UTIL_HOST_PLUGINS` (`CMakeLists.txt:677`) so every 
 it. Each manifest lists its types' data versions.
 
 **Particles** (`particles`), size M.
-- Engine part: `Foundation/Particles`, `Particles.Resource`, `Engine.Particles`. Its load adds the
-  subsystem, the scene manager and the domain with the `scene.particles` facade.
+- `Particles.Foundation`: `Foundation/Particles` and `Particles.Resource`.
+- With the two in one library, a system references its texture, mesh and materials directly.
+  Today `Foundation/Particles` links Core alone, since `Texture` and `Materials` bring the RHI, so a
+  `ParticleSystem` holds bare GUIDs (`textureRef`, `meshRef`, `materialRefs`,
+  `ParticleEffect.cppm:159-174`) and `ParticleEffectResource` keeps parallel arrays of proxies the
+  factory binds from them (`ParticleEffectResource.cppm:276-323`). The system holds
+  `Ref<Texture>`, `Ref<StaticMesh>` and `Array<Ref<Material>>` instead, bound as a component's
+  references are; the parallel arrays and the factory's binding go, and the effect page and the
+  pipeline set references rather than GUIDs. Its own commit after the move, with the effect's
+  serializer version bumped if the stored form changes.
+- Engine part: `Engine.Particles`. Its load adds the subsystem, the scene manager and the domain
+  with the `scene.particles` facade.
 - Pipeline part: `Particles.Pipeline` (the effect asset, its builder and creators).
 - Editor part: `Editor.Particles` (the effect page) and the particle thumbnail generator, which
   moves out of `Editor.Scene` (`AssetThumbnailsImpl.cpp`).
 - Projects: Sky Hopper, PaperKid, Snowline, Lamplight.
 
 **Terrain** (`terrain`: terrain and vegetation together; one plugin, named for what a project adds, since vegetation links terrain), size M to L, about 13k lines moved.
-- Engine part: `Foundation/Terrain`, `Terrain.Resource`, `Vegetation`, `Vegetation.Resource`,
-  `Engine.Terrain`, `Engine.Vegetation`.
+- `Terrain.Foundation`: `Foundation/Terrain`, `Terrain.Resource`, `Vegetation`,
+  `Vegetation.Resource`.
+- Engine part: `Engine.Terrain`, `Engine.Vegetation`.
 - Pipeline part: `Terrain.Pipeline`, `Vegetation.Pipeline`. Editor part: `Editor.Terrain`,
   `Editor.Vegetation` with their viewport tools, panels and the splatmap thumbnail.
 - The heightfield stays in the engine: physics uses it. Its resource module lives in
@@ -135,8 +171,10 @@ it. Each manifest lists its types' data versions.
 - Projects: Snowline only.
 
 **Navigation** (`navigation`), size M.
-- Engine part: `Foundation/Navigation`, `Navigation.Resource`, `Engine.Navigation`. It needs no
-  physics: the bake asks every scene system through `IStaticGeometrySource`.
+- `Navigation.Foundation`: `Foundation/Navigation` and `Navigation.Resource`, and Recast and Detour
+  with them.
+- Engine part: `Engine.Navigation`. It needs no physics: the bake asks every scene system through
+  `IStaticGeometrySource`.
 - Pipeline part: `Navigation.Pipeline`. Editor part: `Editor.Navigation`, its inspector extras,
   gizmos and preferences (preferences register before the app is built today, plugins load at
   project open: they register at load instead).
@@ -174,7 +212,7 @@ Each step green on the clang lane on its own; the other lanes when a plugin is d
 1. G6 (dead links and imports), G4 (prefab overrides), and the heightfield module registered by
    physics' domain instead of terrain's.
 2. G1 and G2, with load, unload and reload tests through a test plugin.
-3. G5, then G3.
+3. G5, then G3, then G8.
 4. Particles: the smallest, and it proves the render path and the editor unload.
 5. Terrain.
 6. Navigation.
