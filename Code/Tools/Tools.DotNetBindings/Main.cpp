@@ -55,7 +55,9 @@ int main(int argc, char** argv)
         usize end = text.Find(u8'\n', start);
         if (end == StringView::kNotFound)
             end = text.Size();
-        const StringView line = text.SubStr(start, end - start);
+        StringView line = text.SubStr(start, end - start);
+        if (!line.IsEmpty() && line[line.Size() - 1] == u8'\r') // a checkout with Windows line endings
+            line = line.SubStr(0, line.Size() - 1);
         if (!line.IsEmpty() && line[0] != u8'#')
             listed.PushBack(String(line));
         start = end + 1;
