@@ -176,6 +176,14 @@ TEST_CASE("viewporttools: provider registry - explicit, idempotent, never the de
     REQUIRE(provided != nullptr);
     CHECK(manager.ActiveTool()->Id() == StringView(u8"select")); // provider tools never default
     CHECK(log.activations == 0);
+
+    // Its plugin unloads: a page built after offers none of its tools.
+    registry.Unregister(&provider);
+    CHECK(registry.Count() == before);
+    ViewportToolManager later;
+    later.Add(MakeUnique<TestTool>(DefaultAllocator(), u8"select", defaultLog));
+    registry.CreateAll(later, context);
+    CHECK(later.FindById(u8"provided") == nullptr);
 }
 
 TEST_CASE("viewporttools: Category defaults to empty and GroupViewportTools folds a category "

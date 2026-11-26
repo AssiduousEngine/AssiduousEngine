@@ -65,6 +65,8 @@ export namespace editor
         /// second provider for an already-registered tool id is ignored (first wins) so a
         /// double-registered registrar cannot silently swap a page's panel.
         void Register(IViewportToolPanelProvider* provider);
+        /// Removes a provider (a plugin's, as it unloads): its tool shows no panel after.
+        void Unregister(IViewportToolPanelProvider* provider);
 
         [[nodiscard]] usize Count() const noexcept { return m_providers.Size(); }
 

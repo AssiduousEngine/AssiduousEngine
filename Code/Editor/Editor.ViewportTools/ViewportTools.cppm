@@ -259,6 +259,9 @@ export namespace editor
         /// Registers a provider (static lifetime, borrowed). Duplicate pointers are ignored so
         /// a re-run registrar stays idempotent.
         void Register(IViewportToolProvider* provider);
+        /// Removes a provider (a plugin's, as it unloads): pages built after it offer none of
+        /// its tools. A page already open keeps the tools it made.
+        void Unregister(IViewportToolProvider* provider);
 
         [[nodiscard]] usize Count() const noexcept { return m_providers.Size(); }
 

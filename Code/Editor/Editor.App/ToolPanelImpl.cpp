@@ -43,6 +43,18 @@ namespace editor
         m_providers.PushBack(provider);
     }
 
+    void ViewportToolPanelRegistry::Unregister(IViewportToolPanelProvider* provider)
+    {
+        for (usize i = 0; i < m_providers.Size(); ++i)
+        {
+            if (m_providers[i] == provider)
+            {
+                m_providers.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
     IViewportToolPanelProvider* ViewportToolPanelRegistry::FindByToolId(StringView toolId) noexcept
     {
         for (IViewportToolPanelProvider* provider : m_providers)

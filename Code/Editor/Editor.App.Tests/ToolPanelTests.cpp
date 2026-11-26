@@ -89,6 +89,13 @@ TEST_CASE("tool-panel registry: idempotent, first-wins per tool id")
     CHECK(registry.FindByToolId(u8"nope") == nullptr);
     registry.Register(nullptr); // tolerated
     CHECK(registry.Count() == 2);
+
+    // A plugin's panel goes as it unloads; another provider may then take the tool id.
+    registry.Unregister(&anim);
+    CHECK(registry.Count() == 1);
+    CHECK(registry.FindByToolId(u8"anim") == nullptr);
+    registry.Register(&animAgain);
+    CHECK(registry.FindByToolId(u8"anim") == &animAgain);
 }
 
 TEST_CASE("tool-panel host: panel appears and disappears with its tool")

@@ -127,6 +127,18 @@ namespace editor
         m_providers.PushBack(provider);
     }
 
+    void ViewportToolProviderRegistry::Unregister(IViewportToolProvider* provider)
+    {
+        for (usize i = 0; i < m_providers.Size(); ++i)
+        {
+            if (m_providers[i] == provider)
+            {
+                m_providers.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
     void ViewportToolProviderRegistry::CreateAll(ViewportToolManager& manager,
                                                  const ViewportToolHostContext& context)
     {
