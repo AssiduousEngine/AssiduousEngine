@@ -174,10 +174,18 @@ every other data file:
 The CMake helper `util_add_plugin(<dir>)` (`cmake/Plugins.cmake`) reads the manifest (a line
 reader over the writer's shape; see Gotchas) and adds each part's folder in load order. The part's
 CMakeLists starts with `util_add_plugin_part()`, which declares `${PLUGIN_PART}` as an engine
-library through `util_add_engine_library`, linked to the package's previous part and to the same
-part of each plugin it depends on (which must be added first), so the part names, their link to
-each other and the dependency order are never written twice. The part then adds its sources and
+library through `util_add_engine_library`, linked to the package's parts its kind uses and to the
+same part of each plugin it depends on (which must be added first), so the part names, their links
+to each other and the dependency order are never written twice. The part then adds its sources and
 its engine links.
+
+A package may also hold `<Name>.Foundation`, its Foundation library (amended 2026-11-26,
+[systems-as-plugins.md](systems-as-plugins.md), G8): the plugin's types, its resources and the code
+over its third-party libraries, which every part uses. It is not a part: no host loads it, it has
+no entry and the manifest does not list it. `util_add_plugin` adds it before the parts when the
+folder exists, and its CMakeLists starts with `util_add_plugin_library()`, which builds
+`${PLUGIN_LIBRARY}` as an engine library linked to each dependency's Foundation library. It links
+Foundation libraries only. Every part of the package links it.
 
 ## Decision 2 - parts follow the hosts that load them
 
@@ -190,10 +198,12 @@ its engine links.
 
 The same split the editor already made between `Editor.Project` (headless) and `Editor.Core`
 (UI) is applied to plugins: a plugin never puts an asset type in its editor part, because
-the CLI cook and the standalone MCP host would not see it. Every part links only what its hosts
-have: `Engine` links Engine and Foundation; `Pipeline` links its `Engine` part and Pipeline;
-`Tooling` links `Pipeline` and `Editor.Project` (never `Editor.Core`); `Editor` links `Tooling` and
-`Editor.Core`.
+the CLI cook and the standalone MCP host would not see it. Every part links only what it uses of
+what its hosts have: `Engine` links its Foundation library, Engine and Foundation; `Pipeline` links
+its Foundation library and Pipeline, never its `Engine` part; `Tooling` links `Pipeline` and
+`Editor.Project` (never `Editor.Core`); `Editor` links `Tooling`, `Pipeline`, `Engine` and
+`Editor.Core` (`UTIL_PLUGIN_<Kind>_USES`, `cmake/Plugins.cmake`). What a role loads is the table's:
+the cook still loads the `Engine` parts, which a level read into its scratch scene needs.
 
 Each host has a **role** (player, editor, cook, export, mcp) and loads, for every enabled
 plugin, the parts the table gives that role.

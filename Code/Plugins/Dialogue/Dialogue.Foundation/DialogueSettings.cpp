@@ -9,11 +9,10 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module dialogue.engine;
+module dialogue.foundation;
 
 import foundation.core;
 import foundation.settings; // the settings attributes (label, assetType, ...)
-import engine.project; // the settings' attributes
 
 using namespace foundation::core;
 

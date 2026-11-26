@@ -40,9 +40,7 @@ import foundation.resource;
 import foundation.script; // IScriptContext
 import foundation.gui.gamekit; // the stock box's screen stack
 import engine.gui;
-import :settings;
-import :conversation;
-import :cast;
+import dialogue.foundation; // the settings, conversations and cast
 import :runner;
 import :stockbox;
 

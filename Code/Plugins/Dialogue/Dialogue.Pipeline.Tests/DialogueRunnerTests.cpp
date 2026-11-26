@@ -11,6 +11,7 @@
 #include "Core/Prelude.h"
 
 import foundation.core;
+import dialogue.foundation;
 import dialogue.engine;
 import dialogue.pipeline;
 

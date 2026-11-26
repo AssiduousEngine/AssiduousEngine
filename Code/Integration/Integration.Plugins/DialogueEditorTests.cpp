@@ -25,6 +25,7 @@ import editor.app;
 import foundation.vfs;
 import foundation.run;
 import foundation.scene;
+import dialogue.foundation;
 import dialogue.engine;
 import dialogue.pipeline;
 import dialogue.editor;

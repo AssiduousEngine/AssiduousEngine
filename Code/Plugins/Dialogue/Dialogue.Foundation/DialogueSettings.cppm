@@ -9,7 +9,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module dialogue.engine:settings;
+export module dialogue.foundation:settings;
 
 import foundation.core;
 

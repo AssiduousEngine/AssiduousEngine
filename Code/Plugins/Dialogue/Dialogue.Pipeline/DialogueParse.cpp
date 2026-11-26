@@ -10,7 +10,7 @@ module;
 module dialogue.pipeline;
 
 import foundation.core;
-import dialogue.engine;
+import dialogue.foundation;
 
 using namespace foundation::core;
 

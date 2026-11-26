@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The dialogue format's parser: a dialogue file's text into its conversations (dialogue.engine's
+// The dialogue format's parser: a dialogue file's text into its conversations (dialogue.foundation's
 // DialogueConversation, their blocks compiled to jumps) and the texts of its lines and answers,
 // with every problem at its line. And the notation commands are declared in ("move <who:entity>
 // to <target:entity> [running] [and wait]"): a form parsed once, then matched against the
@@ -19,7 +19,7 @@ module;
 export module dialogue.pipeline:parse;
 
 import foundation.core;
-import dialogue.engine;
+import dialogue.foundation;
 
 using namespace foundation::core;
 

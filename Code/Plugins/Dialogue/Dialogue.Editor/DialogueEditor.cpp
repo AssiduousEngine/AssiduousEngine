@@ -12,6 +12,7 @@ import foundation.core;
 import foundation.runtime;
 import editor.core;
 import editor.app;
+import dialogue.foundation;
 import dialogue.engine;
 import dialogue.editor;
 

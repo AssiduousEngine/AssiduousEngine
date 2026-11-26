@@ -14,7 +14,7 @@ import foundation.core;
 import foundation.runtime;
 import pipeline.core;
 import pipeline.importer; // PipelinePluginServices
-import dialogue.engine;
+import dialogue.foundation;
 import dialogue.pipeline;
 
 namespace

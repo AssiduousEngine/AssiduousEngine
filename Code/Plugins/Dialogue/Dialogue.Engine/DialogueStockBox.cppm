@@ -24,8 +24,7 @@ import foundation.core;
 import foundation.gui;
 import foundation.gui.gamekit;
 import engine.gui;
-import :settings;
-import :cast;
+import dialogue.foundation; // the settings, conversations and cast
 import :runner;
 
 using namespace foundation::core;

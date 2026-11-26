@@ -18,7 +18,7 @@ module;
 export module dialogue.pipeline:check;
 
 import foundation.core;
-import dialogue.engine;
+import dialogue.foundation;
 import :parse;
 
 using namespace foundation::core;

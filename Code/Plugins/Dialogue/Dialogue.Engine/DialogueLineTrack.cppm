@@ -19,8 +19,7 @@ export module dialogue.engine:linetrack;
 import foundation.core;
 import foundation.resource;
 import foundation.sequence;
-import :conversation;
-import :cast;
+import dialogue.foundation; // the conversations and the cast
 
 using namespace foundation::core;
 

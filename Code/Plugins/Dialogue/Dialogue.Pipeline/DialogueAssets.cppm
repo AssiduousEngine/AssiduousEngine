@@ -25,7 +25,7 @@ import foundation.vfs;
 import pipeline.core;
 import pipeline.importer;
 import input.pipeline; // InputMapAsset (the actions a line may name)
-import dialogue.engine;
+import dialogue.foundation;
 import :parse;
 import :check;
 

@@ -30,9 +30,7 @@ import foundation.core;
 import foundation.run;
 import foundation.scene;
 import foundation.script.facades; // Entity: what a command's entity argument reads as in script
-import :settings;
-import :conversation;
-import :cast;
+import dialogue.foundation; // the settings, conversations and cast
 
 using namespace foundation::core;
 

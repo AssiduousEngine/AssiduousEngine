@@ -19,6 +19,7 @@ import foundation.scene;
 import foundation.run;
 import editor.core;
 import editor.app;
+import dialogue.foundation;
 import dialogue.engine;
 import dialogue.pipeline;
 

@@ -9,7 +9,7 @@
 #include "Core/Prelude.h"
 
 import foundation.core;
-import dialogue.engine;
+import dialogue.foundation;
 import dialogue.pipeline;
 
 using namespace foundation::core;

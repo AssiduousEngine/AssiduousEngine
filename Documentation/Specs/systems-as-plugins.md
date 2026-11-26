@@ -143,8 +143,9 @@ need it as much as the Engine part does. A package therefore also holds `<Name>.
 plugins.md gains the library kind and the links with it. Dialogue changes with them: its Pipeline
 part uses the Engine part's types today (`DialogueSettings`, `DialogueConversation`,
 `DialogueStep`). Those partitions import Foundation alone, so they become `Dialogue.Foundation`:
-`:settings`, `:conversation`, `:cast`, `:resources` and `:linetrack`. The Engine part keeps what
-plays a conversation and needs the engine: `:runner`, `:run`, `:stockbox` and `:facade`.
+`:settings`, `:conversation`, `:cast` and `:resources`. The Engine part keeps what plays a
+conversation and needs the engine: `:runner`, `:run`, `:stockbox`, `:facade` and `:linetrack`
+(whose implementation shows lines through the run's runner).
 
 **G7 (optional). Plugin shaders.** A plugin's own shader folder, mounted beside `Engine/Shaders`
 in development and cooked into the pack at export. Until it exists, a plugin's shaders stay in

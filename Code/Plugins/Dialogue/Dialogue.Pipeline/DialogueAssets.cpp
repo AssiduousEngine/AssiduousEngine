@@ -21,7 +21,7 @@ import foundation.input; // ActionSet, Action
 import foundation.scene;
 import foundation.scene.resource;
 import engine.composition; // the scene managers a level loads with, and its stream's name
-import dialogue.engine;
+import dialogue.foundation;
 
 using namespace foundation::core;
 

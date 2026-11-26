@@ -7,12 +7,10 @@
 
 export module dialogue.engine;
 
-export import :settings;
-export import :conversation;
-export import :cast;
-export import :resources;
+import dialogue.foundation; // the types it plays
+
 export import :runner;
 export import :run;
 export import :facade;
-export import :linetrack;
 export import :stockbox;
+export import :linetrack;

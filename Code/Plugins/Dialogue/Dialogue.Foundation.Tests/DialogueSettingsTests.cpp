@@ -11,7 +11,7 @@ import foundation.core;
 import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.runtime;
 import engine.project;
-import dialogue.engine;
+import dialogue.foundation;
 
 using namespace foundation::core;
 namespace runtime = foundation::runtime;

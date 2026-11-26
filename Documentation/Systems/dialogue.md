@@ -13,7 +13,8 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 
 | Part | Library | Module | Holds |
 |---|---|---|---|
-| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain; the runner, and the one each run holds; the `Dialogue` facade; the sequences' line track |
+| (library) | `Dialogue.Foundation` | `dialogue.foundation` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories. Not a part: every part links it |
+| Engine | `Dialogue.Engine` | `dialogue.engine` | the dialogue's domain; the runner, and the one each run holds; the `Dialogue` facade; the stock box; the sequences' line track |
 | Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
 | Tooling | `Dialogue.Tooling` | | its MCP tools, `dialogue_validate` and `dialogue_read` |
 | Editor | `Dialogue.Editor` | `dialogue.editor` | the dialogue file's, the cast's and the dialogue assets' pages |
@@ -329,7 +330,7 @@ The Engine part's load registers the settings type and the plugin's types
 and the run service contribution that gives every run its runner.
 All of it is recorded and taken out when the plugin unloads.
 
-Tests: `Dialogue.Engine.Tests` (the settings' defaults, their round trip through the project's
+Tests: `Dialogue.Foundation.Tests` (the settings' defaults, their round trip through the project's
 entry, their labels; the compiled conversations and the cast reading back as written, their lookups
 and the speaker's reflection), `Dialogue.Pipeline.Tests` (the commands' notation and what it
 refuses; the format parsed: lines, choices and branches compiled to jumps, the built-in statements,

@@ -19,7 +19,7 @@ import foundation.mcp;
 import foundation.runtime;
 import editor.project;
 import editor.mcp; // McpPluginServices
-import dialogue.engine;
+import dialogue.foundation;
 import dialogue.pipeline;
 
 using namespace foundation::core;

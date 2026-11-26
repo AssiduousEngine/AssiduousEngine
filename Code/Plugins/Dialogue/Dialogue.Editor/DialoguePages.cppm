@@ -37,6 +37,7 @@ import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
+import dialogue.foundation;
 import dialogue.engine; // the settings the checks read, and the preview's runner
 import editor.scene;    // ISceneEditorPage: the scene page a preview plays in
 import foundation.runtime.client; // IApplicationHost: the page's update

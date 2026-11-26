@@ -26,6 +26,7 @@ import pipeline.importer;
 import engine.project;
 import editor.project;
 import editor.mcp;
+import dialogue.foundation;
 import dialogue.engine;
 import dialogue.pipeline;
 

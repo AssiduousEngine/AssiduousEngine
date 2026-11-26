@@ -8,7 +8,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module dialogue.engine;
+module dialogue.foundation;
 
 import foundation.core;
 
@@ -29,8 +29,5 @@ namespace dialogue
         GlobalTypeRegistry().Register(DialogueCastSource::StaticType());
         RegisterSerializable<DialogueSource>();
         RegisterSerializable<DialogueCastSource>();
-        // The line track joins the engine's track kinds; the engine registers their base itself. A
-        // load is recorded and reversed on unload, so it registers nothing of the engine's.
-        RegisterDialogueLineTrack();
     }
 }

@@ -3,8 +3,13 @@
 # A package is a folder `<Name>/` holding `Plugin.xml` and one subfolder per part,
 # `<Name>.<Kind>` (Engine, Pipeline, Tooling, Editor). The manifest is the one place the
 # package's id, parts and dependencies are written; util_add_plugin reads it and declares
-# every part, so a part's target name, its link to the part before it and its links to the
-# parts of the plugins it depends on are never written in a CMakeLists by hand.
+# every part, so a part's target name, its links to the package's other parts and library and
+# its links to the plugins it depends on are never written in a CMakeLists by hand.
+#
+# A package may also hold `<Name>.Foundation`, its Foundation library: the plugin's types, its
+# resources and the code over its third-party libraries, which every part uses. It is not a part:
+# no host loads it, it has no entry, and the manifest does not list it. It links Foundation
+# libraries only (util_add_plugin_library).
 #
 # CMake has no XML reader, so util_read_plugin_manifest reads the shape the engine's XML
 # writer emits: one element per line. That is the only shape it accepts, and it is pinned to
@@ -39,8 +44,15 @@ function(util_plugin_abi target)
     target_compile_definitions(${target} PRIVATE "${UTIL_PLUGIN_ABI_DEFINITION}")
 endfunction()
 
-# The part kinds in load order: a part links the one before it that the package has.
+# The part kinds in load order.
 set(UTIL_PLUGIN_PART_KINDS Engine Pipeline Tooling Editor)
+# The package's own parts each kind links, by what it uses: the Engine and Pipeline parts the
+# Foundation library alone, Tooling the Pipeline part, the Editor part the Tooling, Pipeline and
+# Engine parts (the editor hosts them all). Every part links the Foundation library.
+set(UTIL_PLUGIN_Engine_USES "")
+set(UTIL_PLUGIN_Pipeline_USES "")
+set(UTIL_PLUGIN_Tooling_USES Pipeline)
+set(UTIL_PLUGIN_Editor_USES Tooling Pipeline Engine)
 
 # The parts each host role loads. The C++ copy is RoleLoads (foundation.runtime);
 # Runtime.Tests compares the two through the file written here.
@@ -147,11 +159,18 @@ function(util_add_plugin dir)
     set_property(GLOBAL PROPERTY UTIL_PLUGIN_${_plugin_ID}_MANIFEST "${_manifest}")
     set_property(GLOBAL PROPERTY UTIL_PLUGIN_${_plugin_ID}_DIR "${_dir}")
 
-    # What util_add_plugin_part reads in each part's folder.
+    # What util_add_plugin_library and util_add_plugin_part read in each folder.
     set(PLUGIN_ID "${_plugin_ID}")
     set(PLUGIN_NAME "${_name}")
     set(PLUGIN_DEPENDS "${_plugin_DEPENDS}")
-    set(PLUGIN_PREVIOUS_PART "")
+    # The Foundation library first, on every platform: the Engine part a player links uses it.
+    set(PLUGIN_FOUNDATION "")
+    if(EXISTS "${_dir}/${_name}.Foundation/CMakeLists.txt")
+        set(PLUGIN_LIBRARY "${_name}.Foundation")
+        add_subdirectory("${_dir}/${PLUGIN_LIBRARY}" "${CMAKE_BINARY_DIR}/plugins/${_plugin_ID}/${PLUGIN_LIBRARY}")
+        set_property(GLOBAL PROPERTY UTIL_PLUGIN_${_plugin_ID}_Foundation "${PLUGIN_LIBRARY}")
+        set(PLUGIN_FOUNDATION "${PLUGIN_LIBRARY}")
+    endif()
     foreach(_kind IN LISTS UTIL_PLUGIN_PART_KINDS)
         # A web or Android build is a player alone, and a build without the tools has no editor
         # or tool to load the others: it declares only the Engine part (the others link editor
@@ -168,7 +187,6 @@ function(util_add_plugin dir)
             # Its own binary folder, so a package outside the source tree (a project's) adds too.
             add_subdirectory("${_dir}/${PLUGIN_PART}" "${CMAKE_BINARY_DIR}/plugins/${_plugin_ID}/${PLUGIN_PART}")
             set_property(GLOBAL PROPERTY UTIL_PLUGIN_${_plugin_ID}_${_kind} "${PLUGIN_PART}")
-            set(PLUGIN_PREVIOUS_PART "${PLUGIN_PART}")
         endif()
     endforeach()
     set(UTIL_PLUGIN_ADDED_ID "${_plugin_ID}" PARENT_SCOPE)
@@ -206,12 +224,33 @@ function(util_add_project_plugins)
     endif()
 endfunction()
 
+# util_add_plugin_library()
+#
+# Declares the package's Foundation library from its folder, `<Name>.Foundation`, which
+# util_add_plugin adds before the parts: the target `${PLUGIN_LIBRARY}` (alias
+# `Plugins::<Name>.Foundation`), built as an engine library (static, or shared in a shared build,
+# so the parts in every host share one copy), linked PUBLIC to the Foundation library of each
+# plugin it depends on. Its CMakeLists then adds its sources and its Foundation links.
+macro(util_add_plugin_library)
+    if(NOT PLUGIN_LIBRARY)
+        message(FATAL_ERROR "util_add_plugin_library: call it from a package's <Name>.Foundation folder, which util_add_plugin adds")
+    endif()
+    util_add_engine_library(${PLUGIN_LIBRARY} ALIAS Plugins::${PLUGIN_LIBRARY})
+    foreach(_plugin_dependency IN LISTS PLUGIN_DEPENDS)
+        get_property(_plugin_dependency_library GLOBAL PROPERTY UTIL_PLUGIN_${_plugin_dependency}_Foundation)
+        if(_plugin_dependency_library)
+            target_link_libraries(${PLUGIN_LIBRARY} PUBLIC ${_plugin_dependency_library})
+        endif()
+    endforeach()
+endmacro()
+
 # util_add_plugin_part()
 #
 # Declares the part whose folder util_add_plugin is adding: the target `${PLUGIN_PART}`
-# (`<Name>.<Kind>`, alias `Plugins::<Name>.<Kind>`), linked PUBLIC to the package's previous
-# part and to the same kind of part of each plugin it depends on, where that plugin has one.
-# The part's CMakeLists then adds its sources and its engine links to `${PLUGIN_PART}`.
+# (`<Name>.<Kind>`, alias `Plugins::<Name>.<Kind>`), linked PUBLIC to the package's Foundation
+# library, to the package's parts its kind uses (UTIL_PLUGIN_<Kind>_USES) and to the same kind of
+# part of each plugin it depends on, where that plugin has one. The part's CMakeLists then adds
+# its sources and its engine links to `${PLUGIN_PART}`.
 macro(util_add_plugin_part)
     if(NOT PLUGIN_PART)
         message(FATAL_ERROR "util_add_plugin_part: call it from a part folder that util_add_plugin adds")
@@ -224,9 +263,15 @@ macro(util_add_plugin_part)
         PLUGIN_PART_ID=u8\"${PLUGIN_ID}\"
         PLUGIN_PART_KIND=${PLUGIN_PART_KIND})
     util_plugin_abi(${PLUGIN_PART})
-    if(PLUGIN_PREVIOUS_PART)
-        target_link_libraries(${PLUGIN_PART} PUBLIC ${PLUGIN_PREVIOUS_PART})
+    if(PLUGIN_FOUNDATION)
+        target_link_libraries(${PLUGIN_PART} PUBLIC ${PLUGIN_FOUNDATION})
     endif()
+    foreach(_plugin_used_kind IN LISTS UTIL_PLUGIN_${PLUGIN_PART_KIND}_USES)
+        get_property(_plugin_used_part GLOBAL PROPERTY UTIL_PLUGIN_${PLUGIN_ID}_${_plugin_used_kind})
+        if(_plugin_used_part)
+            target_link_libraries(${PLUGIN_PART} PUBLIC ${_plugin_used_part})
+        endif()
+    endforeach()
     foreach(_plugin_dependency IN LISTS PLUGIN_DEPENDS)
         get_property(_plugin_dependency_part GLOBAL PROPERTY UTIL_PLUGIN_${_plugin_dependency}_${PLUGIN_PART_KIND})
         if(_plugin_dependency_part)

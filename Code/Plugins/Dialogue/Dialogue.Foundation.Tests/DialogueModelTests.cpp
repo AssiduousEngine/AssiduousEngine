@@ -8,7 +8,7 @@
 #include "Core/Prelude.h"
 
 import foundation.core;
-import dialogue.engine;
+import dialogue.foundation;
 
 using namespace foundation::core;
 using namespace dialogue;

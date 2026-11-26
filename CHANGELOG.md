@@ -45,6 +45,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Plugins: a package may hold a `<Name>.Foundation` library beside its parts, for the types every
+  part uses (`util_add_plugin_library()`); it is not a part and its manifest does not list it. A
+  part now links what it uses instead of the part before it: the Engine and Pipeline parts link
+  the Foundation library only, Tooling links Pipeline, and Editor links Tooling, Pipeline and
+  Engine. A Pipeline part that used its Engine part's types moves them into the Foundation library.
+  Dialogue's settings, conversations and cast are now in `Dialogue.Foundation`.
 - MCP: `sequence_edit` refuses a property track whose target names no component, and points a
   component's shown name at its type name (`Light` is `LightComponent`).
 - Saves: a game's saves are a folder, `<project>.saves/` (in the user data directory for the player,

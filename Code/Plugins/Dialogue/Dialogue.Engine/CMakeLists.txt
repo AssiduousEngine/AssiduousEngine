@@ -1,8 +1,7 @@
-# Dialogue.Engine (Plugins::Dialogue.Engine) - `dialogue.engine`, the dialogue plugin's runtime: its
-# settings type, the compiled conversations and the cast, the factories that load them, the runner
-# each run holds with its staging, the `Dialogue` facade and the sequences' line track. Every
-# host loads it; it is declared from the package's Plugin.xml and linked into the engine's players,
-# editor and tools as one of the official plugins a project may enable.
+# Dialogue.Engine (Plugins::Dialogue.Engine) - `dialogue.engine`, the dialogue plugin's runtime: the
+# runner each run holds with its staging, the `Dialogue` facade and the stock box, over the types in
+# Dialogue.Foundation. Every host loads it; it is declared from the package's Plugin.xml and linked
+# into the engine's players, editor and tools as one of the official plugins a project may enable.
 util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART}
     PUBLIC Foundation::Core Foundation::Runtime Foundation::Resource Foundation::Content Foundation::Policy
@@ -11,8 +10,7 @@ target_link_libraries(${PLUGIN_PART}
            Foundation::Scene Foundation::Script Foundation::Script.Facades # the notices' scene and entities
            Foundation::Sequence # the line track
            Foundation::GUI Foundation::GUI.Gamekit Engine::GUI # the stock box
-    PRIVATE Engine::Project     # the settings' attributes
-            Engine::Domain      # the dialogue's domain
+    PRIVATE Engine::Domain      # the dialogue's domain
             Engine::Composition # EnginePluginServices, which takes it
             Engine::Behavior    # the services the run's scripts find (its resources, its input)
             Foundation::Input Foundation::Sequence.Resource Foundation::GUI.Resources
@@ -21,10 +19,6 @@ target_link_libraries(${PLUGIN_PART}
 target_sources(${PLUGIN_PART}
     PRIVATE
         DialogueEngine.cpp       # the part's entry
-        DialogueSettings.cpp     # the settings type's reflection
-        DialogueConversation.cpp # the compiled conversations
-        DialogueCast.cpp         # the cast
-        DialogueResources.cpp    # the types' registration
         DialogueRunner.cpp       # the runner
         DialogueRun.cpp          # the runner a run holds, with the run's host
         DialogueFacade.cpp       # the `Dialogue` facade
@@ -33,10 +27,6 @@ target_sources(${PLUGIN_PART}
     PUBLIC
         FILE_SET dialogue_engine_modules TYPE CXX_MODULES FILES
             DialogueEngineModule.cppm
-            DialogueSettings.cppm
-            DialogueConversation.cppm
-            DialogueCast.cppm
-            DialogueResources.cppm
             DialogueRunner.cppm
             DialogueRun.cppm
             DialogueFacade.cppm

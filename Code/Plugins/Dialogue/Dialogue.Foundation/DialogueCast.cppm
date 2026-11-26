@@ -10,7 +10,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module dialogue.engine:cast;
+export module dialogue.foundation:cast;
 
 import foundation.core;
 import foundation.resource;

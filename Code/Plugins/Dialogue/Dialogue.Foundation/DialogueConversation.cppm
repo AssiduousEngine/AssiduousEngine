@@ -11,7 +11,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module dialogue.engine:conversation;
+export module dialogue.foundation:conversation;
 
 import foundation.core;
 import foundation.resource;

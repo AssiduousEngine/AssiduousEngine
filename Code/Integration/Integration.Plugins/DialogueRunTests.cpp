@@ -43,6 +43,7 @@ import foundation.runtime;
 import foundation.gui.gamekit;
 import foundation.gui;
 import foundation.gui.resources;
+import dialogue.foundation;
 import dialogue.engine;
 import dialogue.pipeline;
 
@@ -98,6 +99,7 @@ namespace
         {
             engine::sequence::RegisterSequenceReflection();
             dialogue::RegisterDialogueTypes();
+            dialogue::RegisterDialogueLineTrack(); // the Engine part registers it as it loads
             (void)RemoveDirectoryRecursive(dir);
             (void)CreateDirectories(dir);
             mount = MakeUnique<foundation::vfs::NativeFileSystem>(DefaultAllocator(), dir, DefaultAllocator());

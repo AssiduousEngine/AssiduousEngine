@@ -23,6 +23,7 @@ import engine.domain;
 import engine.composition;
 import engine.run;
 import foundation.script.facades;
+import dialogue.foundation;
 import dialogue.engine;
 
 using namespace foundation::core;

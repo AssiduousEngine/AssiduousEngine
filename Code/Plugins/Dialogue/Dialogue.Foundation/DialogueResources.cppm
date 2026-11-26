@@ -8,7 +8,7 @@ module;
 
 #include "Core/Prelude.h"
 
-export module dialogue.engine:resources;
+export module dialogue.foundation:resources;
 
 import foundation.core;
 import foundation.resource;

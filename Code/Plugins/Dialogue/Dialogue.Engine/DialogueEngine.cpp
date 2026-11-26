@@ -15,6 +15,7 @@ import foundation.runtime;
 import foundation.resource;
 import engine.domain;
 import engine.composition; // EnginePluginServices
+import dialogue.foundation;
 import dialogue.engine;
 
 namespace
@@ -30,6 +31,9 @@ namespace
         context.Types().Register(dialogue::DialogueSettings::StaticType());
         const dialogue::DialogueSettings* settings = context.Settings<dialogue::DialogueSettings>();
         dialogue::RegisterDialogueTypes();
+        // The line track joins the engine's track kinds; the engine registers their base itself. A
+        // load is recorded and reversed on unload, so it registers nothing of the engine's.
+        dialogue::RegisterDialogueLineTrack();
         if (engine::EnginePluginServices* services = context.Find<engine::EnginePluginServices>())
         {
             (void)services->AddDomain(kDialogueDomain);
