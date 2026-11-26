@@ -37,6 +37,12 @@ namespace scene = foundation::scene;
 
 namespace editor
 {
+    GizmoRendererProviders& GizmoRendererProviders::Get()
+    {
+        static GizmoRendererProviders providers;
+        return providers;
+    }
+
     const TypeInfo* CameraGizmoRenderer::ComponentType() const
     {
         return &TypeOf<engine::render::CameraComponent>();

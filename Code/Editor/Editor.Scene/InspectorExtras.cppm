@@ -52,15 +52,23 @@ export namespace editor
     {
     public:
         explicit InspectorExtrasRegistry(IAllocator& allocator) : m_entries(allocator) {}
-        /// The editor's one registry (RegisterSceneEditor fills it).
-        static InspectorExtrasRegistry& Get()
-        {
-            static InspectorExtrasRegistry registry(EditorRootAllocator());
-            return registry;
-        }
+        /// The editor's one registry (RegisterSceneEditor fills it; defined in the library, so a
+        /// plugin's library shares it).
+        static InspectorExtrasRegistry& Get();
         void Register(const TypeInfo& type, InspectorExtrasProvider provider)
         {
             m_entries.PushBack(Entry{&type, Move(provider)});
+        }
+        /// Removes every provider of `type`'s extras (the plugin that owns the type unloading).
+        void Remove(const TypeInfo& type)
+        {
+            for (usize i = m_entries.Size(); i-- > 0;)
+            {
+                if (m_entries[i].type == &type)
+                {
+                    m_entries.RemoveAt(i);
+                }
+            }
         }
         /// Every provider of `type`'s extras, in their registration's order.
         template <typename Fn>

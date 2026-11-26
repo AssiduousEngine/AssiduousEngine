@@ -31,6 +31,12 @@ namespace scene = foundation::scene;
 
 namespace editor
 {
+    InspectorExtrasRegistry& InspectorExtrasRegistry::Get()
+    {
+        static InspectorExtrasRegistry registry(EditorRootAllocator());
+        return registry;
+    }
+
     namespace
     {
         constexpr StringView kActiveKey = u8"e";

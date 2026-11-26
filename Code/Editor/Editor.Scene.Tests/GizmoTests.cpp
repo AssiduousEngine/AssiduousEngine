@@ -400,6 +400,52 @@ TEST_CASE("gizmo-controller: mode keys, space toggle, and scale forcing local")
     CHECK_FALSE(ctl.IsActive());
 }
 
+namespace
+{
+    // What a plugin's editor part registers for its component.
+    void AddLightGizmo(GizmoRendererRegistry& registry)
+    {
+        registry.Register(UniquePtr<IGizmoRenderer>(DefaultAllocator().New<LightGizmoRenderer>(),
+                                                    DefaultAllocator()));
+    }
+}
+
+TEST_CASE("gizmo-providers: a page asks each provider, and a removed one adds nothing")
+{
+    // The list is process-wide: counts are relative, so test order does not matter.
+    GizmoRendererProviders& providers = GizmoRendererProviders::Get();
+    const usize before = providers.Count();
+    providers.Register(&AddLightGizmo);
+    providers.Register(&AddLightGizmo); // the same one again: nothing
+    CHECK(providers.Count() == before + 1);
+    GizmoRendererRegistry page;
+    providers.AddTo(page);
+    CHECK(page.Find(&TypeOf<engine::render::LightComponent>()) != nullptr);
+
+    providers.Unregister(&AddLightGizmo); // its plugin unloads
+    CHECK(providers.Count() == before);
+    GizmoRendererRegistry later;
+    providers.AddTo(later);
+    CHECK(later.Find(&TypeOf<engine::render::LightComponent>()) == nullptr);
+}
+
+TEST_CASE("inspector-extras: a type's providers go together, others stay")
+{
+    InspectorExtrasRegistry registry(DefaultAllocator());
+    int light = 0;
+    int camera = 0;
+    registry.Register(TypeOf<engine::render::LightComponent>(), [&light](InspectorExtras&) { ++light; });
+    registry.Register(TypeOf<engine::render::LightComponent>(), [&light](InspectorExtras&) { ++light; });
+    registry.Register(TypeOf<engine::render::CameraComponent>(), [&camera](InspectorExtras&) { ++camera; });
+    registry.Remove(TypeOf<engine::render::LightComponent>());
+    usize lightProviders = 0;
+    usize cameraProviders = 0;
+    registry.ForEach(TypeOf<engine::render::LightComponent>(), [&](const InspectorExtrasProvider&) { ++lightProviders; });
+    registry.ForEach(TypeOf<engine::render::CameraComponent>(), [&](const InspectorExtrasProvider&) { ++cameraProviders; });
+    CHECK(lightProviders == 0u);
+    CHECK(cameraProviders == 1u);
+}
+
 TEST_CASE("gizmo-registry: renderers resolve by component type; unselected entities gated")
 {
     GizmoRendererRegistry registry;

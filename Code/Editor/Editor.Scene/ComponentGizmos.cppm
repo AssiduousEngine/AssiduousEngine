@@ -291,4 +291,51 @@ export namespace editor
         registry.Register(UniquePtr<IGizmoRenderer>(
             foundation::core::DefaultAllocator().New<FootIkGizmoRenderer>(), foundation::core::DefaultAllocator()));
     }
+
+    /// Gizmos a module outside the scene editor adds for its components (a plugin's): every scene
+    /// page asks each provider for its renderers as it opens, after the built-in ones.
+    class GizmoRendererProviders
+    {
+    public:
+        using Provider = void (*)(GizmoRendererRegistry& registry);
+
+        /// The editor's one list (defined in the library, so a plugin's library shares it).
+        static GizmoRendererProviders& Get();
+        /// Adds a provider; the same one again changes nothing.
+        void Register(Provider provider)
+        {
+            for (Provider existing : m_providers)
+            {
+                if (existing == provider)
+                {
+                    return;
+                }
+            }
+            m_providers.PushBack(provider);
+        }
+        /// Removes a provider (its plugin unloading): pages opened after draw none of its gizmos.
+        void Unregister(Provider provider)
+        {
+            for (usize i = 0; i < m_providers.Size(); ++i)
+            {
+                if (m_providers[i] == provider)
+                {
+                    m_providers.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+        /// Every provider's renderers, into a page's registry.
+        void AddTo(GizmoRendererRegistry& registry) const
+        {
+            for (Provider provider : m_providers)
+            {
+                provider(registry);
+            }
+        }
+        [[nodiscard]] usize Count() const noexcept { return m_providers.Size(); }
+
+    private:
+        Array<Provider> m_providers;
+    };
 }

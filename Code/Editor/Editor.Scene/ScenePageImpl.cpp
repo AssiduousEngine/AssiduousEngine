@@ -148,6 +148,7 @@ namespace editor
                                                                           }});
             BuildTools(context);
             RegisterBuiltinGizmoRenderers(m_componentGizmos);
+            GizmoRendererProviders::Get().AddTo(m_componentGizmos);
 
             PrefabFlows::Services flows;
             flows.context = &context;
