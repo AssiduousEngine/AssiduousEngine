@@ -123,8 +123,12 @@ ${compile_items}
         set(library ${out}/Engine.Runtime.a)
         add_custom_command(
             OUTPUT ${out}/Engine.Runtime.a ${out}/link.rsp
+            # NativeAOT drives its tools through a C compiler, by default whichever `clang` or `gcc` is on
+            # the path: the build's own is given, so a toolchain with only a versioned one (`gcc-15`)
+            # works, and the runtime is built with what the program is.
             COMMAND ${DOTNET_EXECUTABLE} publish ${project} -c Release -o ${out}
-                    -p:BaseIntermediateOutputPath=${dir}/obj/ -nologo -v:q --disable-build-servers
+                    -p:BaseIntermediateOutputPath=${dir}/obj/ -p:CppCompilerAndLinker=${CMAKE_C_COMPILER}
+                    -nologo -v:q --disable-build-servers
             DEPENDS ${project} ${application_sources} ${DOTNET_RUNTIME_SOURCE}/Behaviors.cs ${DOTNET_RUNTIME_SOURCE}/Bridge.cs ${DOTNET_RUNTIME_SOURCE}/Runtime.cs ${DOTNET_RUNTIME_SOURCE}/ValueMath.cs
                     ${DOTNET_RUNTIME_BINDINGS}
             COMMENT "Compiling the managed runtime and ${name} ahead of time")
