@@ -2231,93 +2231,101 @@ TEST_CASE("unresolved: a plugin's components + settings survive load/save withou
     CheckPreservationRoundTrip(true);
 }
 
-TEST_CASE("unresolved: prefab-instance overrides of an absent plugin type survive a save without it")
+namespace
 {
-    // Author and capture the prefab (the "plugin" type is Health here).
-    Scene author(DefaultAllocator(), u8"author");
-    HealthManager* authorHealth = author.AddSystem<HealthManager>();
-    EntityHandle root = author.CreateEntity(u8"Tower");
-    EntityHandle top = author.CreateEntity(u8"Top");
-    author.SetParent(top, root);
-    authorHealth->Add(root).value = 100.0f;
-    authorHealth->Add(top).value = 50.0f;
-    MemoryStream payload;
-    REQUIRE(CapturePrefab(author, root, payload).IsOk());
-    const Span<const byte> payloadBytes = payload.Bytes();
-    const Guid prefabId{0x33, 0x44};
-    auto resolver = Function<UniquePtr<IStream>(const Guid&)>{
-        [&payloadBytes, prefabId](const Guid& id) -> UniquePtr<IStream>
-        {
-            if (id != prefabId)
+    // A prefab instance's override of a type whose plugin is absent, saved and read back in
+    // `text` encoding. Text keeps the override's fields inline, which only the manager can
+    // decode, so a build without it keeps the element verbatim instead.
+    void CheckPrefabOverridePreservation(bool text)
+    {
+        // Author and capture the prefab (the "plugin" type is Health here).
+        Scene author(DefaultAllocator(), u8"author");
+        HealthManager* authorHealth = author.AddSystem<HealthManager>();
+        EntityHandle root = author.CreateEntity(u8"Tower");
+        EntityHandle top = author.CreateEntity(u8"Top");
+        author.SetParent(top, root);
+        authorHealth->Add(root).value = 100.0f;
+        authorHealth->Add(top).value = 50.0f;
+        MemoryStream payload;
+        REQUIRE(CapturePrefab(author, root, payload).IsOk());
+        const Span<const byte> payloadBytes = payload.Bytes();
+        const Guid prefabId{0x33, 0x44};
+        auto resolver = Function<UniquePtr<IStream>(const Guid&)>{
+            [&payloadBytes, prefabId](const Guid& id) -> UniquePtr<IStream>
             {
-                return UniquePtr<IStream>{};
-            }
-            auto stream = MakeUnique<MemoryStream>(DefaultAllocator());
-            (void)stream->Write(payloadBytes.Data(), payloadBytes.Size());
-            (void)stream->Seek(0, SeekOrigin::Begin);
-            return UniquePtr<IStream>(stream.Release(), DefaultAllocator());
-        }};
+                if (id != prefabId)
+                {
+                    return UniquePtr<IStream>{};
+                }
+                auto stream = MakeUnique<MemoryStream>(DefaultAllocator());
+                (void)stream->Write(payloadBytes.Data(), payloadBytes.Size());
+                (void)stream->Seek(0, SeekOrigin::Begin);
+                return UniquePtr<IStream>(stream.Release(), DefaultAllocator());
+            }};
 
-    // Level with the plugin: an instance with a component modify override.
-    Scene level(DefaultAllocator(), u8"level");
-    HealthManager* health = level.AddSystem<HealthManager>();
-    (void)payload.Seek(0, SeekOrigin::Begin);
-    EntityHandle inst = SpawnPrefab(level, payload, prefabId);
-    REQUIRE(inst.IsAssigned());
-    EntityHandle instTop = level.GetFirstChild(inst);
-    health->Get(instTop)->value = 51.0f; // the override
-    const Guid instTopId = level.GetEntityId(instTop);
-    MemoryStream saved;
-    {
-        BinarySerializer w(saved, SerializeMode::Write);
-        SerializeScene(w, level);
-    }
+        // Level with the plugin: an instance with a component modify override.
+        Scene level(DefaultAllocator(), u8"level");
+        HealthManager* health = level.AddSystem<HealthManager>();
+        (void)payload.Seek(0, SeekOrigin::Begin);
+        EntityHandle inst = SpawnPrefab(level, payload, prefabId);
+        REQUIRE(inst.IsAssigned());
+        EntityHandle instTop = level.GetFirstChild(inst);
+        health->Get(instTop)->value = 51.0f; // the override
+        const Guid instTopId = level.GetEntityId(instTop);
+        MemoryStream saved;
+        WriteScene(saved, level, text);
 
-    // A build without the plugin opens it, resolves prefabs (the override op has no manager:
-    // stashed, not dropped), and saves it back.
-    Scene bare(DefaultAllocator(), u8"bare");
-    (void)saved.Seek(0, SeekOrigin::Begin);
-    {
-        BinarySerializer r(saved, SerializeMode::Read);
-        SerializeScene(r, bare);
-    }
-    ResolveScenePrefabs(bare, resolver);
-    REQUIRE(bare.PrefabInstanceCount() == 1u);
-    bool stashed = false;
-    bare.ForEachPrefabInstance([&](Scene::PrefabInstanceState& st)
-                               { stashed = !st.unresolvedComponentOps.IsEmpty(); });
-    CHECK(stashed);
-    MemoryStream resaved;
-    {
-        BinarySerializer w(resaved, SerializeMode::Write);
-        SerializeScene(w, bare);
-    }
+        // A build without the plugin opens it, resolves prefabs (the override op has no manager:
+        // stashed, not dropped), and saves it back.
+        Scene bare(DefaultAllocator(), u8"bare");
+        ReadInto(saved, bare, text);
+        ResolveScenePrefabs(bare, resolver);
+        REQUIRE(bare.PrefabInstanceCount() == 1u);
+        bool stashed = false;
+        bool keptAsText = false;
+        bare.ForEachPrefabInstance(
+            [&](Scene::PrefabInstanceState& st)
+            {
+                stashed = !st.unresolvedComponentOps.IsEmpty();
+                keptAsText = stashed && st.unresolvedComponentOps[0].text;
+            });
+        CHECK(stashed);
+        CHECK(keptAsText == text);
+        MemoryStream resaved;
+        WriteBack(resaved, bare, text);
 
-    // The plugin build reads the re-save: the override is still there.
-    Scene full(DefaultAllocator(), u8"full");
-    HealthManager* fullHealth = full.AddSystem<HealthManager>();
-    (void)resaved.Seek(0, SeekOrigin::Begin);
-    {
-        BinarySerializer r(resaved, SerializeMode::Read);
-        SerializeScene(r, full);
-    }
-    ResolveScenePrefabs(full, resolver);
-    EntityHandle fTop = full.FindEntity(instTopId);
-    REQUIRE(fTop.IsAssigned());
-    REQUIRE(fullHealth->Has(fTop));
-    CHECK(Near(fullHealth->Get(fTop)->value, 51.0f));
+        // The plugin build reads the re-save: the override is still there.
+        Scene full(DefaultAllocator(), u8"full");
+        HealthManager* fullHealth = full.AddSystem<HealthManager>();
+        ReadInto(resaved, full, text);
+        ResolveScenePrefabs(full, resolver);
+        EntityHandle fTop = full.FindEntity(instTopId);
+        REQUIRE(fTop.IsAssigned());
+        REQUIRE(fullHealth->Has(fTop));
+        CHECK(Near(fullHealth->Get(fTop)->value, 51.0f));
 
-    // And the plugin arriving on the bare scene applies the stashed op in place.
-    HealthManager* lateHealth = bare.AddSystem<HealthManager>();
-    ResolveAllUnresolvedRecords(bare);
-    EntityHandle bTop = bare.FindEntity(instTopId);
-    REQUIRE(bTop.IsAssigned());
-    REQUIRE(lateHealth->Has(bTop));
-    CHECK(Near(lateHealth->Get(bTop)->value, 51.0f));
-    bool cleared = true;
-    bare.ForEachPrefabInstance([&](Scene::PrefabInstanceState& st)
-                               { cleared = st.unresolvedComponentOps.IsEmpty(); });
-    CHECK(cleared);
+        // And the plugin arriving on the bare scene applies the stashed op in place.
+        HealthManager* lateHealth = bare.AddSystem<HealthManager>();
+        ResolveAllUnresolvedRecords(bare);
+        EntityHandle bTop = bare.FindEntity(instTopId);
+        REQUIRE(bTop.IsAssigned());
+        REQUIRE(lateHealth->Has(bTop));
+        CHECK(Near(lateHealth->Get(bTop)->value, 51.0f));
+        bool cleared = true;
+        bare.ForEachPrefabInstance([&](Scene::PrefabInstanceState& st)
+                                   { cleared = st.unresolvedComponentOps.IsEmpty(); });
+        CHECK(cleared);
+    }
+}
+
+TEST_CASE("unresolved: prefab-instance overrides of an absent plugin type survive a save without it (binary)")
+{
+    CheckPrefabOverridePreservation(false);
+}
+
+TEST_CASE("unresolved: prefab-instance overrides of an absent plugin type survive a save without it (text)")
+{
+    CheckPrefabOverridePreservation(true);
 }
 
 TEST_CASE("prefab: an override naming a prefab member by its source id points at the instance's copy")

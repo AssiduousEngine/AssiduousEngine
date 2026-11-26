@@ -2336,24 +2336,9 @@ namespace foundation::scene
                                                          record.payload.Size()});
                 continue;
             }
-            // Text: the captured <data> element, replayed through the XML serializer.
-            String wrapped;
-            wrapped += StringView(u8"<root>");
-            wrapped += StringView(reinterpret_cast<const utf8char*>(record.payload.Data()),
-                                  record.payload.Size());
-            wrapped += StringView(u8"</root>");
-            foundation::xml::XmlDocument doc(scene.Allocator());
-            if (doc.Parse(wrapped.AsView()) != foundation::xml::XmlResult::Ok)
-            {
-                LOG_WARNING(u8"Scene", u8"unresolved component of type '{}' failed to re-parse",
-                            record.typeId);
-                continue;
-            }
-            foundation::xml::XmlSerializer ar(doc);
-            ar.Key("data");
-            ar.BeginObject();
-            manager.ReadComponent(ar, owner);
-            ar.EndObject();
+            (void)detail::ComponentFromText(
+                scene, manager, owner,
+                Span<const u8>{record.payload.Data(), record.payload.Size()});
         }
     }
 
@@ -2454,9 +2439,7 @@ namespace foundation::scene
                         }
                         else
                         {
-                            detail::ComponentFromBlob(*manager, live,
-                                                      Span<const u8>{op.blob.Data(),
-                                                                     op.blob.Size()});
+                            detail::ComponentFromOp(scene, *manager, live, op);
                             detail::RemapOverrideEntityRefs(*manager, live, state);
                         }
                     }

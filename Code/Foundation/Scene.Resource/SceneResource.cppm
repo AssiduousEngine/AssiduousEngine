@@ -233,6 +233,43 @@ export namespace foundation::scene
             manager.ReadComponent(ar, owner);
         }
 
+        // A record kept as text while its type had no manager: the captured <data> element,
+        // replayed through the XML serializer now that the manager exists.
+        bool ComponentFromText(Scene& scene, ComponentManagerBase& manager, EntityHandle owner,
+                               Span<const u8> payload)
+        {
+            String wrapped;
+            wrapped += StringView(u8"<root>");
+            wrapped += StringView(reinterpret_cast<const utf8char*>(payload.Data()), payload.Size());
+            wrapped += StringView(u8"</root>");
+            foundation::xml::XmlDocument doc(scene.Allocator());
+            if (doc.Parse(wrapped.AsView()) != foundation::xml::XmlResult::Ok)
+            {
+                LOG_WARNING(u8"Scene", u8"a kept record of type '{}' failed to re-parse",
+                            manager.SerializationTypeId());
+                return false;
+            }
+            foundation::xml::XmlSerializer ar(doc);
+            ar.Key("data");
+            ar.BeginObject();
+            manager.ReadComponent(ar, owner);
+            ar.EndObject();
+            return true;
+        }
+
+        // A modify or add op's payload read onto `owner`, in whichever form it was kept.
+        void ComponentFromOp(Scene& scene, ComponentManagerBase& manager, EntityHandle owner,
+                             const Scene::PendingPrefabComponentOp& op)
+        {
+            const Span<const u8> payload{op.blob.Data(), op.blob.Size()};
+            if (op.text)
+            {
+                (void)ComponentFromText(scene, manager, owner, payload);
+                return;
+            }
+            ComponentFromBlob(manager, owner, payload);
+        }
+
         void WriteComponentRecord(ISerializer& ar, Scene& scene, ComponentManagerBase& m,
                                   EntityHandle owner, bool text)
         {
@@ -469,7 +506,7 @@ export namespace foundation::scene
                 }
                 else
                 {
-                    ComponentFromBlob(*manager, e, Span<const u8>{op.blob.Data(), op.blob.Size()});
+                    ComponentFromOp(scene, *manager, e, op);
                     if (state != nullptr)
                     {
                         RemapOverrideEntityRefs(*manager, e, *state);
@@ -570,12 +607,56 @@ export namespace foundation::scene
             }
             ar.EndArray();
 
-            u32 opCount = static_cast<u32>(d.componentOps.Size());
+            // An op kept as text whose type still has no manager cannot be re-encoded as binary:
+            // it drops from a binary write, as an unresolved component record does.
+            auto unwritable = [&](const Scene::PendingPrefabComponentOp& op)
+            {
+                return !text && op.text &&
+                       scene.FindManagerBySerializationId(op.typeId.AsView()) == nullptr;
+            };
+            u32 opCount = 0;
+            for (const Scene::PendingPrefabComponentOp& op : d.componentOps)
+            {
+                if (!unwritable(op))
+                {
+                    ++opCount;
+                }
+            }
+            if (opCount != d.componentOps.Size())
+            {
+                LOG_WARNING(u8"Scene",
+                            u8"dropping {} prefab override(s) kept as text (their plugin was not "
+                            u8"loaded; load it and re-save to convert)",
+                            d.componentOps.Size() - opCount);
+            }
             ar.Key("componentOps");
             ar.BeginArray(opCount);
             EntityHandle scratch = EntityHandle::Invalid();
             for (Scene::PendingPrefabComponentOp& op : d.componentOps)
             {
+                if (unwritable(op))
+                {
+                    continue;
+                }
+                if (!text && op.text)
+                {
+                    // Kept as text, its manager has arrived since: re-encode it as binary.
+                    ComponentManagerBase* m =
+                        scene.FindManagerBySerializationId(op.typeId.AsView());
+                    if (!scratch.IsAssigned())
+                    {
+                        scratch = scene.CreateEntity(u8"__op_write");
+                    }
+                    ComponentFromOp(scene, *m, scratch, op);
+                    Array<u8> blob;
+                    ComponentToBlob(*m, scratch, blob);
+                    m->RemoveComponent(scratch);
+                    SerializeGuid(ar, "src", op.sourceEntity);
+                    foundation::core::Serialize(ar, "type", op.typeId);
+                    foundation::core::Serialize(ar, "op", op.op);
+                    foundation::core::Serialize(ar, "blob", blob);
+                    continue;
+                }
                 if (text)
                 {
                     ar.BeginObject();
@@ -586,16 +667,19 @@ export namespace foundation::scene
                     { // remove ops carry no payload
                         ComponentManagerBase* m =
                             scene.FindManagerBySerializationId(op.typeId.AsView());
-                        u8 form = (m != nullptr) ? 1u : 0u;
+                        u8 form = (m != nullptr || op.text) ? 1u : 0u;
                         foundation::core::Serialize(ar, "form", form);
-                        if (m != nullptr)
+                        if (m == nullptr && op.text)
+                        {
+                            (void)ar.RawRemainder(op.blob); // re-injects the kept <data> element
+                        }
+                        else if (m != nullptr)
                         {
                             if (!scratch.IsAssigned())
                             {
                                 scratch = scene.CreateEntity(u8"__op_write");
                             }
-                            ComponentFromBlob(*m, scratch,
-                                              Span<const u8>{op.blob.Data(), op.blob.Size()});
+                            ComponentFromOp(scene, *m, scratch, op);
                             ar.Key("data");
                             ar.BeginObject();
                             m->WriteComponent(ar, scratch);
@@ -732,12 +816,18 @@ export namespace foundation::scene
                             }
                             else
                             {
-                                // Inline fields need the manager to decode; the op drops,
-                                // like any unknown-type record.
-                                LOG_WARNING(
-                                    u8"Scene", u8"dropping override of unknown component type '{}'",
-                                    op.typeId);
-                                keep = false;
+                                // Inline fields need the manager to decode: the <data> element
+                                // is kept verbatim, as an unknown type's whole record is, and
+                                // read once its plugin loads.
+                                op.text = true;
+                                keep = ar.RawRemainder(op.blob);
+                                if (!keep)
+                                {
+                                    LOG_WARNING(u8"Scene",
+                                                u8"dropping override of unknown component type "
+                                                u8"'{}'",
+                                                op.typeId);
+                                }
                             }
                         }
                         else

@@ -230,6 +230,9 @@ export namespace foundation::scene
             String typeId;
             u8 op = 0;      // 0 = modify, 1 = add, 2 = remove (blob empty)
             Array<u8> blob; // binary component payload for modify/add
+            // The blob is the record's <data> element as text: read from a text scene while the
+            // type had no manager (its plugin absent), so it waits verbatim for that manager.
+            bool text = false;
         };
         struct PrefabInstanceState
         {
