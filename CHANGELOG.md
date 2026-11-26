@@ -231,6 +231,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Profiler: on a device whose clocks the engine cannot read together (WebGPU), a frame's GPU
+  passes no longer land outside the frame that drew them, their timings placed milliseconds from
+  where the CPU scopes beside them sit. The one sync that maps the GPU clock onto the CPU's is
+  only as good as its round trip, and one unlucky sample (a software adapter, a busy machine) was
+  kept; the narrowest of several is now taken.
 - Behaviors no longer hear contacts or animation events that happened before their scene started,
   or that were still queued when it stopped; an editor scene that is not simulating no longer
   queues them without end.

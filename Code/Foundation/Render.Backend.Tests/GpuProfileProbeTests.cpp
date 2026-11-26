@@ -173,6 +173,20 @@ namespace
                     if (pass.beginTick + slack < record->beginTick || pass.endTick > record->endTick + slack)
                     {
                         ++out.outsideFrame;
+                        // Where it landed instead, so a failure says which way the clocks are out:
+                        // an origin off by its sync's round trip puts every pass the same way and
+                        // by the same amount, a frame or more from the frame that drew it.
+                        const f64 ms = 1000.0 / static_cast<f64>(GetTickFrequency());
+                        MESSAGE("frame " << (k - firstFrame) << "'s pass " << out.passes << " begins "
+                                         << (static_cast<f64>(static_cast<i64>(pass.beginTick) -
+                                                              static_cast<i64>(record->beginTick)) *
+                                             ms)
+                                         << " ms and ends "
+                                         << (static_cast<f64>(static_cast<i64>(pass.endTick) -
+                                                              static_cast<i64>(record->endTick)) *
+                                             ms)
+                                         << " ms from its frame's own begin and end, a frame of "
+                                         << (static_cast<f64>(record->endTick - record->beginTick) * ms) << " ms");
                     }
                     if (previousEnd != 0 && pass.beginTick + slack < previousEnd)
                     {

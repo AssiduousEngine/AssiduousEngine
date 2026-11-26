@@ -53,6 +53,9 @@ export namespace foundation::rendergraph
     {
     public:
         static constexpr u32 kMaxPasses = 256; // passes timed in one frame of one graph
+        // Sync attempts (SyncPoint): enough that a busy machine gives one clean round trip,
+        // few enough to cost nothing noticeable the one time profiling starts.
+        static constexpr u32 kSyncAttempts = 8;
 
         explicit GraphProfiler(IAllocator& allocator) noexcept : m_allocator(&allocator), m_slots(allocator) {}
         ~GraphProfiler() { Destroy(); }
@@ -269,6 +272,12 @@ export namespace foundation::rendergraph
         // Without calibrated timestamps: let the queue go idle, then write one timestamp and wait
         // for it; it ran between the submit and the wait's end, so its CPU time is the middle of
         // the two (off by half that round trip at most). Once, when profiling first starts.
+        //
+        // That round trip is the whole accuracy of the mapping, and the first one the device
+        // gives is not the best it can give: a software adapter on a busy machine comes back
+        // milliseconds later, and every pass is then placed that far from the frame that drew it
+        // (a frame or more away, uniformly early). So several are taken and the narrowest one
+        // wins, which leaves half the best round trip rather than half an unlucky one.
         [[nodiscard]] bool SyncPoint()
         {
             rhi::QuerySetHandle set{};
@@ -282,10 +291,17 @@ export namespace foundation::rendergraph
             bool ok = m_device->CreateQuerySet(qd, set).IsOk() && MakeReadback(sizeof(u64), readback) &&
                       m_device->CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk() &&
                       m_device->CreateFence(0, fence).IsOk();
-            rhi::CommandEncoder* encoder = nullptr;
-            ok = ok && pool->CreateEncoder(encoder).IsOk();
-            if (ok)
+            u64 narrowest = ~0ull; // the best round trip so far, and the pair it gave
+            u64 gpuOrigin = 0;
+            u64 cpuOrigin = 0;
+            for (u32 attempt = 0; ok && attempt < kSyncAttempts; ++attempt)
             {
+                rhi::CommandEncoder* encoder = nullptr;
+                ok = pool->CreateEncoder(encoder).IsOk();
+                if (!ok)
+                {
+                    break;
+                }
                 encoder->ResetQuerySet(set, 0, 1);
                 encoder->WriteTimestamp(set, 0);
                 encoder->ResolveQuerySet(set, 0, 1, readback, 0);
@@ -296,15 +312,16 @@ export namespace foundation::rendergraph
                     m_queue->WaitIdle();
                     const u64 before = GetTicks();
                     rhi::CommandBuffer* buffers[] = {commandBuffer};
-                    m_queue->Submit(Span<rhi::CommandBuffer* const>(buffers, 1), fence, 1);
-                    ok = fence->Wait(1, ~0ull);
+                    m_queue->Submit(Span<rhi::CommandBuffer* const>(buffers, 1), fence, attempt + 1);
+                    ok = fence->Wait(attempt + 1, ~0ull);
                     const u64 after = GetTicks();
                     const u64* mapped = ok ? static_cast<const u64*>(m_device->Map(readback)) : nullptr;
                     ok = mapped != nullptr && mapped[0] != 0;
-                    if (ok)
+                    if (ok && after - before < narrowest)
                     {
-                        m_gpuOrigin = mapped[0];
-                        m_cpuOrigin = before + (after - before) / 2;
+                        narrowest = after - before;
+                        gpuOrigin = mapped[0];
+                        cpuOrigin = before + (after - before) / 2;
                     }
                     if (mapped != nullptr)
                     {
@@ -312,6 +329,12 @@ export namespace foundation::rendergraph
                     }
                 }
                 pool->DestroyEncoder(encoder);
+            }
+            ok = ok && narrowest != ~0ull;
+            if (ok)
+            {
+                m_gpuOrigin = gpuOrigin;
+                m_cpuOrigin = cpuOrigin;
             }
             if (fence != nullptr)
             {
