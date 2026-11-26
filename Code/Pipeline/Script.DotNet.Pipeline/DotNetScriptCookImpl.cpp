@@ -577,12 +577,21 @@ namespace pipeline
                         out[i] = u8'/';
                 return out;
             };
+            // The root as given and as it resolves: the compiler names files by their final path, which
+            // differs from a temp folder named in its short form (Windows' "RUNNER~1") or through a link.
             const String shownFile = forward(file);
-            const String buildRoot = forward(root);
             StringView module = shownFile.AsView();
-            if (module.Size() > buildRoot.Size() && module.SubStr(0, buildRoot.Size()) == buildRoot.AsView() &&
-                module[buildRoot.Size()] == u8'/')
-                module = module.SubStr(buildRoot.Size() + 1, module.Size() - buildRoot.Size() - 1);
+            const String roots[] = {forward(root), forward(PathResolveLinks(root).AsView())};
+            for (const String& given : roots)
+            {
+                const StringView buildRoot = given.AsView();
+                if (!buildRoot.IsEmpty() && module.Size() > buildRoot.Size() && module.SubStr(0, buildRoot.Size()) == buildRoot &&
+                    module[buildRoot.Size()] == u8'/')
+                {
+                    module = module.SubStr(buildRoot.Size() + 1, module.Size() - buildRoot.Size() - 1);
+                    break;
+                }
+            }
             // The message: past "error CODE: ", without MSBuild's trailing "[project]".
             const usize textAt = marker + (kind == ScriptErrorKind::Warning ? 11u : 9u);
             StringView message = line.SubStr(textAt, line.Size() - textAt);
