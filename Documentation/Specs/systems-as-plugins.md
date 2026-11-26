@@ -83,7 +83,12 @@ at the tail keeps the order (to be confirmed by the tests that run a frame).
 `RegisterAllScriptFacades` and `RegisterAllSceneComponentReflection` (`Main.cpp:26-28`), the
 engine's domains alone: Dialogue's facade is already missing from C#. The generator loads the
 plugins the build carries (`UTIL_HOST_PLUGINS`) before it reads the registry, so moving a system
-out does not take it from C#. Holdout (C#) uses `NavAgentComponent` and would break without this.
+out does not take it from C#. Holdout (C#) uses `NavAgentComponent` and would break without this,
+so G3 comes before navigation moves; particles and terrain have no C# user. Its test builds C#
+that calls a plugin's facade and runs it with the plugin loaded, not a search of the generated
+file. Bindings cover the plugins the engine ships; a project's own packages need bindings built
+per project, which belongs to the script backends spec's C# phase. C# support for Dialogue itself
+(a C# game running a conversation) comes after this spec (user, 2026-11-26).
 
 **G4. A prefab override of an unknown component survives.** Scenes keep the records of a
 component whose plugin is absent and write them back (`Scene.Resource/SceneResource.cppm:454`),
@@ -221,10 +226,10 @@ Each step green on the clang lane on its own; the other lanes when a plugin is d
 1. G6 (dead links and imports), G4 (prefab overrides), and the heightfield module registered by
    physics' domain instead of terrain's.
 2. G1 and G2, with load, unload and reload tests through a test plugin.
-3. G5, then G3, then G8.
+3. G5, then G8.
 4. Particles: the smallest, and it proves the render path and the editor unload.
 5. Terrain.
-6. Navigation.
+6. G3, then navigation.
 7. The script backends spec refreshed and brought back for approval.
 8. G7 when a plugin's shaders are worth moving.
 
