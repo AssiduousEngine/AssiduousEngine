@@ -2302,6 +2302,28 @@ TEST_CASE("render: the debug lists empty at every iteration's end, a frame rende
     CHECK_FALSE(sub.DebugScreen().HasAnyDraws());
 }
 
+TEST_CASE("render: a provider removed as its plugin unloads leaves every scene it was in")
+{
+    struct Provider final : IRenderDataProvider
+    {
+        void ExtractRenderData(ExtractedScene&) override {}
+    };
+    rhi::null::NullDevice device{DefaultAllocator()};
+    foundation::vfs::NativeFileSystem dataFs(foundation::vfs::FindDataRoot(), DefaultAllocator());
+    RenderSubsystem sub{DefaultAllocator(), device, 2, dataFs};
+    scene::Scene first(DefaultAllocator(), u8"first");
+    scene::Scene second(DefaultAllocator(), u8"second");
+    Provider plugin;
+    Provider other;
+    sub.RegisterProvider(first, plugin);
+    sub.RegisterProvider(second, plugin);
+    sub.RegisterProvider(first, other);
+    sub.UnregisterProvider(plugin);
+    CHECK_FALSE(sub.HasProvider(first, plugin));
+    CHECK_FALSE(sub.HasProvider(second, plugin));
+    CHECK(sub.HasProvider(first, other)); // the others stay
+}
+
 // The inspector offers an enum's registered values only, so every sprite orientation must be
 // registered, EntityOriented (the one that turns with its entity) included.
 TEST_CASE("components: every sprite orientation is offered to the editor")

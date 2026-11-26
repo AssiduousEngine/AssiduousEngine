@@ -423,15 +423,22 @@ export namespace foundation::render
     class RendererRegistry
     {
     public:
-        // Register `renderer` (borrowed; the caller owns its lifetime); assigns its dispatch id.
+        // Register `renderer` (borrowed; the caller owns its lifetime); assigns its dispatch id,
+        // reusing a removed renderer's.
         void Register(Renderer* renderer);
+        // Remove `renderer` (a plugin's, as it unloads). The other renderers keep their ids, so
+        // render data already stamped with them still routes; data stamped with this one's id
+        // finds no renderer until the id is reused.
+        void Unregister(Renderer* renderer);
 
         [[nodiscard]] Renderer* ById(u16 id) const noexcept;
 
+        // The registered renderers, each once (what the frame drives registry-wide).
         [[nodiscard]] Span<Renderer* const> Unique() const noexcept;
 
     private:
         Array<Renderer*> m_unique;
+        Array<Renderer*> m_byId; // indexed by dispatch id; null where a renderer was removed
     };
 
     // The forward pass: declares a view's opaque, transparent and post-tonemap UI passes into the

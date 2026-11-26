@@ -129,6 +129,9 @@ export namespace engine::render
         // Register an external Renderer (borrowed: the caller owns it); returns its dispatch id to stamp on
         // the subsystem's render-data. The pipeline drives PrepareFrame/Resolve/FinishFrame registry-wide.
         u16 RegisterRenderer(Renderer& renderer);
+        // Remove a renderer registered above (a plugin's part, as it unloads). The caller frees
+        // its GPU resources only once the frames in flight that used them have finished.
+        void UnregisterRenderer(Renderer& renderer);
         /// The built-in MeshRenderer's registration id (what mesh-shaped data routes to). Producers
         /// of MeshRenderData outside the extractor stamp this, never a literal 0.
         [[nodiscard]] u16 MeshRendererId() const noexcept
@@ -138,6 +141,22 @@ export namespace engine::render
         // Register a render-data provider for a scene (borrowed). Invoked during that scene's extraction.
         // The provider interface is scene-free; the scene binding lives here. Auto-cleared on scene destroy.
         void RegisterProvider(scene::Scene& scene, IRenderDataProvider& provider);
+        // Remove `provider` from every scene it was registered for (its plugin unloading while
+        // the scenes live on).
+        void UnregisterProvider(IRenderDataProvider& provider);
+        // Whether `provider` is registered for `scene` (its extraction will call it).
+        [[nodiscard]] bool HasProvider(const scene::Scene& scene,
+                                       const IRenderDataProvider& provider) const noexcept
+        {
+            for (const SceneProvider& sp : m_providers)
+            {
+                if (sp.scene == &scene && sp.provider == &provider)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
         // GPU handles a subsystem needs to build its renderer's pipeline (valid once RenderSubsystem is ready).
         [[nodiscard]] rhi::Device* Device() const noexcept { return m_device; }
         [[nodiscard]] shaders::ShaderSystem* Shaders() const noexcept { return m_shaders; }

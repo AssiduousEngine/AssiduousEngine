@@ -58,9 +58,27 @@ namespace engine::render
         return renderer.RendererId();
     }
 
+    void RenderSubsystem::UnregisterRenderer(Renderer& renderer)
+    {
+        m_registry.Unregister(&renderer);
+    }
+
     void RenderSubsystem::RegisterProvider(scene::Scene& scene, IRenderDataProvider& provider)
     {
         m_providers.PushBack(SceneProvider{&scene, &provider});
+    }
+
+    void RenderSubsystem::UnregisterProvider(IRenderDataProvider& provider)
+    {
+        usize w = 0;
+        for (usize r = 0; r < m_providers.Size(); ++r)
+        {
+            if (m_providers[r].provider != &provider)
+            {
+                m_providers[w++] = m_providers[r];
+            }
+        }
+        m_providers.Resize(w);
     }
 
     void RenderSubsystem::Update(f32 deltaTime)

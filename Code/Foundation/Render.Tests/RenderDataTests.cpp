@@ -481,6 +481,24 @@ TEST_CASE("RendererRegistry routes categories to renderers")
     CHECK(registry.ById(r.RendererId()) == &r);
     CHECK(registry.ById(999) == nullptr); // unregistered id
     CHECK(registry.Unique().Size() == 1);
+
+    // A plugin's renderer removed as it unloads: the others keep their ids, so data stamped with
+    // them still routes, and the next registration takes the freed id.
+    FakeRenderer plugin;
+    FakeRenderer after;
+    registry.Register(&plugin);
+    registry.Register(&after);
+    const u16 pluginId = plugin.RendererId();
+    const u16 afterId = after.RendererId();
+    registry.Unregister(&plugin);
+    CHECK(registry.ById(pluginId) == nullptr);
+    CHECK(registry.ById(afterId) == &after);
+    CHECK(registry.ById(r.RendererId()) == &r);
+    CHECK(registry.Unique().Size() == 2);
+    FakeRenderer reloaded;
+    registry.Register(&reloaded);
+    CHECK(reloaded.RendererId() == pluginId);
+    CHECK(registry.Unique().Size() == 3);
 }
 
 // ---- overlay registries (the two-tier overlay coordination model) ----

@@ -95,13 +95,43 @@ namespace foundation::render
         {
             return;
         }
-        renderer->SetRendererId(static_cast<u16>(m_unique.Size()));
+        usize id = m_byId.Size();
+        for (usize i = 0; i < m_byId.Size(); ++i)
+        {
+            if (m_byId[i] == nullptr)
+            {
+                id = i;
+                break;
+            }
+        }
+        if (id == m_byId.Size())
+        {
+            m_byId.PushBack(renderer);
+        }
+        else
+        {
+            m_byId[id] = renderer;
+        }
+        renderer->SetRendererId(static_cast<u16>(id));
         m_unique.PushBack(renderer);
+    }
+
+    void RendererRegistry::Unregister(Renderer* renderer)
+    {
+        for (usize i = 0; i < m_unique.Size(); ++i)
+        {
+            if (m_unique[i] == renderer)
+            {
+                m_unique.RemoveAt(i);
+                m_byId[renderer->RendererId()] = nullptr;
+                return;
+            }
+        }
     }
 
     Renderer* RendererRegistry::ById(u16 id) const noexcept
     {
-        return (id < m_unique.Size()) ? m_unique[id] : nullptr;
+        return (id < m_byId.Size()) ? m_byId[id] : nullptr;
     }
 
     Span<Renderer* const> RendererRegistry::Unique() const noexcept
