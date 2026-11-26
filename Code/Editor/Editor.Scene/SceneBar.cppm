@@ -141,7 +141,7 @@ export namespace editor
         }
         [[nodiscard]] usize Bound() const noexcept { return m_bar.Count(); }
         /// What the state label says ("Simulating", "Paused"); empty while it shows nothing.
-        [[nodiscard]] StringView State() const { return m_state != nullptr && m_state->IsVisible() ? m_state->GetText() : StringView{}; }
+        [[nodiscard]] StringView State() const { return m_state != nullptr ? m_state->GetText() : StringView{}; }
 
     private:
         // Simulate's state beside its buttons, shown while it runs (edits are locked meanwhile).
@@ -155,9 +155,21 @@ export namespace editor
             const ISceneEditorPage* scene = ServiceOf<ISceneEditorPage>(m_page);
             const bool running = scene != nullptr && scene->IsSimulating();
             const bool paused = running && scene->IsPaused();
-            if (m_state->IsVisible() != running)
-                m_state->SetVisible(running);
-            if (!running || (m_stateShown && paused == m_paused))
+            // Stopped, it says nothing and has no colour, keeping its place. Its visibility is the
+            // bar's own (the bar shows each item it places), so it is never hidden here.
+            if (!running)
+            {
+                if (m_stateShown)
+                {
+                    m_state->SetText(StringView{});
+                    m_state->RemoveClass(StringView(u8"playing"));
+                    m_state->RemoveClass(StringView(u8"paused"));
+                    m_state->SetTooltip(StringView{});
+                    m_stateShown = false;
+                }
+                return;
+            }
+            if (m_stateShown && paused == m_paused)
                 return;
             m_state->SetText(paused ? StringView(u8"Paused") : StringView(u8"Simulating"));
             m_state->RemoveClass(paused ? StringView(u8"playing") : StringView(u8"paused"));
