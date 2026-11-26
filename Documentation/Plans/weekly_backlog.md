@@ -134,6 +134,16 @@ Marked "(to check)" where the check was by reading, not running.
   anchor, restyle scope and partial redraw, G5's formats and observable properties, G7's key repeat
   and keymap gaps, a binding that must not yield (to check against the GUI's backlog-0.2 entries).
 
+## Queued 2026-11-25 (user, after the mesh slot fix): where the reference-to-asset join lives
+
+Which asset types a reference slot offers (a `Ref<StaticMesh>` takes static and skinned mesh assets)
+is answered by `editor::mcp::SourceAssetTypesFor` (`Editor.Mcp/SceneReferenceImpl.cpp`), written for
+the MCP tools' scene reference. The inspector's picker reaches it through the context's
+`SourceAssetTypesOf` hook, which `EditorSession.cppm` sets; the render settings profiles' pickers use
+the same hook. So a question about the project and its pipeline (what builds into what) lives in the
+MCP library. `Editor.Project` was proposed and the user is not sure it is the right place either: to
+review where it belongs, then move it.
+
 ## Queued 2026-11-02 (user, after profiling the import preview): a time budget for GPU mesh uploads
 
 The renderer puts a mesh on the GPU the first time it draws it, on the main thread inside the frame
