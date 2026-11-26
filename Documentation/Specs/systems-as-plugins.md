@@ -126,10 +126,13 @@ need it as much as the Engine part does. A package therefore also holds `<Name>.
 - No host loads it and it has no entry, so the manifest's `parts` does not list it.
 - It links Foundation libraries and third-party code only, as the engine's own Foundation layer
   does.
-- The parts link by what their hosts hold, not in a chain (today each part links the previous
-  one PUBLIC, `cmake/Plugins.cmake`, `util_add_plugin_part`, so a headless cook links the plugin's
-  runtime). Decided (user, 2026-11-26): the Engine and Pipeline parts each link the Foundation
-  library alone; Tooling links Pipeline; Editor links Tooling and Engine, as the editor hosts both.
+- The parts link by what they use, not in a chain (today each part links the previous one
+  PUBLIC, `cmake/Plugins.cmake`, `util_add_plugin_part`, so a Pipeline part reaches the plugin's
+  runtime code). Decided (user, 2026-11-26): the Engine and Pipeline parts each link the
+  Foundation library alone; Tooling links Pipeline; Editor links Tooling and Engine. What a host
+  loads is unchanged: the cook, export and MCP roles still load the Engine parts
+  (`UTIL_PLUGIN_ROLE_cook_KINDS`), since a level read into a cook's scratch scene needs the
+  plugin's scene managers. The gain is the build graph, not a lighter cook.
 - A new helper, `util_add_plugin_library(Foundation)`, builds it the way `util_add_engine_library`
   builds an engine library: static, or shared in a shared build, so the parts in every host share
   one copy of its registrations.
