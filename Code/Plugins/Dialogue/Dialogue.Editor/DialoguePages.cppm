@@ -166,6 +166,11 @@ export namespace dialogue
         // === For tests ===
         /// The outline's rows, one a line.
         [[nodiscard]] String Outline() const;
+        /// The line (from 1) choosing outline row `index` puts the cursor on; 0 past the rows.
+        [[nodiscard]] u32 OutlineLine(usize index) const noexcept
+        {
+            return index < m_conversations.Size() ? m_conversations[index].line : 0u;
+        }
         /// The preview's runner; null when no preview plays.
         [[nodiscard]] DialogueRunService* PreviewRunner() const noexcept { return m_preview.Get(); }
         /// What the preview's pane says.

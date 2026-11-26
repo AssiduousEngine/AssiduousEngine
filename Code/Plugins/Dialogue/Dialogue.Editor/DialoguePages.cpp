@@ -441,7 +441,8 @@ namespace dialogue
         }
         for (const DialogueConversation& conversation : parse.conversations)
         {
-            // Its header is the line before its first statement's, or its End's when it has none.
+            // Its header's line: the parser gives the closing End step the header's line, so the
+            // least line among its steps is the header.
             u32 line = 0;
             for (const DialogueStep& step : conversation.steps)
             {
@@ -450,7 +451,7 @@ namespace dialogue
                     line = step.sourceLine;
                 }
             }
-            m_conversations.PushBack(Entry{conversation.id, line > 1 ? line - 1 : line});
+            m_conversations.PushBack(Entry{conversation.id, line});
         }
         m_built = Move(parse.conversations);
         m_builtLines = Move(parse.lines);

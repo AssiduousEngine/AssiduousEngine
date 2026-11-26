@@ -162,6 +162,8 @@ TEST_CASE("plugins: in the editor, a dialogue file, the cast and the dialogue as
         auto* textPage = static_cast<dialogue::DialogueTextPage*>(filePage);
         CHECK(textPage->SourceRead());
         CHECK(textPage->Outline() == StringView(u8"gate\nlane\n"));
+        CHECK(textPage->OutlineLine(0) == 1u); // choosing a conversation goes to its header
+        CHECK(textPage->OutlineLine(1) == 3u);
         REQUIRE(textPage->Found().Size() == 1u);
         CHECK(textPage->Found()[0].line == 3u); // the fourth line, from 0
         CHECK(textPage->Found()[0].message.AsView().Contains(u8"no speaker `stranger`"));
