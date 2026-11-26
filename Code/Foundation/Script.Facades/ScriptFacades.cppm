@@ -767,4 +767,12 @@ export namespace foundation::script
         RegisterScriptFacadeReflection(); // Scene's own registration first, or it writes over this
         DIAGNOSTIC_VERIFY((core::ExtendProperty<Getter, Declared>(name)));
     }
+
+    /// Takes back a property ExtendScene gave the script Scene, as the plugin that gave it
+    /// unloads (its runs ended): scripts compiled after it no longer see `scene.<name>`.
+    template <auto Getter>
+    void RetractScene()
+    {
+        (void)core::RetractProperty<Getter>();
+    }
 }

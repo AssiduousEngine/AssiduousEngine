@@ -395,6 +395,18 @@ export namespace foundation::core
         return nullptr;
     }
 
+    namespace detail
+    {
+        // The property list an extension leaves on its type, one per getter. A list stays alive
+        // after the type moves on to a later one, so nothing points at freed storage.
+        template <auto Getter>
+        [[nodiscard]] Array<PropertyInfo>& ExtensionList()
+        {
+            static Array<PropertyInfo> properties;
+            return properties;
+        }
+    }
+
     /// Adds a computed read-only property to a value type another module reflected: what that
     /// module's TypeBuilder::ComputedProperty would have declared, from a module above it that the
     /// type cannot name (the script Scene in Foundation gains `physics`, which lives in an engine
@@ -405,7 +417,8 @@ export namespace foundation::core
     /// before anything binds the type: it re-points the type's property list. Once per name: a
     /// repeat with the same getter changes nothing and answers true, as registration repeats;
     /// false when the type is not reflected yet (its registration would write over the property)
-    /// or already has another property by that name.
+    /// or already has another property by that name, or this getter under another name. After
+    /// RetractProperty it adds the property again (a plugin loaded a second time).
     ///
     /// A getter returning a Variant (a resolving handle over state the type does not hold) names
     /// the type it declares as `Declared`, as TypeBuilder::Method's ReturnType override does.
@@ -431,20 +444,57 @@ export namespace foundation::core
             {
                 return type.properties[i].get == get;
             }
+            if (type.properties[i].get == get)
+            {
+                return false; // a getter is one property: this one is in under another name
+            }
         }
-        // The list this extension leaves: the type's properties so far and this one. Earlier
-        // lists stay alive (each extension keeps its own), so nothing points at freed storage.
-        static Array<PropertyInfo> properties;
-        if (!properties.IsEmpty())
-        {
-            return false; // a getter is one property: this one already went in under another name
-        }
+        // The type's properties so far and this one, gathered before the list is replaced (the
+        // type may be showing this extension's own list, left by a retraction).
+        Array<PropertyInfo> gathered;
         for (u32 i = 0; i < type.propertyCount; ++i)
         {
-            properties.PushBack(type.properties[i]);
+            gathered.PushBack(type.properties[i]);
         }
-        properties.PushBack(PropertyInfo{name, &TypeOf<Shown>(), PropertyFlags::ReadOnly, get,
-                                         &detail::GetterPropertySet<T, R, Getter>, nullptr});
+        gathered.PushBack(PropertyInfo{name, &TypeOf<Shown>(), PropertyFlags::ReadOnly, get,
+                                       &detail::GetterPropertySet<T, R, Getter>, nullptr});
+        Array<PropertyInfo>& properties = detail::ExtensionList<Getter>();
+        properties = static_cast<Array<PropertyInfo>&&>(gathered);
+        type.properties = properties.Data();
+        type.propertyCount = static_cast<u32>(properties.Size());
+        return true;
+    }
+
+    /// Takes back a property ExtendProperty added, as the module that added it goes (a plugin
+    /// unloading): the type's readers no longer see it. Call it on one thread with nothing bound
+    /// to the type (the plugin's runs ended), as ExtendProperty is called before anything binds
+    /// it. True when the property was there.
+    template <auto Getter>
+    bool RetractProperty()
+    {
+        using Traits = detail::FreeGetterTraits<decltype(Getter)>;
+        using T = typename Traits::Class;
+        using R = typename Traits::Return;
+        TypeInfo& type = const_cast<TypeInfo&>(TypeOf<T>());
+        constexpr auto get = &detail::FreeGetterPropertyGet<T, R, Getter>;
+        Array<PropertyInfo> kept;
+        bool found = false;
+        for (u32 i = 0; i < type.propertyCount; ++i)
+        {
+            if (type.properties[i].get == get)
+            {
+                found = true;
+                continue;
+            }
+            kept.PushBack(type.properties[i]);
+        }
+        if (!found)
+        {
+            return false;
+        }
+        // Into this extension's own list: whichever list the type showed stays alive.
+        Array<PropertyInfo>& properties = detail::ExtensionList<Getter>();
+        properties = static_cast<Array<PropertyInfo>&&>(kept);
         type.properties = properties.Data();
         type.propertyCount = static_cast<u32>(properties.Size());
         return true;

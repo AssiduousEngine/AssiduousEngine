@@ -651,6 +651,29 @@ TEST_CASE("rtti: ExtendProperty adds a computed property to a type another modul
     CHECK(GetProperty(*FindProperty(TypeOf<Tank>(), "litres"), inst).Get<int>() == 7);
 }
 
+TEST_CASE("rtti: RetractProperty takes back an extension, and it can be added again")
+{
+    // A plugin that extended the type unloads, then loads again.
+    RttiRegisterValue_Tank();
+    REQUIRE(ExtendProperty<&DoubleLitres>("doubled")); // repeats of the case above are harmless
+    REQUIRE(ExtendProperty<&TripleLitres>("tripled"));
+    const u32 count = PropertyCount(TypeOf<Tank>());
+
+    CHECK(RetractProperty<&TripleLitres>());
+    CHECK(FindProperty(TypeOf<Tank>(), "tripled") == nullptr);
+    CHECK(PropertyCount(TypeOf<Tank>()) == count - 1);
+    Tank tank;
+    tank.litres = 4;
+    const Instance inst = Instance::From(&tank);
+    CHECK(GetProperty(*FindProperty(TypeOf<Tank>(), "litres"), inst).Get<int>() == 4);
+    CHECK(GetProperty(*FindProperty(TypeOf<Tank>(), "doubled"), inst).Get<int>() == 8);
+    CHECK_FALSE(RetractProperty<&TripleLitres>()); // already gone
+
+    REQUIRE(ExtendProperty<&TripleLitres>("tripled"));
+    CHECK(PropertyCount(TypeOf<Tank>()) == count);
+    CHECK(GetProperty(*FindProperty(TypeOf<Tank>(), "tripled"), inst).Get<int>() == 12);
+}
+
 void RttiRegisterValue_RefHolder(); // emitted by REFLECT_VALUE above
 
 TEST_CASE("rtti: a reference-shaped value type is read by identity through its TypeInfo - as a "
