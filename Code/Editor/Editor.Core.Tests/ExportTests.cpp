@@ -541,7 +541,7 @@ TEST_CASE("export: a preset describes its fields through reflection")
     for (const PropertyInfo& property : Properties(type))
     {
         CAPTURE(property.name);
-        CHECK(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
+        CHECK(engine::project::SettingAttribute(property, foundation::settings::kSettingLabelAttribute) != nullptr);
         ++labelled;
     }
     CHECK(labelled == 32u);

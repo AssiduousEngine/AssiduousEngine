@@ -16,6 +16,7 @@ module;
 export module engine.project;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.vfs;
 import foundation.xml.serialization;
 import foundation.runtime; // the plugins' entries
@@ -117,19 +118,8 @@ export namespace engine::project
     }
 
     // ProjectSettings reflects the settings the Project Settings dialog edits (and the MCP
-    // project_settings_set sets), each with a `label`; an asset setting is a Guid property whose
-    // `assetType` attribute names the asset type it takes (the picker's filter), or what assets
-    // cook to, taking every asset type that cooks to it, and whose `emptyText` says what unset
-    // means. A setting's `category` names the group it shows in (the dialog's tab; none is
-    // "General"). The engine stamp and the path mirrors are not settings.
-    inline constexpr const char* kSettingLabelAttribute = "label";
-    inline constexpr const char* kSettingCategoryAttribute = "category";
-    inline constexpr StringView kSettingDefaultCategory = u8"General";
-    inline constexpr const char* kSettingAssetTypeAttribute = "assetType";
-    inline constexpr const char* kSettingEmptyTextAttribute = "emptyText";
-    // A setting the project's page sums the project up with carries `summary`, the short label it
-    // shows there ("Input map" for the default input map).
-    inline constexpr const char* kSettingSummaryAttribute = "summary";
+    // project_settings_set sets), shown by foundation.settings' attributes (foundation::settings::kSettingLabelAttribute
+    // and the rest). The engine stamp and the path mirrors are not settings.
 
     /// A plugin id from a package's name ("NativeSample" gives "nativesample"): lower case, anything
     /// but letters, digits and underscores an underscore, prefixed when it does not start with a
@@ -421,8 +411,8 @@ export namespace engine::project
         }
     };
 
-    /// A setting property's string attribute (kSettingLabelAttribute, kSettingAssetTypeAttribute,
-    /// kSettingEmptyTextAttribute); null when the property has none.
+    /// A setting property's string attribute (foundation::settings::kSettingLabelAttribute, foundation::settings::kSettingAssetTypeAttribute,
+    /// foundation::settings::kSettingEmptyTextAttribute); null when the property has none.
     [[nodiscard]] inline const String* SettingAttribute(const PropertyInfo& property,
                                                         const char* key) noexcept
     {
@@ -434,22 +424,22 @@ export namespace engine::project
     /// The group a setting shows in: its `category`, or "General" when it names none.
     [[nodiscard]] inline StringView SettingCategory(const PropertyInfo& property) noexcept
     {
-        const String* category = SettingAttribute(property, kSettingCategoryAttribute);
-        return category != nullptr ? category->AsView() : kSettingDefaultCategory;
+        const String* category = SettingAttribute(property, foundation::settings::kSettingCategoryAttribute);
+        return category != nullptr ? category->AsView() : foundation::settings::kSettingDefaultCategory;
     }
 
     /// An asset setting: a Guid property naming one asset of its `assetType`.
     [[nodiscard]] inline bool IsAssetSetting(const PropertyInfo& property) noexcept
     {
         return property.type == &TypeOf<Guid>() &&
-               SettingAttribute(property, kSettingAssetTypeAttribute) != nullptr;
+               SettingAttribute(property, foundation::settings::kSettingAssetTypeAttribute) != nullptr;
     }
 
     /// An asset list setting: an Array<Guid> property naming assets of its `assetType`, in order.
     [[nodiscard]] inline bool IsAssetListSetting(const PropertyInfo& property) noexcept
     {
         return property.type == &TypeOf<Array<Guid>>() &&
-               SettingAttribute(property, kSettingAssetTypeAttribute) != nullptr;
+               SettingAttribute(property, foundation::settings::kSettingAssetTypeAttribute) != nullptr;
     }
 
     /// Every asset the settings name, each with the setting that names it (a list setting once

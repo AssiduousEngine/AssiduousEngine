@@ -14,6 +14,7 @@
 #include "Core/Reflection/Reflect.h"
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.gui;
 import foundation.gui.toolkit;
 import foundation.scene.resource;
@@ -187,10 +188,10 @@ namespace dialogprobe
     REFLECT_MEMBERS(MeterSettings, "rtti::dialogprobe")
     {
         builder.DataVersion(1);
-        builder.Property<&MeterSettings::volume>("volume").PropAttribute(engine::project::kSettingLabelAttribute,
+        builder.Property<&MeterSettings::volume>("volume").PropAttribute(foundation::settings::kSettingLabelAttribute,
                                                                          String(u8"Volume"));
         builder.Property<&MeterSettings::greeting>("greeting")
-            .PropAttribute(engine::project::kSettingLabelAttribute, String(u8"Greeting"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Greeting"));
     }
 }
 

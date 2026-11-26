@@ -22,6 +22,7 @@ module;
 export module editor.app:project_home;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.content;
 import foundation.gui;
 import foundation.image;
@@ -245,10 +246,10 @@ export namespace editor::app
             const Instance instance(&settings, &type);
             for (const PropertyInfo& property : Properties(type))
             {
-                const String* label = proj::SettingAttribute(property, proj::kSettingSummaryAttribute);
+                const String* label = proj::SettingAttribute(property, foundation::settings::kSettingSummaryAttribute);
                 if (label == nullptr || !proj::IsAssetSetting(property))
                     continue; // the summary names assets; the window has its own row
-                const String* empty = proj::SettingAttribute(property, proj::kSettingEmptyTextAttribute);
+                const String* empty = proj::SettingAttribute(property, foundation::settings::kSettingEmptyTextAttribute);
                 String text;
                 RefPtr<gui::Node> value = AssetValue(*static_cast<const Guid*>(property.address(instance)),
                                                      empty != nullptr ? empty->AsView() : StringView(u8"Not set"), text);
@@ -267,7 +268,7 @@ export namespace editor::app
                 return;
             Clear(*grid);
             const PropertyInfo* defaultScene = FindProperty(engine::project::ProjectSettings::StaticType(), "defaultSceneId");
-            const String* sceneType = defaultScene != nullptr ? engine::project::SettingAttribute(*defaultScene, engine::project::kSettingAssetTypeAttribute) : nullptr;
+            const String* sceneType = defaultScene != nullptr ? engine::project::SettingAttribute(*defaultScene, foundation::settings::kSettingAssetTypeAttribute) : nullptr;
             Array<const content::Instance*> scenes;
             if (sceneType != nullptr)
                 // (A group keeps its instances and its groups in name order, so the walk is in order.)

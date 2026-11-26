@@ -29,6 +29,7 @@ module;
 export module editor.app:settings_dialog;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.content;
 import foundation.gui;
 import foundation.gui.toolkit;
@@ -190,7 +191,7 @@ export namespace editor::app
             const Instance instance(const_cast<engine::project::ProjectSettings*>(&settings), &SettingsType());
             for (const PropertyInfo& property : Properties(SettingsType()))
             {
-                const String* label = engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute);
+                const String* label = engine::project::SettingAttribute(property, foundation::settings::kSettingLabelAttribute);
                 if (label == nullptr || property.address == nullptr)
                     continue;
                 const void* address = property.address(instance);
@@ -203,7 +204,7 @@ export namespace editor::app
             // The engine version that last saved it, under the first category.
             gui::PropertyInfo& version = m_bag->Add(kEngineVersionRow, gui::PropertyKind::String, gui::Variant(settings.engineVersion.AsView()));
             version.DisplayName = String(u8"Engine version");
-            version.Category = String(engine::project::kSettingDefaultCategory);
+            version.Category = String(foundation::settings::kSettingDefaultCategory);
             version.Description = String(u8"The engine this project was last saved with; a save stamps the running one.");
             version.ReadOnly = true;
             FillPlugins(settings);
@@ -250,7 +251,7 @@ export namespace editor::app
                 const Instance instance(object, object->GetType());
                 for (const PropertyInfo& property : Properties(*object->GetType()))
                 {
-                    const String* label = engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute);
+                    const String* label = engine::project::SettingAttribute(property, foundation::settings::kSettingLabelAttribute);
                     if (label == nullptr || property.address == nullptr)
                         continue;
                     const String path = Format(u8"{}.{}", group, NameOf(property));
@@ -344,8 +345,8 @@ export namespace editor::app
         gui::PropertyInfo* AddRow(StringView name, const PropertyInfo& property, const void* address)
         {
             const TypeInfo& type = *property.type;
-            const String* assetType = engine::project::SettingAttribute(property, engine::project::kSettingAssetTypeAttribute);
-            const String* emptyText = engine::project::SettingAttribute(property, engine::project::kSettingEmptyTextAttribute);
+            const String* assetType = engine::project::SettingAttribute(property, foundation::settings::kSettingAssetTypeAttribute);
+            const String* emptyText = engine::project::SettingAttribute(property, foundation::settings::kSettingEmptyTextAttribute);
             if (engine::project::IsAssetSetting(property) && assetType != nullptr)
             {
                 gui::PropertyInfo& row = m_bag->Add(name, gui::PropertyKind::Reference, gui::Variant(GuidText(*static_cast<const Guid*>(address)).AsView()));

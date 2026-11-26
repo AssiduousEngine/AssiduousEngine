@@ -10,6 +10,7 @@
 #include "Core/Reflection/Reflect.h"
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.vfs;
 import foundation.content;
 import foundation.xml.serialization;
@@ -486,23 +487,23 @@ TEST_CASE("editor-project: the settings describe themselves, and the path mirror
     for (const PropertyInfo& property : Properties(type))
     {
         CAPTURE(property.name);
-        REQUIRE(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
+        REQUIRE(engine::project::SettingAttribute(property, foundation::settings::kSettingLabelAttribute) != nullptr);
         if (const String* assetType =
-                engine::project::SettingAttribute(property, engine::project::kSettingAssetTypeAttribute))
+                engine::project::SettingAttribute(property, foundation::settings::kSettingAssetTypeAttribute))
         {
             // One asset, or a list of them (the other UI fonts, the GUI's sheets).
             CHECK((engine::project::IsAssetSetting(property) || engine::project::IsAssetListSetting(property)));
             assets += engine::project::IsAssetSetting(property) ? 1u : 0u;
             lists += engine::project::IsAssetListSetting(property) ? 1u : 0u;
             CHECK_FALSE(assetType->IsEmpty());
-            CHECK(engine::project::SettingAttribute(property, engine::project::kSettingEmptyTextAttribute) != nullptr);
+            CHECK(engine::project::SettingAttribute(property, foundation::settings::kSettingEmptyTextAttribute) != nullptr);
         }
     }
     CHECK(assets == 7u); // scene, script, input map, bus layout, UI font, GUI loading screen, default quality
     CHECK(lists == 3u); // uiFontIds, guiStyleSheetIds, qualityLevelIds
     const PropertyInfo* scene = FindProperty(type, "defaultSceneId");
     REQUIRE(scene != nullptr);
-    CHECK(*engine::project::SettingAttribute(*scene, engine::project::kSettingAssetTypeAttribute) ==
+    CHECK(*engine::project::SettingAttribute(*scene, foundation::settings::kSettingAssetTypeAttribute) ==
           u8"SceneDocument");
 
     engine::project::ProjectSettings settings;
@@ -889,7 +890,7 @@ TEST_CASE("project settings: the window in a few words, and the settings that su
     // The summary's settings, by their short labels, in reflection order.
     Array<String> summary;
     for (const PropertyInfo& property : Properties(engine::project::ProjectSettings::StaticType()))
-        if (const String* label = engine::project::SettingAttribute(property, engine::project::kSettingSummaryAttribute))
+        if (const String* label = engine::project::SettingAttribute(property, foundation::settings::kSettingSummaryAttribute))
             summary.PushBack(*label);
     REQUIRE(summary.Size() == 4u);
     CHECK(summary[0] == StringView(u8"Default scene"));

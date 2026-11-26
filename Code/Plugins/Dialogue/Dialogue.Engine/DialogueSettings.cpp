@@ -12,6 +12,7 @@ module;
 module dialogue.engine;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import engine.project; // the settings' attributes
 
 using namespace foundation::core;
@@ -20,42 +21,41 @@ namespace dialogue
 {
     REFLECT_MEMBERS(DialogueSettings, "rtti::dialogue")
     {
-        using engine::project::kSettingLabelAttribute;
         builder.DataVersion(1);
         RegisterArrayType<String>(); // the two lists
         builder.Property<&DialogueSettings::cast>("cast")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Default cast"))
-            .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"DialogueCastAsset"))
-            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(none)"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Default cast"))
+            .PropAttribute(foundation::settings::kSettingAssetTypeAttribute, String(u8"DialogueCastAsset"))
+            .PropAttribute(foundation::settings::kSettingEmptyTextAttribute, String(u8"(none)"));
         builder.Property<&DialogueSettings::assets>("assets")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Default dialogue assets"))
-            .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"DialogueAssetListAsset"))
-            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(none)"));
-        builder.Property<&DialogueSettings::commands>("commands").PropAttribute(kSettingLabelAttribute,
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Default dialogue assets"))
+            .PropAttribute(foundation::settings::kSettingAssetTypeAttribute, String(u8"DialogueAssetListAsset"))
+            .PropAttribute(foundation::settings::kSettingEmptyTextAttribute, String(u8"(none)"));
+        builder.Property<&DialogueSettings::commands>("commands").PropAttribute(foundation::settings::kSettingLabelAttribute,
                                                                                String(u8"Commands"));
         builder.Property<&DialogueSettings::providedFlags>("providedFlags")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Provided flags"));
-        builder.Property<&DialogueSettings::flagPrefix>("flagPrefix").PropAttribute(kSettingLabelAttribute,
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Provided flags"));
+        builder.Property<&DialogueSettings::flagPrefix>("flagPrefix").PropAttribute(foundation::settings::kSettingLabelAttribute,
                                                                                    String(u8"Flag prefix"));
         builder.Property<&DialogueSettings::fadeSeconds>("fadeSeconds")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Fade length"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Fade length"))
             .PropAttribute("range", Float4{0.0f, 10.0f, 0.1f, 0.0f});
         builder.Property<&DialogueSettings::fadeColor>("fadeColor")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Fade colour"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Fade colour"))
             .PropAttribute("color", true);
-        builder.Property<&DialogueSettings::stockBox>("stockBox").PropAttribute(kSettingLabelAttribute,
+        builder.Property<&DialogueSettings::stockBox>("stockBox").PropAttribute(foundation::settings::kSettingLabelAttribute,
                                                                                String(u8"Stock box"));
         builder.Property<&DialogueSettings::stockBoxSheet>("stockBoxSheet")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Stock box sheet"))
-            .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"GuiStyleSheetAsset"))
-            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(the plugin's own)"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Stock box sheet"))
+            .PropAttribute(foundation::settings::kSettingAssetTypeAttribute, String(u8"GuiStyleSheetAsset"))
+            .PropAttribute(foundation::settings::kSettingEmptyTextAttribute, String(u8"(the plugin's own)"));
         builder.Property<&DialogueSettings::typingSpeed>("typingSpeed")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Typing speed"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Typing speed"))
             .PropAttribute("range", Float4{0.0f, 200.0f, 1.0f, 0.0f});
         builder.Property<&DialogueSettings::advanceAction>("advanceAction")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Advance action"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Advance action"));
         builder.Property<&DialogueSettings::portraitOnRight>("portraitOnRight")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Portrait on the right"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Portrait on the right"));
     }
 
     void DialogueSettings::Serialize(ISerializer& ar)

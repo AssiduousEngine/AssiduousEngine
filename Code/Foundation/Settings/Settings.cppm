@@ -25,6 +25,21 @@ using namespace foundation::core;
 
 export namespace foundation::settings
 {
+    // How a settings type's property is shown where settings are edited (Project Settings, a
+    // plugin's settings, the MCP settings tools): each with a `label`; an asset setting is a Guid
+    // property whose `assetType` attribute names the asset type it takes (the picker's filter), or
+    // what assets cook to, taking every asset type that cooks to it, and whose `emptyText` says
+    // what unset means. A setting's `category` names the group it shows in (the dialog's tab; none
+    // is "General"). The store itself reads none of them.
+    inline constexpr const char* kSettingLabelAttribute = "label";
+    inline constexpr const char* kSettingCategoryAttribute = "category";
+    inline constexpr StringView kSettingDefaultCategory = u8"General";
+    inline constexpr const char* kSettingAssetTypeAttribute = "assetType";
+    inline constexpr const char* kSettingEmptyTextAttribute = "emptyText";
+    // A setting the project's page sums the project up with carries `summary`, the short label it
+    // shows there ("Input map" for the default input map).
+    inline constexpr const char* kSettingSummaryAttribute = "summary";
+
     // A store of typed settings sections. One instance holds one persisted file's worth (layering
     // across user and project files composes several Settings). Not copyable (owns live sections).
     class Settings

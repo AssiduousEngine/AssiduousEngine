@@ -12,6 +12,7 @@ module;
 module engine.project;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 
 using namespace foundation::core;
 
@@ -46,34 +47,34 @@ namespace engine::project
         const auto asset = [&builder](StringView label, StringView type, StringView emptyText,
                                       StringView category)
         {
-            builder.PropAttribute(kSettingLabelAttribute, String(label))
-                .PropAttribute(kSettingCategoryAttribute, String(category))
-                .PropAttribute(kSettingAssetTypeAttribute, String(type))
-                .PropAttribute(kSettingEmptyTextAttribute, String(emptyText));
+            builder.PropAttribute(foundation::settings::kSettingLabelAttribute, String(label))
+                .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(category))
+                .PropAttribute(foundation::settings::kSettingAssetTypeAttribute, String(type))
+                .PropAttribute(foundation::settings::kSettingEmptyTextAttribute, String(emptyText));
         };
         builder.Property<&ProjectSettings::name>("name")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Name"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"General"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Name"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"General"));
         // The scene the player and play-in-editor open.
         builder.Property<&ProjectSettings::defaultSceneId>("defaultSceneId");
         asset(u8"Default scene", u8"SceneDocument", u8"(none)", u8"Startup");
-        builder.PropAttribute(kSettingSummaryAttribute, String(u8"Default scene"));
+        builder.PropAttribute(foundation::settings::kSettingSummaryAttribute, String(u8"Default scene"));
         // The run behavior the player (and the Game tab) starts: a class deriving from RunBehavior,
         // named by what its asset cooks to, so a script's and a native behavior's asset both name one.
         builder.Property<&ProjectSettings::runBehaviorId>("runBehaviorId");
         asset(u8"Run behavior", u8"BehaviorClass", u8"(none)", u8"Startup");
-        builder.PropAttribute(kSettingSummaryAttribute, String(u8"Run behavior"));
+        builder.PropAttribute(foundation::settings::kSettingSummaryAttribute, String(u8"Run behavior"));
         // The cooked map the player (and the Game tab) binds at startup.
         builder.Property<&ProjectSettings::defaultInputMapId>("defaultInputMapId");
         asset(u8"Default input map", u8"InputMapAsset", u8"(none)", u8"Startup");
-        builder.PropAttribute(kSettingSummaryAttribute, String(u8"Input map"));
+        builder.PropAttribute(foundation::settings::kSettingSummaryAttribute, String(u8"Input map"));
         // The cooked mixer applied at startup; nil means the built-in neutral four-bus layout.
         builder.Property<&ProjectSettings::defaultBusLayoutId>("defaultBusLayoutId");
         asset(u8"Default bus layout", u8"AudioBusLayoutAsset", u8"(built-in)", u8"Audio");
         // The cooked font the game UI falls back to when a document names none.
         builder.Property<&ProjectSettings::defaultUiFontId>("defaultUiFontId");
         asset(u8"Default UI font", u8"FontAsset", u8"(built-in)", u8"UI");
-        builder.PropAttribute(kSettingSummaryAttribute, String(u8"UI font"));
+        builder.PropAttribute(foundation::settings::kSettingSummaryAttribute, String(u8"UI font"));
         // Cooked fonts the game UI loads beside the default one, each a family a label picks.
         RegisterArrayType<Guid>(); // the list container (the dialog's list, the MCP tools)
         builder.Property<&ProjectSettings::uiFontIds>("uiFontIds");
@@ -88,43 +89,43 @@ namespace engine::project
         // the user approves it for this project.
         RegisterArrayType<String>(); // the list container (the MCP tools)
         builder.Property<&ProjectSettings::mcpFolders>("mcpFolders")
-            .PropAttribute(kSettingLabelAttribute, String(u8"MCP folders"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"General"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"MCP folders"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"General"));
         // The display: the render resolution (0 x 0 is the output's size) and its fit, then the
         // player's window. An export preset may override either per platform.
         const Float4 renderSize{0.0f, 16384.0f, 1.0f, 0.0f};
         const Float4 windowSize{1.0f, 16384.0f, 1.0f, 0.0f};
         builder.Property<&ProjectSettings::renderWidth>("renderWidth")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Render width"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Render width"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"))
             .PropAttribute("range", renderSize);
         builder.Property<&ProjectSettings::renderHeight>("renderHeight")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Render height"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Render height"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"))
             .PropAttribute("range", renderSize);
         builder.Property<&ProjectSettings::renderFit>("renderFit")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Render fit"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Render fit"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"));
         builder.Property<&ProjectSettings::windowWidth>("windowWidth")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Window width"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Window width"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"))
             .PropAttribute("range", windowSize);
         builder.Property<&ProjectSettings::windowHeight>("windowHeight")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Window height"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Window height"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"))
             .PropAttribute("range", windowSize);
         builder.Property<&ProjectSettings::windowMode>("windowMode")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Window mode"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Window mode"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"));
         builder.Property<&ProjectSettings::windowResizable>("windowResizable")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Window resizable"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Window resizable"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"));
         builder.Property<&ProjectSettings::presentMode>("presentMode")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Present mode"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Present mode"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"));
         builder.Property<&ProjectSettings::orientation>("orientation")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Orientation"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Orientation"))
+            .PropAttribute(foundation::settings::kSettingCategoryAttribute, String(u8"Display"));
         // The quality levels in an options menu's order, and the one the game starts at where no
         // export preset picks another.
         builder.Property<&ProjectSettings::qualityLevelIds>("qualityLevelIds");

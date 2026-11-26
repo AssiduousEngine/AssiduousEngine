@@ -134,6 +134,16 @@ Marked "(to check)" where the check was by reading, not running.
   anchor, restyle scope and partial redraw, G5's formats and observable properties, G7's key repeat
   and keymap gaps, a binding that must not yield (to check against the GUI's backlog-0.2 entries).
 
+## Queued 2026-11-26 (user, during the systems-as-plugins work): settings name asset types
+
+A settings type shows an asset setting by its `assetType` attribute, which names the asset type the
+editor's picker offers (`DialogueCastAsset`). The setting attributes moved from `engine.project` to
+`foundation.settings` so a plugin's Foundation library (`Dialogue.Foundation`, which holds
+`DialogueSettings`) can reach them; they are only string keys there, naming no type. But neither
+Foundation nor `engine.project` should know about asset types: the attribute is the pipeline's and
+the editor's notion. To revisit: where the asset-type attribute belongs, and how a settings type in a
+Foundation library says what its Guid settings take without it.
+
 ## Queued 2026-11-25 (user, after the mesh slot fix): where the reference-to-asset join lives
 
 Which asset types a reference slot offers (a `Ref<StaticMesh>` takes static and skinned mesh assets)

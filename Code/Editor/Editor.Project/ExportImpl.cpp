@@ -23,6 +23,7 @@ module;
 module editor.project;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.vfs;
 import foundation.vfs.pak;
 import foundation.content;
@@ -60,8 +61,7 @@ namespace editor
 
     REFLECT_VALUE(ExportPreset, "rtti::editor::editor")
     {
-        using engine::project::kSettingLabelAttribute;
-        const auto label = [&builder](StringView text) { builder.PropAttribute(kSettingLabelAttribute, String(text)); };
+        const auto label = [&builder](StringView text) { builder.PropAttribute(foundation::settings::kSettingLabelAttribute, String(text)); };
         const Float4 renderSize{0.0f, 16384.0f, 1.0f, 0.0f};
         const Float4 windowSize{1.0f, 16384.0f, 1.0f, 0.0f};
         RegisterCoreTypes(); // FitMode
@@ -122,8 +122,8 @@ namespace editor
         label(u8"Orientation");
         builder.Property<&ExportPreset::qualityLevelId>("qualityLevelId");
         label(u8"Quality level");
-        builder.PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"RenderQualityAsset"))
-            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(the project's default)"));
+        builder.PropAttribute(foundation::settings::kSettingAssetTypeAttribute, String(u8"RenderQualityAsset"))
+            .PropAttribute(foundation::settings::kSettingEmptyTextAttribute, String(u8"(the project's default)"));
         // The Android app's fields, for an Android64 preset alone.
         const auto android = [&builder] { builder.PropAttribute(kPresetPlatformAttribute, String(u8"Android64")); };
         RttiRegisterEnum_AndroidPackage();

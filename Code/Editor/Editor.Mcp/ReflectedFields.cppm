@@ -17,6 +17,7 @@ module;
 export module editor.mcp:reflected_fields;
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.json;
 import foundation.content;
 import foundation.mcp;
@@ -75,7 +76,7 @@ export namespace editor::mcp::detail
                               IsColorField(property) || property.type == &TypeOf<bool>() ||
                               IsEnum(*property.type) || engine::project::IsAssetSetting(property) ||
                               engine::project::IsAssetListSetting(property);
-            if (kind && engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) !=
+            if (kind && engine::project::SettingAttribute(property, foundation::settings::kSettingLabelAttribute) !=
                             nullptr)
             {
                 out.PushBack(&property);
@@ -232,10 +233,10 @@ export namespace editor::mcp::detail
     {
         for (const PropertyInfo* field : fields)
         {
-            const String* label = engine::project::SettingAttribute(*field, engine::project::kSettingLabelAttribute);
+            const String* label = engine::project::SettingAttribute(*field, foundation::settings::kSettingLabelAttribute);
             const String key(PropertyName(*field));
             const String* assetType =
-                engine::project::SettingAttribute(*field, engine::project::kSettingAssetTypeAttribute);
+                engine::project::SettingAttribute(*field, foundation::settings::kSettingAssetTypeAttribute);
             const String accepted = assetType != nullptr ? AssetTypesText(AcceptedAssetTypes(builders, assetType->AsView()))
                                                          : String();
             if (engine::project::IsAssetListSetting(*field))
@@ -247,7 +248,7 @@ export namespace editor::mcp::detail
             else if (assetType != nullptr)
             {
                 const String* emptyText =
-                    engine::project::SettingAttribute(*field, engine::project::kSettingEmptyTextAttribute);
+                    engine::project::SettingAttribute(*field, foundation::settings::kSettingEmptyTextAttribute);
                 schema.Str(key, Format(u8"{}: the guid of an asset of type {}; \"\" clears it ({})", label->AsView(),
                                        accepted.AsView(), emptyText != nullptr ? emptyText->AsView() : StringView()));
             }
@@ -329,7 +330,7 @@ export namespace editor::mcp::detail
             FieldChange change;
             change.field = field;
             const String* assetType =
-                engine::project::SettingAttribute(*field, engine::project::kSettingAssetTypeAttribute);
+                engine::project::SettingAttribute(*field, foundation::settings::kSettingAssetTypeAttribute);
             const Array<String> accepted =
                 assetType != nullptr ? AcceptedAssetTypes(builders, assetType->AsView()) : Array<String>();
             // One guid naming an asset of a type the field takes: the refusal, empty when it does;

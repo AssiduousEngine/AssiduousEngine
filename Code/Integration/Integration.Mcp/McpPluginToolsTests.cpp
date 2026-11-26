@@ -15,6 +15,7 @@
 #include "Core/Reflection/Reflect.h"
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.json;
 import foundation.mcp;
 import foundation.content;
@@ -55,12 +56,12 @@ namespace plugintools
     {
         builder.DataVersion(1);
         builder.Property<&MeterSettings::volume>("volume")
-            .PropAttribute(engine::project::kSettingLabelAttribute, String(u8"Volume"))
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Volume"))
             .PropAttribute("range", Float4{0.0f, 10.0f, 1.0f, 0.0f});
-        builder.Property<&MeterSettings::loud>("loud").PropAttribute(engine::project::kSettingLabelAttribute,
+        builder.Property<&MeterSettings::loud>("loud").PropAttribute(foundation::settings::kSettingLabelAttribute,
                                                                      String(u8"Loud"));
         builder.Property<&MeterSettings::greeting>("greeting")
-            .PropAttribute(engine::project::kSettingLabelAttribute, String(u8"Greeting"));
+            .PropAttribute(foundation::settings::kSettingLabelAttribute, String(u8"Greeting"));
     }
 }
 

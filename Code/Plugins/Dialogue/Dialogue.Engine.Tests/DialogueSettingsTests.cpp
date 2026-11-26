@@ -8,6 +8,7 @@
 #include "Core/Prelude.h"
 
 import foundation.core;
+import foundation.settings; // the settings attributes (label, assetType, ...)
 import foundation.runtime;
 import engine.project;
 import dialogue.engine;
@@ -72,7 +73,7 @@ TEST_CASE("dialogue settings: every setting has a label for Project Settings")
     for (const PropertyInfo& property : Properties(type))
     {
         ++count;
-        const String* label = engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute);
+        const String* label = engine::project::SettingAttribute(property, foundation::settings::kSettingLabelAttribute);
         CHECK_MESSAGE(label != nullptr, property.name);
     }
     CHECK(count == 12u);
