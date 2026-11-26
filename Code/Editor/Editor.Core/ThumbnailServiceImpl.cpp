@@ -57,6 +57,7 @@ namespace editor
         auto* slot = editor::EditorRootAllocator().New<JobSlot>();
         slot->id = id;
         slot->generator = generator;
+        m_liveSlots.PushBack(slot);
         // An unknown content hash (mid-cook, no record yet) means RAM only: never write a cache
         // file that can never match again. The invalidation when the cook finishes regenerates
         // with the real hash and then persists.
@@ -226,7 +227,85 @@ namespace editor
                 m_entries.InsertOrAssign(slot->id, Entry{}); // negative: stop rescheduling
             }
         }
+        for (usize i = 0; i < m_liveSlots.Size(); ++i)
+        {
+            if (m_liveSlots[i] == slot)
+            {
+                m_liveSlots.RemoveAt(i);
+                break;
+            }
+        }
         editor::EditorRootAllocator().Delete(slot);
+        FreeRetiredGenerators();
+    }
+
+    void ThumbnailService::RemoveGenerator(const IThumbnailGenerator* generator)
+    {
+        // Its loads still run on the worker; their results are dropped, as after a Reset.
+        for (usize i = m_inFlight.Size(); i-- > 0;)
+        {
+            if (m_inFlight[i].slot->generator == generator)
+            {
+                m_inFlight[i].slot->serviceAlive = false;
+                m_inFlight.RemoveAt(i);
+            }
+        }
+        for (usize i = 0; i < m_generators.Size(); ++i)
+        {
+            if (m_generators[i].Get() == generator)
+            {
+                m_retiredGenerators.PushBack(Move(m_generators[i]));
+                m_generators.RemoveAt(i);
+                break;
+            }
+        }
+        m_entries.Clear(); // what it drew goes; the types it covered show their icons
+        FreeRetiredGenerators();
+    }
+
+    void ThumbnailService::RemoveSceneGenerator(const ISceneThumbnailGenerator* generator)
+    {
+        for (usize i = m_sceneQueue.Size(); i-- > 0;)
+        {
+            if (m_sceneQueue[i].generator == generator)
+            {
+                m_sceneQueue.RemoveAt(i);
+            }
+        }
+        for (usize i = 0; i < m_sceneGenerators.Size(); ++i)
+        {
+            if (m_sceneGenerators[i].Get() == generator)
+            {
+                m_retiredSceneGenerators.PushBack(Move(m_sceneGenerators[i]));
+                m_sceneGenerators.RemoveAt(i);
+                break;
+            }
+        }
+        m_entries.Clear();
+        FreeRetiredGenerators();
+    }
+
+    void ThumbnailService::FreeRetiredGenerators()
+    {
+        for (usize i = m_retiredGenerators.Size(); i-- > 0;)
+        {
+            bool inUse = false;
+            for (const JobSlot* slot : m_liveSlots)
+            {
+                inUse = inUse || slot->generator == m_retiredGenerators[i].Get();
+            }
+            if (!inUse)
+            {
+                m_retiredGenerators.RemoveAt(i);
+            }
+        }
+        for (usize i = m_retiredSceneGenerators.Size(); i-- > 0;)
+        {
+            if (!m_sceneJobActive || m_activeSceneGenerator != m_retiredSceneGenerators[i].Get())
+            {
+                m_retiredSceneGenerators.RemoveAt(i);
+            }
+        }
     }
 
     u64 ThumbnailService::HashFor(const Guid& id)
@@ -264,9 +343,27 @@ namespace editor
         {
             return;
         }
+        const bool retired = IsRetired(m_activeSceneGenerator);
         m_sceneJobActive = false;
         m_activeSceneJob = Guid{};
-        m_entries.InsertOrAssign(id, Entry{}); // wait quietly: the cook's InvalidateAll drops it
+        m_activeSceneGenerator = nullptr;
+        if (!retired)
+        {
+            m_entries.InsertOrAssign(id, Entry{}); // wait quietly: the cook's InvalidateAll drops it
+        }
+        FreeRetiredGenerators();
+    }
+
+    bool ThumbnailService::IsRetired(const ISceneThumbnailGenerator* generator) const noexcept
+    {
+        for (const UniquePtr<ISceneThumbnailGenerator>& retired : m_retiredSceneGenerators)
+        {
+            if (retired.Get() == generator)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     void ThumbnailService::AcceptSceneResult(const Guid& id, image::Image pixels, bool ok)
@@ -277,8 +374,15 @@ namespace editor
         {
             return;
         }
+        const bool retired = IsRetired(m_activeSceneGenerator);
         m_sceneJobActive = false;
         m_activeSceneJob = Guid{};
+        m_activeSceneGenerator = nullptr;
+        FreeRetiredGenerators();
+        if (retired)
+        {
+            return; // its generator was removed while the stage drew: nothing to publish
+        }
 
         if (!ok)
         {

@@ -209,6 +209,13 @@ export namespace editor
         {
             m_sceneGenerators.PushBack(Move(generator));
         }
+
+        /// Removes a generator registered above (a plugin's, as it unloads): its types fall back
+        /// to their icons. A worker still generating with it finishes first; the generator is
+        /// freed once no load uses it. Main thread.
+        void RemoveGenerator(const IThumbnailGenerator* generator);
+        /// Removes a GPU generator: its queued jobs go, and it is freed once no job is out.
+        void RemoveSceneGenerator(const ISceneThumbnailGenerator* generator);
         [[nodiscard]] usize SceneGeneratorCount() const noexcept
         {
             return m_sceneGenerators.Size();
@@ -228,6 +235,7 @@ export namespace editor
             m_sceneQueue.RemoveAt(0);
             m_sceneJobActive = true;
             m_activeSceneJob = job.id;
+            m_activeSceneGenerator = job.generator;
             return job;
         }
         /// The stage finished (or failed) the active job. Publishes exactly as a CPU generate does:
@@ -276,6 +284,7 @@ export namespace editor
             m_sceneQueue.Clear();
             m_sceneJobActive = false;
             m_activeSceneJob = Guid{};
+            m_activeSceneGenerator = nullptr;
             m_entries.Clear();
             m_cacheDirectory.Clear();
             m_resolve = {};
@@ -399,6 +408,15 @@ export namespace editor
         TaskLane m_lane = TaskLane::Shared;
         Array<UniquePtr<IThumbnailGenerator>> m_generators;
         Array<UniquePtr<ISceneThumbnailGenerator>> m_sceneGenerators;
+        // Removed generators a load or the stage may still use, freed by FreeRetiredGenerators.
+        Array<UniquePtr<IThumbnailGenerator>> m_retiredGenerators;
+        Array<UniquePtr<ISceneThumbnailGenerator>> m_retiredSceneGenerators;
+        // Every load not yet completed, a Reset's abandoned ones too: what a retired generator
+        // waits on.
+        Array<JobSlot*> m_liveSlots;
+        ISceneThumbnailGenerator* m_activeSceneGenerator = nullptr;
+        void FreeRetiredGenerators();
+        [[nodiscard]] bool IsRetired(const ISceneThumbnailGenerator* generator) const noexcept;
         HashMap<Guid, Entry> m_entries;
         Array<InFlight> m_inFlight;
         Array<SceneThumbnailJob> m_sceneQueue; // GPU-lane queue (one active at a time)

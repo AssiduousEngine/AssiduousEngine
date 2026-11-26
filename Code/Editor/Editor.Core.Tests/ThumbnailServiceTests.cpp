@@ -42,6 +42,14 @@ namespace
     class StubGenerator final : public IThumbnailGenerator
     {
     public:
+        ~StubGenerator() override
+        {
+            if (destroyed != nullptr)
+            {
+                *destroyed = true;
+            }
+        }
+        bool* destroyed = nullptr;
         int* prepareCount = nullptr;
         int* generateCount = nullptr;
         bool failGenerate = false;
@@ -107,6 +115,8 @@ namespace
         int prepares = 0;
         int generates = 0;
         usize payloadSeen = 0; // what Generate received (the header and the worker's stream read)
+        IThumbnailGenerator* generator = nullptr; // the registered stub (the service owns it)
+        bool generatorDestroyed = false;
         explicit Fixture(StringView cacheDir, u64 hash = 0x77, bool failGenerate = false,
                          bool handStream = false)
             : db(DefaultAllocator(), NullMount(), nullptr, u8"asset"),
@@ -120,6 +130,8 @@ namespace
             generator->failGenerate = failGenerate;
             generator->payloadSeen = &payloadSeen;
             generator->handStream = handStream;
+            generator->destroyed = &generatorDestroyed;
+            this->generator = generator.Get();
             service.RegisterGenerator(Move(generator));
             content::Instance* inst = &instance;
             Guid knownId = known;
@@ -654,5 +666,45 @@ TEST_CASE("thumbnails: jobs route to the generator covering the asset's type")
     CHECK(framing.radius == 1.0f);
     CHECK(!framing.hasView); // the stage frames the bounds unless the generator has a view
     CHECK(framing.prewarmSteps == 0u);
+    fx.service.Reset();
+}
+
+TEST_CASE("thumbnails: a removed generator finishes the load it started, publishes nothing, then goes")
+{
+    // A plugin's generator removed as it unloads, with a load of its type on the worker.
+    (void)RemoveDirectoryRecursive(u8"thumbs_removed");
+    Fixture f(u8"thumbs_removed");
+    int ready = 0;
+    f.service.OnThumbnailReady = [&ready](const Guid&) { ++ready; };
+    CHECK(!f.service.Get(f.known)); // scheduled
+    f.service.RemoveGenerator(f.generator);
+    CHECK(f.service.GeneratorCount() == 0u);
+    CHECK_FALSE(f.generatorDestroyed); // the worker may be using it
+    PumpLight(f.jobs);
+    CHECK(f.generatorDestroyed); // freed once its load completed
+    CHECK(ready == 0);           // what it drew is not published
+    CHECK(!f.service.Get(f.known)); // its type has no generator now: the icon stays
+    PumpLight(f.jobs);
+    CHECK(f.prepares == 1);
+}
+
+TEST_CASE("thumbnails: a removed GPU generator's queued jobs go, and a taken job's result is dropped")
+{
+    (void)RemoveDirectoryRecursive(u8"thumbs_gpu_removed");
+    GpuFixture fx(u8"thumbs_gpu_removed");
+    auto other = MakeUnique<OtherSceneGenerator>(DefaultAllocator());
+    const ISceneThumbnailGenerator* otherGenerator = other.Get();
+    fx.service.RegisterSceneGenerator(Move(other));
+    fx.service.RemoveSceneGenerator(otherGenerator);
+    CHECK(fx.service.SceneGeneratorCount() == 1u);
+
+    CHECK(fx.service.Get(fx.known).Get() == nullptr); // queued for the stub
+    const SceneThumbnailJob job = fx.service.TakeSceneJob();
+    REQUIRE(job.generator != nullptr);
+    fx.service.RemoveSceneGenerator(job.generator);
+    CHECK(fx.service.SceneGeneratorCount() == 0u);
+    CHECK(job.generator->AssetTypeNames()[0] == StringView(u8"StubGpuAsset")); // still alive
+    fx.service.AcceptSceneResult(job.id, SolidTile(50), true);
+    CHECK(fx.service.CachedCount() == 0u); // dropped, not published
     fx.service.Reset();
 }
