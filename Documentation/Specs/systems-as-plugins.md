@@ -127,9 +127,9 @@ it. Each manifest lists its types' data versions.
   `Engine.Terrain`, `Engine.Vegetation`.
 - Pipeline part: `Terrain.Pipeline`, `Vegetation.Pipeline`. Editor part: `Editor.Terrain`,
   `Editor.Vegetation` with their viewport tools, panels and the splatmap thumbnail.
-- The heightfield stays in the engine: physics uses it. Its resource module is registered only by
-  `TerrainDomain` today (`Engine.Terrain/TerrainComponentsImpl.cpp:147`) and moves to physics'
-  domain first.
+- The heightfield stays in the engine: physics uses it. Its resource module lives in
+  `Foundation/Heightfield.Resource`, but only `TerrainDomain` registered it
+  (`Engine.Terrain/TerrainComponentsImpl.cpp:147`); physics' domain registers it instead.
 - Vegetation's scatter tool reaches `PhysicsSceneSystem` directly; it moves to a scene capability
   for overlap queries, so the plugin does not link physics' internals.
 - Projects: Snowline only.
@@ -171,7 +171,8 @@ The four, one and four sample projects named above are migrated by it and commit
 
 Each step green on the clang lane on its own; the other lanes when a plugin is done.
 
-1. G6 (dead links and imports), G4 (prefab overrides), and the heightfield module into physics.
+1. G6 (dead links and imports), G4 (prefab overrides), and the heightfield module registered by
+   physics' domain instead of terrain's.
 2. G1 and G2, with load, unload and reload tests through a test plugin.
 3. G5, then G3.
 4. Particles: the smallest, and it proves the render path and the editor unload.

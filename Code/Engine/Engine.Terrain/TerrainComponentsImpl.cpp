@@ -12,7 +12,6 @@ module;
 module engine.terrain;
 import engine.domain;
 import foundation.heightfield;
-import foundation.heightfield.resource;
 
 import foundation.core;
 import foundation.scene;
@@ -143,8 +142,7 @@ namespace engine::terrain
     const engine::DomainModule& TerrainDomain() noexcept
     {
         static const foundation::resource::ResourceModule* const kResources[] = {
-            &foundation::terrain::kTerrainResourceModule,
-            &foundation::heightfield::kHeightfieldResourceModule};
+            &foundation::terrain::kTerrainResourceModule};
         static const engine::DomainModule kModule{
             .id = u8"terrain",
             .installScene = &AddTerrainSceneManagers,

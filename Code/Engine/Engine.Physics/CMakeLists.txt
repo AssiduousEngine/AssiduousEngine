@@ -5,7 +5,7 @@ target_link_libraries(Engine.Physics
     PUBLIC Foundation::Core Foundation::Runtime Foundation::Scene Engine::Scene
            Foundation::Physics Foundation::Physics.Resource Foundation::Resource Foundation::Script
            Foundation::Script.Facades Engine::Render Foundation::Profiler Engine::Domain Foundation::Policy
-           Foundation::Heightfield)
+           Foundation::Heightfield Foundation::Heightfield.Resource)
 
 target_sources(Engine.Physics
     PRIVATE

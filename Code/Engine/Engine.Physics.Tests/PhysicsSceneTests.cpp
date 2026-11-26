@@ -16,6 +16,8 @@ import foundation.scene.resource; // SerializeScene (the wire round-trip test)
 import foundation.physics;
 import foundation.physics.resource;
 import foundation.heightfield;
+import foundation.heightfield.resource; // kHeightfieldResourceModule (the domain owns it)
+import engine.domain;
 import engine.physics;
 import foundation.script;
 import foundation.script.facades; // ExtraFacadeNames (the behavior-prelude facade list)
@@ -2012,4 +2014,16 @@ TEST_CASE("physics.scene: the scene's settings set the world's body budget, and 
     reader.PopVersionScope();
     CHECK(reader.IsOk()); // no budgets asked of a version 1 block
     CHECK(got.maxBodies == 7u); // untouched: a version 1 block has no budgets
+}
+
+TEST_CASE("physics: the domain registers the heightfield resource a heightfield collider names")
+{
+    // A heightfield collider's surface is a Ref<Heightfield>: physics owns its resource module, so
+    // it resolves in a project without terrain.
+    bool found = false;
+    for (const foundation::resource::ResourceModule* module : engine::physics::PhysicsDomain().resources)
+    {
+        found = found || module == &foundation::heightfield::kHeightfieldResourceModule;
+    }
+    CHECK(found);
 }

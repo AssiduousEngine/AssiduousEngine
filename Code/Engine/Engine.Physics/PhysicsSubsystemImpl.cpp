@@ -25,6 +25,7 @@ import foundation.resource;
 import foundation.physics;
 import foundation.physics.resource;
 import foundation.heightfield;
+import foundation.heightfield.resource; // the heightfield collider's resource module
 import foundation.render;
 import engine.render;
 import foundation.materials;
@@ -952,7 +953,9 @@ namespace engine::physics
     const engine::DomainModule& PhysicsDomain() noexcept
     {
         static const foundation::resource::ResourceModule* const kResources[] = {
-            &foundation::physics::kPhysicsResourceModule};
+            &foundation::physics::kPhysicsResourceModule,
+            // A heightfield collider's surface; physics owns it so it loads without terrain.
+            &foundation::heightfield::kHeightfieldResourceModule};
         static const engine::DomainModule kModule{
             .id = u8"physics",
             .installScene = &AddPhysicsSceneManagers,
