@@ -46,7 +46,6 @@ import foundation.shell;
 import foundation.input;
 import foundation.input.resource;
 import engine.input;
-import engine.physics;
 import foundation.audio;
 import foundation.audio.resource;
 import engine.audio;

@@ -31,7 +31,6 @@
 import foundation.core;
 import engine.project; // kProjectDistDir: where exports go
 import foundation.animation;
-import foundation.particles;
 import foundation.vfs;
 import foundation.content;
 import foundation.runtime; // the plugins this tool links (LinkedPluginList)
@@ -50,18 +49,11 @@ import geometry.pipeline;
 import animation.pipeline;
 import materials.pipeline;
 import shaders.pipeline;
-import particles.pipeline;
 import foundation.input;
 import foundation.input.resource;
 import input.pipeline;
 import modelimporter;
 import engine.composition; // AddAllSceneManagers + RegisterAllSceneComponentReflection
-import foundation.physics;
-import foundation.physics.resource;
-import physics.pipeline;
-import foundation.audio;
-import foundation.audio.resource;
-import audio.pipeline;
 import foundation.script;
 import foundation.script.resource;
 import script.pipeline; // the per-language script cooks (AngelScript, Luau) come from

@@ -9,12 +9,10 @@ target_link_libraries(Tools.Export PRIVATE
     Pipeline::Core Pipeline::Cook Editor::Project
     Pipeline::Texture Pipeline::Fonts Pipeline::Image Foundation::Image.Resource Pipeline::Geometry
     Pipeline::Animation Pipeline::Materials Pipeline::Shaders
-    Pipeline::Particles Foundation::Input Foundation::Input.Resource Pipeline::Input Pipeline::ModelImporter
+    Foundation::Input Foundation::Input.Resource Pipeline::Input Pipeline::ModelImporter
     # The full manager set and component reflection for the transcode scratch, and
     # RegisterAllScriptFacades, the engine facade surface the script cooks compile against.
     Engine::Composition
-    Foundation::Physics Foundation::Physics.Resource Pipeline::Physics
-    Foundation::Audio Foundation::Audio.Resource Pipeline::Audio
     # Both script backends and their cooks come transitively from Pipeline::Registration (PUBLIC),
     # so export cooks scripts of either language (AngelScript, Luau) without naming a backend here.
     Foundation::Script Foundation::Script.Resource Foundation::Script.Facades

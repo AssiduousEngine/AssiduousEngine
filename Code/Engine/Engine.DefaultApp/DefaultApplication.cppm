@@ -121,7 +121,6 @@ export namespace engine::runtime
         void ReleaseRun(ApplicationRun* instance);
 
         [[nodiscard]] engine::input::InputSubsystem* Input() const noexcept { return m_input; }
-        [[nodiscard]] engine::physics::PhysicsSubsystem* Physics() const noexcept;
         [[nodiscard]] engine::audio::AudioSubsystem* Audio() const noexcept { return m_audio; }
 
         /// Preset before Configure: the primary instance enters a server or client role at startup
@@ -363,7 +362,6 @@ export namespace engine::runtime
         foundation::runtime::ClientServices m_clientServices;
         core::UniquePtr<engine::EnginePluginServices> m_enginePluginServices;
         core::UniquePtr<foundation::runtime::PluginHost> m_plugins;
-        engine::physics::PhysicsSubsystem* m_physics = nullptr;
         engine::animation::AnimationSubsystem* m_animation = nullptr; // none without graphics
         engine::audio::AudioSubsystem* m_audio = nullptr;
         engine::render::RenderSubsystem* m_render = nullptr; // for the `scene.debugDraw` service

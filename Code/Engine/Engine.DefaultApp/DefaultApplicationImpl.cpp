@@ -248,7 +248,7 @@ namespace engine::runtime
             // as a render provider; its sets ride the shared MeshRenderer's instanced path.
             host.Subsystems().AddSubsystem<engine::vegetation::VegetationSubsystem>();
         }
-        m_physics = host.Subsystems().AddSubsystem<engine::physics::PhysicsSubsystem>();
+        host.Subsystems().AddSubsystem<engine::physics::PhysicsSubsystem>();
         host.Subsystems().AddSubsystem<engine::navigation::NavigationSubsystem>();
         // Networking scene integration: injects the NetworkComponentManager into every scene so
         // authored NetworkComponents work (the per-instance endpoint replicates over it). The
@@ -549,11 +549,6 @@ namespace engine::runtime
         }};
         gi.Binding().profilerAvailable =
             core::Function<bool()>{[this]() -> bool { return BUILD_PROFILING != 0 && m_gui != nullptr; }};
-    }
-
-    engine::physics::PhysicsSubsystem* DefaultApplication::Physics() const noexcept
-    {
-        return m_physics;
     }
 
     void

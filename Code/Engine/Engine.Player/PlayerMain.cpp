@@ -69,9 +69,6 @@ import engine.render;
 import foundation.animation;
 import foundation.animation.resource;
 import engine.animation;
-import foundation.particles;
-import foundation.particles.resource;
-import engine.particles;
 import foundation.geometry;
 import foundation.geometry.resource;
 import foundation.audio;
@@ -86,9 +83,6 @@ import foundation.model.resource;
 import foundation.script;
 import foundation.script.resource; // BehaviorClass (the cooked game script, bound from the content DB)
 import foundation.input;
-import foundation.physics;
-import foundation.physics.resource;
-import engine.physics;
 import foundation.input.resource;
 import engine.input;
 import engine.run; // SceneLoadHandle (the async boot load)
