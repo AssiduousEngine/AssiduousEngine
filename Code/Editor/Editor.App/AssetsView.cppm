@@ -410,7 +410,10 @@ export namespace editor::app
             content::ContentDatabase* db = Sources();
             if (db != m_db)
             {
-                // Another project (or none): start at its top, as it opens, in its own view.
+                // Another project (or none): start at its top, as it opens, in its own view. The rows
+                // point into the old database, which may be gone: they go before anything resets the
+                // list (LoadTiles does), since the list reads the rows it keeps selected.
+                m_rows.Clear();
                 m_db = db;
                 m_current = nullptr;
                 m_search = String{};

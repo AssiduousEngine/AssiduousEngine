@@ -304,6 +304,34 @@ TEST_CASE("assets: it builds again when the database's shape moves, however it m
     CHECK_FALSE(bed.view->Reveal(Guid{9u, 9u}));
 }
 
+// Another project's database replaces the one shown (a project opened, or the same one opened
+// again): the view lets go of the old rows before it asks its list to reset, since the list reads
+// the rows it keeps selected and the old rows point into a database already gone.
+TEST_CASE("assets: another project's database shown after the first is gone, with a group selected, builds anew")
+{
+    Bed bed;
+    const i32 models = bed.RowOf(u8"Models");
+    REQUIRE(models >= 0);
+    bed.view->List()->SetSelectedItem(models);
+    REQUIRE(bed.view->List()->GetSelectedItem() == models);
+
+    (void)RemoveDirectoryRecursive(u8"assets_view_second");
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), u8"assets_view_second", u8"Second").IsOk());
+    UniquePtr<editor::EditorProject> second = editor::EditorProject::Open(DefaultAllocator(), u8"assets_view_second");
+    REQUIRE(second);
+    REQUIRE(second->SourceDb().RootGroup()->CreateGroup(u8"Levels") != nullptr);
+    bed.context.SetProject(second.Get());
+    bed.project.Reset(); // the first project's groups go with it
+    bed.view->Refresh();
+    CHECK(bed.RowOf(u8"Levels") >= 0);
+    CHECK(bed.RowOf(u8"Models") < 0);
+
+    bed.context.SetProject(nullptr);
+    bed.view->Refresh();
+    second.Reset();
+    (void)RemoveDirectoryRecursive(u8"assets_view_second");
+}
+
 TEST_CASE("assets: a drag of the selection carries its assets")
 {
     Bed bed;
