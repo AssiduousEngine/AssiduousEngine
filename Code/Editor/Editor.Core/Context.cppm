@@ -393,6 +393,13 @@ export namespace editor
             m_settingsContributions.PushBack(
                 static_cast<EditorSettingsContribution&&>(contribution));
         }
+        /// Removes a category's preferences (the plugin that added them unloading).
+        void RemoveEditorSettingsContribution(StringView category)
+        {
+            for (usize i = m_settingsContributions.Size(); i-- > 0;)
+                if (m_settingsContributions[i].category.AsView() == category)
+                    m_settingsContributions.RemoveAt(i);
+        }
         [[nodiscard]] const Array<EditorSettingsContribution>&
         EditorSettingsContributions() const noexcept
         {

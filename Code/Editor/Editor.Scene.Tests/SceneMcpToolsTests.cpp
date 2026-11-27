@@ -25,12 +25,7 @@ import editor.core;
 import editor.scene;
 import editor.viewporttools;
 import editor.camera;
-import engine.navigation;     // NavMeshZoneComponent (navigation_bake)
-import foundation.content;    // Instance (the zone asset)
-import navigation.pipeline;   // NavigationZoneAsset
-import engine.physics;        // RigidBodyComponent (the static ground navigation_bake collects)
 import engine.animation;      // SkeletalAnimationComponent (a list of entity references)
-import foundation.physics;    // MotionKind
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -249,7 +244,7 @@ TEST_CASE("scene-mcp-tools: page addressing, the selection round-trip, its refus
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     CHECK(server.ToolCount() == kSceneLiveToolCount);
-    CHECK(kSceneLiveToolCount == 21u); // a tripwire: update it when a live tool is added or removed
+    CHECK(kSceneLiveToolCount == 20u); // a tripwire: update it when a live tool is added or removed
     const String aGuid = GuidText(sceneA);
     const String lampGuid = GuidText(lamp);
     const String tableGuid = GuidText(table);
@@ -1135,89 +1130,6 @@ TEST_CASE("scene-mcp-tools: viewport_frame frames named entities or the selectio
     CHECK_FALSE(got.ok);
     CHECK(got.error.AsView().StartsWith(u8"no entity 'Sofa'"));
     context.ClosePage(page);
-}
-
-TEST_CASE("scene-mcp-tools: navigation_bake bakes a page's zone into its asset, and says why not")
-{
-    pipeline::RegisterNavigationZoneAsset();
-    const StringView dir = u8"scratch_navigation_bake_project";
-    (void)RemoveDirectoryRecursive(dir);
-    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
-    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
-    REQUIRE(static_cast<bool>(project));
-
-    EditorContext context{DefaultAllocator()};
-    McpServer server;
-    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
-    RegisterSceneLiveTools(server, context);
-    Random rng(77);
-    auto* page = static_cast<HeadlessScenePage*>(context.AdoptPage(UniquePtr<EditorPage>(
-        DefaultAllocator().New<HeadlessScenePage>(u8"Block", Guid::Generate(rng)), DefaultAllocator())));
-    SceneEditContext& edit = page->EditContext();
-    scene::Scene& sceneRef = edit.Scene();
-    engine::navigation::AddNavigationSceneManagers(sceneRef);
-    if (!sceneRef.HasSystem<engine::physics::RigidBodyComponentManager>())
-    {
-        sceneRef.AddSystem<engine::physics::RigidBodyComponentManager>();
-    }
-
-    // A 20 x 20 static ground slab with its top at y 0 (the bake reads static bodies), and a zone
-    // over it.
-    const Guid groundId = edit.CreateEntity(u8"Ground");
-    sceneRef.SetLocalPosition(edit.Resolve(groundId), Float3{0, -0.5f, 0});
-    engine::physics::RigidBodyComponent& ground =
-        sceneRef.GetSystem<engine::physics::RigidBodyComponentManager>()->Add(edit.Resolve(groundId));
-    ground.motion = foundation::physics::MotionKind::Static;
-    ground.halfExtents = Float3{10, 0.5f, 10};
-    const Guid zoneId = edit.CreateEntity(u8"Zone");
-    engine::navigation::NavMeshZoneComponent& zone =
-        sceneRef.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(
-            edit.Resolve(zoneId));
-    zone.extents = Float3{15, 10, 15};
-
-    // With no project the bake is refused.
-    Answer bake = Call(server, u8"navigation_bake", u8"{}");
-    CHECK_FALSE(bake.ok);
-    context.SetProject(project.Get());
-
-    // A zone with no asset is refused, with a message saying what to do.
-    bake = Call(server, u8"navigation_bake", u8"{}");
-    REQUIRE_FALSE(bake.ok);
-    CHECK(bake.error.AsView().ContainsIgnoreCase(u8"Navigation Zone asset"));
-
-    // An entity that is not a zone is refused.
-    bake = Call(server, u8"navigation_bake", u8"{\"entity\":\"Ground\"}");
-    CHECK_FALSE(bake.ok);
-
-    // With the asset the zone bakes; the scene's only zone is found without naming it.
-    foundation::content::Instance* asset = project->SourceDb().RootGroup()->CreateInstance(
-        u8"BlockZone", pipeline::NavigationZoneAsset::StaticType());
-    REQUIRE(asset != nullptr);
-    zone.zone.SetId(asset->Id());
-    bake = Call(server, u8"navigation_bake", u8"{}");
-    REQUIRE(bake.ok);
-    CHECK(bake.payload.Get(u8"baked").AsBool());
-    CHECK(bake.payload.Get(u8"triangles").AsNumber() == doctest::Approx(12.0)); // the slab's box
-    CHECK(bake.payload.Get(u8"asset").AsString() == Format(u8"{}", asset->Id()));
-    pipeline::NavigationZoneAsset readBack;
-    {
-        RefPtr<ISerializable> object = asset->ReadObject();
-        auto* stored = Cast<pipeline::NavigationZoneAsset>(object.Get());
-        REQUIRE(stored != nullptr);
-        REQUIRE(pipeline::EnsureNavMeshLoaded(*asset, *stored).IsOk());
-        CHECK_FALSE(stored->navMeshBlob.IsEmpty());
-    }
-
-    // Not while the page simulates.
-    page->StartSimulation();
-    bake = Call(server, u8"navigation_bake", u8"{\"entity\":\"Zone\"}");
-    CHECK_FALSE(bake.ok);
-    page->StopSimulation();
-
-    context.SetProject(nullptr);
-    context.ClosePage(page);
-    project.Reset();
-    (void)RemoveDirectoryRecursive(dir);
 }
 
 TEST_CASE("scene-mcp-tools: viewport_run plays a timeline into a page's viewport, its screenshots taken as their times come")

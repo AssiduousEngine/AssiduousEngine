@@ -18,9 +18,6 @@ set(_webscene_common_libs
     Engine::Scene
     Engine::Render
     Foundation::Geometry
-    Foundation::Navigation
-    Foundation::Navigation.Resource
-    Engine::Navigation
     Foundation::Materials
     Foundation::GUI
     Foundation::GUI.Resources
@@ -35,7 +32,7 @@ if(EMSCRIPTEN)
         Foundation::Shell.Web
         Foundation::Runtime.Web)
     if(OPTION_PLUGIN_IMGUI)
-        util_link_plugins(WebScene ROLE player PLUGINS imgui particles) # Dear ImGui and particles, loaded as plugins
+        util_link_plugins(WebScene ROLE player PLUGINS imgui particles navigation) # Dear ImGui, particles and navigation, loaded as plugins
     endif()
 
     # Cook the WGSL shader pack with the native tool (the browser has no compiler) and bundle it
@@ -89,7 +86,7 @@ else()
         Foundation::Shell.SDL3
         Foundation::Runtime.Desktop)
     if(OPTION_PLUGIN_IMGUI)
-        util_link_plugins(WebScene ROLE player PLUGINS imgui particles) # Dear ImGui and particles, loaded as plugins
+        util_link_plugins(WebScene ROLE player PLUGINS imgui particles navigation) # Dear ImGui, particles and navigation, loaded as plugins
     endif()
     util_copy_runtime_deps(WebScene) # SDL3 is vendored static; no DLL to stage
 

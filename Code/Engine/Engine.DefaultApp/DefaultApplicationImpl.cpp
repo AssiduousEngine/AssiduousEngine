@@ -29,7 +29,6 @@ import engine.composition; // FullSceneComposition (the one source of scene asse
 import engine.render;     // RenderSubsystem (the standard renderer)
 import engine.animation; // AnimationSubsystem (drives skeletal animation from the scene)
 import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
-import engine.navigation; // NavigationSubsystem and its script facade
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade
 import foundation.script;              // IScriptManager/Context (the game script)
@@ -239,7 +238,6 @@ namespace engine::runtime
             m_animation = host.Subsystems().AddSubsystem<engine::animation::AnimationSubsystem>();
         }
         host.Subsystems().AddSubsystem<engine::physics::PhysicsSubsystem>();
-        host.Subsystems().AddSubsystem<engine::navigation::NavigationSubsystem>();
         // Networking scene integration: injects the NetworkComponentManager into every scene so
         // authored NetworkComponents work (the per-instance endpoint replicates over it). The
         // subsystem also owns the per-frame transport pump over the runs' endpoints (it finds the

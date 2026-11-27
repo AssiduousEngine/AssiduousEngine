@@ -24,6 +24,8 @@ import foundation.core;
 import foundation.scene;
 import foundation.content;
 import editor.core; // EditorContext (where the domain contributes its settings)
+import editor.scene; // GizmoRendererRegistry
+import editor.mcp;   // PluginTools
 
 using namespace foundation::core;
 
@@ -84,6 +86,17 @@ export namespace editor::navigation
     /// navigation_bake tool's answer): what was written, or what to change when nothing walkable
     /// came out of it.
     [[nodiscard]] String DescribeBake(const BakeResult& result);
+
+    // What the plugin adds to the scene editor, each taken back as it unloads.
+    /// The zone's extents gizmo, for GizmoRendererProviders.
+    void AddNavigationGizmos(GizmoRendererRegistry& registry);
+    /// The inspector's Bake Navigation action on a navigation zone.
+    void RegisterNavigationInspectorExtras();
+    void RemoveNavigationInspectorExtras();
+    /// navigation_bake: a scene page's zone baked, as the inspector's action does.
+    void RegisterNavigationBakeTool(editor::mcp::PluginTools& tools, EditorContext& context);
+    /// The Navigation preferences tab, as the plugin unloads.
+    void RemoveNavigationEditorSettings(EditorContext& context);
 
     struct RegionRebakeResult
     {

@@ -12,7 +12,6 @@ target_link_libraries(Editor.Scene
         Foundation::PropertyAnimation.Resource
         Pipeline::ModelImporter Pipeline::Scene Foundation::Texture.Resource
         Foundation::Physics Foundation::Physics.Resource Engine::Physics Foundation::Heightfield
-        Engine::Navigation Foundation::Navigation.Resource Editor::Navigation
         Engine::Spline Foundation::Spline
         Engine::GUI # the game's GUI textures, shown live in an editing viewport
         Foundation::Messaging Foundation::GUI Foundation::GUI.Hosting Foundation::GUI.Viewport Editor::App # the page's GUI

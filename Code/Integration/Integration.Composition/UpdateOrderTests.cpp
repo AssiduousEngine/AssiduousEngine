@@ -21,6 +21,7 @@ TEST_CASE("integration.composition: scripts update before the crowd and every sy
 {
     scene::Scene level(DefaultAllocator(), u8"level");
     engine::AddAllSceneManagers(level);
+    engine::navigation::AddNavigationSceneManagers(level); // the crowd, a game enabling navigation has
     auto* behaviors = level.GetSystem<engine::behavior::EntityBehaviorSystem>();
     auto* levelScript = level.GetSystem<engine::behavior::SceneBehaviorSystem>();
     auto* crowd = level.GetSystem<engine::navigation::NavigationSceneSystem>();

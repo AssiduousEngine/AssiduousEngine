@@ -92,8 +92,6 @@ import engine.input;
 import foundation.physics;
 import foundation.physics.resource;
 import physics.pipeline;
-import navigation.pipeline;
-import editor.navigation; // RegisterNavigationEditorSettings* (the navigation domain's preferences)
 import engine.physics;
 import modelimporter;
 import foundation.audio;
@@ -137,8 +135,8 @@ namespace
         foundation::core::RegisterCoreTypes();
         pipeline::RegisterPipelineTypes();
         // Domain editor-settings sections register before the app starts, because the user
-        // settings file loads in the app's constructor (see RegisterNavigationEditorSettingsTypes).
-        editor::navigation::RegisterNavigationEditorSettingsTypes();
+        // settings file loads in the app's constructor (a plugin's section is read when its type
+        // arrives).
         editor::RegisterGameAudioEditorSettingsTypes();
         pipeline::RegisterAllBuilders(registry, dataRoot);
         // The complete engine script surface (the run, ui, physics, audio and other facades) goes
@@ -287,7 +285,6 @@ int main(int argc, char** argv)
     config.registerEditors = [](editor::app::EditorApplication& app, foundation::runtime::IApplicationHost& host)
     {
         app.SetSceneRenderer(host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>());
-        editor::navigation::RegisterNavigationEditorSettings(app.Context());
         // The scene editor: its pages, actions, live MCP tools and services (the document types,
         // the export's scene hooks, and the prefab and scene a model import makes).
         editor::RegisterSceneEditor(app.Context(), host, app);

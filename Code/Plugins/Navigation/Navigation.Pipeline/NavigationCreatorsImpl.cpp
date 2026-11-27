@@ -19,7 +19,7 @@ using namespace foundation::core;
 
 namespace pipeline
 {
-    void RegisterNavigationCreators(AssetCreatorRegistry& registry)
+    void AddNavigationCreators(PipelinePluginServices& services)
     {
         {
             // An empty zone: the NavMeshZoneComponent's Bake fills its navmesh sidecar.
@@ -43,7 +43,7 @@ namespace pipeline
                 }
                 return instance;
             };
-            registry.Register(Move(creator));
+            (void)services.AddCreator(Move(creator));
         }
     }
 

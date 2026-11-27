@@ -48,6 +48,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Navigation is an official plugin, `navigation`: a project enables it in its plugins list, and its
+  zones, agents, Bake Navigation and the `navigation_bake` MCP tool come with it. A project written
+  before (data version 15 or older) enables it as it is read; a new project starts without it. The
+  sample projects enable it.
 - Terrain and vegetation are an official plugin, `terrain`: a project enables them in its plugins
   list. A project written before (data version 14 or older) enables them as it is read; a new
   project starts without them. The sample projects enable them.

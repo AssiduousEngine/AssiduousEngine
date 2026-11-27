@@ -31,7 +31,6 @@ import engine.scene;
 import engine.render;
 import engine.composition; // FullSceneComposition
 import engine.physics;
-import engine.navigation;
 import engine.behavior;
 import foundation.gui;
 import foundation.gui.toolkit;
@@ -791,8 +790,6 @@ TEST_CASE("inspector: a scene settings section is titled with its type's display
     CHECK(inspector->SettingsOf(u8"Post Processing") != nullptr);
     REQUIRE(edit.FindSystemBySettingsType(&TypeOf<engine::physics::PhysicsSceneSettings>()) != nullptr);
     CHECK(inspector->SettingsOf(u8"Physics") != nullptr);
-    REQUIRE(edit.FindSystemBySettingsType(&TypeOf<engine::navigation::NavigationSceneSettings>()) != nullptr);
-    CHECK(inspector->SettingsOf(u8"Navigation") != nullptr);
     REQUIRE(edit.FindSystemBySettingsType(&TypeOf<engine::behavior::SceneBehaviorSettings>()) != nullptr);
     CHECK(inspector->SettingsOf(u8"Scene Behavior") != nullptr);
     // No C++ name reads through.

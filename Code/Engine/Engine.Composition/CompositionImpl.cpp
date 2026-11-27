@@ -21,7 +21,6 @@ import engine.domain;
 import engine.render;
 import engine.animation;
 import engine.physics;
-import engine.navigation;
 import engine.audio;
 import engine.behavior;
 import engine.net;
@@ -52,7 +51,7 @@ namespace
     const engine::DomainModule* const kAllDomains[] = {
         &engine::render::RenderDomain(),         &engine::animation::AnimationDomain(),
         &engine::physics::PhysicsDomain(),
-        &engine::navigation::NavigationDomain(), &engine::audio::AudioDomain(),
+        &engine::audio::AudioDomain(),
         &engine::behavior::BehaviorDomain(),         &engine::net::NetDomain(),
         &engine::spline::SplineDomain(),         &engine::sequence::SequenceDomain(),
         &kPrefabsDomain,

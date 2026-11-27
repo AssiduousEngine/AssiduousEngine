@@ -24,7 +24,7 @@ target_link_libraries(Tools.Editor PRIVATE
     Engine::Scene Engine::Render Engine::Animation
     Engine::Composition # RegisterAllScriptFacades: the complete engine facade surface the cook
                           # and live validation compile against (run/ui/physics/audio/... facades)
-    Editor::Core Editor::App Editor::Navigation
+    Editor::Core Editor::App
     Editor::Scene # the scene page, its hierarchy and inspector
     Editor::Play # the Game tabs and the PIE tools
     Editor::Spline # the scene view's spline tool
@@ -35,7 +35,7 @@ target_link_libraries(Tools.Editor PRIVATE
     Foundation::Resource Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Texture.Resource
     Pipeline::Texture Pipeline::Fonts Pipeline::Image Pipeline::Geometry
     Pipeline::Animation Pipeline::Materials Pipeline::Shaders
-    Foundation::Input Foundation::Input.Resource Pipeline::Input Engine::Input Foundation::Physics Foundation::Physics.Resource Pipeline::Physics Engine::Physics Pipeline::Navigation Engine::Navigation Foundation::Navigation.Resource Foundation::Audio Foundation::Audio.Resource Pipeline::Audio Engine::Audio
+    Foundation::Input Foundation::Input.Resource Pipeline::Input Engine::Input Foundation::Physics Foundation::Physics.Resource Pipeline::Physics Engine::Physics Foundation::Audio Foundation::Audio.Resource Pipeline::Audio Engine::Audio
     # Script backends and cooks (AngelScript, Luau) come transitively from Pipeline::Registration.
     Foundation::Script Foundation::Script.Resource Foundation::Script.Facades Pipeline::Script Engine::Behavior Pipeline::ModelImporter Foundation::Image.Resource
     Foundation::Animation.Resource)

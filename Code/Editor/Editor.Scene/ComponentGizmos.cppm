@@ -19,7 +19,6 @@ import foundation.core;
 import foundation.scene;
 import foundation.render;
 import engine.render;
-import engine.navigation;
 import engine.spline;
 import engine.animation;
 
@@ -153,16 +152,6 @@ export namespace editor
         void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
     };
 
-    /// The navigation zone's extents box (local, entity-oriented): the region the bake samples
-    /// geometry from. Read-only, as the extents are edited in the inspector; drawn when the zone is
-    /// selected (DrawWhenUnselected defaults to false).
-    class NavMeshZoneGizmoRenderer final : public IGizmoRenderer
-    {
-    public:
-        [[nodiscard]] const TypeInfo* ComponentType() const override;
-
-        void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
-    };
 
     /// LOD debug overlay: with the toolbar toggle on, every mesh carrying a LOD chain draws its
     /// bounds tinted by the level this viewport's camera selects (green 0, yellow 1, orange 2, red
@@ -270,8 +259,6 @@ export namespace editor
                                                     foundation::core::DefaultAllocator()));
         registry.Register(UniquePtr<IGizmoRenderer>(foundation::core::DefaultAllocator().New<DecalGizmoRenderer>(),
                                                     foundation::core::DefaultAllocator()));
-        registry.Register(UniquePtr<IGizmoRenderer>(
-            foundation::core::DefaultAllocator().New<NavMeshZoneGizmoRenderer>(), foundation::core::DefaultAllocator()));
         registry.Register(UniquePtr<IGizmoRenderer>(
             foundation::core::DefaultAllocator().New<LodOverlayGizmoRenderer>(), foundation::core::DefaultAllocator()));
         registry.Register(UniquePtr<IGizmoRenderer>(

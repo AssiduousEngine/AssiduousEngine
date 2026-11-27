@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">15</u32>
+		<u32 name="version">16</u32>
 	</array>
 	<string name="name">Lamplight</string>
 	<string name="engineVersion">0.1.0</string>
@@ -25,7 +25,7 @@
 		<string>539b1f0c-f5fb-4728-a4be-2dc18db10732</string>
 	</array>
 	<string name="guiLoadingDocumentId">00000000-0000-0000-0000-000000000000</string>
-	<array name="plugins" count="2">
+	<array name="plugins" count="3">
 		<object>
 			<string name="id">particles</string>
 			<string name="path"/>
@@ -34,6 +34,12 @@
 		</object>
 		<object>
 			<string name="id">terrain</string>
+			<string name="path"/>
+			<array name="platforms" count="0"/>
+			<object name="settings"/>
+		</object>
+		<object>
+			<string name="id">navigation</string>
 			<string name="path"/>
 			<array name="platforms" count="0"/>
 			<object name="settings"/>

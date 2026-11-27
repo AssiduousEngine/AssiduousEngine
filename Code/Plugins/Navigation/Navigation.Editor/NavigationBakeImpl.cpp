@@ -54,6 +54,11 @@ namespace editor::navigation
         RegisterSerializable<NavigationEditorSettings>();
     }
 
+    void RemoveNavigationEditorSettings(editor::EditorContext& context)
+    {
+        context.RemoveEditorSettingsContribution(u8"Navigation");
+    }
+
     void RegisterNavigationEditorSettings(editor::EditorContext& context)
     {
         RegisterNavigationEditorSettingsTypes(); // idempotent; covers boot orders that skipped it

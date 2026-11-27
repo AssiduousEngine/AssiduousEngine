@@ -15,7 +15,6 @@ target_link_libraries(Pipeline.Registration PUBLIC
     Pipeline::ModelImporter Foundation::Image.Resource Foundation::Heightfield.Resource
     Foundation::Physics Foundation::Physics.Resource Pipeline::Physics
     Pipeline::Render
-    Foundation::Navigation Foundation::Navigation.Resource Pipeline::Navigation
     Foundation::Audio Foundation::Audio.Resource Pipeline::Audio
     Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
     Foundation::Script.Resource Foundation::Script.Facades

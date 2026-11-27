@@ -20,7 +20,6 @@ module;
 export module engine.navigation:subsystem;
 
 import foundation.core;
-import engine.domain;
 import foundation.runtime;
 import foundation.profiler;
 import foundation.scene;
@@ -566,12 +565,4 @@ export namespace engine::navigation
     private:
         Array<SceneEntry> m_scenes;
     };
-}
-
-export namespace engine::navigation
-{
-    /// This domain's declaration: what it brings to a scene, to reflection and to the script
-    /// surface, and which resource modules come with it. Defined in the implementation unit (one
-    /// instance per process); Engine.Composition lists it once.
-    [[nodiscard]] const engine::DomainModule& NavigationDomain() noexcept;
 }

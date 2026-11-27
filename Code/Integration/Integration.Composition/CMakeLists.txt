@@ -4,7 +4,7 @@
 # and the engine suites stay pipeline-free.
 add_executable(Integration.Composition TestsMain.cpp CompositionPipelineTests.cpp UpdateOrderTests.cpp)
 target_link_libraries(Integration.Composition PRIVATE
-    Engine::Composition Foundation::Resource Pipeline::Registration Pipeline::Core
+    Engine::Composition Plugins::Navigation.Engine Foundation::Resource Pipeline::Registration Pipeline::Core
     Foundation::Core Foundation::VFS doctest::doctest)
 target_compile_definitions(Integration.Composition PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Integration.Composition PRIVATE

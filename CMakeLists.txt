@@ -494,8 +494,6 @@ add_subdirectory(Code/Foundation/Sequence.Resource) # cooked sequence resource, 
 add_subdirectory(Code/Foundation/Animation.Resource)
 add_subdirectory(Code/Foundation/Physics)   # Jolt-backed rigid-body core (world/bodies/queries/events; JPH never public)
 add_subdirectory(Code/Foundation/Physics.Resource)  # cooked collision shapes and physical materials
-add_subdirectory(Code/Foundation/Navigation) # Recast/Detour navmesh core (bake, query, crowd; rc*/dt* never public)
-add_subdirectory(Code/Foundation/Navigation.Resource) # cooked navmesh-zone resource and factory
 add_subdirectory(Code/Foundation/Audio)     # miniaudio-backed audio engine core (voices/buses/handles; ma_* never public)
 add_subdirectory(Code/Foundation/Audio.Resource)    # cooked audio clips and factory
 add_subdirectory(Code/Foundation/Scene)     # scene / ECS foundation (entities, transforms, components, SceneSubsystem)
@@ -510,7 +508,6 @@ add_subdirectory(Code/Engine/Engine.Model) # a cooked model put into a scene as 
 add_subdirectory(Code/Engine/Engine.Physics) # physics scene integration (components, per-scene Jolt world, interpolation; after Render)
 add_subdirectory(Code/Engine/Engine.Spline) # authorable 3D spline scene component (data-only; math in Foundation::Spline)
 add_subdirectory(Code/Engine/Engine.Sequence) # a scene's sequences as they play: the scene system, scene.sequences, the domain
-add_subdirectory(Code/Engine/Engine.Navigation) # navmesh scene integration (zone/agent components and a per-scene Detour crowd)
 add_subdirectory(Code/Engine/Engine.Audio)   # audio scene integration (components, per-scene voice group, listener sync; after Render)
 add_subdirectory(Code/Foundation/Fonts)     # font types/interfaces over Core and Image
 add_subdirectory(Code/Foundation/Fonts.Coverage)
@@ -664,10 +661,11 @@ endif()
 util_add_plugin(Code/Plugins/Dialogue) # conversations as text, their runner and staging, from its Plugin.xml
 util_add_plugin(Code/Plugins/Particles) # particle effects: the CPU simulation, its renderer and the effect page
 util_add_plugin(Code/Plugins/Terrain) # terrain and its vegetation: chunks, renderer, brushes and pages
+util_add_plugin(Code/Plugins/Navigation) # navmeshes over Recast and Detour: zones, agents, the bake
 # The plugins the engine's hosts link (the players, the editor and the CLI tools, each the parts its
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
-set(UTIL_HOST_PLUGINS dialogue particles terrain)
+set(UTIL_HOST_PLUGINS dialogue particles terrain navigation)
 # C#'s bindings cover the official plugins' surface too: the tool loads them before it generates.
 if(TARGET Tools.DotNetBindings)
     util_link_plugins(Tools.DotNetBindings ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
@@ -690,7 +688,6 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Editor/Editor.App)
     add_subdirectory(Code/Pipeline/Physics.Pipeline)    # collision/material assets and builders (tooling)
     add_subdirectory(Code/Pipeline/Render.Pipeline)     # render profile assets and builders (tooling)
-    add_subdirectory(Code/Pipeline/Navigation.Pipeline) # navmesh-zone asset and builder (tooling)
     add_subdirectory(Code/Pipeline/Audio.Pipeline)      # audio clip asset/builder/importer (tooling)
     add_subdirectory(Code/Pipeline/VG.Pipeline)     # vector image asset, validating builder and .svg importer (tooling)
     add_subdirectory(Code/Pipeline/ModelImporter) # top-level model import: model IR -> cooked geometry/material/texture/animation resources
@@ -712,7 +709,6 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Editor/Editor.Sequence) # sequences in the scene: the document, the preview and their panel under the viewport
     add_subdirectory(Code/Editor/Editor.ViewportTools) # viewport tool-mode framework (IViewportTool, its manager, the provider registry)
     add_subdirectory(Code/Editor/Editor.Camera) # shared free-fly viewport camera (lean, foundation-only) for all editor pages
-    add_subdirectory(Code/Editor/Editor.Navigation) # navmesh bake tooling (collects geometry, bakes it with Recast, writes the zone asset)
 
     add_subdirectory(Code/Pipeline/Animation.Pipeline)
     add_subdirectory(Code/Pipeline/PropertyAnimation.Pipeline)
@@ -792,7 +788,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Editor/Editor.Fonts.Tests                  Editor::Fonts)
     util_test_suite(Code/Plugins/Terrain/Terrain.Editor.Tests       Plugins::Terrain.Editor)
     util_test_suite(Code/Editor/Editor.Scene.Tests                  Editor::Scene)
-    util_test_suite(Code/Editor/Editor.Navigation.Tests             Editor::Navigation)
+    util_test_suite(Code/Plugins/Navigation/Navigation.Editor.Tests Plugins::Navigation.Editor)
     util_test_suite(Code/Editor/Editor.ViewportTools.Tests          Editor::ViewportTools)
     util_test_suite(Code/Editor/Editor.Camera.Tests                 Editor::Camera)
     util_test_suite(Code/Editor/Editor.PropertyAnimation.Tests      Editor::PropertyAnimation)
@@ -816,7 +812,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Plugins/Particles/Particles.Pipeline.Tests Plugins::Particles.Pipeline)
     util_test_suite(Code/Pipeline/Physics.Pipeline.Tests                Pipeline::Physics)
     util_test_suite(Code/Pipeline/Render.Pipeline.Tests                 Pipeline::Render)
-    util_test_suite(Code/Pipeline/Navigation.Pipeline.Tests             Pipeline::Navigation)
+    util_test_suite(Code/Plugins/Navigation/Navigation.Pipeline.Tests Plugins::Navigation.Pipeline)
     util_test_suite(Code/Pipeline/Script.AngelScript.Pipeline.Tests     Pipeline::Script.AngelScript)
     util_test_suite(Code/Pipeline/Scene.Pipeline.Tests                  Pipeline::Scene)
     util_test_suite(Code/Pipeline/Script.Pipeline.Tests                 Pipeline::Script)
@@ -839,7 +835,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Net.Tests                    Engine::Net)
     util_test_suite(Code/Engine/Engine.Physics.Tests                Engine::Physics)
     util_test_suite(Code/Engine/Engine.Project.Tests                Engine::Project)
-    util_test_suite(Code/Engine/Engine.Navigation.Tests             Engine::Navigation)
+    util_test_suite(Code/Plugins/Navigation/Navigation.Engine.Tests Plugins::Navigation.Engine)
     util_test_suite(Code/Plugins/Particles/Particles.Engine.Tests   Plugins::Particles.Engine)
     util_test_suite(Code/Plugins/Terrain/Terrain.Engine.Tests       Plugins::Terrain.Engine)
     util_test_suite(Code/Engine/Engine.Input.Tests                  Engine::Input)
@@ -910,7 +906,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Zip.Tests                       Foundation::Zip)
     util_test_suite(Code/Plugins/Particles/Particles.Foundation.Tests Plugins::Particles.Foundation)
     util_test_suite(Code/Foundation/Physics.Tests                   Foundation::Physics)
-    util_test_suite(Code/Foundation/Navigation.Tests                Foundation::Navigation)
+    util_test_suite(Code/Plugins/Navigation/Navigation.Foundation.Tests Plugins::Navigation.Foundation)
     util_test_suite(Code/Foundation/Profiler.Tests                  Foundation::Profiler)
     util_test_suite(Code/Foundation/Profiler.Capture.Tests          Foundation::Profiler.Capture)
     util_test_suite(Code/Foundation/RHI.Null.Tests                  Foundation::RHI.Null)

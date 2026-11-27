@@ -25,11 +25,9 @@ import foundation.content;
 import foundation.scene;
 import foundation.physics;
 import engine.physics;
-import engine.navigation;
 import engine.animation; // PropertyAnimatorComponent (its Edit Clip)
 import engine.sequence;  // SequenceComponent (its Edit Sequence)
 import editor.core;
-import editor.navigation;
 import :edit;
 import :inspector_extras;
 import :scene_page_interface; // the animation panel an animator's clip opens in
@@ -56,7 +54,6 @@ export namespace editor
         static void Register(InspectorExtrasRegistry& registry)
         {
             registry.Register(TypeOf<engine::physics::RigidBodyComponent>(), [](InspectorExtras& extras) { AddNoCollider(extras); });
-            registry.Register(TypeOf<engine::navigation::NavMeshZoneComponent>(), [](InspectorExtras& extras) { AddBake(extras); });
             registry.Register(TypeOf<engine::behavior::BehaviorComponent>(), [](InspectorExtras& extras) { AddBehaviors(extras); });
             registry.Register(TypeOf<engine::physics::PhysicsSceneSettings>(), [](InspectorExtras& extras) { AddCollisionGroups(extras); });
             registry.Register(TypeOf<engine::behavior::SceneBehaviorSettings>(), [](InspectorExtras& extras) { AddLevelProperties(extras); });
@@ -144,42 +141,6 @@ export namespace editor
                                          return String(kNoColliderText);
                                  }
                                  return String{};
-                             });
-        }
-
-        static void AddBake(InspectorExtras& extras)
-        {
-            InspectorExtras* at = &extras;
-            extras.AddAction(u8"Navigation", u8"Bake Navigation",
-                             u8"Bake the zone's static geometry (static bodies, terrain) into its Navigation Zone asset; cook to apply it.",
-                             [at]()
-                             {
-                                 EditorContext* context = at->Context();
-                                 SceneEditContext& edit = at->Edit();
-                                 if (context == nullptr)
-                                     return;
-                                 if (context->Project() == nullptr)
-                                 {
-                                     context->Notify(NoticeKind::Error, u8"No project is open.");
-                                     return;
-                                 }
-                                 auto* zones = edit.Scene().GetSystem<engine::navigation::NavMeshZoneComponentManager>();
-                                 for (const Guid& id : at->Entities())
-                                 {
-                                     const foundation::scene::EntityHandle entity = edit.Resolve(id);
-                                     engine::navigation::NavMeshZoneComponent* zone = zones != nullptr && entity.IsAssigned() ? zones->Get(entity) : nullptr;
-                                     if (zone == nullptr)
-                                         continue;
-                                     foundation::content::Instance* target = zone->zone.id.IsNil() ? nullptr : context->Project()->SourceDb().GetInstance(zone->zone.id);
-                                     if (target == nullptr)
-                                     {
-                                         context->Notify(NoticeKind::Warning, u8"Assign a Navigation Zone asset to this zone before baking.");
-                                         continue;
-                                     }
-                                     const navigation::BakeResult result =
-                                         navigation::BakeNavigationZone(edit.Scene(), entity, *target, navigation::ParallelBakeEnabled(*context));
-                                     context->Notify(result.baked ? NoticeKind::Success : NoticeKind::Warning, navigation::DescribeBake(result).AsView());
-                                 }
                              });
         }
     };

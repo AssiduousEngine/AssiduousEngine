@@ -39,10 +39,10 @@ namespace
 TEST_CASE("engine.composition: the one list covers every domain, and the scene facet every manager")
 {
     const engine::EngineComposition& composition = engine::FullComposition();
-    // Ten scene domains, input and the run's facade library, and the GUI's when the GUI is built.
-    // Particles and terrain come from plugins since they left the engine.
-    CHECK(composition.Modules().Size() == 12u + kGuiDomains);
-    CHECK(composition.Scene().ModuleCount() == 10u + kGuiDomains);
+    // Nine scene domains, input and the run's facade library, and the GUI's when the GUI is built.
+    // Particles, terrain and navigation come from plugins since they left the engine.
+    CHECK(composition.Modules().Size() == 11u + kGuiDomains);
+    CHECK(composition.Scene().ModuleCount() == 9u + kGuiDomains);
     CHECK(&engine::FullSceneComposition() == &composition.Scene());
 
     scene::Scene scratch(DefaultAllocator());
@@ -90,9 +90,9 @@ TEST_CASE("engine.composition: the resource facet - every domain's resource modu
           "factory described, every cooked type registered")
 {
     const engine::EngineComposition& composition = engine::FullComposition();
-    // The resource libraries, the scene documents and the render profiles (particles' and
-    // terrain's are their plugins').
-    CHECK(composition.ResourceModules().Size() == 19u + kGuiResourceModules);
+    // The resource libraries, the scene documents and the render profiles (particles', terrain's
+    // and navigation's are their plugins').
+    CHECK(composition.ResourceModules().Size() == 18u + kGuiResourceModules);
     for (const resource::ResourceModule* module : composition.ResourceModules())
     {
         usize same = 0;
@@ -102,12 +102,12 @@ TEST_CASE("engine.composition: the resource facet - every domain's resource modu
         }
         CHECK(same == 1u);
     }
-    // 28 = the standard headless set (18), the texture factory, the image and shader factories,
+    // 27 = the standard headless set (17), the texture factory, the image and shader factories,
     // the two render profiles and the quality level, the vector image, the scene's prefabs and the
     // script project assembly, plus the GUI's documents and sheets when the GUI is built. The
     // particle effect's is the particles plugin's; the terrain's, splatmap's and vegetation mask's
-    // the terrain plugin's.
-    CHECK(composition.FactoryDescriptionCount() == 28u + kGuiFactories);
+    // the terrain plugin's; the navigation zone's the navigation plugin's.
+    CHECK(composition.FactoryDescriptionCount() == 27u + kGuiFactories);
 
     engine::RegisterAllResourceTypes();
     usize described = 0;
@@ -133,7 +133,7 @@ TEST_CASE("engine.composition: a headless host creates every factory but the two
     resource::ResourceFactorySet set;
     resource::NoResourceServices none;
     composition.CreateFactories(set, DefaultAllocator(), none);
-    CHECK(set.Count() == 26u + kGuiFactories);
+    CHECK(set.Count() == 25u + kGuiFactories);
     REQUIRE(set.Skipped().Size() == 2u);
     bool wantsDevice = false;
     bool wantsShaders = false;
@@ -163,7 +163,7 @@ TEST_CASE("engine.composition: a headless host creates every factory but the two
         });
     // Idempotent: a second headless pass adds nothing.
     composition.CreateFactories(set, DefaultAllocator(), none);
-    CHECK(set.Count() == 26u + kGuiFactories);
+    CHECK(set.Count() == 25u + kGuiFactories);
 }
 
 TEST_CASE("engine.composition: RegisterAllScriptFacades installs exactly the domain facades, "

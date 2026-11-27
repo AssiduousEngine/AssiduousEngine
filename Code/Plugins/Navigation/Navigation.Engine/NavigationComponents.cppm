@@ -290,4 +290,6 @@ export namespace engine::navigation
     // NavAgent.of(entity).navigate(...) and name the class in their prelude. Touches no device or
     // world.
     void RegisterNavigationScriptFacade();
+    // Takes back what RegisterNavigationScriptFacade gave the script surface: the plugin unloading.
+    void RemoveNavigationScriptFacade();
 }

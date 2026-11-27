@@ -54,8 +54,9 @@ Related: [[game-instance]], [[runtime-host]], [[scripting]] (the one-context rul
   module with scene content), `ResourceModules()`, factory descriptions and `CreateFactories`,
   `RegisterReflection`, `RegisterScriptFacades`, `RegisterResourceTypes`.
 - **`engine.composition`** (`Code/Engine/Engine.Composition`) - the composition root: the ONE list of
-  domains (render, animation, particles, physics, terrain, vegetation, navigation, audio, script,
-  net, spline, prefabs, input, run, and gui when the GUI is built), and the facets every consumer
+  domains (render, animation, physics, audio, script, net, spline, prefabs, input, run, and gui
+  when the GUI is built; particles, terrain and navigation are official plugins that add their
+  domains through `EnginePluginServices`), and the facets every consumer
   asks it for: `FullComposition()`, `FullSceneComposition()`, `AddAllSceneManagers(scene)`,
   `RegisterAllSceneComponentReflection()`, `RegisterAllResourceTypes()`,
   `RegisterAllScriptFacades()`, and the scene export support (`CollectSceneStreams`,
@@ -74,8 +75,8 @@ Related: [[game-instance]], [[runtime-host]], [[scripting]] (the one-context rul
   it; each `SceneManager` contributes its group term and each scene its own.
 - **`DefaultApplication::Configure`** calls `SetComposition(engine::FullSceneComposition())` and
   registers its instances' managers. Subsystems that react to scenes are `ISceneObserver`s wiring
-  per-scene state at `SystemsReady` / `Destroying` (Render, Animation, Particles, Physics, Terrain,
-  Vegetation, Navigation, Audio, Script, GUI); `DefaultApplication` observes `SystemsReady` to point
+  per-scene state at `SystemsReady` / `Destroying` (Render, Animation, Physics, Audio, Script, GUI,
+  and the plugins' Particles, Terrain, Vegetation and Navigation); `DefaultApplication` observes `SystemsReady` to point
   each scene's `PrefabSpawnSystem` at its resources.
 - **Scenes and runs**: a `SceneManager` sets its run on every scene it creates before assembly
   (`SetSceneRun`), so systems binding at `SystemsReady` see it: `Scene::Run()` and

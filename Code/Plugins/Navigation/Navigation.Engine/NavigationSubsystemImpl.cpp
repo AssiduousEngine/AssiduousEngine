@@ -14,7 +14,6 @@ module;
 #include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
 module engine.navigation;
-import engine.domain;
 
 import foundation.core;
 import foundation.runtime;
@@ -276,21 +275,10 @@ namespace engine::navigation
         foundation::script::RegisterExtraScriptRootType(&TypeOf<NavAgentComponent>());
         foundation::script::RegisterExtraFacadeName(u8"NavAgentComponent");
     }
-}
 
-namespace engine::navigation
-{
-    const engine::DomainModule& NavigationDomain() noexcept
+    void RemoveNavigationScriptFacade()
     {
-        static const foundation::resource::ResourceModule* const kResources[] = {
-            &foundation::navigation::kNavigationResourceModule};
-        static const engine::DomainModule kModule{
-            .id = u8"navigation",
-            .installScene = &AddNavigationSceneManagers,
-            .registerReflection = &RegisterNavigationComponentReflection,
-            .registerScriptFacade = &RegisterNavigationScriptFacade,
-            .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{
-                kResources, sizeof(kResources) / sizeof(kResources[0])}};
-        return kModule;
+        foundation::script::RemoveExtraFacadeName(u8"NavAgentComponent");
+        foundation::script::RemoveExtraScriptRootType(&TypeOf<NavAgentComponent>());
     }
 }

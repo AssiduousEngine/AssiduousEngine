@@ -57,7 +57,7 @@ the whole editor window as the user sees it (panels, pages, menus, dialogs, toas
 way, `window: "all"` adding each floating window beside it, for checking the editor's own UI
 rather than a scene (the user's View > Screenshot Editor, F12, writes the same under
 `<user-data>/screenshots`); `profiler_capture` profiles the editor's next few seconds, PIE
-included (see **Performance** below); `navigation_bake` bakes a
+included (see **Performance** below); `navigation_bake` (the navigation plugin's, on a project that enables it) bakes a
 zone, as the inspector's Bake Navigation button does: the static geometry inside the zone's
 box (static, non-trigger rigid bodies and terrain; render meshes are not read, so a floor or
 an obstacle agents should respect needs a static body, and what moves never bakes) into the

@@ -30,21 +30,18 @@ using namespace foundation::core;
 export namespace editor
 {
     /// The live tools are twelve (selection_get, selection_set, simulate_start, simulate_stop,
-    /// navigation_bake, entity_inspect, component_set, viewport_camera_get, viewport_camera_set,
+    /// entity_inspect, component_set, viewport_camera_get, viewport_camera_set,
     /// viewport_frame, viewport_screenshot, viewport_run) plus the eight editing tools of
     /// SceneMcpEditToolsImpl.cpp (entity_create, entity_update, entity_delete, component_add,
     /// component_remove, prefab_spawn, behavior_add, behavior_set). kSceneLiveToolCount, the number
     /// RegisterSceneLiveTools registers, is a tripwire like kEngineToolCount.
     inline constexpr usize kSceneEditToolCount = 8;
-    inline constexpr usize kSceneLiveToolCount = 13 + kSceneEditToolCount;
+    inline constexpr usize kSceneLiveToolCount = 12 + kSceneEditToolCount;
 
     void RegisterSceneLiveTools(foundation::mcp::McpServer& server, EditorContext& context);
-}
 
-namespace editor
-{
-    // Inside the module: what the live tools and the edit tools (SceneMcpEditToolsImpl.cpp)
-    // share.
+    // What a scene page's tool needs, whoever registers it: the live and edit tools here, and a
+    // plugin's own (navigation's navigation_bake, through the plugins' MCP services).
 
     /// The scene page a call addresses: `page` (a guid) when given, else the active page.
     struct AddressedPage
@@ -62,6 +59,12 @@ namespace editor
     /// the reason when it names none.
     [[nodiscard]] Result<Guid, String> ResolveSceneEntity(const AddressedPage& addressed,
                                                           StringView text);
+    /// The `page` argument's description, the same on every scene page tool.
+    inline constexpr StringView kScenePageArgument = u8"the scene or prefab page's asset guid (default: the active page)";
+}
+
+namespace editor
+{
     /// The editing tools, registered by RegisterSceneLiveTools.
     void RegisterSceneEditTools(foundation::mcp::McpServer& server, EditorContext& context);
 }

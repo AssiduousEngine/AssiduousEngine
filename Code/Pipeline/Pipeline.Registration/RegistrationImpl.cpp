@@ -41,8 +41,6 @@ import foundation.physics.resource;
 import physics.pipeline;
 import render.pipeline;
 import engine.render; // the render profiles' cooked records and products
-import foundation.navigation.resource;
-import navigation.pipeline;
 import foundation.vg.resource;
 import vg.pipeline;
 import foundation.gui.resources; // the GUI's documents and sheets
@@ -119,8 +117,6 @@ namespace pipeline
         foundation::physics::RegisterPhysicsResource();
         RegisterRenderProfileAssets();
         engine::render::RegisterRenderProfileResources();
-        RegisterNavigationZoneAsset();
-        foundation::navigation::RegisterNavigationResource();
         RegisterVGAssets();
         foundation::vg::RegisterVGResource();
         RegisterGuiAssets();
@@ -173,7 +169,6 @@ namespace pipeline
         AddBuilder<EnvironmentProfileAssetBuilder>(registry);
         AddBuilder<PostProcessProfileAssetBuilder>(registry);
         AddBuilder<RenderQualityAssetBuilder>(registry);
-        AddBuilder<NavigationZoneAssetBuilder>(registry);
         AddBuilder<VectorImageAssetBuilder>(registry);
         AddBuilder<GuiDocumentAssetBuilder>(registry);
         AddBuilder<GuiStyleSheetAssetBuilder>(registry);
@@ -218,7 +213,6 @@ namespace pipeline
         RegisterSceneCreators(registry);
         RegisterInputCreators(registry);
         RegisterTextureCreators(registry);
-        RegisterNavigationCreators(registry);
         RegisterGeometryCreators(registry);
         RegisterMaterialCreators(registry);
         RegisterShaderCreators(registry);

@@ -9,7 +9,7 @@ target_link_libraries(Engine.DefaultApp
     PUBLIC Foundation::Core Foundation::RHI Foundation::Runtime.Client Engine::Run Foundation::Shell Foundation::Graphics
            Foundation::VFS
            Foundation::Scene Engine::Scene Engine::Render Engine::Animation
-           Foundation::Physics Engine::Physics Engine::Navigation Foundation::Navigation.Resource
+           Foundation::Physics Engine::Physics
            Foundation::Audio Foundation::Audio.Resource Engine::Audio
            Foundation::Fonts.Resource
            Foundation::Input Engine::Input Foundation::Script

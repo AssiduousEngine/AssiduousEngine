@@ -16,7 +16,6 @@ import foundation.scene;
 import foundation.render;   // debug::DebugDraw (collider gizmo test)
 import foundation.physics;  // ShapeKind
 import engine.render;
-import engine.navigation;
 import engine.physics;      // RigidBodyComponent and its manager
 import engine.animation;    // the IK components and their animator
 import foundation.animation; // Skeleton (the IK gizmo's bind chain)
@@ -450,7 +449,7 @@ TEST_CASE("gizmo-registry: renderers resolve by component type; unselected entit
 {
     GizmoRendererRegistry registry;
     RegisterBuiltinGizmoRenderers(registry);
-    CHECK(registry.Count() == 14u); // including the four physics and three IK gizmos
+    CHECK(registry.Count() == 13u); // including the four physics and three IK gizmos (the zone's is the navigation plugin's)
     CHECK(registry.Find(&TypeOf<engine::animation::TwoBoneIkComponent>()) != nullptr);
     CHECK(registry.Find(&TypeOf<engine::animation::AimIkComponent>()) != nullptr);
     CHECK(registry.Find(&TypeOf<engine::animation::FootIkComponent>()) != nullptr);
@@ -463,13 +462,11 @@ TEST_CASE("gizmo-registry: renderers resolve by component type; unselected entit
     CHECK(registry.Find(&TypeOf<engine::render::ReflectionProbeComponent>()) != nullptr);
     CHECK(registry.Find(&TypeOf<engine::render::CameraComponent>()) != nullptr);
     CHECK(registry.Find(&TypeOf<engine::render::DecalComponent>()) != nullptr);
-    CHECK(registry.Find(&TypeOf<engine::navigation::NavMeshZoneComponent>()) != nullptr);
     CHECK(registry.Find(&TypeOf<f32>()) == nullptr);
 
     // Built-ins draw only when selected; wireframes on every unselected entity would be noise.
     CHECK_FALSE(registry.Find(&TypeOf<engine::render::LightComponent>())->DrawWhenUnselected());
-    CHECK_FALSE(
-        registry.Find(&TypeOf<engine::navigation::NavMeshZoneComponent>())->DrawWhenUnselected());
+    CHECK_FALSE(registry.Find(&TypeOf<engine::render::CameraComponent>())->DrawWhenUnselected());
 }
 
 TEST_CASE("gizmo-controller: pose tracks selection even while the pointer is off the viewport")

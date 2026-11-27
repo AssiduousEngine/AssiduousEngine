@@ -32,7 +32,6 @@ import foundation.render;    // debug::DebugDraw (the overlays)
 import engine.render;      // RegisterRenderComponentReflection, LightComponent
 import engine.composition; // FullSceneComposition
 import engine.physics;
-import engine.navigation;
 import engine.animation;
 import foundation.animation; // Skeleton (a bone name's choices)
 import foundation.physics;
@@ -1563,12 +1562,10 @@ TEST_CASE("inspector: Paste Component puts the copied component on the selection
     page->OnClose();
 }
 
-TEST_CASE("inspector: a component's extras under its header: a rigid body's notice while it has no collider, a zone's Bake")
+TEST_CASE("inspector: a component's extras under its header: a rigid body's notice while it has no collider")
 {
     Bed bed;
     RegisterBuiltinExtras();
-    String said;
-    bed.context.OnNotice = [&said](NoticeKind, StringView message) { said = String(message); };
     UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
     SceneInspectorView* inspector = page->Inspector();
     page->EditContext().EntitySelection().Set(bed.crate);
@@ -1588,14 +1585,6 @@ TEST_CASE("inspector: a component's extras under its header: a rigid body's noti
     bodies->Get(page->ScenePtr()->FindEntity(bed.crate))->shape = foundation::physics::ShapeKind::Box;
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK(inspector->ExtraText(title.AsView(), u8"Collision").IsEmpty());
-
-    // A zone has a Bake button; with no asset assigned, pressing it says what to do.
-    REQUIRE(inspector->AddComponent(u8"NavMeshZoneComponent"));
-    page->OnUpdate(bed.host, 1.0f / 60.0f);
-    const String zone = String(TypeAttrString(TypeOf<engine::navigation::NavMeshZoneComponent>(), "displayName", u8"Nav Mesh Zone"));
-    CHECK(inspector->ExtraText(zone.AsView(), u8"Navigation") == String(u8"Bake Navigation"));
-    CHECK(inspector->RunExtra(zone.AsView(), u8"Navigation"));
-    CHECK(said == String(u8"Assign a Navigation Zone asset to this zone before baking."));
     page->OnClose();
 }
 

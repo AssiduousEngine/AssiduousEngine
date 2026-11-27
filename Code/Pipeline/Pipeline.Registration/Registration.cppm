@@ -63,8 +63,8 @@ export namespace pipeline
     // fails the test.
     /// The GUI's asset kinds (a document and a style sheet), when the GUI is built.
     inline constexpr usize kGuiAssetKinds = 2;
-    inline constexpr usize kBuilderCount = 29 + kGuiAssetKinds; // 29: particles and terrain became plugins
+    inline constexpr usize kBuilderCount = 28 + kGuiAssetKinds; // 28: particles, terrain and navigation became plugins
     inline constexpr usize kImporterCount = 11; // the splatmap and mask importers are terrain's
     /// The creators every build has; the scripts add three per language with a cook on top.
-    inline constexpr usize kCreatorCount = 29 + kGuiAssetKinds; // 29: particles and terrain became plugins
+    inline constexpr usize kCreatorCount = 28 + kGuiAssetKinds; // 28: particles, terrain and navigation became plugins
 }

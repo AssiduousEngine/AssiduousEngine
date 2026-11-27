@@ -68,15 +68,16 @@ namespace samples
         void Configure(runtime::IApplicationHost& host) override
         {
             engine::runtime::DefaultApplication::Configure(host);
-            // Dear ImGui and particles are plugins: this process's host loads them. Dear ImGui adds its
+            // Dear ImGui, particles and navigation are plugins: this process's host loads them. Dear ImGui adds its
             // own subsystem from what the app offers (its graphics device and data mount).
             if (foundation::runtime::PluginHost* plugins = CreatePluginHost(foundation::runtime::HostRole::Player))
             {
                 (void)plugins->AddLinked(foundation::runtime::LinkedPluginList());
-                foundation::runtime::EnabledPlugin enabled[2];
+                foundation::runtime::EnabledPlugin enabled[3];
                 enabled[0].id = u8"imgui";
                 enabled[1].id = u8"particles"; // the effects it shows
-                (void)plugins->Load(foundation::core::Span<const foundation::runtime::EnabledPlugin>(enabled, 2));
+                enabled[2].id = u8"navigation"; // the crowd it walks
+                (void)plugins->Load(foundation::core::Span<const foundation::runtime::EnabledPlugin>(enabled, 3));
             }
         }
 #endif

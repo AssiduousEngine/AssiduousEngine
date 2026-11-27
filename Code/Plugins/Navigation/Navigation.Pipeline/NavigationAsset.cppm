@@ -22,6 +22,7 @@ export module navigation.pipeline;
 
 import foundation.core;
 import pipeline.core;
+import pipeline.importer; // PipelinePluginServices (the creator added through it)
 import foundation.content;
 import foundation.navigation.resource;
 
@@ -144,5 +145,6 @@ export namespace pipeline
 
 
     /// File > New's navigation creators (pipeline.registration composes every domain's).
-    void RegisterNavigationCreators(AssetCreatorRegistry& registry);
+    // File > New's navigation zone, recorded against the plugin that adds it.
+    void AddNavigationCreators(PipelinePluginServices& services);
 }
