@@ -1,7 +1,9 @@
 # Tools.DotNetBindings - writes the engine's C# bindings, generated from its reflection.
 add_executable(Tools.DotNetBindings Main.cpp)
 # The whole script surface: every facade and every component's reflection, as an application's scripts see it.
-target_link_libraries(Tools.DotNetBindings PRIVATE Foundation::Script.DotNet Engine::Composition)
+target_link_libraries(Tools.DotNetBindings PRIVATE Foundation::Script.DotNet Engine::Composition Engine::Project Foundation::Runtime)
+# The official plugins' Engine parts link in after they are added (the root CMakeLists, beside
+# UTIL_HOST_PLUGINS), so their facades and components reach C# as the engine's do.
 # What C# leaves out of that surface is exactly LeftOut.txt's lines, each with its reason.
 add_test(NAME Tools.DotNetBindings.LeftOut
          COMMAND Tools.DotNetBindings ${CMAKE_CURRENT_BINARY_DIR}/LeftOutCheck.g.cs --left-out ${CMAKE_CURRENT_SOURCE_DIR}/LeftOut.txt)

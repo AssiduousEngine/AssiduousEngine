@@ -668,6 +668,10 @@ util_add_plugin(Code/Plugins/Terrain) # terrain and its vegetation: chunks, rend
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
 set(UTIL_HOST_PLUGINS dialogue particles terrain)
+# C#'s bindings cover the official plugins' surface too: the tool loads them before it generates.
+if(TARGET Tools.DotNetBindings)
+    util_link_plugins(Tools.DotNetBindings ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
+endif()
 add_subdirectory(Code/Engine/Engine.Player)        # Generic game runner
 
 

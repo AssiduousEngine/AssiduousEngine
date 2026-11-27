@@ -9,8 +9,10 @@
 #include <cstdio>
 
 import foundation.core;
+import foundation.runtime;   // PluginHost, the linked plugins
 import foundation.script.dotnet;
-import engine.composition;
+import engine.composition;  // EnginePluginServices: what a plugin's domain registers through
+import engine.project;      // kEngineVersionString
 
 using namespace foundation::core;
 
@@ -25,6 +27,44 @@ int main(int argc, char** argv)
     RegisterCoreTypes();
     engine::RegisterAllScriptFacades();
     engine::RegisterAllSceneComponentReflection();
+    // And the official plugins' (the ones this tool links, as every template does): each loaded,
+    // so its domain registers its facade and components as in a project that enables it.
+    IAllocator& allocator = DefaultAllocator();
+    foundation::runtime::SubsystemManager subsystems(allocator);
+    foundation::runtime::PluginHost plugins(allocator, subsystems, foundation::runtime::HostRole::Player,
+                                            engine::project::kEngineVersionString);
+    engine::EnginePluginServices services(allocator);
+    (void)services.Attach(plugins);
+    const Span<const foundation::runtime::LinkedPlugin> linked = foundation::runtime::LinkedPluginList();
+    if (!plugins.AddLinked(linked).IsOk())
+    {
+        std::fprintf(stderr, "Tools.DotNetBindings: a linked plugin's manifest does not read\n");
+        return 1;
+    }
+    Array<foundation::runtime::EnabledPlugin> every;
+    for (const foundation::runtime::LinkedPlugin& plugin : linked)
+    {
+        foundation::runtime::PluginManifest manifest;
+        const StringView xml{plugin.manifestXml};
+        MemoryStream stream(allocator);
+        (void)stream.Write(xml.Data(), xml.Size());
+        (void)stream.Seek(0, SeekOrigin::Begin);
+        if (foundation::runtime::ReadPluginManifest(stream, manifest).IsOk())
+        {
+            foundation::runtime::EnabledPlugin entry;
+            entry.id = manifest.id;
+            every.PushBack(Move(entry));
+        }
+    }
+    const foundation::runtime::PluginLoadReport report =
+        plugins.Load(Span<const foundation::runtime::EnabledPlugin>(every.Data(), every.Size()));
+    if (!report.refused.IsEmpty())
+    {
+        for (const foundation::runtime::PluginRefusal& refusal : report.refused)
+            std::fprintf(stderr, "Tools.DotNetBindings: %.*s\n", static_cast<int>(refusal.reason.Size()),
+                         reinterpret_cast<const char*>(refusal.reason.Data()));
+        return 1;
+    }
     const Array<const TypeInfo*> types = GlobalTypeRegistry().All();
     Array<String> leftOut;
     const String source =

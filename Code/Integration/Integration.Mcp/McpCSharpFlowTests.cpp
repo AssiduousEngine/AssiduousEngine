@@ -32,6 +32,7 @@ import script.pipeline;
 import engine.behavior;
 import editor.mcp;
 import foundation.net.replication; // NetworkComponent: a component the behaviour reaches with of()
+import particles.engine; // ParticleEffectComponent: a plugin's component, reached from C# as the engine's are
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -226,6 +227,97 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
     JsonValue broken = CallOk(server, u8"asset_cook", Obj());
     CHECK(broken.Get(u8"failed").AsInt() >= 1);
     CHECK(FileExists(Format(u8"{}/Cooked/scripts/Mover.rasset", projectDir).AsView()));
+
+    (void)RemoveDirectoryRecursive(projectDir);
+}
+namespace
+{
+    constexpr StringView kWidener = u8"using Engine;\n\n"
+                                    u8"public class Widener : EntityBehavior\n{\n"
+                                    u8"    readonly Entity m_entity;\n"
+                                    u8"    public Widener(Entity entity) { m_entity = entity; }\n\n"
+                                    u8"    public void onStart()\n    {\n"
+                                    u8"        ParticleEffectComponent effect = ParticleEffectComponent.of(m_entity);\n"
+                                    u8"        if (!effect.isValid())\n        {\n"
+                                    u8"            m_entity.setName(\"no effect\");\n            return;\n        }\n"
+                                    u8"        effect.meshScale = 3.0f;\n"
+                                    u8"        m_entity.setName(\"widened\");\n    }\n}\n";
+}
+
+TEST_CASE("integration.mcp: C# reaches an official plugin's component as it reaches the engine's")
+{
+    // The particles plugin's ParticleEffectComponent is in the bindings C# builds against, because
+    // the bindings generator loads the official plugins before it reads the registry.
+    const StringView projectDir = u8"mcp_csharp_plugin_project";
+    (void)RemoveDirectoryRecursive(projectDir);
+
+    pipeline::RegisterPipelineTypes();
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot());
+    pipeline::ImporterRegistry importers{DefaultAllocator()};
+    pipeline::RegisterAllImporters(importers);
+    pipeline::IScriptAssemblyCook* csharp = pipeline::ScriptAssemblyCookRegistry::Get().FindByLanguage(u8"csharp");
+    REQUIRE(csharp != nullptr);
+
+    McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView());
+    editor::mcp::ProjectSession session;
+    editor::mcp::ProjectOwner owner;
+    editor::mcp::RegisterProjectOpenTools(server, session, owner);
+    editor::mcp::RegisterAssetTools(server, session);
+    editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
+    editor::mcp::RegisterAssetWriteTools(server, session, importers, operations);
+    CallOk(server, u8"project_create", With(With(Obj(), u8"directory", projectDir), u8"name", u8"CSharpPlugin"));
+    CallOk(server, u8"project_open", With(Obj(), u8"directory", projectDir));
+
+    Write(u8"Game.csproj", csharp->NewProjectTemplate(u8"Game").AsView());
+    Write(u8"Widener.cs", kWidener);
+    (void)Import(server, u8"Game.csproj");
+    const String widener = Import(server, u8"Widener.cs");
+    JsonValue cooked = CallOk(server, u8"asset_cook", Obj());
+    INFO(std::string(reinterpret_cast<const char*>(cooked.ToString().Data()), cooked.ToString().Size()));
+    REQUIRE(cooked.Get(u8"failed").AsInt() == 0); // it compiled against the plugin's binding
+
+    foundation::vfs::NativeFileSystem cookedMount(Format(u8"{}/Cooked", projectDir).AsView(), DefaultAllocator());
+    foundation::content::ContentDatabase cookedDb(DefaultAllocator(), cookedMount, BinarySerializerFactory(), u8".rasset");
+    foundation::script::BehaviorClassFactory classes(DefaultAllocator());
+    foundation::script::ScriptAssemblyFactory assemblies(DefaultAllocator());
+    foundation::resource::ResourceManager resources(DefaultAllocator(), cookedDb);
+    resources.AddFactory(&classes);
+    resources.AddFactory(&assemblies);
+    foundation::resource::Proxy<foundation::script::BehaviorClass> widenerClass =
+        resources.Bind<foundation::script::BehaviorClass>(Guid(widener.AsView()));
+    REQUIRE(widenerClass);
+
+    // A headless scene with the plugin's manager and facade, as a run with the plugin loaded has.
+    foundation::run::RunBase run{DefaultAllocator(), u8"csharp-plugin-test"};
+    scene::Scene world{DefaultAllocator(), u8"csharp-plugin-test"};
+    engine::behavior::BehaviorRunHost host{DefaultAllocator()};
+    RegisterCoreTypes();
+    engine::behavior::RegisterBehaviorComponentReflection();
+    foundation::script::RegisterScriptFacadeReflection();
+    particles::RegisterParticleScriptFacade();
+    world.SetRun(&run);
+    auto* effects = world.AddSystem<particles::ParticleEffectComponentManager>();
+    auto* components = world.AddSystem<engine::behavior::BehaviorComponentManager>();
+    auto* scripts = world.AddSystem<engine::behavior::EntityBehaviorSystem>();
+    components->SetScriptSystem(scripts);
+    scripts->SetRunHost(&host);
+    const scene::EntityHandle fountain = world.CreateEntity(u8"fountain");
+    effects->Add(fountain).meshScale = 1.0f;
+    engine::behavior::BehaviorComponent& component = components->Add(fountain);
+    engine::behavior::AttachedBehavior behavior;
+    behavior.behaviorClass.SetProxy(widenerClass);
+    component.behaviors.PushBack(Move(behavior));
+    world.Start();
+    world.SetSimulationEnabled(true);
+    host.Binding().deltaSeconds = 0.5f;
+    run.Events().Drain();
+    world.Update(0.5f);
+    CHECK(world.GetEntityName(fountain) == StringView(u8"widened"));
+    REQUIRE(effects->Get(fountain) != nullptr);
+    CHECK(effects->Get(fountain)->meshScale == doctest::Approx(3.0f));
+    particles::RemoveParticleScriptFacade();
 
     (void)RemoveDirectoryRecursive(projectDir);
 }

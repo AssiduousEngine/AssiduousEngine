@@ -9,6 +9,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scripts: C# sees the official plugins' facades and components as it sees the engine's (the
+  `Dialogue` facade, `ParticleEffectComponent`, `scene.particles`): the bindings are generated with
+  every official plugin loaded. A project's own packages are not in them yet.
 - Scripts: C#, beside AngelScript and Luau (experimental): entity, scene and run behaviors written in
   C# over the same facades, built into the project's assembly by the cook. On by default in a
   desktop build, which needs the .NET 10 SDK (`-DOPTION_ENABLE_DOTNET=OFF` leaves it out); a web
