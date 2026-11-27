@@ -110,9 +110,12 @@ each of these:
    terrain and navigation, which `ProjectSettings::kFormerlyBuiltIn` enables from the settings
    alone, it needs the project's script assets. So it runs where the project is opened with its
    content (`EditorProject`, and Tools.Mcp's open), and the project is saved with the result.
-4. **A backend cannot unload during a run.** The backend's Engine part refuses to unload while
-   its manager has live contexts, and the editor ends runs first. A live context, script object or
-   delegate would otherwise outlive its VM's code.
+4. **A run outlives its backend's unload.** The official languages are linked into every host, so
+   their code stays mapped after their plugin unloads (the editor's plugin reload keeps libraries
+   mapped too). Unloading takes the backend out of the registry: a manager made before keeps
+   running its contexts, and only a new run finds no language. No refusal is needed. A language
+   shipped in a project's own package, opened at run time, would need one, and waits for such a
+   language.
 5. **The C# player.**
    - The `csharp` plugin answers whether a project needs its own player, through a hook the export
      asks before it chooses (decision 2).
@@ -176,7 +179,7 @@ Each step leaves the tree green on clang and clang-shared.
 2. **Luau as a plugin**, the pattern for the others (the smallest backend). It includes:
    - its Foundation library and its Engine and Pipeline parts, named as decision 3 says;
    - the project migration, by the languages a project's scripts use;
-   - the unload refusal;
+   - a test that a running script outlives the plugin's unload;
    - the language list from the registered cooks;
    - its suites linked through `util_link_plugins`.
 3. **AngelScript as a plugin.**
