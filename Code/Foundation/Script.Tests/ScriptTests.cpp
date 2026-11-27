@@ -399,3 +399,19 @@ TEST_CASE("script: a facade finds the services of the call running now, a script
     }
     CHECK(CurrentService<Counter>() == nullptr);
 }
+
+TEST_CASE("script: a backend can be registered and taken back, as a language plugin loads and unloads")
+{
+    ScriptBackendDesc desc;
+    desc.languageId = String(u8"unregistertest");
+    desc.fileExtensions.PushBack(String(u8"urt"));
+    desc.create = [](IAllocator&) -> RefPtr<IScriptManager> { return {}; };
+    ScriptBackendRegistry::Get().Register(Move(desc));
+    REQUIRE(ScriptBackendRegistry::Get().FindByLanguage(u8"unregistertest") != nullptr);
+    CHECK(ScriptBackendRegistry::Get().FindByExtension(u8"urt") != nullptr);
+
+    CHECK(ScriptBackendRegistry::Get().Unregister(u8"unregistertest"));
+    CHECK(ScriptBackendRegistry::Get().FindByLanguage(u8"unregistertest") == nullptr);
+    CHECK(ScriptBackendRegistry::Get().FindByExtension(u8"urt") == nullptr);
+    CHECK_FALSE(ScriptBackendRegistry::Get().Unregister(u8"unregistertest")); // nothing left to take
+}

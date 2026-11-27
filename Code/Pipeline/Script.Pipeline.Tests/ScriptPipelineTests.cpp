@@ -17,6 +17,7 @@ import foundation.script; // BehaviorKind
 import pipeline.core;
 import foundation.vfs; // SourcePath
 import script.pipeline;
+import foundation.script.resource; // BehaviorClassSource
 
 using namespace foundation::core;
 using namespace pipeline;
@@ -235,4 +236,51 @@ TEST_CASE("script.pipeline: an include resolves against the file that has it, ne
     CHECK_FALSE(ResolveScriptInclude(u8"Game/Boot.as", u8"../../Outside.as", out));
     CHECK_FALSE(ResolveScriptInclude(u8"Boot.as", u8"/etc/passwd", out));
     CHECK_FALSE(ResolveScriptInclude(u8"Boot.as", u8"C:/Windows/x.as", out));
+}
+
+namespace
+{
+    // A cook that does nothing: the registry test needs only its presence.
+    struct IdleCook final : IScriptLanguageCook
+    {
+        [[nodiscard]] String NewAssetTemplate(foundation::script::BehaviorKind, StringView) const override { return {}; }
+        [[nodiscard]] bool Cook(StringView, StringView, CookScriptErrorSink&, foundation::script::BehaviorClassSource&,
+                                IScriptIncludeReader* = nullptr) override
+        {
+            return false;
+        }
+        [[nodiscard]] bool Check(StringView, StringView, CookScriptErrorSink&, String&, Span<const TypeId>,
+                                 IScriptIncludeReader* = nullptr) override
+        {
+            return false;
+        }
+        void PrepareCheck() override {}
+        void ListIncludes(StringView, Array<String>&) const override {}
+        [[nodiscard]] Array<foundation::script::ScriptApiType> DescribeApi() override { return {}; }
+        [[nodiscard]] u32 CheckManagerBuildCount() const override { return 0; }
+    };
+
+    [[nodiscard]] bool Lists(StringView language)
+    {
+        for (const String& id : ScriptLanguageCookRegistry::Get().Languages())
+        {
+            if (id.AsView() == language)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+TEST_CASE("script pipeline: a language's cook is listed while registered and taken back with its plugin")
+{
+    ScriptLanguageCookRegistry::Get().Register(String(u8"idletest"), MakeUnique<IdleCook>(DefaultAllocator()));
+    CHECK(ScriptLanguageCookRegistry::Get().FindByLanguage(u8"idletest") != nullptr);
+    CHECK(Lists(u8"idletest"));
+
+    CHECK(ScriptLanguageCookRegistry::Get().Unregister(u8"idletest"));
+    CHECK(ScriptLanguageCookRegistry::Get().FindByLanguage(u8"idletest") == nullptr);
+    CHECK_FALSE(Lists(u8"idletest"));
+    CHECK_FALSE(ScriptLanguageCookRegistry::Get().Unregister(u8"idletest"));
 }

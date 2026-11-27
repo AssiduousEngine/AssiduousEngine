@@ -902,6 +902,33 @@ export namespace pipeline{
             m_cooks.PushBack(Move(entry));
         }
 
+        /// Removes `languageId`'s cook (the plugin that registered it unloading); false when none
+        /// is registered.
+        bool Unregister(StringView languageId)
+        {
+            for (usize i = 0; i < m_cooks.Size(); ++i)
+            {
+                if (m_cooks[i].languageId == languageId)
+                {
+                    m_cooks.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// The languages a cook is registered for, in registration order: what a project can write
+        /// scripts in.
+        [[nodiscard]] Array<String> Languages() const
+        {
+            Array<String> languages;
+            for (const Entry& entry : m_cooks)
+            {
+                languages.PushBack(entry.languageId);
+            }
+            return languages;
+        }
+
         [[nodiscard]] IScriptLanguageCook* FindByLanguage(StringView languageId)
         {
             for (Entry& entry : m_cooks)

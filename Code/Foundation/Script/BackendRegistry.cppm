@@ -67,6 +67,21 @@ export namespace foundation::script
             m_backends.PushBack(Move(desc));
         }
 
+        /// Removes `languageId`'s backend (the plugin that registered it unloading); false when
+        /// none is registered. Managers it created stay valid: they own what they run.
+        bool Unregister(StringView languageId)
+        {
+            for (usize i = 0; i < m_backends.Size(); ++i)
+            {
+                if (m_backends[i].languageId == languageId)
+                {
+                    m_backends.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         [[nodiscard]] const ScriptBackendDesc* FindByLanguage(StringView languageId) const
         {
             for (const ScriptBackendDesc& backend : m_backends)
