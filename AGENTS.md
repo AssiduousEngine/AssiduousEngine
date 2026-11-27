@@ -35,9 +35,10 @@ cmake --build build/clang -j4                          # everything
 - Before calling work done, run the whole battery, not only the touched targets, on the
   lanes: clang, gcc and clang-shared (`ctest --preset <lane> -j4`), the wasm build
   (`cmake --build build/wasm -j4`, no ctest), and ASAN (a `-fsanitize=address,undefined` Debug
-  tree; `ASAN_OPTIONS=detect_leaks=1 ctest -j4`, then search its `LastTest.log` for
-  `runtime error|AddressSanitizer|LeakSanitizer`). Reports inside `ThirdParty/angelscript` are
-  known noise; anything in `Code/` is ours.
+  tree; `ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=<checkout>/scripts/lsan-suppressions.txt
+  ctest -j4`, the file holding .NET's own allocations, then search its `LastTest.log` for
+  `runtime error|AddressSanitizer|LeakSanitizer`). Reports inside `ThirdParty/angelscript` and
+  `ThirdParty/msdfgen` are known noise; anything in `Code/` is ours.
 - Tests write scratch data under the build tree they run in or `.test-scratch/`; both are ignored.
 
 ## Change

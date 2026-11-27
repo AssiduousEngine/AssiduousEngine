@@ -84,4 +84,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
     dotnet_link_compiled_runtime(CSharp.Foundation.CompiledIn.Tests TestGameCompiled ${CMAKE_CURRENT_SOURCE_DIR}/TestGame)
     add_test(NAME CSharp.Foundation.CompiledIn.Tests COMMAND CSharp.Foundation.CompiledIn.Tests)
+    # NativeAOT links its own libstdc++compat, whose operator delete is plain free: under ASAN every
+    # new[] freed through it reads as a mismatch (doctest's own strings, first). Not checked here.
+    set_tests_properties(CSharp.Foundation.CompiledIn.Tests PROPERTIES
+        ENVIRONMENT_MODIFICATION "ASAN_OPTIONS=string_append::alloc_dealloc_mismatch=0")
 endif()

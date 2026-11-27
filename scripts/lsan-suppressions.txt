@@ -1,0 +1,14 @@
+# LeakSanitizer suppressions for the ASAN lane (AGENTS.md, Test):
+#   ASAN_OPTIONS=detect_leaks=1 LSAN_OPTIONS=suppressions=$PWD/scripts/lsan-suppressions.txt ctest -j4
+#
+# .NET's own allocations, live until the process ends: a process never unloads CoreCLR, so what it
+# holds (its JIT's code and data, its type tables, the host's resolved paths) is still there at
+# exit. Nothing of the engine's is allocated from these libraries.
+leak:libcoreclr.so
+leak:libclrjit.so
+leak:libhostfxr.so
+leak:libhostpolicy.so
+leak:libSystem.Native.so
+# The same libraries as NativeAOT links them into a program (the compiled-in runtime): its native
+# shims, under their own names.
+leak:SystemNative_
