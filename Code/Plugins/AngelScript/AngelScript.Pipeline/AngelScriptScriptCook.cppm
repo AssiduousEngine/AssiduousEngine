@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Pipeline::Script.AngelScript - the `script.angelscript.pipeline` module.
+// AngelScript.Pipeline (Plugins::AngelScript.Pipeline) - the `script.angelscript.pipeline` module.
 //
 // The AngelScript cook service: a compile-check in a cooker-owned AngelScript VM (resolved
 // through the backend registry by language), the shared on<Upper>(...) handler scan, the

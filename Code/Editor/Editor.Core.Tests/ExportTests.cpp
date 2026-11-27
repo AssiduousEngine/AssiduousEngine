@@ -231,7 +231,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
     const Guid scriptId = Guid{0xABCD1234ull, 0x5678EF90ull}; // stand-in startup-script asset id
     // --- author the project ---
     {
-        REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir, u8"E2E").IsOk());
+        REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir, u8"E2E", {}).IsOk());
         UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir);
         REQUIRE(static_cast<bool>(project));
 
@@ -946,7 +946,7 @@ TEST_CASE("export: ExportOne stages the resolved template's player + sidecars al
 
     // A minimal (asset-less) project is enough for the content pipeline; the driver test is about
     // the player and sidecar staging on top of it.
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"ExportOneTest").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"ExportOneTest", {}).IsOk()); // no language: the fake template has none
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     REQUIRE(project->SaveSettings().IsOk());
@@ -998,7 +998,7 @@ TEST_CASE("export: ExportOne with contentOnly stages the content and the shader 
     const String outRoot = TempDir(u8"scratch_exportone_content_out");
     NukeTree(projectDir.AsView());
     NukeTree(outRoot.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"ContentOnlyTest").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"ContentOnlyTest", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     REQUIRE(project->SaveSettings().IsOk());
@@ -1084,7 +1084,7 @@ TEST_CASE("export: an Android preset is checked before anything cooks")
 {
     const String projectDir = TempDir(u8"scratch_android_check_proj");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"AndroidCheck").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"AndroidCheck", {}).IsOk()); // no language: the fake template has none
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     foundation::vfs::NativeFileSystem fs(projectDir.AsView(), DefaultAllocator());
@@ -1163,7 +1163,7 @@ TEST_CASE("export: an Android app is staged for Gradle and given the preset's va
     NukeTree(projectDir.AsView());
     NukeTree(contentDir.AsView());
     NukeTree(dataRoot.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Stage Test").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Stage Test", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     foundation::vfs::NativeFileSystem projectFs(projectDir.AsView(), DefaultAllocator());
@@ -1268,7 +1268,7 @@ TEST_CASE("export: an Android app's paths reach Gradle absolute, from a project 
     // keystore would be looked for under it.
     const String dir(u8"scratch_android_relative_proj");
     NukeTree(dir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"Relative").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"Relative", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), dir.AsView());
     REQUIRE(static_cast<bool>(project));
     editor::ExportPreset preset;
@@ -1305,7 +1305,7 @@ TEST_CASE("export: an Android preset exports its app through the template's Grad
     NukeTree(outRoot.AsView());
     REQUIRE(CreateDirectories(sdk.AsView()));
     ScopedVariable home(u8"ANDROID_HOME", sdk.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Sky Test").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Sky Test", {}).IsOk()); // no language: the fake template has none
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     REQUIRE(project->SaveSettings().IsOk());
@@ -1387,7 +1387,7 @@ TEST_CASE("export: a surface shader ships its depth and pick programs in the dis
     NukeTree(projectDir.AsView());
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Waves")
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Waves", {})
                 .IsOk());
     UniquePtr<editor::EditorProject> project =
         editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
@@ -1486,7 +1486,7 @@ TEST_CASE("export: a custom shader ships as bytecode in the dist pack, its sourc
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Glow")
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Glow", {})
                 .IsOk());
     UniquePtr<editor::EditorProject> project =
         editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
@@ -1610,7 +1610,7 @@ TEST_CASE("export: a template built against a different engine version warns but
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"EngineVersionTest").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"EngineVersionTest", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     REQUIRE(project->SaveSettings().IsOk());
@@ -1944,7 +1944,7 @@ TEST_CASE("export: ExportOne stages template symbols only when the preset opts i
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"SymbolsTest").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"SymbolsTest", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     REQUIRE(project->SaveSettings().IsOk());
@@ -2060,7 +2060,7 @@ TEST_CASE("export: CollectSceneStreams keys what the stager accepts, walking nes
 {
     const String dir = TempDir(u8"scratch_scene_streams");
     NukeTree(dir.AsView());
-    REQUIRE(editor::EditorProject::Create(foundation::core::DefaultAllocator(), dir.AsView(), u8"Streams").IsOk());
+    REQUIRE(editor::EditorProject::Create(foundation::core::DefaultAllocator(), dir.AsView(), u8"Streams", {}).IsOk());
     UniquePtr<editor::EditorProject> project =
         editor::EditorProject::Open(foundation::core::DefaultAllocator(), dir.AsView());
     REQUIRE(project);
@@ -2134,7 +2134,7 @@ TEST_CASE("export: an asset the game uses whose source does not read stops the e
     pipeline::RegisterMeshAssets();
     const String projectDir = TempDir(u8"scratch_unreadable_proj");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Unreadable").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Unreadable", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     const Guid good = AuthorMesh(*project->SourceDb().RootGroup(), u8"Good");
@@ -2171,7 +2171,7 @@ TEST_CASE("export: pruned dist keeps the referenced closure, drops the rest, and
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Prune").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Prune", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
 
@@ -2286,7 +2286,7 @@ TEST_CASE(
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"PrunePre").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"PrunePre", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
 
@@ -2390,7 +2390,7 @@ TEST_CASE("export: pruning keeps a scene -> prefab -> asset chain")
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"PrunePrefab").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"PrunePrefab", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
 
@@ -2673,7 +2673,7 @@ TEST_CASE("export: CollectGroupInstances enumerates a group subtree, not its sib
 {
     const String projectDir = TempDir(u8"scratch_export_roots_group");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Roots").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Roots", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
 
@@ -2724,7 +2724,7 @@ TEST_CASE("export: CollectExportRoots seeds Always-Export flags + group members,
 {
     const String projectDir = TempDir(u8"scratch_export_roots_seed");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Roots").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Roots", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
 
@@ -2890,7 +2890,7 @@ TEST_CASE("export: a Web preset stages the browser player + a WGSL shader pack")
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"WebExportTest").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"WebExportTest", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
     REQUIRE(project->SaveSettings().IsOk());
@@ -2974,7 +2974,7 @@ TEST_CASE("export: VariantsForPlatform - desktop single pak, web BC + ASTC sibli
 {
     const String projectDir = TempDir(u8"scratch_variants_proj");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"V").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"V", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(static_cast<bool>(project));
 
@@ -3030,7 +3030,7 @@ TEST_CASE("export: desktop Content.pak is byte-identical with a sibling target D
     NukeTree(distA.AsView());
     NukeTree(distB.AsView());
 
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"B").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"B", {}).IsOk());
     {
         UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
         REQUIRE(static_cast<bool>(project));
@@ -3162,7 +3162,7 @@ TEST_CASE("export: Add Native Code scaffolds the game's package with the parts a
 {
     const StringView dir = u8"scaffold-proj"; // harness cwd = .test-scratch
     NukeTree(dir);
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir, u8"My Scaffold 7!").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir, u8"My Scaffold 7!", {}).IsOk());
     auto project = editor::EditorProject::Open(DefaultAllocator(), dir);
     REQUIRE(project);
 
@@ -3419,7 +3419,7 @@ TEST_CASE("export: the template's player when it carries the project's plugins, 
     const StringView host = GetHostPlatformName();
     const StringView other = host == StringView(u8"Linux64") ? StringView(u8"Win64") : StringView(u8"Linux64");
     WritePackage(carriedDir.AsView(), u8"carried", u8"1.0.0", {host});
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Choose").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Choose", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
 
@@ -3505,7 +3505,7 @@ TEST_CASE("export: ExportOne ships an enabled plugin's deploy files beside the t
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
     WritePackage(package.AsView(), u8"carried", u8"1.0.0", {GetHostPlatformName()});
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Plugins Export").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Plugins Export", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
     foundation::runtime::EnabledPlugin entry;
@@ -3572,7 +3572,7 @@ TEST_CASE("export: ExportOne runs the plugins' export hooks over the staged dist
     NukeTree(projectDir.AsView());
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Hooked").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Hooked", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
     REQUIRE(CreateDirectory(toolDir.AsView()));
@@ -3713,7 +3713,7 @@ TEST_CASE("export: a script using a plugin's type is refused on a platform the p
     NukeTree(projectDir.AsView());
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Script Plugins").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Script Plugins", {}).IsOk()); // the beacon plugin alone
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
     foundation::runtime::EnabledPlugin entry;
@@ -3932,7 +3932,7 @@ TEST_CASE("export: a project with C# needs its own player")
     pipeline::ScriptAssemblyCookRegistry::Get().Register(String(u8"csharp"), MakeUnique<StandInCSharpProjects>(DefaultAllocator()));
     const String projectDir = TempDir(u8"scratch_export_csharp_proj");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"CSharp Export").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"CSharp Export", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
     editor::ExportTemplate tmpl;

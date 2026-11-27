@@ -570,17 +570,14 @@ if(DOTNET_SCRIPTING)
     set(SCRIPTLIB_DOTNET_PIPELINE Pipeline::Script.DotNet)
 endif()
 if(OPTION_ENABLE_ANGELSCRIPT)
-    set(SCRIPTLIB_ANGELSCRIPT Foundation::Script.AngelScript)
-    set(SCRIPTLIB_ANGELSCRIPT_PIPELINE Pipeline::Script.AngelScript)
+    set(SCRIPTLIB_ANGELSCRIPT Plugins::AngelScript.Foundation)        # the angelscript plugin's VM
+    set(SCRIPTLIB_ANGELSCRIPT_PIPELINE Plugins::AngelScript.Pipeline) # and its cook
 endif()
 if(OPTION_ENABLE_LUAU)
     set(SCRIPTLIB_LUAU Plugins::Luau.Foundation)        # the luau plugin's VM
     set(SCRIPTLIB_LUAU_PIPELINE Plugins::Luau.Pipeline) # and its cook
 endif()
 
-if(OPTION_ENABLE_ANGELSCRIPT)
-    add_subdirectory(Code/Foundation/Script.AngelScript)
-endif()
 if(DOTNET_SCRIPTING)
     add_subdirectory(Code/Foundation/Script.DotNet)   # C# scripting: hosts .NET, or calls the runtime compiled in
     if(NOT EMSCRIPTEN)
@@ -656,6 +653,9 @@ util_add_plugin(Code/Plugins/Dialogue) # conversations as text, their runner and
 util_add_plugin(Code/Plugins/Particles) # particle effects: the CPU simulation, its renderer and the effect page
 util_add_plugin(Code/Plugins/Terrain) # terrain and its vegetation: chunks, renderer, brushes and pages
 util_add_plugin(Code/Plugins/Navigation) # navmeshes over Recast and Detour: zones, agents, the bake
+if(OPTION_ENABLE_ANGELSCRIPT)
+    util_add_plugin(Code/Plugins/AngelScript) # the AngelScript language: its VM and its cook
+endif()
 if(OPTION_ENABLE_LUAU)
     util_add_plugin(Code/Plugins/Luau) # the Luau language: its VM and its cook
 endif()
@@ -663,6 +663,9 @@ endif()
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
 set(UTIL_HOST_PLUGINS dialogue particles terrain navigation)
+if(OPTION_ENABLE_ANGELSCRIPT)
+    list(APPEND UTIL_HOST_PLUGINS angelscript)
+endif()
 if(OPTION_ENABLE_LUAU)
     list(APPEND UTIL_HOST_PLUGINS luau)
 endif()
@@ -693,10 +696,8 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Pipeline/ModelImporter) # top-level model import: model IR -> cooked geometry/material/texture/animation resources
     add_subdirectory(Code/Editor/Editor.ModelPreview) # a model file opened for viewing without a project (no editor core: the model viewer links it too)
     add_subdirectory(Code/Pipeline/Script.Pipeline)  # script class asset/builder/importer (cook; backend-neutral)
-    # Per-backend cooks, each gated on its OPTION_ENABLE_* flag.
-    if(OPTION_ENABLE_ANGELSCRIPT)
-        add_subdirectory(Code/Pipeline/Script.AngelScript.Pipeline)  # AngelScript cook service
-    endif()
+    # Per-backend cooks, each gated on its OPTION_ENABLE_* flag (a language that is a plugin
+    # brings its own).
     if(DOTNET_SCRIPTING)
         add_subdirectory(Code/Pipeline/Script.DotNet.Pipeline)  # C# cook service (a project's dotnet build)
     endif()
@@ -810,7 +811,9 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Pipeline/Physics.Pipeline.Tests                Pipeline::Physics)
     util_test_suite(Code/Pipeline/Render.Pipeline.Tests                 Pipeline::Render)
     util_test_suite(Code/Plugins/Navigation/Navigation.Pipeline.Tests Plugins::Navigation.Pipeline)
-    util_test_suite(Code/Pipeline/Script.AngelScript.Pipeline.Tests     Pipeline::Script.AngelScript)
+    if(OPTION_ENABLE_ANGELSCRIPT)
+        util_test_suite(Code/Plugins/AngelScript/AngelScript.Pipeline.Tests Plugins::AngelScript.Pipeline)
+    endif()
     util_test_suite(Code/Pipeline/Scene.Pipeline.Tests                  Pipeline::Scene)
     util_test_suite(Code/Pipeline/Script.Pipeline.Tests                 Pipeline::Script)
     if(OPTION_ENABLE_LUAU)
@@ -940,7 +943,10 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Spline.Tests                 Engine::Spline)
     util_test_suite(Code/Engine/Engine.Sequence.Tests               Engine::Sequence)
     util_test_suite(Code/Foundation/Scene.Tests                     Foundation::Scene)
-    util_test_suite(Code/Foundation/Script.AngelScript.Tests        Foundation::Script.AngelScript)
+    if(OPTION_ENABLE_ANGELSCRIPT)
+        util_test_suite(Code/Plugins/AngelScript/AngelScript.Foundation.Tests Plugins::AngelScript.Foundation)
+        util_test_suite(Code/Plugins/AngelScript/AngelScript.Engine.Tests Plugins::AngelScript.Engine)
+    endif()
     util_test_suite(Code/Foundation/Script.Resource.Tests           Foundation::Script.Resource)
     util_test_suite(Code/Foundation/Script.Tests                    Foundation::Script)
     if(OPTION_ENABLE_LUAU)

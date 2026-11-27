@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Pipeline::Script.AngelScript - implementation unit for the AngelScript cook.
+// AngelScript.Pipeline (Plugins::AngelScript.Pipeline) - implementation unit for the AngelScript cook.
 //
 // The compile-check, the shared handler scan and the property harvest. The behavior class is
 // built through the vendored CScriptBuilder add-on, which pre-processes `[metadata]`

@@ -431,7 +431,7 @@ land on a 4-byte (non-8-byte-aligned) offset. Same pattern recurs for every
 
 **Trigger:** any script-class instantiation (`asBC_ALLOC` executes) — it is NOT
 specific to our code. The same class surfaces under `Code/` paths in
-`Code/Foundation/Script.AngelScript/AngelScriptScriptImpl.cpp` (the generic-call
+`Code/Plugins/AngelScript/AngelScript.Foundation/AngelScriptScriptImpl.cpp` (the generic-call
 dispatch around lines 1101 to 1291 and the string helpers near line 181): every one
 dereferences an address the generic call interface hands back (`GetAddressOfArg`,
 `GetArgObject`) for a string, a `BoxedVariant` or a delegate argument, and that address

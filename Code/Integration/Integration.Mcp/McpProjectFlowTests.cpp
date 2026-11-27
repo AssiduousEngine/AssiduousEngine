@@ -23,8 +23,10 @@ import pipeline.importer;
 import pipeline.registration;
 import engine.composition;
 import foundation.mcp.script;
+import foundation.runtime; // EnabledPlugin (the languages a created project enables)
 #if defined(OPTION_HAS_ANGELSCRIPT)
 import foundation.script.angelscript;
+import script.angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
 #endif
 #if defined(OPTION_HAS_LUAU)
 import luau.foundation;
@@ -244,6 +246,63 @@ TEST_CASE("integration.mcp: project_create seeds the default UI font, the sky an
     CHECK(FileExists(u8"mcp_seeded_project/Sources/Fonts/Roboto-Regular.ttf"));
 }
 
+TEST_CASE("integration.mcp: project_create enables the script languages asked for, AngelScript when none are named")
+{
+    McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
+    editor::mcp::ProjectSession session;
+    editor::mcp::ProjectOwner owner;
+    editor::mcp::RegisterProjectOpenTools(server, session, owner);
+    const auto create = [&server](StringView dir, const JsonValue* languages)
+    {
+        RemoveDirectoryRecursive(dir);
+        JsonValue args = With(With(Obj(), u8"directory", dir), u8"name", u8"Languages");
+        if (languages != nullptr)
+        {
+            args.Set(u8"languages", *languages);
+        }
+        return CallResponse(server, u8"project_create", Move(args));
+    };
+    const auto enabled = [](StringView dir)
+    {
+        UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), dir);
+        REQUIRE(static_cast<bool>(project));
+        String ids;
+        for (const foundation::runtime::EnabledPlugin& entry : project->Settings().plugins)
+        {
+            ids.Append(ids.IsEmpty() ? StringView{} : StringView(u8","));
+            ids.Append(entry.id.AsView());
+        }
+        return ids;
+    };
+
+    CHECK_FALSE(create(u8"mcp_languages_default", nullptr).Get(u8"result").Get(u8"isError").AsBool());
+    CHECK(enabled(u8"mcp_languages_default") == StringView(u8"angelscript"));
+
+    JsonValue luau = JsonValue::MakeArray();
+    luau.Add(JsonValue::MakeString(u8"luau"));
+    CHECK_FALSE(create(u8"mcp_languages_luau", &luau).Get(u8"result").Get(u8"isError").AsBool());
+    CHECK(enabled(u8"mcp_languages_luau") == StringView(u8"luau"));
+
+    const JsonValue none = JsonValue::MakeArray();
+    CHECK_FALSE(create(u8"mcp_languages_none", &none).Get(u8"result").Get(u8"isError").AsBool());
+    CHECK(enabled(u8"mcp_languages_none").IsEmpty());
+
+    JsonValue unknown = JsonValue::MakeArray();
+    unknown.Add(JsonValue::MakeString(u8"cobol"));
+    const JsonValue refused = create(u8"mcp_languages_unknown", &unknown).Get(u8"result");
+    CHECK(refused.Get(u8"isError").AsBool());
+    CHECK(refused.Get(u8"content").At(0).Get(u8"text").AsString().AsView().Contains(u8"no script language 'cobol'"));
+    CHECK_FALSE(FileExists(u8"mcp_languages_unknown/Project.xml")); // nothing was created
+
+    const StringView made[] = {u8"mcp_languages_default", u8"mcp_languages_luau", u8"mcp_languages_none",
+                               u8"mcp_languages_unknown"};
+    for (StringView dir : made)
+    {
+        RemoveDirectoryRecursive(dir);
+    }
+}
+
 TEST_CASE("integration.mcp: asset_list / asset_info read the open project's content DB")
 {
     RemoveDirectoryRecursive(u8"mcp_asset_project");
@@ -376,6 +435,7 @@ namespace
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("integration.mcp: an agent imports + cooks an AngelScript source via MCP tools")
 {
+    pipeline::RegisterAngelScriptScriptCook(); // the angelscript plugin's part does this as a project enabling it loads
     DriveImportCookFlow(u8"mcp_write_as", u8"mcp_write_as_src", u8"as",
                         u8"class Hello {\n  Hello() {}\n  void greet() {}\n}\n");
 }

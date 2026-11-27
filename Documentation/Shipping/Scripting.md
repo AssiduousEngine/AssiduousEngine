@@ -13,9 +13,10 @@ game's scripts in one language. The bound engine surface is the same across back
 and idioms differ (e.g. Luau uses colon calls for instance methods, dot calls for static
 facades).
 
-Luau is an official plugin, `luau`: a project that writes Luau enables it in its plugins list
-(Project Settings, or `plugin_enable`), and a project that does not carries no Luau VM. A project
-written before Luau became a plugin enables it as it opens when its scripts use it.
+AngelScript and Luau are official plugins, `angelscript` and `luau`: a project enables the
+languages it writes in its plugins list (Project Settings, or `plugin_enable`), and carries no VM
+for a language it does not. A new project enables AngelScript. A project written before a language
+became a plugin enables it as it opens when its scripts use it.
 
 ## The three kinds of behavior
 

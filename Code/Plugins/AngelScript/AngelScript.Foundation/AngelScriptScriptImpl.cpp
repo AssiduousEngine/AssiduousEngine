@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.AngelScript - implementation unit.
+// AngelScript.Foundation - implementation unit.
 //
 // All AngelScript SDK contact lives here, so the SDK header never sits in an interface
 // unit's global module fragment (which GCC's modules handle badly). See

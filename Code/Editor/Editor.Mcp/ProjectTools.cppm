@@ -129,11 +129,14 @@ export namespace editor::mcp
             u8"project_create",
             u8"Scaffold a new project (Project.xml manifest + the standard directory layout) at a "
             u8"directory, seeded with the editor's starter content (Roboto as the default UI font, "
-            u8"the default sky, every primitive). Does not open it - call project_open "
-            u8"next.",
+            u8"the default sky, every primitive), with the script languages it writes enabled "
+            u8"(default: angelscript). Does not open it - call project_open next.",
             SchemaBuilder()
                 .Str(u8"directory", u8"path to create the project at", true)
                 .Str(u8"name", u8"the project's display name", true)
+                .Arr(u8"languages", u8"string",
+                     u8"the script languages to enable, by plugin id (angelscript, luau); [] for none. "
+                     u8"Default: angelscript")
                 .Build(),
                 foundation::mcp::ToolAnnotations::Creates().OpenWorld(),
             [creators, seedRoot, paths](const JsonValue& args) -> ToolResult
@@ -145,7 +148,46 @@ export namespace editor::mcp
                 }
                 const String directory = Move(allowed.Value());
                 const String name = args.Get(u8"name").AsString();
-                const Status st = editor::EditorProject::Create(editor::EditorRootAllocator(), directory.AsView(), name.AsView());
+                Array<String> chosen;
+                Array<StringView> languages;
+                if (args.Has(u8"languages") && !args.Get(u8"languages").IsNull())
+                {
+                    const JsonValue& list = args.Get(u8"languages");
+                    for (i64 i = 0; i < list.Count(); ++i)
+                    {
+                        chosen.PushBack(list.At(i).AsString());
+                    }
+                    String known;
+                    for (const engine::project::ProjectSettings::FormerlyBuiltIn& language :
+                         engine::project::ProjectSettings::kLanguagesBecamePlugins)
+                    {
+                        known.Append(known.IsEmpty() ? StringView{} : StringView(u8", "));
+                        known.Append(language.id);
+                    }
+                    for (const String& language : chosen)
+                    {
+                        bool isLanguage = false;
+                        for (const engine::project::ProjectSettings::FormerlyBuiltIn& official :
+                             engine::project::ProjectSettings::kLanguagesBecamePlugins)
+                        {
+                            isLanguage = isLanguage || official.id == language.AsView();
+                        }
+                        if (!isLanguage)
+                        {
+                            return Err(Format(u8"no script language '{}' (languages: {})", language.AsView(), known.AsView()));
+                        }
+                        languages.PushBack(language.AsView());
+                    }
+                }
+                else
+                {
+                    for (StringView language : editor::kNewProjectLanguages)
+                    {
+                        languages.PushBack(language);
+                    }
+                }
+                const Status st = editor::EditorProject::Create(editor::EditorRootAllocator(), directory.AsView(), name.AsView(),
+                                                                Span<const StringView>(languages.Data(), languages.Size()));
                 if (!st.IsOk())
                 {
                     return Err(Format(u8"could not create project at '{}' (error {})",

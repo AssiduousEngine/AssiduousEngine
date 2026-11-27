@@ -52,6 +52,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   project written before (data version 16 or older) whose scripts use Luau enables it as it opens;
   one that does not, and a new project, start without it. `script_validate` and `script_create`
   take the languages the project has, and name them when refusing another.
+- AngelScript is an official plugin too, `angelscript`. A new project enables it, unless
+  `project_create`'s new `languages` names others (`[]` for none). A project written
+  before (data version 17 or older) whose scripts use AngelScript enables it as it opens; one with
+  no AngelScript scripts starts without it and carries no AngelScript VM. The samples that use it
+  enable it.
 - The engine builds with no script language: switching off AngelScript, Luau and C# is allowed, and
   a game whose logic is native behaviors reads, runs and cooks without one.
 - Navigation is an official plugin, `navigation`: a project enables it in its plugins list, and its

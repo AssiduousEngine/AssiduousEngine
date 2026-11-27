@@ -69,6 +69,10 @@ export namespace editor
         String name;
     };
 
+    /// The script languages a new project enables unless it is given others: AngelScript, the
+    /// language a script with none recorded is written in.
+    inline constexpr StringView kNewProjectLanguages[] = {u8"angelscript"};
+
     // An opened project: the manifest and the mounted source and cooked content databases.
     class EditorProject
     {
@@ -77,10 +81,11 @@ export namespace editor
         EditorProject& operator=(const EditorProject&) = delete;
 
         // Scaffolds a new project at `directory` (created if absent; its parent must exist):
-        // writes the manifest and creates the fixed subdirectories. Fails with AlreadyExists
-        // if a manifest is already present.
+        // writes the manifest, enabling the script `languages` (their plugin ids), and creates the
+        // fixed subdirectories. Fails with AlreadyExists if a manifest is already present.
         [[nodiscard]] static Status Create(IAllocator& allocator, StringView directory,
-                                           StringView name)
+                                           StringView name,
+                                           Span<const StringView> languages = kNewProjectLanguages)
         {
             if (!CreateDirectory(directory))
             {
@@ -104,6 +109,12 @@ export namespace editor
 
             ProjectSettings settings;
             settings.name = String(name);
+            for (StringView language : languages)
+            {
+                foundation::runtime::EnabledPlugin entry;
+                entry.id = String(language);
+                settings.plugins.PushBack(Move(entry));
+            }
             return WriteManifest(root, settings);
         }
 

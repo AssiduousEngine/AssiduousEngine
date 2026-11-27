@@ -32,9 +32,6 @@ import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade
 import foundation.script;              // IScriptManager/Context (the game script)
-#ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_ANGELSCRIPT)
-#endif
 #ifdef OPTION_HAS_DOTNET
 import foundation.script.dotnet;       // the C# backend (OPTION_ENABLE_DOTNET, desktop)
 #endif
@@ -267,12 +264,9 @@ namespace engine::runtime
         // (editor, cook, MCP, exported player) on the same registered surface and under the same
         // kSubsystemFacadeNameCount tripwire.
         engine::RegisterAllScriptFacades();
-        // The built-in backends register (batteries-included); a language that is a plugin (luau)
+        // The built-in backend (C#) registers here; a language that is a plugin (angelscript, luau)
         // registers as the project's plugins load. A run resolves by the game script's language,
         // with one gameplay context per run.
-#ifdef OPTION_HAS_ANGELSCRIPT
-        foundation::script::angelscript::RegisterAngelScriptBackend();
-#endif
 #ifdef OPTION_HAS_DOTNET
         foundation::script::dotnet::RegisterDotNetScriptBackend();
 #endif

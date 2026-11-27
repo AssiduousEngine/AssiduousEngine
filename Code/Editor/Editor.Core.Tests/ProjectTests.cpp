@@ -111,6 +111,8 @@ TEST_CASE("editor-project: create scaffolds the layout and open round-trips the 
     UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
     REQUIRE(static_cast<bool>(project));
     CHECK(project->Name() == u8"Test Project");
+    REQUIRE(project->Settings().plugins.Size() == 1u); // the default language, and nothing else
+    CHECK(project->Settings().plugins[0].id == StringView(u8"angelscript"));
     // (The manifest's data version is in the versioned-payload envelope, not a field.)
     CHECK(project->Settings().defaultScene.IsEmpty());
     // A new project lists no quality levels: it runs at the engine's own highest (4x MSAA).
@@ -480,7 +482,7 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
 TEST_CASE("editor-project: the settings describe themselves, and the path mirrors follow the guids")
 {
     const TypeInfo& type = engine::project::ProjectSettings::StaticType();
-    CHECK(type.dataVersion == 17u); // 14 to 16 enable particles, terrain and navigation, which left the engine; 17 a language its scripts use
+    CHECK(type.dataVersion == 18u); // 14 to 16 enable particles, terrain and navigation, which left the engine; 17 and 18 a language its scripts use
     CHECK(type.minReadDataVersion == 9u); // a version 9 manifest still reads
     u32 assets = 0;
     u32 lists = 0;
@@ -907,7 +909,7 @@ TEST_CASE("project: the plugins list is appended, and an entry no plugin here re
     const StringView dir = u8"scratch_project_plugins_test";
     (void)FileDelete(PathJoin(dir, u8"Project.xml"));
     (void)RemoveDirectory(dir);
-    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P", {}).IsOk()); // an empty list, to strip below
     const String manifestPath = PathJoin(dir, u8"Project.xml");
     const auto manifestText = [&manifestPath]()
     {
@@ -1131,7 +1133,7 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
         REQUIRE(saved.HasValue());
         const StringView savedText(reinterpret_cast<const utf8char*>(saved.Value().Data()), saved.Value().Size());
         CHECK_FALSE(savedText.Contains(u8"\"nativeModule\""));
-        CHECK(savedText.Contains(u8"<u32 name=\"version\">17</u32>"));
+        CHECK(savedText.Contains(Format(u8"<u32 name=\"version\">{}</u32>", ProjectSettings::StaticType().dataVersion).AsView())); // written at the current one
     CHECK(savedText.Contains(u8"name=\"runBehaviorId\"")); // the old key reads, the new one is written
     CHECK_FALSE(savedText.Contains(u8"startupScript"));
         project.Reset();
@@ -1588,6 +1590,11 @@ TEST_CASE("editor-project: the files written for an outside editor are not adopt
 TEST_CASE("project: an older project enables the language plugins its scripts use, and no other")
 {
     pipeline::RegisterScriptAssets();
+    struct Enabled
+    {
+        bool angelscript = false;
+        bool luau = false;
+    };
     const auto make = [](StringView dir, StringView language, u32 version)
     {
         (void)RemoveDirectoryRecursive(dir);
@@ -1601,6 +1608,7 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
             pipeline::ScriptClassAsset script;
             script.language = String(language);
             REQUIRE(instance->WriteObject(script).IsOk());
+            project->Settings().plugins.Clear(); // no language plugin, as an older engine wrote it
             REQUIRE(project->SaveSettings().IsOk());
         }
         // The manifest as an older engine wrote it.
@@ -1617,14 +1625,28 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
         REQUIRE(WriteFile(manifest.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.CStr()), text.Size())).IsOk());
         UniquePtr<EditorProject> reopened = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(reopened);
-        return reopened->Settings().FindPlugin(u8"luau") != nullptr;
+        return Enabled{reopened->Settings().FindPlugin(u8"angelscript") != nullptr,
+                       reopened->Settings().FindPlugin(u8"luau") != nullptr};
     };
-    CHECK(make(u8"scratch_project_languages_luau", u8"luau", 16));
-    CHECK_FALSE(make(u8"scratch_project_languages_as", u8"angelscript", 16));
-    CHECK_FALSE(make(u8"scratch_project_languages_default", u8"", 16));
-    CHECK_FALSE(make(u8"scratch_project_languages_current", u8"luau", engine::project::ProjectSettings::StaticType().dataVersion)); // enabled by hand, or not
+    const u32 current = engine::project::ProjectSettings::StaticType().dataVersion;
+    const Enabled luau = make(u8"scratch_project_languages_luau", u8"luau", 16);
+    CHECK(luau.luau);
+    CHECK_FALSE(luau.angelscript);
+    const Enabled angelscript = make(u8"scratch_project_languages_as", u8"angelscript", 17);
+    CHECK(angelscript.angelscript);
+    CHECK_FALSE(angelscript.luau); // read after Luau left, but its scripts are not Luau
+    const Enabled unnamed = make(u8"scratch_project_languages_default", u8"", 16);
+    CHECK(unnamed.angelscript); // a script with no language is AngelScript
+    CHECK_FALSE(unnamed.luau);
+    // At the current version a language is enabled by hand, or not.
+    const Enabled currentLuau = make(u8"scratch_project_languages_current", u8"luau", current);
+    CHECK_FALSE(currentLuau.luau);
+    CHECK_FALSE(currentLuau.angelscript);
+    const Enabled currentAs = make(u8"scratch_project_languages_current_as", u8"angelscript", current);
+    CHECK_FALSE(currentAs.angelscript);
     const StringView made[] = {u8"scratch_project_languages_luau", u8"scratch_project_languages_as",
-                               u8"scratch_project_languages_default", u8"scratch_project_languages_current"};
+                               u8"scratch_project_languages_default", u8"scratch_project_languages_current",
+                               u8"scratch_project_languages_current_as"};
     for (StringView dir : made)
     {
         (void)RemoveDirectoryRecursive(dir);

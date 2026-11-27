@@ -417,7 +417,7 @@ export namespace engine::project
         /// The script languages that became official plugins, each by its language id (its plugin's
         /// id) and the project data version it left at. A project read at an older version enables
         /// the ones its scripts use, and no other: that takes its assets, so the project open does it.
-        static constexpr FormerlyBuiltIn kLanguagesBecamePlugins[] = {{u8"luau", 17}};
+        static constexpr FormerlyBuiltIn kLanguagesBecamePlugins[] = {{u8"luau", 17}, {u8"angelscript", 18}};
 
         /// Whether the manifest was read at a version older than `version` (and recorded one).
         [[nodiscard]] bool ReadBefore(u32 version) const noexcept { return readDataVersion >= 9 && readDataVersion < version; }

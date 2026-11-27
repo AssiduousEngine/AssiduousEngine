@@ -24,14 +24,10 @@ target_link_libraries(Engine.DefaultApp
             Foundation::Profiler Foundation::Profiler.GUI Foundation::Policy Engine::Composition 
             Foundation::Image Foundation::Image.IO Foundation::RHI.Capture)
 
-# Script VM backends built into the default application: AngelScript and Luau. Each is switched by
-# its option; a run resolves the backend by the game script's language, so with both on a project
-# can ship either. Both build on every platform (AngelScript reaches the web through as_config.h's
-# AS_MAX_PORTABILITY). Turn one off to drop that backend from the player and app entirely. The
-# OPTION_ENABLE_* flags and OPTION_HAS_<backend> macros are global (root CMakeLists), and the
-# target-or-empty ${SCRIPTLIB_*} aliases link whichever are enabled; the root guarantees at least one.
-target_link_libraries(Engine.DefaultApp PUBLIC
-    ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_DOTNET})
+# The script VM built into the default application: C#, when it is on (OPTION_ENABLE_DOTNET and the
+# target-or-empty ${SCRIPTLIB_DOTNET}). AngelScript and Luau are plugins the host links and a
+# project enables; a run resolves the backend by the game script's language.
+target_link_libraries(Engine.DefaultApp PUBLIC ${SCRIPTLIB_DOTNET})
 # C# (OPTION_ENABLE_DOTNET, desktop): the managed runtime it runs in is built beside the binaries.
 if(DOTNET_SCRIPTING AND NOT EMSCRIPTEN)
     add_dependencies(Engine.DefaultApp DotNet.Runtime)

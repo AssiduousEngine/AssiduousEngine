@@ -98,10 +98,6 @@ import foundation.audio;
 import foundation.audio.resource;
 import audio.pipeline;
 import foundation.script;
-#ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
-import script.angelscript.pipeline;
-#endif
 import foundation.script.resource;
 import script.pipeline;
 
@@ -321,11 +317,6 @@ int main(int argc, char** argv)
         // from the terrain plugin).
         DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->GeneratorCount() == 4);
         DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->SceneGeneratorCount() == 7);
-        // The script cooks (idempotent by languageId; RegisterAllBuilders below registers them for
-        // the cook service too): the script page's check compiles through them.
-#ifdef OPTION_HAS_ANGELSCRIPT
-        pipeline::RegisterAngelScriptScriptCook();
-#endif
         // File > New: every pipeline domain's creators, the scripts' among them.
         (void)pipeline::RegisterAllCreators(app.Context().Creators());
         RegisterEditorBuilders(app.Builders(), g_dataRoot.AsView()); // the cook service's set

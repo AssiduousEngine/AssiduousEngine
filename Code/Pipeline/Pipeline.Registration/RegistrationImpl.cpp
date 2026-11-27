@@ -49,10 +49,6 @@ import foundation.audio;
 import foundation.audio.resource;
 import audio.pipeline;
 import foundation.script;
-#ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
-import script.angelscript.pipeline;
-#endif
 #ifdef OPTION_HAS_DOTNET
 import script.dotnet.pipeline;
 #endif
@@ -121,13 +117,9 @@ namespace pipeline
         foundation::audio::RegisterAudioResource();
         RegisterScriptAssets();
         foundation::script::RegisterScriptResource();
-        // The script builder resolves a per-language cook through the registry; registering the
-        // backends and their cooks that are built in is the composition root's job; a language that is
-        // a plugin (luau) registers its own as the host loads it.
-#ifdef OPTION_HAS_ANGELSCRIPT
-        foundation::script::angelscript::RegisterAngelScriptBackend();
-        RegisterAngelScriptScriptCook();
-#endif
+        // The script builder resolves a per-language cook through the registry. A language that is
+        // a plugin (angelscript, luau) registers its cook as the host loads it; C#'s registers with
+        // the builders (RegisterAllBuilders).
         // Scenes are packed and read as SceneDocument (export staging and a headless scene cook):
         // register the type and its serializer so ReadObject/WriteObject round-trip them.
         GlobalTypeRegistry().Register(foundation::scene::SceneDocument::StaticType());

@@ -167,6 +167,7 @@ TEST_CASE("integration.mcp: an agent lists the project's plugins and sets a load
         JsonValue create = JsonValue::MakeObject();
         create.Set(u8"directory", JsonValue::MakeString(String(dir)));
         create.Set(u8"name", JsonValue::MakeString(String(u8"Plugins")));
+        create.Set(u8"languages", JsonValue::MakeArray()); // no language: the list holds the test's plugins alone
         REQUIRE_FALSE(Call(server, u8"project_create", Move(create)).error);
         JsonValue open = JsonValue::MakeObject();
         open.Set(u8"directory", JsonValue::MakeString(String(dir)));
@@ -313,6 +314,7 @@ TEST_CASE("integration.mcp: an agent enables and disables plugins in the project
         JsonValue create = JsonValue::MakeObject();
         create.Set(u8"directory", JsonValue::MakeString(String(dir)));
         create.Set(u8"name", JsonValue::MakeString(String(u8"Enable")));
+        create.Set(u8"languages", JsonValue::MakeArray()); // no language: the list holds the test's plugins alone
         REQUIRE_FALSE(Call(server, u8"project_create", Move(create)).error);
         JsonValue open = JsonValue::MakeObject();
         open.Set(u8"directory", JsonValue::MakeString(String(dir)));

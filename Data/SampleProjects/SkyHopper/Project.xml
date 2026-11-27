@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">17</u32>
+		<u32 name="version">18</u32>
 	</array>
 	<string name="name">Sky Hopper</string>
 	<string name="engineVersion">0.1.0</string>
@@ -27,7 +27,7 @@
 		<string>fff23f74-5710-40c0-84d8-b97cd8e66be4</string>
 	</array>
 	<string name="guiLoadingDocumentId">00000000-0000-0000-0000-000000000000</string>
-	<array name="plugins" count="3">
+	<array name="plugins" count="4">
 		<object>
 			<string name="id">particles</string>
 			<string name="path"/>
@@ -42,6 +42,12 @@
 		</object>
 		<object>
 			<string name="id">navigation</string>
+			<string name="path"/>
+			<array name="platforms" count="0"/>
+			<object name="settings"/>
+		</object>
+		<object>
+			<string name="id">angelscript</string>
 			<string name="path"/>
 			<array name="platforms" count="0"/>
 			<object name="settings"/>

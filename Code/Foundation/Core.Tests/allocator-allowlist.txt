@@ -79,7 +79,7 @@ Code/Deprecated/UI/UI.VFS/VfsResourceProvider.cppm
 Code/Foundation/VFS.Pak/PakModule.cppm
 Code/Foundation/VG/Context.cppm
 Code/Foundation/Xml.Serialization/XmlSerializer.cppm
-Code/Pipeline/Script.AngelScript.Pipeline/AngelScriptScriptCookImpl.cpp
+Code/Plugins/AngelScript/AngelScript.Pipeline/AngelScriptScriptCookImpl.cpp
 Code/Plugins/Luau/Luau.Pipeline/LuauScriptCookImpl.cpp
 Code/Samples/AnimatedCrowd/main.cpp
 Code/Samples/AnimStressTest/main.cpp

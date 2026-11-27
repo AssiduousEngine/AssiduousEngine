@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.AngelScript - AngelScript backend (foundation.script.angelscript).
+// AngelScript.Foundation (Plugins::AngelScript.Foundation) - AngelScript backend (foundation.script.angelscript).
 //
 // Implements the script interfaces on AngelScript. Reflected types are emitted in two
 // phases (IScriptManager::FinalizeTypes): the first declares every collected type via

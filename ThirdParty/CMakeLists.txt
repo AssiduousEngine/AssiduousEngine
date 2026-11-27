@@ -378,8 +378,8 @@ elseif(NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
     list(APPEND util_angelscript_sources
         ${CMAKE_CURRENT_SOURCE_DIR}/angelscript/source/as_callfunc_arm64_gcc.S)
 endif()
-# TWO engine libraries embed this archive (Foundation/Script.AngelScript and
-# Pipeline/Script.AngelScript.Pipeline - an asIScriptEngine* crosses between
+# TWO engine libraries embed this archive (the angelscript plugin's AngelScript.Foundation and
+# AngelScript.Pipeline - an asIScriptEngine* crosses between
 # them). Static per-target embedding is fine in a static engine (the final link
 # dedups), but under ENGINE_SHARED_LIBS each .so would carry its OWN AngelScript
 # runtime (two thread managers, UB on the crossing pointer) - so the archive

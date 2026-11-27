@@ -18,6 +18,9 @@ import engine.project;
 import editor.project;
 import editor.mcp;
 import foundation.script; // BehaviorKind, the starter a cook seeds
+#if defined(OPTION_HAS_ANGELSCRIPT)
+import script.angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
+#endif
 #if defined(OPTION_HAS_LUAU)
 import luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
 #endif
@@ -26,6 +29,22 @@ using namespace foundation::core;
 using namespace foundation::mcp;
 namespace json = foundation::json;
 using foundation::json::JsonValue;
+
+namespace
+{
+    // Every built language's cook, as each language plugin's Pipeline part registers it when a
+    // project enabling it loads.
+    [[maybe_unused]] void RegisterLanguageCooks()
+    {
+        pipeline::RegisterPipelineTypes();
+#if defined(OPTION_HAS_ANGELSCRIPT)
+        pipeline::RegisterAngelScriptScriptCook();
+#endif
+#if defined(OPTION_HAS_LUAU)
+        luau::RegisterLuauScriptCook();
+#endif
+    }
+}
 
 // The starters and their checks need a language built.
 #if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
@@ -79,10 +98,7 @@ namespace
 TEST_CASE("integration.mcp: script_validate - every enabled backend's starter compiles; "
           "broken source reports lines")
 {
-    pipeline::RegisterPipelineTypes(); // registers the built-in language cooks (idempotent)
-#if defined(OPTION_HAS_LUAU)
-    luau::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
-#endif
+    RegisterLanguageCooks();
 
     McpServer server;
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
@@ -167,10 +183,7 @@ TEST_CASE("integration.mcp: script_create - starter-seeded asset, unique names, 
           "create->validate loop")
 {
     RemoveDirectoryRecursive(u8"mcp_script_project");
-    pipeline::RegisterPipelineTypes();
-#if defined(OPTION_HAS_LUAU)
-    luau::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
-#endif
+    RegisterLanguageCooks();
 
     McpServer server;
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
@@ -280,10 +293,10 @@ namespace
 // refused.
 TEST_CASE("integration.mcp: script_validate - a platform check leaves out the plugins the project does not enable there")
 {
-    pipeline::RegisterPipelineTypes();
+    RegisterLanguageCooks();
     const StringView dir = u8"mcp_script_platform_project";
     RemoveDirectoryRecursive(dir);
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir, u8"Lanterns").IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir, u8"Lanterns", {}).IsOk()); // the lantern plugin alone
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), dir);
     REQUIRE(project);
     foundation::runtime::EnabledPlugin entry;

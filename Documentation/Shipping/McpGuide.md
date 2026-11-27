@@ -220,7 +220,10 @@ entity outside a run, each running behaviour's properties under `live` beside wh
 **Project**: `project_create` makes the project with the editor's starter content, as New
 Project does: Roboto as a distance-field font set as the default UI font (what an exported game's
 text draws with: the engine's built-in font is not in a dist), the default sky, and a cube, sphere
-and plane. Then `project_open` -> `project_info`, which also reports the
+and plane. It enables the script languages it is given in `languages`, by plugin id (`angelscript`,
+`luau`): AngelScript when the argument is left out, and none for `[]`, a project whose logic is native
+behaviors. A language not enabled has no VM there; `plugin_enable` adds one later. Then
+`project_open` -> `project_info`, which also reports the
 settings play reads (default scene, startup script, default input map, bus layout, UI font,
 and `uiFontIds`, the other fonts the game UI loads beside the
 default, each a family a label picks with `font-family="<family>"`, a title face say,
