@@ -532,6 +532,7 @@ export namespace foundation::scene
             }
             return false;
         }
+        void ClearUnresolvedSettings() { m_unresolvedSettings.Clear(); }
 
         // The component manager whose component type is `componentType`, or null. This is the
         // scene-side resolve for `entity.get(Type)`: callers hold {scene, entity, manager} and

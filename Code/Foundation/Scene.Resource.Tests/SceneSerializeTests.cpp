@@ -2221,6 +2221,56 @@ namespace
     }
 }
 
+namespace
+{
+    // A snapshot (Simulate, a snapshot command's undo, a plugin reload) is binary, whatever the
+    // scene was read from: records kept unresolved survive its round trip, once each, and resolve
+    // when the plugin has arrived by the time it is restored.
+    void CheckSnapshotKeepsUnresolved(bool text)
+    {
+        MemoryStream authored;
+        WriteAuthoredScene(authored, text);
+        Scene scene(DefaultAllocator(), u8"bare");
+        ReadInto(authored, scene, text);
+        REQUIRE(scene.UnresolvedComponents().Size() == 1u);
+        REQUIRE(scene.UnresolvedSettingsRecords().Size() == 1u);
+
+        UniquePtr<SceneSnapshot> snapshot = SceneSnapshot::Capture(scene);
+        REQUIRE(snapshot);
+        CHECK(scene.UnresolvedComponents().Size() == 1u); // capturing takes nothing from the scene
+        CHECK(scene.UnresolvedSettingsRecords().Size() == 1u);
+
+        // Restored with the plugin still absent: kept, once each, in their encoding.
+        REQUIRE(snapshot->Restore(scene).IsOk());
+        REQUIRE(scene.UnresolvedComponents().Size() == 1u);
+        CHECK(scene.UnresolvedComponents()[0].typeId == u8"demo.Health");
+        CHECK(scene.UnresolvedComponents()[0].text == text);
+        REQUIRE(scene.UnresolvedSettingsRecords().Size() == 1u);
+
+        // The plugin arrives between capture and restore (a reload): the records resolve.
+        HealthManager* hm = scene.AddSystem<HealthManager>();
+        PluginSettingsSystem* ps = scene.AddSystem<PluginSettingsSystem>();
+        REQUIRE(snapshot->Restore(scene).IsOk());
+        CHECK(scene.UnresolvedComponents().IsEmpty());
+        CHECK(scene.UnresolvedSettingsRecords().IsEmpty());
+        const EntityHandle hero = scene.FindEntityByName(u8"hero");
+        REQUIRE(hero.IsAssigned());
+        REQUIRE(hm->Get(hero) != nullptr);
+        CHECK(hm->Get(hero)->value == doctest::Approx(64.0f));
+        CHECK(ps->settings.level == 42);
+    }
+}
+
+TEST_CASE("unresolved: a snapshot keeps a text scene's unresolved records and resolves them once the plugin is back")
+{
+    CheckSnapshotKeepsUnresolved(true);
+}
+
+TEST_CASE("unresolved: a snapshot keeps a binary scene's unresolved records once, and resolves them once the plugin is back")
+{
+    CheckSnapshotKeepsUnresolved(false);
+}
+
 TEST_CASE("unresolved: a plugin's components + settings survive load/save without the plugin (binary)")
 {
     CheckPreservationRoundTrip(false);

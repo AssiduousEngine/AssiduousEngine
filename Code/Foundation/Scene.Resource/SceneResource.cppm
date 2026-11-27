@@ -1591,22 +1591,68 @@ export namespace foundation::scene
     // target and deserializes back into the same Scene instance, so borrowed references to
     // the scene (pages, edit contexts, guid selections) stay valid. Entity guids
     // are part of the snapshot, so guid-keyed state re-resolves after restore.
+    //
+    // A record kept unresolved from a text scene (its plugin was not loaded) cannot be written
+    // into the binary snapshot, since re-encoding it needs its type. The snapshot holds those
+    // records beside its blob instead, and Restore gives them back, resolving each whose plugin
+    // has arrived since (a plugin reload between the two).
     class SceneSnapshot
     {
     public:
         /// Serialize `scene` into a memory snapshot. Null on serializer failure.
         [[nodiscard]] static UniquePtr<SceneSnapshot> Capture(Scene& scene)
         {
+            // The text-captured records stand aside for the write, so it drops none, and go back.
+            const Array<Scene::UnresolvedComponent> components = scene.UnresolvedComponents();
+            const Array<Scene::UnresolvedSettings> settings = scene.UnresolvedSettingsRecords();
+            Array<Scene::UnresolvedComponent> textComponents;
+            Array<Scene::UnresolvedSettings> textSettings;
+            scene.ClearUnresolvedComponents();
+            scene.ClearUnresolvedSettings();
+            for (const Scene::UnresolvedComponent& record : components)
+            {
+                if (record.text)
+                {
+                    textComponents.PushBack(record);
+                }
+                else
+                {
+                    scene.AddUnresolvedComponent(record);
+                }
+            }
+            for (const Scene::UnresolvedSettings& record : settings)
+            {
+                if (record.text)
+                {
+                    textSettings.PushBack(record);
+                }
+                else
+                {
+                    scene.AddUnresolvedSettings(record);
+                }
+            }
             MemoryStream buffer;
             BinarySerializer ar(buffer, SerializeMode::Write);
             // Expanded: members serialize flat and instance state verbatim, so Restore needs no
             // prefab payload resolver (snapshots must be self-contained).
             SerializeScene(ar, scene, ScenePrefabMode::Expanded);
+            scene.ClearUnresolvedComponents();
+            scene.ClearUnresolvedSettings();
+            for (const Scene::UnresolvedComponent& record : components)
+            {
+                scene.AddUnresolvedComponent(record);
+            }
+            for (const Scene::UnresolvedSettings& record : settings)
+            {
+                scene.AddUnresolvedSettings(record);
+            }
             if (!ar.IsOk())
             {
                 return UniquePtr<SceneSnapshot>{};
             }
             UniquePtr<SceneSnapshot> snapshot = MakeUnique<SceneSnapshot>(scene.Allocator());
+            snapshot->m_textComponents = Move(textComponents);
+            snapshot->m_textSettings = Move(textSettings);
             const Span<const byte> bytes = buffer.Bytes();
             snapshot->m_blob.Reserve(bytes.Size());
             for (byte b : bytes)
@@ -1637,6 +1683,10 @@ export namespace foundation::scene
                 scene.DestroyEntity(root);
             }
             scene.ClearPrefabInstances(); // the snapshot's Expanded section repopulates state
+            // The snapshot holds every unresolved record (the binary ones in its blob, the text
+            // ones beside it): the scene's own would come back twice.
+            scene.ClearUnresolvedComponents();
+            scene.ClearUnresolvedSettings();
 
             MemoryStream buffer;
             (void)buffer.Write(m_blob.Data(), m_blob.Size());
@@ -1647,6 +1697,19 @@ export namespace foundation::scene
             {
                 return ar.GetStatus();
             }
+            // The text-captured records back, each resolved where its manager or system is here now.
+            for (const Scene::UnresolvedComponent& record : m_textComponents)
+            {
+                scene.AddUnresolvedComponent(record);
+            }
+            for (const Scene::UnresolvedSettings& record : m_textSettings)
+            {
+                scene.AddUnresolvedSettings(record);
+            }
+            if (!m_textComponents.IsEmpty() || !m_textSettings.IsEmpty())
+            {
+                ResolveAllUnresolvedRecords(scene);
+            }
             if (resources != nullptr)
             {
                 ResolveSceneResources(scene, *resources);
@@ -1656,6 +1719,8 @@ export namespace foundation::scene
 
     private:
         Array<byte> m_blob;
+        Array<Scene::UnresolvedComponent> m_textComponents; // kept unresolved from a text scene
+        Array<Scene::UnresolvedSettings> m_textSettings;
     };
 
 } // namespace foundation::scene
