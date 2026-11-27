@@ -35,7 +35,7 @@ import foundation.script.resource;
 import engine.behavior;
 import engine.spline; // PathFollowComponent: the component the fetch measure reaches
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
 import luau.foundation;
@@ -195,7 +195,7 @@ namespace
             static ConsoleSink sink; // a script's errors reach the output
             GlobalLogger().AddSink(&sink);
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
-            foundation::script::angelscript::RegisterAngelScriptBackend();
+            angelscript::RegisterAngelScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
             luau::RegisterLuauScriptBackend();
@@ -417,7 +417,7 @@ TEST_CASE("script per call: AngelScript" * doctest::skip())
                          u8"  double texts(int n, string s, Entity e) { for (int i = 0; i < n; i++) e.setName(s); return n; }\n"
                          u8"}\n";
     foundation::script::benchmark::RunScriptBackendBenchmark(
-        [](IAllocator& allocator) { return foundation::script::angelscript::CreateScriptManager(allocator); }, dialect);
+        [](IAllocator& allocator) { return angelscript::CreateScriptManager(allocator); }, dialect);
 }
 #endif
 

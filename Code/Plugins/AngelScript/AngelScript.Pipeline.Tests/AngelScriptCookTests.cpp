@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// script.angelscript.pipeline tests: the AngelScript cook. A compile-check in a
+// angelscript.pipeline tests: the AngelScript cook. A compile-check in a
 // cooker-owned AngelScript VM (resolved by language), the shared handler scan, the starter
 // template, and the [metadata] property harvest (typed member field and `[default, "desc"]`).
 
@@ -14,10 +14,10 @@
 import foundation.core;
 import foundation.script;
 import foundation.script.resource;
-import foundation.script.angelscript; // CreateScriptManager and AngelScriptBytecodeVersion (player path)
+import angelscript.foundation; // CreateScriptManager and AngelScriptBytecodeVersion (player path)
 import foundation.script.facades;      // RegisterScriptFacadeReflection (match the cook's surface)
 import script.pipeline;
-import script.angelscript.pipeline;
+import angelscript.pipeline;
 import engine.composition;            // RegisterAllScriptFacades (the complete engine facade surface)
 
 using namespace foundation::core;
@@ -28,7 +28,7 @@ namespace
 {
     [[nodiscard]] IScriptLanguageCook* AngelScriptCook()
     {
-        RegisterAngelScriptScriptCook(); // registers the AS backend and cook (idempotent)
+        angelscript::RegisterAngelScriptScriptCook(); // registers the AS backend and cook (idempotent)
         return ScriptLanguageCookRegistry::Get().FindByLanguage(u8"angelscript");
     }
 }
@@ -337,7 +337,7 @@ TEST_CASE("as.cook: the cook stores loadable bytecode in the pack (the player pa
 
     // Player path: a fresh AngelScript VM (the same reflected registration, the shared registry)
     // reconstructs the blob from the stored bytes and LoadByteCodes it, no recompile.
-    RefPtr<IScriptManager> manager = foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
     RegisterCoreTypes();
     RegisterScriptFacadeReflection();
     RegisterReflectedTypes(*manager);
@@ -499,12 +499,12 @@ TEST_CASE("as.cook: the fingerprint carries the AngelScript library version and 
     // invalid"): the fingerprint followed the library alone, so nothing recooked it.
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
-    CHECK(foundation::script::angelscript::AngelScriptBytecodeVersion() != 0u);
-    CHECK(foundation::script::angelscript::AngelScriptBindingVersion() != 0u);
-    CHECK(cook->CookVersion() == foundation::script::angelscript::AngelScriptBytecodeVersion() +
-                                     foundation::script::angelscript::AngelScriptBindingVersion());
+    CHECK(angelscript::AngelScriptBytecodeVersion() != 0u);
+    CHECK(angelscript::AngelScriptBindingVersion() != 0u);
+    CHECK(cook->CookVersion() == angelscript::AngelScriptBytecodeVersion() +
+                                     angelscript::AngelScriptBindingVersion());
     CHECK(ScriptLanguageCookRegistry::Get().CombinedCookVersion() >=
-          foundation::script::angelscript::AngelScriptBytecodeVersion());
+          angelscript::AngelScriptBytecodeVersion());
 }
 
 namespace
@@ -526,7 +526,7 @@ namespace
     // platform without a plugin registers its surface.
     [[nodiscard]] Status LoadCookedWithout(const BehaviorClassSource& cooked, Span<const TypeId> hidden)
     {
-        RefPtr<IScriptManager> manager = foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+        RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
         RegisterCoreTypes();
         RegisterScriptFacadeReflection();
         RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);

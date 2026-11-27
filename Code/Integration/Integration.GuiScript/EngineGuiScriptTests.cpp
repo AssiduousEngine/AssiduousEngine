@@ -21,7 +21,7 @@ import foundation.gui.gamekit;
 import foundation.gui.resources;
 import engine.gui;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;
@@ -150,7 +150,7 @@ namespace
 TEST_CASE("engine-gui-script: AngelScript finds the screen tier at gui::root() and pushes a cooked document by its guid")
 {
     Bed bed;
-    RefPtr<script::IScriptManager> manager = script::angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
     bed.Run(*manager, StringView(u8"ScreenStack@ stack;\n"
                                  u8"Screen@ menu;\n"
                                  u8"void main() { @stack = ScreenStack::of(gui::root().find(\"screens\")); }\n"
@@ -166,7 +166,7 @@ TEST_CASE("engine-gui-script: AngelScript reaches a canvas's, a billboard's and 
     // root() returns a Node handle in a Variant. AngelScript binds that only when the type is
     // registered by name, so without it a script calling root() fails to compile.
     Bed bed;
-    RefPtr<script::IScriptManager> manager = script::angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
     script::RegisterReflectedTypes(*manager);
     RefPtr<script::IScriptContext> scripts = manager->CreateContext();
     Errors errors;

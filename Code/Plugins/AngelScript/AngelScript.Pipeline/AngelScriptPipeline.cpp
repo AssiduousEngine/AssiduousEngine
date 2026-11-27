@@ -11,13 +11,13 @@
 import foundation.core;
 import foundation.runtime;
 import script.pipeline;
-import script.angelscript.pipeline;
+import angelscript.pipeline;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext&)
     {
-        pipeline::RegisterAngelScriptScriptCook();
+        angelscript::RegisterAngelScriptScriptCook();
     }
 
     void Unload(foundation::runtime::PluginContext&)

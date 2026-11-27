@@ -35,7 +35,7 @@ module;
 #include <string>
 #include <vector>
 
-module script.angelscript.pipeline;
+module angelscript.pipeline;
 
 import foundation.core;
 import foundation.profiler;
@@ -44,12 +44,14 @@ import foundation.script;
 import foundation.script.resource;
 import foundation.script.facades;
 import script.pipeline;
-import foundation.script.angelscript;
+import angelscript.foundation;
 
 using namespace foundation::core;
 using namespace foundation::script;
+using namespace pipeline; // its bases
 
-namespace pipeline{
+namespace angelscript
+{
     namespace
     {
         // ---- small string helpers (metadata parsing) ------------------------------
@@ -345,7 +347,7 @@ namespace pipeline{
                 return;
             }
             const ScriptErrorKind kind = message->type == asMSGTYPE_WARNING ? ScriptErrorKind::Warning : ScriptErrorKind::Compile;
-            const String text = foundation::script::angelscript::AngelScriptMessageText(ViewOfCStr(message->message));
+            const String text = angelscript::AngelScriptMessageText(ViewOfCStr(message->message));
             const ScriptError error{kind, ViewOfCStr(message->section),
                                     static_cast<i32>(message->row),
                                     message->col > 0 ? static_cast<i32>(message->col) : -1,
@@ -614,8 +616,8 @@ namespace pipeline{
             // pack (as the Luau cook does for its bytecode version).
             [[nodiscard]] u32 CookVersion() const override
             {
-                return foundation::script::angelscript::AngelScriptBytecodeVersion() +
-                       foundation::script::angelscript::AngelScriptBindingVersion();
+                return angelscript::AngelScriptBytecodeVersion() +
+                       angelscript::AngelScriptBindingVersion();
             }
 
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
@@ -693,7 +695,7 @@ namespace pipeline{
                 out.source = String(source);
 
                 asIScriptEngine* engine = static_cast<asIScriptEngine*>(
-                    foundation::script::angelscript::AngelScriptEngineHandle(manager));
+                    angelscript::AngelScriptEngineHandle(manager));
                 if (engine == nullptr)
                 {
                     return false;
@@ -761,7 +763,7 @@ namespace pipeline{
                 // The same coroutine support section the runtime adds per module, so a
                 // coroutine-using behavior compiles here exactly as it runs.
                 const StringView coroutinePrelude =
-                    foundation::script::angelscript::AngelScriptCoroutineModulePrelude();
+                    angelscript::AngelScriptCoroutineModulePrelude();
                 (void)builder.AddSectionFromMemory(
                     "__coroutine_support", reinterpret_cast<const char*>(coroutinePrelude.Data()),
                     static_cast<unsigned>(coroutinePrelude.Size()));
@@ -826,7 +828,7 @@ namespace pipeline{
                 // reconstructs it via CreateBlob, Serialize(read) and LoadBlob (no compiler, no
                 // metadata re-parse). Source stays on the record for dev-mode hot reload.
                 RefPtr<IScriptBlob> blob =
-                    foundation::script::angelscript::AngelScriptBlobFromModule(builder.GetModule(),
+                    angelscript::AngelScriptBlobFromModule(builder.GetModule(),
                                                                                DefaultAllocator());
                 if (blob.Get() != nullptr)
                 {
@@ -853,7 +855,7 @@ namespace pipeline{
 
     void RegisterAngelScriptScriptCook()
     {
-        foundation::script::angelscript::RegisterAngelScriptBackend();
+        angelscript::RegisterAngelScriptBackend();
         ScriptLanguageCookRegistry::Get().Register(
             String(u8"angelscript"),
             UniquePtr<IScriptLanguageCook>(DefaultAllocator().New<AngelScriptScriptCook>(),

@@ -18,7 +18,7 @@ import engine.behavior;
 import engine.physics;   // the contact events it posts
 import engine.animation; // the animation events it posts
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
 import luau.foundation;
@@ -36,7 +36,7 @@ namespace
         static const bool once = []()
         {
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
-            foundation::script::angelscript::RegisterAngelScriptBackend();
+            angelscript::RegisterAngelScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
             luau::RegisterLuauScriptBackend();

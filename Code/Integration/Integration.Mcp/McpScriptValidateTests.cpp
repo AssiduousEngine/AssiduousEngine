@@ -19,7 +19,7 @@ import editor.project;
 import editor.mcp;
 import foundation.script; // BehaviorKind, the starter a cook seeds
 #if defined(OPTION_HAS_ANGELSCRIPT)
-import script.angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
+import angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
 #endif
 #if defined(OPTION_HAS_LUAU)
 import luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
@@ -38,7 +38,7 @@ namespace
     {
         pipeline::RegisterPipelineTypes();
 #if defined(OPTION_HAS_ANGELSCRIPT)
-        pipeline::RegisterAngelScriptScriptCook();
+        angelscript::RegisterAngelScriptScriptCook();
 #endif
 #if defined(OPTION_HAS_LUAU)
         luau::RegisterLuauScriptCook();

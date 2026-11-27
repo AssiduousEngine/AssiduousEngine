@@ -17,7 +17,7 @@ import foundation.vfs;               // NativeFileSystem
 import foundation.script;
 import foundation.script.facades; // RegisterScriptFacadeReflection (the Scene facade)
 import foundation.script.resource; // BehaviorClass (the cooked Game class a run starts from)
-import foundation.script.angelscript;
+import angelscript.foundation;
 import luau.foundation;
 #ifdef OPTION_HAS_DOTNET
 import foundation.script.dotnet; // the C# backend (a Game built into an assembly)
@@ -543,7 +543,7 @@ TEST_CASE("game-instance: destroying the replicated scene clears the endpoint's 
 TEST_CASE("game-instance: fallback path starts, ticks, and stops a Game script")
 {
     RegisterCoreTypes();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
@@ -649,7 +649,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade(); // run facade (owned by this project)
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     CHECK_FALSE(gi.SceneReady()); // no scene yet: the orchestrator-first condition
@@ -684,7 +684,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade(); // run facade (owned by this project)
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     // A facade named `Game` would fail here with "Name conflict. 'Game' is an extended data type";
@@ -785,7 +785,7 @@ TEST_CASE("game-instance: run.loadSceneAsync -> ticket, polled to completion (An
     RegisterCoreTypes();
     engine::runtime::RegisterRunScriptFacade();
 
-    RefPtr<script::IScriptManager> manager = foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
     foundation::script::RegisterReflectedTypes(*manager);
     RefPtr<script::IScriptContext> scriptContext = manager->CreateContext();
 
@@ -842,7 +842,7 @@ TEST_CASE("game-instance: run.requestExit routes the exit code to the binding (A
     RegisterCoreTypes();
     engine::runtime::RegisterRunScriptFacade();
 
-    RefPtr<script::IScriptManager> manager = foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
     foundation::script::RegisterReflectedTypes(*manager);
     RefPtr<script::IScriptContext> scriptContext = manager->CreateContext();
 
@@ -893,7 +893,7 @@ TEST_CASE("game-instance: run.requestExit routes the exit code to the binding (L
 TEST_CASE("game-instance: a debugger suspension in update is not a fault - the script survives")
 {
     RegisterCoreTypes();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"               // 1
@@ -973,7 +973,7 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
 TEST_CASE("game-instance: two instances own separate, isolated run-host contexts")
 {
     RegisterCoreTypes();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     const char8_t* src =
         u8"class Game { Game() {}\n void onStart() {}\n void onUpdate(double dt) {}\n void onStop() {}\n}\n";
@@ -1045,7 +1045,7 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const String handlers[] = {String(u8"onPing")}; // the cooked BehaviorClass's handler list
@@ -1084,7 +1084,7 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     RefPtr<foundation::script::BehaviorClass> cookedClass = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
     foundation::script::BehaviorClass& cooked = *cookedClass; // a cooked class is a resource, never on the stack
@@ -1209,7 +1209,7 @@ TEST_CASE("game-instance: run.events().emit publishes on the run bus, round-trip
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade(); // the run.* facade (bound as `run`)
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const String handlers[] = {String(u8"onPing")};
@@ -1238,7 +1238,7 @@ TEST_CASE("game-instance: run.setTimeScale routes from script to the run binding
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     f32 captured = -1.0f;
@@ -1260,7 +1260,7 @@ TEST_CASE("game-instance: the host's pause holds the Game class still: no update
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     int updates = 0;
@@ -1329,7 +1329,7 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     const char8_t* source = u8"bool Available = true;\n"
                             u8"class Game : RunBehavior {\n"
                             u8"  Game() {}\n"
@@ -1434,7 +1434,7 @@ TEST_CASE("game-instance: run.events():emit publishes on the run bus, round-trip
 TEST_CASE("game-instance: a missing Game class fails to start cleanly")
 {
     RegisterCoreTypes();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const bool ok = gi.StartRunBehavior(u8"int X = 1;\n", u8"game.as", u8"Game");
@@ -1876,7 +1876,7 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
 
     // A script with no Game class says it did not instantiate (a fresh instance: a run's host
     // keeps the one script context it made).
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::runtime::ApplicationRun other;
     CHECK_FALSE(other.StartRunBehavior(u8"class Other { Other() {} }\n", u8"game.as", u8"Game"));
     CHECK(other.RunBehaviorFault().ContainsIgnoreCase(u8"did not instantiate"));
@@ -1904,7 +1904,7 @@ TEST_CASE("game-instance: the run clock counts frames without a game script")
 TEST_CASE("game-instance: a context for behaviors gets the run's input, run and save services without a game script")
 {
     RegisterCoreTypes();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::runtime::ApplicationRun gi;
     CHECK_FALSE(gi.RunBehaviorRunning());
     foundation::script::IScriptContext* scriptContext = gi.RunHost().Scripts().EnsureContextForFile(u8"behaviors.as");
@@ -2036,7 +2036,7 @@ TEST_CASE("game-instance: a game keeps its values between runs in the global sto
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
     engine::runtime::RegisterSaveScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     const String folder = FreshSavesFolder(u8"game_as");
 
     // Each run counts itself and keeps a best time; the second sees the first's values. The
@@ -2116,7 +2116,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers in the global store (An
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
     engine::runtime::RegisterSaveScriptFacade();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     luau::RegisterLuauScriptBackend();
     const String folder = FreshSavesFolder(u8"game_floats");
 
@@ -2386,7 +2386,7 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
 TEST_CASE("game-instance: a cooked class that is not a RunBehavior is refused as the run's behavior")
 {
     RegisterCoreTypes();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     RefPtr<foundation::script::BehaviorClass> cookedClass = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
     foundation::script::BehaviorClass& cooked = *cookedClass; // a cooked class is a resource, never on the stack
     cooked.language = String(u8"angelscript");

@@ -14,7 +14,7 @@ import foundation.script;
 import foundation.script.facades;
 import engine.run;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;
@@ -78,7 +78,7 @@ namespace
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("saves-facade: AngelScript plays a title menu's New Game, save point, Continue and Load")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     Check(u8"class Game : RunBehavior {\n"
           u8"  Game() {}\n"
           u8"  void onStart() {\n"

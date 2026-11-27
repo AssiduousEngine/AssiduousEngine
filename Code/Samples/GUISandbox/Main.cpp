@@ -60,7 +60,7 @@ import gui.sandbox.code;   // the Code page
 import gui.sandbox.editor_mock; // --editor-mock: the editor's design
 import foundation.script; // the pages' and the game menu's scripts
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 
 #include "../../Samples/Common/FlyCamera.h"    // the Viewport page's camera, from its gated input
@@ -764,7 +764,7 @@ void GUISandbox::OnStartup(runtime::IApplicationHost& host)
 #ifdef OPTION_HAS_ANGELSCRIPT
     RegisterCoreTypes();
     gui::RegisterGuiScriptSurface();
-    m_scripts = script::angelscript::CreateScriptManager(AppRoot());
+    m_scripts = angelscript::CreateScriptManager(AppRoot());
     script::RegisterReflectedTypes(*m_scripts);
 #else
     std::fprintf(stderr, "GUISandbox: built without AngelScript; the pages' and the game menu's scripts do not run\n");

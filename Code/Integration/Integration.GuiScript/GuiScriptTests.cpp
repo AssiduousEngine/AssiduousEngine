@@ -20,7 +20,7 @@ import foundation.script;
 import foundation.i18n; // a script's localized texts
 import foundation.gui;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;

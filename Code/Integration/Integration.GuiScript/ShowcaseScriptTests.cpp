@@ -19,7 +19,7 @@ import foundation.input;
 import foundation.gui;
 import foundation.gui.gamekit;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 
 #ifdef OPTION_HAS_ANGELSCRIPT
@@ -132,7 +132,7 @@ namespace
             stack = FindStack(*frame);
             REQUIRE(stack != nullptr);
 
-            manager = script::angelscript::CreateScriptManager(core::DefaultAllocator());
+            manager = angelscript::CreateScriptManager(core::DefaultAllocator());
             script::RegisterReflectedTypes(*manager);
             binding.root = root.Get();
             scriptContext = manager->CreateContext();

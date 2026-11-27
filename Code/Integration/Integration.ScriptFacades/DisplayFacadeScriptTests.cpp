@@ -15,7 +15,7 @@ import foundation.script;
 import foundation.script.facades;
 import engine.render;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;

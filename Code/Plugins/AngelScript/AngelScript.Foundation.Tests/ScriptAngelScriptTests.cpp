@@ -20,7 +20,7 @@
 
 import foundation.core;
 import foundation.script;
-import foundation.script.angelscript;
+import angelscript.foundation;
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;
 #endif
@@ -1810,7 +1810,7 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
     dialect.debugLocalValue = u8"\"hit\"";
 
     foundation::script::conformance::RunScriptBackendConformance(
-        []() { return foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator()); }, dialect);
+        []() { return angelscript::CreateScriptManager(foundation::core::DefaultAllocator()); }, dialect);
 }
 
 TEST_CASE("angelscript: declares Coroutines + Delegates + Debugger + Bytecode; profiler absent (B4)")

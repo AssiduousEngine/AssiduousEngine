@@ -25,8 +25,8 @@ import engine.composition;
 import foundation.mcp.script;
 import foundation.runtime; // EnabledPlugin (the languages a created project enables)
 #if defined(OPTION_HAS_ANGELSCRIPT)
-import foundation.script.angelscript;
-import script.angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
+import angelscript.foundation;
+import angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
 #endif
 #if defined(OPTION_HAS_LUAU)
 import luau.foundation;
@@ -50,7 +50,7 @@ namespace
     [[nodiscard, maybe_unused]] StringView RegisterSomeBackend()
     {
 #if defined(OPTION_HAS_ANGELSCRIPT)
-        foundation::script::angelscript::RegisterAngelScriptBackend();
+        angelscript::RegisterAngelScriptBackend();
         return StringView(u8"angelscript");
 #elif defined(OPTION_HAS_LUAU)
         luau::RegisterLuauScriptBackend();
@@ -435,7 +435,7 @@ namespace
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("integration.mcp: an agent imports + cooks an AngelScript source via MCP tools")
 {
-    pipeline::RegisterAngelScriptScriptCook(); // the angelscript plugin's part does this as a project enabling it loads
+    angelscript::RegisterAngelScriptScriptCook(); // the angelscript plugin's part does this as a project enabling it loads
     DriveImportCookFlow(u8"mcp_write_as", u8"mcp_write_as_src", u8"as",
                         u8"class Hello {\n  Hello() {}\n  void greet() {}\n}\n");
 }
@@ -560,7 +560,7 @@ TEST_CASE("integration.mcp: script_api lists the AngelScript properties a script
           "ones too, and not an asset reference it cannot")
 {
     engine::RegisterAllScriptFacades();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     CheckListedProperties(u8"angelscript");
 }
 #endif

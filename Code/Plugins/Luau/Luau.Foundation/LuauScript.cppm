@@ -31,7 +31,6 @@ import foundation.script.facades; // CollectEmittableTypes, the shared reachabil
 namespace core = foundation::core;
 using namespace foundation::core;
 using namespace foundation::script; // the interfaces it implements
-using namespace foundation::script; // the interfaces it implements
 
 namespace luau
 {

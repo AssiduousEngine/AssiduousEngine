@@ -10,13 +10,13 @@
 import foundation.core;
 import foundation.runtime;
 import foundation.script;
-import foundation.script.angelscript;
+import angelscript.foundation;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext&)
     {
-        foundation::script::angelscript::RegisterAngelScriptBackend();
+        angelscript::RegisterAngelScriptBackend();
     }
 
     void Unload(foundation::runtime::PluginContext&)

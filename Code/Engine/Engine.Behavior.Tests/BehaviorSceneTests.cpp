@@ -27,7 +27,7 @@ import engine.scene;
 import foundation.resource;
 import foundation.script;
 import foundation.script.facades; // script::Entity, RegisterExtraScriptRootType/FacadeName
-import foundation.script.angelscript;
+import angelscript.foundation;
 import luau.foundation;
 import foundation.script.resource;
 import engine.behavior;
@@ -190,7 +190,7 @@ namespace
                 return true;
             }();
             (void)logReady;
-            foundation::script::angelscript::RegisterAngelScriptBackend();
+            angelscript::RegisterAngelScriptBackend();
             luau::RegisterLuauScriptBackend();
             RegisterCoreTypes();
             RegisterBehaviorComponentReflection();
@@ -1776,7 +1776,7 @@ namespace
 
 TEST_CASE("script.scene: an unset entity property is an invalid Entity in both languages, applied without a warning")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     // AngelScript: the member is a value, so the unset entity must arrive as one.
     {
         ScriptedScene bed;
@@ -2104,7 +2104,7 @@ TEST_CASE("script.scene: worldRotation composes the ancestors' turns, worldScale
 TEST_CASE("script.scene: an AngelScript behavior runs the neutral lifecycle path "
           "(onStart + onUpdate(dt)) - proves both backends, uniformly")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     RefPtr<BehaviorClass> mover =
         MakeClassLang(u8"angelscript", u8"Mover",
@@ -2139,7 +2139,7 @@ TEST_CASE("script.scene: an AngelScript behavior runs the neutral lifecycle path
 
 TEST_CASE("script.scene: a breakpoint in a behavior handler pauses the game and resumes clean")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     // Line-numbered so the breakpoint below lands inside onUpdate before x is incremented.
     RefPtr<BehaviorClass> breaker =
@@ -2395,7 +2395,7 @@ TEST_CASE("script.scene: LUAU a behavior runs from cooked bytecode with no sourc
 // stripped instantiates and ticks from bytecode alone (the player path, no Build()).
 TEST_CASE("script.scene: ANGELSCRIPT a behavior runs from cooked bytecode with no source (player path)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
 
     // Bring up the AngelScript run context first (EnsureContext registers the reflected surface and
@@ -2447,7 +2447,7 @@ TEST_CASE("script.scene: ANGELSCRIPT a behavior runs from cooked bytecode with n
 // section=sourceName choices that make consumed bytecode debuggable.
 TEST_CASE("script.scene: ANGELSCRIPT a breakpoint works on a behavior loaded from bytecode (debug info survives)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     REQUIRE(bed.host.Scripts().EnsureContext(u8"angelscript") != nullptr);
     IScriptManager* manager = bed.host.Scripts().Manager();
@@ -2509,7 +2509,7 @@ TEST_CASE("script.scene: ANGELSCRIPT a breakpoint works on a behavior loaded fro
 TEST_CASE("script.scene: an AngelScript harvested float property applies (default + override) "
           "and drives onUpdate")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
 
     auto makeSpeeder = []()
     {
@@ -2702,7 +2702,7 @@ namespace
 
         ContactWorld()
         {
-            foundation::script::angelscript::RegisterAngelScriptBackend();
+            angelscript::RegisterAngelScriptBackend();
             luau::RegisterLuauScriptBackend();
             RegisterCoreTypes();
             engine::physics::RegisterPhysicsComponentReflection();
@@ -2919,7 +2919,7 @@ TEST_CASE("script.scene: behaviors tick without error when no physics subsystem 
         scenes->SetComposition(scene::SceneComposition::Build(modules));
     }
     ctx.AddSubsystem<BehaviorSubsystem>(); // no physics subsystem
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     RegisterCoreTypes();
     RegisterBehaviorComponentReflection();
     RegisterScriptFacadeReflection();
@@ -2986,7 +2986,7 @@ TEST_CASE("script.scene: a scene's behaviours run on its run's script host; a sc
         scenes->SetComposition(scene::SceneComposition::Build(modules));
     }
     BehaviorSubsystem* scripts = ctx.AddSubsystem<BehaviorSubsystem>();
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     RegisterCoreTypes();
     RegisterBehaviorComponentReflection();
     RegisterScriptFacadeReflection();
@@ -3148,7 +3148,7 @@ TEST_CASE("script.scene: entity.scene.spawn works from a resumed coroutine - a F
 
 TEST_CASE("script.scene: an AngelScript behavior spawns through self.scene() (bound Scene, 2nd backend)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     PrefabSource prefabs(bed);
 
@@ -3419,7 +3419,7 @@ TEST_CASE("script.scene: two scenes sharing one Level class get INDEPENDENT obje
 
 TEST_CASE("script.scene: an AngelScript Level runs the tier (2nd backend)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     SceneBehaviorSystem* level = bed.scene.AddSystem<SceneBehaviorSystem>();
     level->SetRunHost(&bed.host);
@@ -3502,7 +3502,7 @@ TEST_CASE("script.scene: OPTION 1 - Component.of(entity).field mutates the live 
 TEST_CASE("script.scene: OPTION 1 - Component::of(entity).field mutates the live component "
           "(AngelScript) - cross-backend parity")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     EnsureGadgetRegistered();
 
     ScriptedScene bed;
@@ -3533,7 +3533,7 @@ TEST_CASE("script.scene: OPTION 1 - Component::of(entity).field mutates the live
 // way; Component.removeFrom(entity) takes it off and says whether there was one. Both languages.
 TEST_CASE("script.scene: Component::addTo adds and hands back, removeFrom takes off (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     EnsureGadgetRegistered();
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
@@ -3608,7 +3608,7 @@ TEST_CASE("script.scene: LUAU Component.addTo adds and hands back, removeFrom ta
 // error leaves it) and the rest of the scene goes on.
 TEST_CASE("script.scene: Component::of is null without the component, and a gone one is an error (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     EnsureGadgetRegistered();
 
     ScriptedScene bed;
@@ -3870,7 +3870,7 @@ TEST_CASE("script.scene: scene.debugDraw appends to THIS scene's list on the rea
 TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's world "
           "(AngelScript) - cross-backend parity")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::physics::RegisterPhysicsScriptFacade();
     ContactWorld world;
 
@@ -3931,7 +3931,7 @@ TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity co
 
 TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity control (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::physics::RegisterPhysicsScriptFacade();
     ScriptedScene bed;
     auto* characters = bed.scene.AddSystem<engine::physics::CharacterComponentManager>();
@@ -3966,7 +3966,7 @@ TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity co
 // drive the whole velocity. The tick measures velocity and groundNormal; here they are seeded.
 TEST_CASE("script.scene: CharacterComponent velocity, groundNormal and drive (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::physics::RegisterPhysicsScriptFacade();
     ScriptedScene bed;
     auto* characters = bed.scene.AddSystem<engine::physics::CharacterComponentManager>();
@@ -4167,7 +4167,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
 TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Level's "
           "on<Event>(payload) - the 2nd backend (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     SceneBehaviorSystem* level = bed.scene.AddSystem<SceneBehaviorSystem>();
     level->SetRunHost(&bed.host);
@@ -4472,7 +4472,7 @@ TEST_CASE("script.scene: a behaviour sets its member's clip and its crowd's pose
 
 TEST_CASE("script.scene: MeshComponent::of / LightComponent::of set live render props (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
     auto* meshes = bed.scene.AddSystem<engine::render::MeshComponentManager>();
@@ -4512,7 +4512,7 @@ TEST_CASE("script.scene: MeshComponent::of / LightComponent::of set live render 
 // member assigned from another all reach the component, in each language.
 TEST_CASE("script.scene: a light's colour is written whole and from another light's; a field is copied, changed and written back (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
@@ -4882,7 +4882,7 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + scene.audio play/stop/p
 TEST_CASE("script.scene: AudioSourceComponent::of props + scene.audio play/stop/setClip "
           "are bound and control the component (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::audio::RegisterAudioScriptFacade();
     ScriptedScene bed;
     auto* sources = bed.scene.AddSystem<engine::audio::AudioSourceComponentManager>();
@@ -4924,7 +4924,7 @@ TEST_CASE("script.scene: AudioSourceComponent::of props + scene.audio play/stop/
 TEST_CASE("script.scene: Guid constructs from its canonical string in AngelScript "
           "(the editor text-document spelling)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::audio::RegisterAudioScriptFacade();
     ScriptedScene bed;
     auto* sources = bed.scene.AddSystem<engine::audio::AudioSourceComponentManager>();
@@ -4992,7 +4992,7 @@ TEST_CASE("script.scene: Guid.new constructs from its canonical string in Luau")
 // written in place (see WriteTypedAddress / SetMemberField).
 TEST_CASE("script.scene: an asset (Guid) editor property applies to an AngelScript Guid member")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     RefPtr<BehaviorClass> cls = MakeClassLang(
         u8"angelscript", u8"Holder",
@@ -5120,7 +5120,7 @@ TEST_CASE("script.scene: SkeletalAnimation/AnimationGraph .of + SceneAnimation o
 
 TEST_CASE("script.scene: SkeletalAnimation::of + SceneAnimation ops are bound (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::animation::RegisterAnimationScriptFacade();
     ScriptedScene bed;
     auto* skel = bed.scene.AddSystem<engine::animation::SkeletalAnimationComponentManager>();
@@ -5204,7 +5204,7 @@ TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's 
 TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's live "
           "render settings (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
     auto* envSys = bed.scene.AddSystem<engine::render::EnvironmentSystem>();
@@ -5294,7 +5294,7 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bo
 
 TEST_CASE("script.scene: ParticleEffectComponent::of + scene.particles ops are bound (AngelScript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     particles::RegisterParticleScriptFacade();
     ScriptedScene bed;
     auto* fx = bed.scene.AddSystem<particles::ParticleEffectComponentManager>();
@@ -5364,7 +5364,7 @@ TEST_CASE("script.scene: an enum component property reads/writes as an int")
 // AngelScript gets native (named) enums. LightComponent.type is a LightType enum.
 TEST_CASE("script.scene: an enum component property reads/writes as a native enum in AngelScript")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
@@ -5397,7 +5397,7 @@ TEST_CASE("script.scene: an enum component property reads/writes as a native enu
 //      Script.AngelScript.Tests; here, the gate works and the assignment never runs).
 TEST_CASE("script.scene: NetworkComponent.of exposes replication authority - AngelScript (named enum)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     foundation::net::RegisterNetworkComponentScriptFacade();
     ScriptedScene bed;
     auto* net = bed.scene.AddSystem<foundation::net::NetworkComponentManager>();
@@ -5427,7 +5427,7 @@ TEST_CASE("script.scene: NetworkComponent.of exposes replication authority - Ang
 
 TEST_CASE("script.scene: a script that assigns NetworkComponent.authority never starts - no setter exists")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     foundation::net::RegisterNetworkComponentScriptFacade();
     ScriptedScene bed;
     auto* net = bed.scene.AddSystem<foundation::net::NetworkComponentManager>();
@@ -6183,7 +6183,7 @@ namespace
 
         AnimationWorld()
         {
-            foundation::script::angelscript::RegisterAngelScriptBackend();
+            angelscript::RegisterAngelScriptBackend();
             RegisterCoreTypes();
             RegisterBehaviorComponentReflection();
             RegisterScriptFacadeReflection();

@@ -36,14 +36,15 @@ module;
 #include <new>
 #include <string>
 
-module foundation.script.angelscript;
+module angelscript.foundation;
 
 import foundation.core;
 import foundation.script;
 
 namespace core = foundation::core;
+using namespace foundation::script; // the interfaces it implements
 
-namespace foundation::script::angelscript
+namespace angelscript
 {
     // The declarations file an outside editor reads in a project's Code folder (Declarations).
     inline constexpr core::StringView kAngelScriptDeclarationsFile = u8"as.predefined";

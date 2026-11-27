@@ -537,7 +537,7 @@ TEST_CASE("script.pipeline: an included file is a cook input and travels in the 
     CHECK(product->includes[1].source == u8"int twice(int v) { return v * 2; }\n");
 
     // A fresh VM compiles the class from its source and the recorded includes, as the editor does.
-    RefPtr<IScriptManager> vm = foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> vm = angelscript::CreateScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*vm);
     RefPtr<IScriptContext> scriptContext = vm->CreateContext();
     Array<ScriptSection> sections;

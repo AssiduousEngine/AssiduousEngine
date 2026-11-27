@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// AngelScript.Foundation (Plugins::AngelScript.Foundation) - AngelScript backend (foundation.script.angelscript).
+// AngelScript.Foundation (Plugins::AngelScript.Foundation) - AngelScript backend (angelscript.foundation).
 //
 // Implements the script interfaces on AngelScript. Reflected types are emitted in two
 // phases (IScriptManager::FinalizeTypes): the first declares every collected type via
@@ -28,14 +28,15 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.angelscript;
+export module angelscript.foundation;
 
 import foundation.core;
 import foundation.script;
 
 namespace core = foundation::core;
+using namespace foundation::script; // the interfaces it implements
 
-export namespace foundation::script::angelscript
+export namespace angelscript
 {
     [[nodiscard]] core::RefPtr<IScriptManager> CreateScriptManager(core::IAllocator& allocator);
 

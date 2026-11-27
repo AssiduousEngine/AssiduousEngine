@@ -24,7 +24,7 @@ import foundation.script.facades; // ScriptRuntimeBinding, which names the run a
 import foundation.run;
 import foundation.runtime; // SubsystemManager, on which the audio subsystem finds the runs
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;
@@ -290,7 +290,7 @@ TEST_CASE("audio-facade: the AngelScript Audio facade plays clips/cues/music by 
           "content path, and sets the buses by AudioBus (missing content no-ops, never faults)")
 {
     DriveAudioFacade(
-        foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator()),
+        angelscript::CreateScriptManager(foundation::core::DefaultAllocator()),
         u8"bool Played; bool Spatial; bool Cue; bool Music; bool Missing; bool MissingAgain;\n"
         u8"void main() {\n"
         u8"  Played = Audio::playOneShotPath(\"sfx/beep\");\n"

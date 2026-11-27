@@ -18,7 +18,7 @@ import foundation.input;
 import foundation.settings;
 import foundation.script;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;
@@ -102,7 +102,7 @@ namespace
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("input: the Input facade resolves PER-CONTEXT services (AngelScript)")
 {
-    DrivePerContextInput(foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator()),
+    DrivePerContextInput(angelscript::CreateScriptManager(foundation::core::DefaultAllocator()),
                          u8"bool Down; double MoveY; double Move2DX; double Move2DY;\n"
                          u8"void main() {\n"
                          u8"  Down = Input::isDown(\"Jump\");\n"
@@ -119,7 +119,7 @@ TEST_CASE("input: the Input facade resolves PER-CONTEXT services (AngelScript)")
 TEST_CASE("input: a script rumbles its own context's pad, and stops it")
 {
     RefPtr<foundation::script::IScriptManager> manager =
-        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+        angelscript::CreateScriptManager(DefaultAllocator());
     engine::input::RegisterInputScriptFacade();
     foundation::script::RegisterReflectedTypes(*manager);
 
@@ -163,7 +163,7 @@ TEST_CASE("input: a script rumbles its own context's pad, and stops it")
 TEST_CASE("input: a script locks its own context's pointer, reads the lock, and frees it")
 {
     RefPtr<foundation::script::IScriptManager> manager =
-        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+        angelscript::CreateScriptManager(DefaultAllocator());
     engine::input::RegisterInputScriptFacade();
     foundation::script::RegisterReflectedTypes(*manager);
 
@@ -468,7 +468,7 @@ TEST_CASE("input: a fitted source turned with the present reads the game's frame
 TEST_CASE("input: Input::describe names the control for the device in hand, as a prompt shows it")
 {
     RefPtr<foundation::script::IScriptManager> manager =
-        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+        angelscript::CreateScriptManager(DefaultAllocator());
     engine::input::RegisterInputScriptFacade();
     foundation::script::RegisterReflectedTypes(*manager);
 
@@ -512,7 +512,7 @@ TEST_CASE("input: Input::describe names the control for the device in hand, as a
 TEST_CASE("input: a script rebinds by name, waits for a press, and resets, through its run's bindings")
 {
     RefPtr<foundation::script::IScriptManager> manager =
-        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+        angelscript::CreateScriptManager(DefaultAllocator());
     engine::input::RegisterInputScriptFacade();
     foundation::script::RegisterReflectedTypes(*manager);
 

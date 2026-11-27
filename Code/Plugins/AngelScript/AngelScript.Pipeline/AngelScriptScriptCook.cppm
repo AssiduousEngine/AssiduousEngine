@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// AngelScript.Pipeline (Plugins::AngelScript.Pipeline) - the `script.angelscript.pipeline` module.
+// AngelScript.Pipeline (Plugins::AngelScript.Pipeline) - the `angelscript.pipeline` module.
 //
 // The AngelScript cook service: a compile-check in a cooker-owned AngelScript VM (resolved
 // through the backend registry by language), the shared on<Upper>(...) handler scan, the
@@ -21,13 +21,14 @@
 module;
 #include "Core/Prelude.h"
 
-export module script.angelscript.pipeline;
+export module angelscript.pipeline;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace pipeline{
+export namespace angelscript
+{
     // The New Asset starters for AngelScript, one per kind of behavior, each class named after its
     // asset and deriving from its kind, with the handlers stubbed.
     inline constexpr StringView kAngelScriptEntityStarter =

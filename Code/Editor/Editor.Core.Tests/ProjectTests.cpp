@@ -22,7 +22,7 @@ import pipeline.core;   // Asset: what a source file names
 import script.pipeline; // ScriptClassAsset: code, which an older project kept under Sources/
 import pipeline.importer; // ImporterRegistry (new code found under Code/)
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript; // a code language's backend for the adoption test
+import angelscript.foundation; // a code language's backend for the adoption test
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation; // a language whose declarations file has a script's extension
@@ -1511,7 +1511,7 @@ TEST_CASE("editor-project: a companion file moves with its owner, never on its o
 // importer takes, and one removed, are left alone.
 TEST_CASE("editor-project: new code under Code becomes an asset where it lies")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    angelscript::RegisterAngelScriptBackend();
     pipeline::RegisterScriptAssets();
     const StringView dir = u8"scratch_editor_adopt_code";
     (void)RemoveDirectoryRecursive(dir);

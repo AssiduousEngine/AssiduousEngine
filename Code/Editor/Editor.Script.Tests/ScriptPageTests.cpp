@@ -17,7 +17,7 @@ import foundation.gui.toolkit;
 import foundation.gui.code;
 import script.pipeline;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import script.angelscript.pipeline;
+import angelscript.pipeline;
 #endif
 import editor.core;
 import editor.app;
@@ -69,7 +69,7 @@ namespace
         Bed()
         {
             pipeline::RegisterScriptAssets();
-            pipeline::RegisterAngelScriptScriptCook();
+            angelscript::RegisterAngelScriptScriptCook();
             (void)RemoveDirectoryRecursive(dir.AsView());
             REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
             project = EditorProject::Open(DefaultAllocator(), dir.AsView());

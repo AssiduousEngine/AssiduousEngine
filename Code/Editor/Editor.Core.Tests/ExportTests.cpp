@@ -38,8 +38,8 @@ import foundation.script;          // the backend registries and BehaviorClassFa
 import script.pipeline;            // ScriptClassAsset, ScriptClassAssetBuilder, the assembly cooks
 import foundation.script.resource; // RegisterScriptResource, BehaviorClass, BehaviorClassFactory
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript; // the AngelScript backend (the cook compile-checks against it)
-import script.angelscript.pipeline;   // RegisterAngelScriptScriptCook
+import angelscript.foundation; // the AngelScript backend (the cook compile-checks against it)
+import angelscript.pipeline;   // RegisterAngelScriptScriptCook
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation; // the Luau backend
@@ -84,8 +84,8 @@ namespace
     {
         namespace script = foundation::script;
 #ifdef OPTION_HAS_ANGELSCRIPT
-        script::angelscript::RegisterAngelScriptBackend();
-        pipeline::RegisterAngelScriptScriptCook();
+        angelscript::RegisterAngelScriptBackend();
+        angelscript::RegisterAngelScriptScriptCook();
 #endif
 #ifdef OPTION_HAS_LUAU
         luau::RegisterLuauScriptBackend();

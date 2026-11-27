@@ -23,7 +23,7 @@ import foundation.vfs;
 import foundation.script;
 import foundation.script.facades;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;

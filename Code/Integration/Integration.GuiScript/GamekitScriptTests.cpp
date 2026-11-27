@@ -15,7 +15,7 @@ import foundation.script;
 import foundation.gui;
 import foundation.gui.gamekit;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.foundation;
@@ -103,7 +103,7 @@ namespace
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("gamekit script: AngelScript pushes, reads and pops screens, and hears one leave")
 {
-    core::RefPtr<script::IScriptManager> manager = script::angelscript::CreateScriptManager(core::DefaultAllocator());
+    core::RefPtr<script::IScriptManager> manager = angelscript::CreateScriptManager(core::DefaultAllocator());
     CheckStack(*manager,
                u8"funcdef bool EventHandler(GuiEvent e);\n"
                u8"ScreenStack@ stack;\n"

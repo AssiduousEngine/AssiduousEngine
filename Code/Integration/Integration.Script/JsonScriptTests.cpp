@@ -19,7 +19,7 @@ import foundation.core;
 import foundation.json;
 import foundation.script;
 #if INTEGRATION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import angelscript.foundation;
 #endif
 #if INTEGRATION_HAS_LUAU
 import luau.foundation;

@@ -13,7 +13,7 @@ import foundation.core;
 import foundation.script;
 import script.pipeline;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import script.angelscript.pipeline;
+import angelscript.pipeline;
 #endif
 #ifdef OPTION_HAS_LUAU
 import luau.pipeline;
@@ -102,7 +102,7 @@ REFLECT_MEMBERS(CheckLateType, "rtti::script::checktest")
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("cached check manager: made once, again when the types change, and ahead (angelscript)")
 {
-    RegisterAngelScriptScriptCook(); // and its backend
+    angelscript::RegisterAngelScriptScriptCook(); // and its backend
     CheckSharedEngine(Language{u8"angelscript", u8"class Gamma { int z; }\n", u8"class Gamma { CheckLateType@ late; }\n"});
 }
 #endif

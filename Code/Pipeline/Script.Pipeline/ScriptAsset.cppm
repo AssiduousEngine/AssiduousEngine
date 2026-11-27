@@ -8,7 +8,7 @@
 //     (defaulted from the imported file's extension). The asset is just source bytes, a
 //     language id and cooked metadata; nothing language-specific.
 //   * IScriptLanguageCook: the per-language cook service. Each language library provides
-//     one (AngelScript: script.angelscript.pipeline) and registers it into
+//     one (AngelScript: angelscript.pipeline) and registers it into
 //     ScriptLanguageCookRegistry, keyed by languageId (as ScriptBackendRegistry is). A cook
 //     compile-checks and harvests metadata; the New-Asset starter is its NewAssetTemplate().
 //   * ScriptClassAssetBuilder: a thin shell that resolves the cook by the asset's language
