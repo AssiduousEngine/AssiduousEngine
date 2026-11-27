@@ -297,8 +297,8 @@ namespace pipeline
 
         const CookRecord* record = m_db.Find(item.source);
         const bool productExists = m_cookedDb->GetInstance(item.source) != nullptr;
-        const bool clean = !force && record != nullptr && !record->failed && !record->skipped &&
-                           record->recipeHash == item.recipeHash && productExists;
+        const bool clean = !force && record != nullptr && !record->failed &&
+                           record->recipeHash == item.recipeHash && (productExists || record->skipped);
         if (clean)
         {
             ++plan.upToDate;
@@ -379,7 +379,7 @@ namespace pipeline
         CookStats stats;
         stats.orphansSwept = plan.orphansSweptCount;
 
-        Array<ItemOutcome> results;
+        Array<CookItemOutcome> results;
         results.Resize(plan.dirty.Size());
         usize done = 0;
         usize begin = 0;
@@ -399,7 +399,7 @@ namespace pipeline
                 m_jobs->ParallelFor(static_cast<u32>(end - begin), [&, begin](u32 i)
                                     {
                                         CookItem& it = plan.dirty[begin + i];
-                                        results[begin + i] = it.copiedForward ? ItemOutcome::Built : CookItem_(it);
+                                        results[begin + i] = it.copiedForward ? CookItemOutcome::Built : CookItem_(it);
                                     });
             }
             else
@@ -407,18 +407,18 @@ namespace pipeline
                 for (usize i = begin; i < end; ++i)
                 {
                     results[i] =
-                        plan.dirty[i].copiedForward ? ItemOutcome::Built : CookItem_(plan.dirty[i]);
+                        plan.dirty[i].copiedForward ? CookItemOutcome::Built : CookItem_(plan.dirty[i]);
                 }
             }
 
             for (usize i = begin; i < end; ++i)
             {
-                const bool built = results[i] == ItemOutcome::Built;
-                if (results[i] == ItemOutcome::Failed)
+                const bool built = results[i] == CookItemOutcome::Built;
+                if (results[i] == CookItemOutcome::Failed)
                 {
                     ++stats.failed;
                 }
-                else if (results[i] == ItemOutcome::Skipped)
+                else if (results[i] == CookItemOutcome::Skipped)
                 {
                     ++stats.skipped;
                 }
@@ -437,7 +437,7 @@ namespace pipeline
                 ++done;
                 if (progress != nullptr && progress->onItem)
                 {
-                    progress->onItem(done, plan.dirty.Size(), plan.dirty[i].path.AsView(), built);
+                    progress->onItem(done, plan.dirty.Size(), plan.dirty[i].path.AsView(), results[i]);
                 }
             }
             begin = end;
@@ -737,14 +737,14 @@ namespace pipeline
         return group->CreateInstanceWithId(item.source, source->Name(), *productType);
     }
 
-    CookDriver::ItemOutcome CookDriver::CookItem_(CookItem& item)
+    CookItemOutcome CookDriver::CookItem_(CookItem& item)
     {
         content::Instance* source = item.sourceInstance; // snapshotted (no DB query off-thread)
         Asset* asset = Cast<Asset>(item.asset.Get());
         content::Instance* product = item.product;
         if (source == nullptr || asset == nullptr || product == nullptr)
         {
-            return ItemOutcome::Failed;
+            return CookItemOutcome::Failed;
         }
 
         AssetBuildContext ctx{*m_allocator};
@@ -782,7 +782,7 @@ namespace pipeline
         // blobs, texture tables) alive until the whole cook finishes runs large scenes
         // out of memory.
         item.asset = RefPtr<ISerializable>{};
-        return built.IsOk() ? ItemOutcome::Built : skipped ? ItemOutcome::Skipped : ItemOutcome::Failed;
+        return built.IsOk() ? CookItemOutcome::Built : skipped ? CookItemOutcome::Skipped : CookItemOutcome::Failed;
     }
 
     content::Group* CookDriver::MirrorGroup(content::Group& sourceGroup)

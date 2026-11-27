@@ -463,7 +463,7 @@ namespace editor
         if (cook)
         {
             CookProgress cookProgress;
-            cookProgress.onItem = [&onProgress](usize done, usize total, StringView path, bool)
+            cookProgress.onItem = [&onProgress](usize done, usize total, StringView path, pipeline::CookItemOutcome)
             {
                 if (!onProgress)
                 {
@@ -865,7 +865,7 @@ namespace editor
                           builders, &sourcesMount, &cacheMount, &jobs);
         CookPlan plan = driver.Plan(rebuild);
         CookProgress cookProgress;
-        cookProgress.onItem = [&onProgress](usize done, usize total, StringView path, bool)
+        cookProgress.onItem = [&onProgress](usize done, usize total, StringView path, pipeline::CookItemOutcome)
         {
             if (!onProgress)
             {

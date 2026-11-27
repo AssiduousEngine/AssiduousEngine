@@ -127,9 +127,12 @@ int main(int argc, char** argv)
     JobSystem jobs(AppRoot()); // owned by the tool's composition root
 
     pipeline::CookProgress progress;
-    progress.onItem = [](usize done, usize total, StringView path, bool ok)
+    progress.onItem = [](usize done, usize total, StringView path, pipeline::CookItemOutcome outcome)
     {
-        std::printf("[%zu/%zu] %s %.*s\n", done, total, ok ? "ok  " : "FAIL",
+        std::printf("[%zu/%zu] %s %.*s\n", done, total,
+                    outcome == pipeline::CookItemOutcome::Built     ? "ok  "
+                    : outcome == pipeline::CookItemOutcome::Skipped ? "skip"
+                                                                    : "FAIL",
                     static_cast<int>(path.Size()), reinterpret_cast<const char*>(path.Data()));
     };
 

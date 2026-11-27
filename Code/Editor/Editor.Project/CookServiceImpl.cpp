@@ -213,9 +213,11 @@ namespace editor
                                           CookPlan& plan = self->m_plan;
                                           CookProgress progress;
                                           progress.onItem = [self, total](usize done, usize,
-                                                                          StringView path, bool ok)
+                                                                          StringView path, CookItemOutcome outcome)
                                           {
-                                              String line(ok ? u8"cooked " : u8"FAILED ");
+                                              String line(outcome == CookItemOutcome::Built     ? u8"cooked "
+                                                          : outcome == CookItemOutcome::Skipped ? u8"skipped "
+                                                                                                : u8"FAILED ");
                                               line.Append(path);
                                               line.Append(u8" (");
                                               AppendCount(line, done);

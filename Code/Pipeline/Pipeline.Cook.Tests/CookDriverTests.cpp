@@ -523,7 +523,8 @@ TEST_CASE("cook: failures stay dirty and keep the record failed; orphans are swe
 }
 
 // A builder that says what it needs is not here (a script whose language's plugin is not loaded): the
-// item is skipped, not failed, and its record is not clean, so it cooks once that is here.
+// item is skipped, not failed, and is not cooked again while its recipe holds; what the builder waits
+// for is in its recipe (its version here), so it cooks once that arrives.
 TEST_CASE("cook: an item whose builder is unavailable is skipped, not failed, and cooks once it is available")
 {
     Fixture fx(u8"scratch_cook_test_skipped");
@@ -540,8 +541,9 @@ TEST_CASE("cook: an item whose builder is unavailable is skipped, not failed, an
     CHECK(record->skipped);
     CHECK_FALSE(record->failed);
 
-    CHECK(PlanDirty(driver) == 1u); // never clean while skipped
-    CookWidgetBuilder::unavailable = false; // the plugin arrives
+    CHECK(PlanDirty(driver) == 0u); // not cooked again while nothing it waits for changed
+    CookWidgetBuilder::unavailable = false; // the plugin arrives, which changes the builder's version
+    CookWidgetBuilder::version = 2;
     CookPlan retry = driver.Plan();
     const CookStats cooked = driver.Execute(retry);
     CHECK(cooked.cooked == 1u);

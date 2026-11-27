@@ -192,7 +192,10 @@ export namespace pipeline
             (void)out;
         }
 
-        // Cook `asset` into ctx.output. Returns Ok or a failure status.
+        // Cook `asset` into ctx.output. Returns Ok or a failure status; ErrorCode::Unavailable says
+        // what it needs is not here, no fault of the asset (a script whose language's plugin is not
+        // loaded): the cook skips it. The asset is not cooked again until its recipe changes, so a
+        // builder answering Unavailable folds what it waits for into Version or EnvironmentHash.
         [[nodiscard]] virtual Status Build(const Asset& asset, AssetBuildContext& ctx) = 0;
     };
 

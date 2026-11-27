@@ -59,8 +59,9 @@ export namespace pipeline
         u64 recipeHash = 0;
         bool failed = false;
         // Not built, through no fault of its own: its builder said what it needs is not here (a
-        // script whose language's plugin is not loaded). Never clean, like a failure, so it builds
-        // once that is here; not a failure.
+        // script whose language's plugin is not loaded). Clean while its recipe holds, which carries
+        // what the builder waits for (IAssetBuilder::Build), so it builds once that is here; not a
+        // failure.
         bool skipped = false;
         Array<CookFileMemo> files;
         Array<Guid> reads;
@@ -174,10 +175,18 @@ export namespace pipeline
                                // set export pruning ships. Empty for a whole-project Plan().
     };
 
+    /// What one item's build came to.
+    enum class CookItemOutcome : u8
+    {
+        Built,
+        Failed,
+        Skipped, // its builder said what it needs is not here (ErrorCode::Unavailable)
+    };
+
     struct CookProgress
     {
-        // (done, total, sourcePath, ok) after each item completes.
-        Function<void(usize, usize, StringView, bool)> onItem;
+        // (done, total, sourcePath, outcome) after each item completes.
+        Function<void(usize, usize, StringView, CookItemOutcome)> onItem;
     };
 
     struct CookStats
@@ -287,17 +296,9 @@ export namespace pipeline
         // builder's product type. Mutates the cooked DB, so main thread only (see Execute).
         [[nodiscard]] content::Instance* EnsureProduct(const CookItem& item);
 
-        // What one item's build came to.
-        enum class ItemOutcome : u8
-        {
-            Built,
-            Failed,
-            Skipped, // its builder said what it needs is not here (ErrorCode::Unavailable)
-        };
-
         // Cook one item into its pre-created product and update its record. Runs on worker
         // threads: no DB mutation here, only reads and the product's own file writes.
-        [[nodiscard]] ItemOutcome CookItem_(CookItem& item);
+        [[nodiscard]] CookItemOutcome CookItem_(CookItem& item);
 
         // Copy-forward (main thread, in PrepareProducts): if `item` is an invariant product whose
         // host record recipe matches, copy the host product into item.product and stamp the target
