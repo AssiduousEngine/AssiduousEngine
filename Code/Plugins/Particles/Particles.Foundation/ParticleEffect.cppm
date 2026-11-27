@@ -20,6 +20,10 @@ module;
 export module particles.foundation:effect;
 
 import foundation.core;
+import foundation.resource;  // Ref: what a system draws with
+import foundation.texture.resource; // Texture (billboards)
+import foundation.geometry;  // StaticMesh (mesh-mode particles)
+import foundation.materials; // Material (mesh-mode particles)
 import :types;
 import :streams;
 import :modules;
@@ -156,21 +160,19 @@ export namespace particles
         ParticleSpace simulationSpace = ParticleSpace::World;
         ParticleBlendMode blendMode = ParticleBlendMode::Alpha;
         ParticleRenderMode renderMode = ParticleRenderMode::Billboard;
-        // Billboard atlas or flipbook sheet, as an opaque cooked-resource GUID. The runtime library does
-        // not resolve it: the resource factory binds it to a Proxy<Texture>, and the editor cook fills it
-        // from an asset path. Null = untextured (the renderer's soft-dot default).
-        Guid textureRef{};
-        // Mesh-mode systems (renderMode==Mesh) draw this mesh per particle. Opaque cooked-resource GUID
-        // (like textureRef): the editor fills it from a mesh asset, the resource factory binds it to a
-        // Proxy<StaticMesh>. Null = no effect mesh (the runtime component's mesh is the fallback).
-        Guid meshRef{};
+        // Billboard atlas or flipbook sheet, bound where the effect loads (its factory, the editor's
+        // preview); the cook sets it from the texture an asset names. None = untextured (the
+        // renderer's soft-dot default).
+        foundation::resource::Ref<foundation::texture::Texture> texture;
+        // Mesh-mode systems (renderMode==Mesh) draw this mesh per particle. None = no effect mesh
+        // (the runtime component's mesh is the fallback).
+        foundation::resource::Ref<foundation::geometry::StaticMesh> mesh;
         f32 meshScale = 1.0f;
-        // Mesh-mode systems draw their mesh with these materials (renderMode==Mesh). Opaque cooked-resource
-        // GUIDs (like meshRef): the editor fills them from material assets, the resource factory binds each
-        // to a Proxy<Material>. Per submesh, indexed by SubMesh::materialIndex; slot 0 doubles as the
-        // whole-mesh material (a single-material mesh needs one entry), as in MeshComponent's material
-        // list. Empty = no effect material (the runtime component's material is the fallback).
-        Array<Guid> materialRefs;
+        // Mesh-mode systems draw their mesh with these materials (renderMode==Mesh): per submesh,
+        // indexed by SubMesh::materialIndex; slot 0 doubles as the whole-mesh material (a
+        // single-material mesh needs one entry), as in MeshComponent's material list. Empty = no
+        // effect material (the runtime component's material is the fallback).
+        Array<foundation::resource::Ref<foundation::materials::Material>> materials;
         bool sortParticles = false;
         // Soft particles: fade billboard alpha where it nears the opaque surface behind it (needs the
         // scene depth; the renderer supplies it). softDistance is the fade band in world units; disable

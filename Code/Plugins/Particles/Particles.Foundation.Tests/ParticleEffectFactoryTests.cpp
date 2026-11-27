@@ -125,7 +125,7 @@ TEST_CASE("particles.pipeline: code effect -> cook -> Bind reconstructs an equiv
     RemoveTree();
 }
 
-TEST_CASE("particles.resource: meshRef + meshScale + materialRefs survive the cook copy (round-trip)")
+TEST_CASE("particles.resource: a system's mesh, meshScale and materials survive the cook copy (round-trip)")
 {
     Random rng(0x1234u);
     const Guid meshId = Guid::Generate(rng);
@@ -135,11 +135,11 @@ TEST_CASE("particles.resource: meshRef + meshScale + materialRefs survive the co
     ParticleEffect src;
     ParticleSystem& s = src.AddSystem(100);
     s.renderMode = ParticleRenderMode::Mesh;
-    s.meshRef = meshId;
+    s.mesh.SetId(meshId);
     s.meshScale = 2.5f;
     // Two per-submesh material slots (slot 0 = whole-mesh material): order and values must survive.
-    s.materialRefs.PushBack(materialId0);
-    s.materialRefs.PushBack(materialId1);
+    s.materials.EmplaceBack().SetId(materialId0);
+    s.materials.EmplaceBack().SetId(materialId1);
 
     // CloneEffect is what the builder uses to bake the authored effect into the cooked resource.
     ParticleEffect dst;
@@ -147,9 +147,9 @@ TEST_CASE("particles.resource: meshRef + meshScale + materialRefs survive the co
     ParticleSystem* d = dst.GetSystem(0);
     REQUIRE(d != nullptr);
     CHECK(d->renderMode == ParticleRenderMode::Mesh);
-    CHECK(d->meshRef == meshId);
+    CHECK(d->mesh.id == meshId);
     CHECK(d->meshScale == doctest::Approx(2.5f));
-    REQUIRE(d->materialRefs.Size() == 2);
-    CHECK(d->materialRefs[0] == materialId0);
-    CHECK(d->materialRefs[1] == materialId1);
+    REQUIRE(d->materials.Size() == 2);
+    CHECK(d->materials[0].id == materialId0);
+    CHECK(d->materials[1].id == materialId1);
 }

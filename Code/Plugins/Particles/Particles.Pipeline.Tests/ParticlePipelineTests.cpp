@@ -161,11 +161,11 @@ TEST_CASE("particles.pipeline: Build resolves a texture path ref -> cooked GUID 
     Proxy<ParticleEffectResource> res = manager.Bind<ParticleEffectResource>(effectId);
     REQUIRE(res);
 
-    // The path was resolved to the texture's cooked GUID during Build,
-    CHECK(res->Effect().GetSystem(0)->textureRef == texId);
-    // and the factory bound it to a live, hot-reload-following Proxy<Texture>.
-    Proxy<foundation::texture::Texture> tex = res->SystemTexture(0);
-    REQUIRE(tex);
+    // The path was resolved to the texture's cooked id during Build,
+    CHECK(res->Effect().GetSystem(0)->texture.id == texId);
+    // and the factory bound the system's reference, which follows the texture's reloads.
+    foundation::texture::Texture* tex = res->Effect().GetSystem(0)->texture.Get();
+    REQUIRE(tex != nullptr);
     CHECK(tex->GpuTexture().IsValid());
 
     FileDelete(u8"scratch_pfx_ref_db/smoketex.rasset");
@@ -236,10 +236,10 @@ TEST_CASE("particles.pipeline: an effect declares what its systems draw with as 
     const Guid texture{0x11u, 0x1u};
     const Guid mesh{0x22u, 0x2u};
     const Guid material{0x33u, 0x3u};
-    sparks->textureRef = texture;
-    debris->meshRef = mesh;
-    debris->materialRefs.PushBack(Guid{});
-    debris->materialRefs.PushBack(material);
+    sparks->texture.SetId(texture);
+    debris->mesh.SetId(mesh);
+    debris->materials.EmplaceBack(); // an empty slot
+    debris->materials.EmplaceBack().SetId(material);
     ParticleEffectAssetBuilder builder;
     AssetBuildContext ctx{DefaultAllocator()};
     AssetDependencies deps;

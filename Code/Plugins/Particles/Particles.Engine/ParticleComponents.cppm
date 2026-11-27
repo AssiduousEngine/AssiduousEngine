@@ -94,7 +94,7 @@ export namespace particles
         }
         // Cooked path: attach a bound ParticleEffectResource. The component clones the cooked template
         // into its own effect (so multiple entities don't share live particle state) and simulates that;
-        // the resolved per-system textures come from the resource (effectAsset->SystemTexture(i)).
+        // each system's bound texture comes from the resource's own systems.
         void SetEffect(resource::Proxy<ParticleEffectResource> res)
         {
             effectAsset.SetProxy(res);
@@ -115,8 +115,8 @@ export namespace particles
             instance = MakeUnique<ParticleEffectInstance>(DefaultAllocator(), *ownedEffect);
         }
 
-        // Attach a resource for render-resource lookup only (its per-system
-        // SystemMesh/SystemTexture/SystemMaterial), without re-cloning the effect. The editor
+        // Attach a resource for render-resource lookup only (its systems' bound meshes, textures and
+        // materials), without re-cloning the effect. The editor
         // preview keeps its live borrowed effect (SetEffect(ParticleEffect&)) for the simulation,
         // so scalar edits stay live, while these resolved resources drive rendering. Safe on the
         // code path (no effectAsset proxy, so the manager never re-attaches over it). The caller
@@ -445,7 +445,7 @@ export namespace particles
                                render::ExtractedScene& snapshot)
         {
             // Each mesh system's mesh and per-submesh materials come resolved from attachedResource
-            // (bound from the effect's meshRef/materialRefs). attachedResource is that resource on
+            // (each system's bound references). attachedResource is that resource on
             // both the cooked runtime path (the live effectAsset product) and in the editor preview
             // (attached for render lookup without re-cloning the live simulation effect, so
             // previews render every mesh system while scalar edits stay live). Null on the bare
@@ -455,8 +455,8 @@ export namespace particles
             // Mesh: the component's mesh wins (the per-placement override); the system's resolved
             // mesh is the fallback. meshScale follows whichever mesh is drawn.
             geometry::StaticMesh* const componentMesh = c.mesh.Get();
-            geometry::StaticMesh* const effectMesh =
-                (res != nullptr) ? res->SystemMesh(sysIndex).Get() : nullptr;
+            const ParticleSystem* const effectSystem = (res != nullptr) ? res->Effect().GetSystem(sysIndex) : nullptr;
+            geometry::StaticMesh* const effectMesh = (effectSystem != nullptr) ? effectSystem->mesh.Get() : nullptr;
             geometry::StaticMesh* const mesh = (componentMesh != nullptr) ? componentMesh : effectMesh;
             const f32 meshScale = (componentMesh != nullptr) ? c.meshScale : sys.meshScale;
 
@@ -466,14 +466,13 @@ export namespace particles
             // whole mesh; with more than one slot, each submesh by SubMesh::materialIndex). The
             // component itself carries a single material.
             Array<RefPtr<materials::Material>>* matCache = nullptr;
-            if (c.material.Get() == nullptr && res != nullptr && sysIndex >= 0)
+            if (c.material.Get() == nullptr && effectSystem != nullptr && sysIndex >= 0)
             {
                 if (static_cast<i32>(c.effectMaterialCache.Size()) <= sysIndex)
                 {
                     c.effectMaterialCache.Resize(static_cast<usize>(sysIndex) + 1);
                 }
-                const Array<resource::Proxy<materials::Material>>& proxies =
-                    res->SystemMaterials(sysIndex);
+                const Array<resource::Ref<materials::Material>>& proxies = effectSystem->materials;
                 Array<RefPtr<materials::Material>>& cache =
                     c.effectMaterialCache[static_cast<usize>(sysIndex)];
                 cache.Resize(proxies.Size());
@@ -578,7 +577,8 @@ export namespace particles
         {
             if (ParticleEffectResource* res = c.effectAsset.Get())
             {
-                if (texture::Texture* t = res->SystemTexture(systemIndex).Get())
+                const ParticleSystem* system = res->Effect().GetSystem(systemIndex);
+                if (texture::Texture* t = (system != nullptr) ? system->texture.Get() : nullptr)
                 {
                     return t->View();
                 }

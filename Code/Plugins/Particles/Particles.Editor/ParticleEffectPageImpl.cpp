@@ -21,6 +21,7 @@ import foundation.scene;
 import engine.scene;
 import particles.foundation;
 import foundation.resource;
+import foundation.materials; // Material (a mesh system's list)
 import particles.pipeline;
 import particles.engine;
 import foundation.render; // the emission shape's lines
@@ -695,11 +696,11 @@ namespace particles
             for (i32 b = 0; b < system->BehaviorCount(); ++b)
                 shape.PushBack(system->GetBehavior(b));
             shape.PushBack(nullptr); // marks a system's end
-            bindings.PushBack(system->textureRef);
-            bindings.PushBack(system->meshRef);
-            for (const Guid& material : system->materialRefs)
-                bindings.PushBack(material);
-            bindings.PushBack(Guid{0u, static_cast<u64>(system->materialRefs.Size())}); // marks a system's end
+            bindings.PushBack(system->texture.id);
+            bindings.PushBack(system->mesh.id);
+            for (const foundation::resource::Ref<foundation::materials::Material>& material : system->materials)
+                bindings.PushBack(material.id);
+            bindings.PushBack(Guid{0u, static_cast<u64>(system->materials.Size())}); // marks a system's end
         }
         const bool reshaped = !Same(shape, m_shape);
         const bool rebound = reshaped || !Same(bindings, m_bindings);

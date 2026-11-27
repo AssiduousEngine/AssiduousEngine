@@ -18,6 +18,8 @@ import pipeline.core;
 import pipeline.importer; // PipelinePluginServices (the creators added through it)
 import particles.foundation;
 import foundation.content;
+import foundation.resource;  // Ref (a system's references)
+import foundation.materials; // Material (a mesh system's list)
 
 using namespace foundation::core;
 using namespace pipeline; // the asset and builder bases
@@ -110,10 +112,10 @@ export namespace particles
                 const ParticleSystem* system = const_cast<ParticleEffect&>(fx).GetSystem(s);
                 if (system == nullptr)
                     continue;
-                add(system->textureRef);
-                add(system->meshRef);
-                for (const Guid& material : system->materialRefs)
-                    add(material);
+                add(system->texture.id);
+                add(system->mesh.id);
+                for (const foundation::resource::Ref<foundation::materials::Material>& material : system->materials)
+                    add(material.id);
                 const StringView path = pa.SystemTexturePath(s);
                 if (!path.IsEmpty() && ctx.db != nullptr)
                     if (content::Instance* named = ctx.db->GetInstance(path))
@@ -132,7 +134,7 @@ export namespace particles
             ParticleEffectResource cooked;
             CloneEffect(pa.Effect(), cooked.Effect());
             // then resolve refs: each system's edit-time texture path becomes the referenced cooked
-            // resource's GUID (written into the cooked system's textureRef; the factory binds it at load).
+            // resource's id (the cooked system's texture; the factory binds it at load).
             ParticleEffect& fx = cooked.Effect();
             for (i32 s = 0; s < fx.SystemCount(); ++s)
             {
@@ -146,7 +148,7 @@ export namespace particles
                 {
                     return Status{ErrorCode::NotFound};
                 } // referenced asset must be cooked first
-                fx.GetSystem(s)->textureRef = dep->Id();
+                fx.GetSystem(s)->texture.SetId(dep->Id());
             }
             return ctx.output->WriteObject(cooked);
         }

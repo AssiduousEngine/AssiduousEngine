@@ -26,6 +26,8 @@ module;
 module particles.foundation;
 
 import foundation.core;
+import foundation.resource;  // Ref (a system's references)
+import foundation.materials; // Material (a mesh system's list)
 
 using namespace foundation::core;
 
@@ -176,19 +178,16 @@ namespace particles
             .AccessorProperty<&ParticleSystem::MaxParticles, &ParticleSystem::SetMaxParticles>("maxParticles")
             .PropAttribute("range", Float4{1.0f, 1000000.0f, 1.0f, 0.0f})
             .PropAttribute("description", String(u8"The most alive at once"))
-            .Property<&ParticleSystem::textureRef>("textureRef")
+            .Property<&ParticleSystem::texture>("textureRef")
             .PropAttribute("displayName", String(u8"Texture"))
-            .PropAttribute("referenceType", String(u8"Texture"))
             .PropAttribute("visibleWhen", String(u8"renderMode=0,1,2,3,5"))
-            .Property<&ParticleSystem::meshRef>("meshRef")
+            .Property<&ParticleSystem::mesh>("meshRef")
             .PropAttribute("displayName", String(u8"Mesh"))
-            .PropAttribute("referenceType", String(u8"StaticMesh"))
             .PropAttribute("visibleWhen", String(u8"renderMode=4"))
             .Property<&ParticleSystem::meshScale>("meshScale")
             .PropAttribute("visibleWhen", String(u8"renderMode=4"))
-            .Nested<&ParticleSystem::materialRefs>("materialRefs")
+            .Nested<&ParticleSystem::materials>("materialRefs")
             .PropAttribute("displayName", String(u8"Materials"))
-            .PropAttribute("referenceType", String(u8"Material"))
             .PropAttribute("description", String(u8"By the mesh's material slots; the first the whole mesh's"))
             .PropAttribute("visibleWhen", String(u8"renderMode=4"))
             .Property<&ParticleSystem::sortParticles>("sortParticles")
@@ -253,7 +252,7 @@ namespace particles
         RttiRegisterEnum_ParticleEventType();
         RttiRegisterValue_SubEmitterLink();
         RegisterArrayType<SubEmitterLink>(); // a system's sub-emitters
-        RegisterArrayType<Guid>(); // a mesh system's materials
+        RegisterArrayType<foundation::resource::Ref<foundation::materials::Material>>(); // a mesh system's materials
         RttiRegisterValue_ParticleSystem();
         RttiRegisterValue_ParticleEffect();
         // The systems array is a homogeneous UniquePtr container; the module arrays are polymorphic

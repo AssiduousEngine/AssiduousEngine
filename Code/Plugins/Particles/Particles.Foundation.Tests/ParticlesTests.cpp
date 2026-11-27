@@ -1041,16 +1041,20 @@ TEST_CASE("particle reflection (batch 8): every authored field of a system, its 
     CHECK(IsEnum(TypeOf<SimulationMode>()));
     CHECK(IsEnum(TypeOf<ParticleSpace>()));
 
-    // The references name what they bind; each shows where its render mode uses it.
+    // The references are typed: each names what it binds, and shows where its render mode uses it.
     const TypeInfo& system = TypeOf<ParticleSystem>();
     const PropertyInfo* texture = FindProperty(system, "textureRef");
     REQUIRE(texture != nullptr);
-    CHECK(text(*texture, "referenceType") == String(u8"Texture"));
+    REQUIRE(texture->type->reference != nullptr);
+    CHECK(StringView(reinterpret_cast<const utf8char*>(texture->type->reference->Target()->name)) == StringView(u8"Texture"));
     CHECK(text(*texture, "visibleWhen") == String(u8"renderMode=0,1,2,3,5"));
+    const PropertyInfo* mesh = FindProperty(system, "meshRef");
+    REQUIRE(mesh != nullptr);
+    REQUIRE(mesh->type->reference != nullptr);
+    CHECK(StringView(reinterpret_cast<const utf8char*>(mesh->type->reference->Target()->name)) == StringView(u8"StaticMesh"));
     const PropertyInfo* materials = FindProperty(system, "materialRefs");
     REQUIRE(materials != nullptr);
     REQUIRE(IsContainer(*materials->type));
-    CHECK(text(*materials, "referenceType") == String(u8"Material"));
     CHECK(text(*FindProperty(system, "trail"), "visibleWhen") == String(u8"renderMode=5"));
     CHECK(text(*FindProperty(system, "flipbook"), "visibleWhen") == String(u8"renderMode=0,1,2,3"));
 
