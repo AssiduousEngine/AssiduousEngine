@@ -6505,3 +6505,42 @@ TEST_CASE("behavior: the native bases and the classes derived from them are kept
     CHECK(foundation::script::IsHiddenFromScripts(nativetest::Orb::StaticType()));
     CHECK_FALSE(foundation::script::IsHiddenFromScripts(TypeOf<foundation::script::Entity>()));
 }
+
+namespace
+{
+    // The script host's errors, to show what a run says of a language it has no backend for.
+    struct ScriptErrors : ILogSink
+    {
+        Array<String> messages;
+        void Write(LogLevel level, StringView category, StringView message) noexcept override
+        {
+            if (level == LogLevel::Error && category == u8"Script")
+                messages.PushBack(String(message));
+        }
+    };
+}
+
+// A language is a plugin the host loads before a run starts. A run whose behaviors are in a language
+// with no backend here says so once, naming the plugin to enable, and leaves them disabled.
+TEST_CASE("script.scene: behaviors in a language with no backend say once which plugin is missing, and stay disabled")
+{
+    ScriptedScene bed;
+    RefPtr<BehaviorClass> lost = MakeClassLang(u8"lostlang", u8"Lost", u8"-- never compiled\n", {u8"onUpdate"});
+    (void)bed.AddScripted(lost, u8"first");
+    (void)bed.AddScripted(lost, u8"second");
+    ScriptErrors errors;
+    GlobalLogger().AddSink(&errors);
+    bed.Start();
+    bed.Frame();
+    GlobalLogger().RemoveSink(&errors);
+    u32 missing = 0;
+    for (const String& message : errors.messages)
+    {
+        if (message.AsView().Contains(u8"no script backend for language 'lostlang'"))
+        {
+            ++missing;
+            CHECK(message.AsView().Contains(u8"plugin 'lostlang'"));
+        }
+    }
+    CHECK(missing == 1u);
+}

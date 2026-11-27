@@ -353,7 +353,7 @@ export namespace engine::behavior
             m_manager = CreateScriptManagerForLanguage(languageId, *m_allocator);
             if (m_manager.Get() == nullptr)
             {
-                LOG_ERROR(u8"Script", u8"no script backend for language '{}'", languageId);
+                ReportMissingLanguageOnce(languageId);
                 return nullptr;
             }
             RegisterReflectedTypes(*m_manager);
@@ -545,6 +545,26 @@ export namespace engine::behavior
             }
         }
 
+        // A language is a plugin: a run finds its backend only where the project enables that plugin
+        // and the host loaded it before the run started. Said once per language, since every
+        // behavior in it asks.
+        void ReportMissingLanguageOnce(StringView languageId)
+        {
+            for (const String& reported : m_missingLanguages)
+            {
+                if (reported.AsView() == languageId)
+                {
+                    return;
+                }
+            }
+            m_missingLanguages.PushBack(String(languageId));
+            LOG_ERROR(u8"Script",
+                      u8"no script backend for language '{}': its plugin is not loaded here (the project enables "
+                      u8"plugin '{}' on this platform, and the host loads it before the run starts); its behaviors "
+                      u8"stay disabled",
+                      languageId, languageId);
+        }
+
         void WarnLanguageMismatchOnce(StringView languageId)
         {
             if (m_warnedLanguageMismatch)
@@ -561,6 +581,7 @@ export namespace engine::behavior
         RefPtr<IScriptManager> m_manager;
         RefPtr<IScriptContext> m_scriptContext;
         String m_language;
+        Array<String> m_missingLanguages; // reported once each (ReportMissingLanguageOnce)
         RunErrorSink m_errorSink;
         foundation::core::IAllocator* m_allocator;
         ServiceResolver m_services;     // SetHost: its run host's FindService
