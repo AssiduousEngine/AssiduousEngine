@@ -206,6 +206,51 @@ namespace
     }
 }
 
+namespace
+{
+    // A section whose type registers after the file was read (a plugin's preferences, its type
+    // arriving at project open): it is kept, then read the first time it is asked for.
+    void RunLateType(SerializerFactory (*make)())
+    {
+        MemoryStream stored;
+        {
+            settings::Settings src(foundation::core::DefaultAllocator());
+            src.Section<SecA>().a = 7;
+            src.Section<SecX>().x = 5;
+            src.Section<SecX>().tag = String(u8"late");
+            REQUIRE(src.Save(stored, make()).IsOk());
+        }
+        TypeRegistry types;
+        SerializableRegistry ser;
+        RegisterAB(types, ser); // X is not registered yet
+        settings::Settings store(foundation::core::DefaultAllocator());
+        REQUIRE(stored.Seek(0, SeekOrigin::Begin) == 0);
+        REQUIRE(store.Load(stored, make(), types, ser).IsOk());
+        CHECK(store.UnknownSectionCount() == 1u);
+
+        types.Register(SecX::StaticType()); // the plugin loads
+        RegisterSerializable<SecX>(ser);
+        const SecX* found = store.Find<SecX>();
+        REQUIRE(found != nullptr);
+        CHECK(found->x == 5);
+        CHECK(found->tag == u8"late");
+        CHECK(store.UnknownSectionCount() == 0u); // read, so no longer kept
+        CHECK(&store.Section<SecX>() == found);   // the same section from then on
+        REQUIRE(store.Find<SecA>() != nullptr);
+        CHECK(store.Find<SecA>()->a == 7);
+    }
+}
+
+TEST_CASE("settings: a section whose type registers after the load is read when first asked for (binary)")
+{
+    RunLateType(&BinarySerializerFactory);
+}
+
+TEST_CASE("settings: a section whose type registers after the load is read when first asked for (XML)")
+{
+    RunLateType(&xml::XmlSerializerFactory);
+}
+
 TEST_CASE("settings: unknown-section passthrough round-trips (binary)")
 {
     RunPassthrough(&BinarySerializerFactory);

@@ -64,6 +64,12 @@ export namespace foundation::settings
             {
                 return static_cast<T&>(*existing->Get());
             }
+            if (RefPtr<ISerializable> kept = AdoptKept(T::StaticType()); kept.Get() != nullptr)
+            {
+                T& adopted = static_cast<T&>(*kept.Get());
+                m_sections.InsertOrAssign(id, static_cast<RefPtr<ISerializable>&&>(kept));
+                return adopted;
+            }
             RefPtr<ISerializable> obj = MakeRef<T>(*m_allocator);
             T& ref = static_cast<T&>(*obj.Get());
             m_sections.InsertOrAssign(id, static_cast<RefPtr<ISerializable>&&>(obj));
@@ -76,7 +82,17 @@ export namespace foundation::settings
         [[nodiscard]] const T* Find() const
         {
             const RefPtr<ISerializable>* existing = m_sections.Find(T::StaticType().id);
-            return (existing != nullptr) ? static_cast<const T*>(existing->Get()) : nullptr;
+            if (existing != nullptr)
+            {
+                return static_cast<const T*>(existing->Get());
+            }
+            if (RefPtr<ISerializable> kept = AdoptKept(T::StaticType()); kept.Get() != nullptr)
+            {
+                const T* adopted = static_cast<const T*>(kept.Get());
+                m_sections.InsertOrAssign(T::StaticType().id, static_cast<RefPtr<ISerializable>&&>(kept));
+                return adopted;
+            }
+            return nullptr;
         }
 
         // Announce that section T was mutated: fires OnChanged with T's type name. (The store can't
@@ -107,7 +123,27 @@ export namespace foundation::settings
 
         // Serialize every live section to `out` through `factory` (envelope per section: type
         // namespace, name and versioned payload). Backend chosen by the caller.
-        [[nodiscard]] Status Save(IStream& out, SerializerFactory factory) const
+        [[nodiscard]] Status Save(IStream& out, SerializerFactory factory) const { return SaveWith(out, factory); }
+
+        // Load sections from `in`. Each known and registered section type is instantiated and
+        // deserialized; the store replaces any existing instance of that type. A section whose type
+        // is unknown to this build is kept verbatim for the next Save when the backend can capture
+        // its framed payload, and dropped with a warning when it cannot; and it is read the moment
+        // its type is asked for once registered (a plugin's preferences, its type arriving after the
+        // file was read). Registered types must have called RegisterSerializable<T>().
+        [[nodiscard]] Status
+        Load(IStream& in, SerializerFactory factory, TypeRegistry& types = GlobalTypeRegistry(),
+             SerializableRegistry& serializables = GlobalSerializableRegistry())
+        {
+            const Status loaded = LoadWith(in, factory, types, serializables);
+            m_loadFactory = static_cast<SerializerFactory&&>(factory);
+            m_types = &types;
+            m_serializables = &serializables;
+            return loaded;
+        }
+
+    private:
+        [[nodiscard]] Status SaveWith(IStream& out, SerializerFactory& factory) const
         {
             UniquePtr<SerializerContext> ctx = factory(out, SerializeMode::Write);
             if (!ctx || ctx->serializer == nullptr)
@@ -178,14 +214,8 @@ export namespace foundation::settings
             return Status{};
         }
 
-        // Load sections from `in`. Each known and registered section type is instantiated and
-        // deserialized; the store replaces any existing instance of that type. A section whose type
-        // is unknown to this build is kept verbatim for the next Save when the backend can capture
-        // its framed payload, and dropped with a warning when it cannot. Registered types must have
-        // called RegisterSerializable<T>().
-        [[nodiscard]] Status
-        Load(IStream& in, SerializerFactory factory, TypeRegistry& types = GlobalTypeRegistry(),
-             SerializableRegistry& serializables = GlobalSerializableRegistry())
+        [[nodiscard]] Status LoadWith(IStream& in, SerializerFactory& factory, TypeRegistry& types,
+                                      SerializableRegistry& serializables)
         {
             UniquePtr<SerializerContext> ctx = factory(in, SerializeMode::Read);
             if (!ctx || ctx->serializer == nullptr)
@@ -280,6 +310,50 @@ export namespace foundation::settings
             return ar.IsOk() ? Status{} : ar.GetStatus();
         }
 
+        // A kept section of `type`, now that it is registered, read through the backend the file was
+        // read with: the section written alone in that encoding, then loaded back as a known type.
+        // Null when none is kept or it does not read; it leaves the kept list once read.
+        [[nodiscard]] RefPtr<ISerializable> AdoptKept(const TypeInfo& type) const
+        {
+            if (!m_loadFactory || m_types == nullptr || m_serializables == nullptr)
+            {
+                return {};
+            }
+            const StringView ns(reinterpret_cast<const utf8char*>(type.namespaceName));
+            const StringView name(reinterpret_cast<const utf8char*>(type.name));
+            for (usize i = 0; i < m_unknownSections.Size(); ++i)
+            {
+                const UnknownSection& section = m_unknownSections[i];
+                if (section.typeNamespace.AsView() != ns || section.typeName.AsView() != name)
+                {
+                    continue;
+                }
+                Settings alone(*m_allocator);
+                alone.m_unknownSections.PushBack(section);
+                MemoryStream buffer(*m_allocator);
+                if (!alone.SaveWith(buffer, m_loadFactory).IsOk())
+                {
+                    return {};
+                }
+                (void)buffer.Seek(0, SeekOrigin::Begin);
+                Settings decoded(*m_allocator);
+                if (!decoded.LoadWith(buffer, m_loadFactory, *m_types, *m_serializables).IsOk())
+                {
+                    return {};
+                }
+                RefPtr<ISerializable>* read = decoded.m_sections.Find(type.id);
+                if (read == nullptr)
+                {
+                    return {};
+                }
+                RefPtr<ISerializable> adopted = *read;
+                m_unknownSections.RemoveAt(i);
+                return adopted;
+            }
+            return {};
+        }
+
+    public:
         // A section kept verbatim because its type was unknown at Load. Re-emitted by Save inside a
         // frame so a newer settings file survives an older build's load and save round-trip intact.
         struct UnknownSection
@@ -291,8 +365,12 @@ export namespace foundation::settings
 
     private:
         IAllocator* m_allocator;
-        HashMap<TypeId, RefPtr<ISerializable>> m_sections;
-        Array<UnknownSection> m_unknownSections;
+        // Mutable: a kept section is read on the first ask once its type is known, a Find included.
+        mutable HashMap<TypeId, RefPtr<ISerializable>> m_sections;
+        mutable Array<UnknownSection> m_unknownSections;
+        mutable SerializerFactory m_loadFactory; // the backend the last Load read, for kept sections
+        TypeRegistry* m_types = nullptr;
+        SerializableRegistry* m_serializables = nullptr;
         Function<void(StringView)> m_onChanged;
     };
 }

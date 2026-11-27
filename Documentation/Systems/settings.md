@@ -28,15 +28,18 @@ member-initializer default, so adding fields later is backward-safe.
 
 ## Registration + unknown-section passthrough
 
-Sections must be REGISTERED (type registry + serializable registry) before a store loads: a section
-whose type is not registered reads as unknown, so its owner then sees the struct's defaults (per-module
-sections register in that module's editor entry point, and the player registers its own before it
-reads the user's settings). Unknown-section passthrough SHIPPED: a section whose type is unknown or
+Sections are REGISTERED (type registry + serializable registry) before a store loads, or a section
+whose type is not registered reads as unknown (per-module sections register in that module's editor
+entry point, and the player registers its own before it reads the user's settings). A section whose
+type registers later, a plugin's preferences arriving as its project opens, is decoded on arrival:
+the store keeps the backend and registries its last `Load` used, and the first `Section<T>()` or
+`Find<T>()` of a type it kept reads that section through them, so the plugin sees what was saved. Unknown-section passthrough SHIPPED: a section whose type is unknown or
 unregistered in THIS build is captured (`m_unknownSections`, `UnknownSectionCount()`), logged, and
 re-emitted verbatim inside its frame on the next `Save`, so a newer build's extra settings survive an
 older build's open + re-save; it never fails the load. This works on a self-describing backend (XML:
 framed sections a reader can skip); a positional binary backend that cannot capture the frame drops
-the section with a warning (settings files are XML, so passthrough holds). A binary stream also starts
+the section with a warning (settings files are XML, so passthrough holds). A kept section that
+decodes on arrival leaves `UnknownSectionCount()`. A binary stream also starts
 with the store's format version, and a mismatch refuses the load (NotSupported).
 
 ## Layering
