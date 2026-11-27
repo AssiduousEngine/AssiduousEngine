@@ -20,6 +20,7 @@ import pipeline.importer;
 import fonts.pipeline;
 import texture.pipeline;
 import render.pipeline; // a quality level (RenderQualityAsset)
+import script.pipeline; // ScriptClassAsset (the languages an older project used)
 
 using namespace foundation::core;
 
@@ -309,6 +310,44 @@ namespace editor
             ++adopted;
         }
         return adopted;
+    }
+
+    void EditorProject::EnableLanguagesInUse(EditorProject& project)
+    {
+        ProjectSettings& settings = project.m_settings;
+        Array<foundation::content::Instance*> instances;
+        bool collected = false;
+        const StringView scriptType(reinterpret_cast<const utf8char*>(pipeline::ScriptClassAsset::StaticType().name));
+        for (const ProjectSettings::FormerlyBuiltIn& language : ProjectSettings::kLanguagesBecamePlugins)
+        {
+            if (!settings.ReadBefore(language.leftAt) || settings.FindPlugin(language.id) != nullptr)
+            {
+                continue;
+            }
+            if (!collected)
+            {
+                CollectInstances(*project.SourceDb().RootGroup(), instances);
+                collected = true;
+            }
+            for (foundation::content::Instance* instance : instances)
+            {
+                if (instance->TypeName() != scriptType)
+                {
+                    continue;
+                }
+                const RefPtr<ISerializable> object = instance->ReadObject();
+                const auto* script = Cast<pipeline::ScriptClassAsset>(object.Get());
+                const StringView used = script == nullptr || script->language.IsEmpty() ? StringView(u8"angelscript") : script->language.AsView();
+                if (used == language.id)
+                {
+                    foundation::runtime::EnabledPlugin entry;
+                    entry.id = String(language.id);
+                    settings.plugins.PushBack(Move(entry));
+                    LOG_INFO(u8"Project", u8"enabled the {} plugin: the project's scripts use it", language.id);
+                    break;
+                }
+            }
+        }
     }
 
     void EditorProject::PlaceFilesAtOpen(EditorProject& project)

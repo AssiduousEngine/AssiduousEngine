@@ -20,7 +20,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Debug/Assert.h"
 #include "Core/Reflection/Reflect.h"
-#include "Script.Luau/LuauInclude.h"
+#include "LuauInclude.h"
 
 export module foundation.script.luau;
 

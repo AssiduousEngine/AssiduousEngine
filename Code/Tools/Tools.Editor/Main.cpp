@@ -102,9 +102,6 @@ import foundation.script;
 import foundation.script.angelscript;
 import script.angelscript.pipeline;
 #endif
-#ifdef OPTION_HAS_LUAU
-import script.luau.pipeline;
-#endif
 import foundation.script.resource;
 import script.pipeline;
 
@@ -328,9 +325,6 @@ int main(int argc, char** argv)
         // the cook service too): the script page's check compiles through them.
 #ifdef OPTION_HAS_ANGELSCRIPT
         pipeline::RegisterAngelScriptScriptCook();
-#endif
-#ifdef OPTION_HAS_LUAU
-        pipeline::RegisterLuauScriptCook();
 #endif
         // File > New: every pipeline domain's creators, the scripts' among them.
         (void)pipeline::RegisterAllCreators(app.Context().Creators());

@@ -48,6 +48,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Luau is an official plugin, `luau`: a project that writes Luau enables it in its plugins list. A
+  project written before (data version 16 or older) whose scripts use Luau enables it as it opens;
+  one that does not, and a new project, start without it. `script_validate` and `script_create`
+  take the languages the project has, and name them when refusing another.
 - The engine builds with no script language: switching off AngelScript, Luau and C# is allowed, and
   a game whose logic is native behaviors reads, runs and cooks without one.
 - Navigation is an official plugin, `navigation`: a project enables it in its plugins list, and its

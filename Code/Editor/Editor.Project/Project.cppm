@@ -153,11 +153,14 @@ export namespace editor
             // one, which carries no count (it is never written).
             const u32 msaaBeforeLevels = settings.msaaSamplesBeforeLevels;
             EditorProject* project = allocator.New<EditorProject>(allocator, directory, settings);
+            // The project's copy was serialized, so it read no version: the version comes from here.
+            project->m_settings.readDataVersion = settings.readDataVersion;
             if (msaaBeforeLevels != 0 && project->m_settings.qualityLevelIds.IsEmpty())
             {
                 UpgradeToQualityLevels(*project, msaaBeforeLevels);
             }
             PlaceFilesAtOpen(*project);
+            EnableLanguagesInUse(*project);
             return UniquePtr<EditorProject>(project, allocator);
         }
 
@@ -174,6 +177,11 @@ export namespace editor
         /// Code/ would hide, is renamed first and the assets naming files in it follow. Nothing to
         /// do once every file is in place.
         static void PlaceFilesAtOpen(EditorProject& project);
+
+        /// A project written before a script language became a plugin keeps the languages its
+        /// scripts are written in: each one its script assets use (a script with no language is
+        /// AngelScript) is enabled, and no other. The manifest keeps it from the next save.
+        static void EnableLanguagesInUse(EditorProject& project);
 
         /// Puts the files of `assets` in their groups' folders (Sources/<group>/, Code/<group>/
         /// for code): each file not there moves, with its companions (a .gltf's sidecars), and

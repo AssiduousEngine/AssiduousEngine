@@ -7,7 +7,7 @@ target_link_libraries(Integration.Mcp PRIVATE Foundation::VFS
     Foundation::Scene Foundation::Scene.Resource Foundation::Net.Replication Engine::Composition
     Foundation::Resource Foundation::Geometry.Resource Pipeline::Materials Pipeline::Texture Pipeline::Audio Engine::Render Pipeline::Script Foundation::Script.Resource
     Pipeline::Registration Pipeline::Core Pipeline::Importer
-    Foundation::Mcp.Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
+    Foundation::Mcp.Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} ${SCRIPTLIB_LUAU_PIPELINE}
     Engine::Behavior Foundation::Run # the C# flow runs its cooked behaviour in a headless scene
     Foundation::Core doctest::doctest)
 # The official plugins, as the MCP host links them: the sample projects enable particles.

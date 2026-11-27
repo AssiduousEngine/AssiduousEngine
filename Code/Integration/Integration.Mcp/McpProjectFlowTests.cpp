@@ -28,6 +28,7 @@ import foundation.script.angelscript;
 #endif
 #if defined(OPTION_HAS_LUAU)
 import foundation.script.luau;
+import script.luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
 #endif
 import editor.mcp;
 import editor.project;  // the seeded project, opened to check it
@@ -383,6 +384,7 @@ TEST_CASE("integration.mcp: an agent imports + cooks an AngelScript source via M
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("integration.mcp: an agent imports + cooks a Luau source via MCP tools")
 {
+    pipeline::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
     DriveImportCookFlow(u8"mcp_write_luau", u8"mcp_write_luau_src", u8"luau",
                         u8"Hello = {}\nHello.__index = Hello\n"
                         u8"function Hello.new(entity)\n  return setmetatable({}, Hello)\nend\n"

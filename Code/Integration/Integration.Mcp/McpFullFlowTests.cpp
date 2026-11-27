@@ -11,6 +11,7 @@
 #include <cstdlib> // setenv, to point at the scratch templates root
 #include "Core/Prelude.h"
 import foundation.core;
+import foundation.runtime; // LinkedPluginList: the plugins this suite links
 import foundation.json;
 import foundation.content;
 import foundation.vfs; // FindDataRoot, to find the Duck sample model
@@ -129,12 +130,19 @@ TEST_CASE("integration.mcp: the full agent flow - create, import, cook, author, 
     (void)pipeline::RegisterAllCreators(creators);
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
-    editor::mcp::RegisterProjectOpenTools(server, session, owner);
+    // The host's linked plugins load with the project that enables them, as Tools.Mcp's do.
+    editor::mcp::RegisterProjectOpenTools(server, session, owner, &creators, StringView{},
+                                          editor::mcp::ProjectPlugins{foundation::runtime::LinkedPluginList(),
+                                                                      pipeline::PipelineRegistries{&builders, &importers, &creators}});
 
-    // 1. Create and open.
+    // 1. Create and open, enable the Luau language (a new project has none) and open again, as a
+    // host loads a project's plugins when it opens it.
     (void)FfCall(server, u8"project_create",
                  FfStr(FfStr(JsonValue::MakeObject(), u8"directory", u8"mcp_full_project"),
                        u8"name", u8"Full"));
+    (void)FfCall(server, u8"project_open",
+                 FfStr(JsonValue::MakeObject(), u8"directory", u8"mcp_full_project"));
+    (void)FfCall(server, u8"plugin_enable", FfStr(JsonValue::MakeObject(), u8"id", u8"luau"));
     (void)FfCall(server, u8"project_open",
                  FfStr(JsonValue::MakeObject(), u8"directory", u8"mcp_full_project"));
 

@@ -53,10 +53,6 @@ import foundation.script;
 import foundation.script.angelscript;
 import script.angelscript.pipeline;
 #endif
-#ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
-import script.luau.pipeline;
-#endif
 #ifdef OPTION_HAS_DOTNET
 import script.dotnet.pipeline;
 #endif
@@ -126,14 +122,11 @@ namespace pipeline
         RegisterScriptAssets();
         foundation::script::RegisterScriptResource();
         // The script builder resolves a per-language cook through the registry; registering the
-        // backends and their cooks, for both languages, is the composition root's job.
+        // backends and their cooks that are built in is the composition root's job; a language that is
+        // a plugin (luau) registers its own as the host loads it.
 #ifdef OPTION_HAS_ANGELSCRIPT
         foundation::script::angelscript::RegisterAngelScriptBackend();
         RegisterAngelScriptScriptCook();
-#endif
-#ifdef OPTION_HAS_LUAU
-        foundation::script::RegisterLuauScriptBackend();
-        RegisterLuauScriptCook();
 #endif
         // Scenes are packed and read as SceneDocument (export staging and a headless scene cook):
         // register the type and its serializer so ReadObject/WriteObject round-trip them.

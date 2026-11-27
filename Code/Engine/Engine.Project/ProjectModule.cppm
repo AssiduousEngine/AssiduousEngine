@@ -237,6 +237,12 @@ export namespace engine::project
         // when the manifest has none.
         u32 msaaSamplesBeforeLevels = 0;
 
+        // The data version the manifest was read at: 0 when it carried none (a type unregistered
+        // where it was written). Never written, so a serialized copy of the settings reads 0 and
+        // its owner carries it over. A project open asks it to enable what an older project used
+        // (EditorProject::EnableLanguagesInUse).
+        u32 readDataVersion = 0;
+
         /// The project's entry for plugin `id`, or null when it enables no such plugin.
         [[nodiscard]] foundation::runtime::EnabledPlugin* FindPlugin(StringView id) noexcept
         {
@@ -312,6 +318,10 @@ export namespace engine::project
         void Serialize(ISerializer& ar) override
         {
             const bool reading = ar.Mode() == SerializeMode::Read;
+            if (reading)
+            {
+                readDataVersion = ar.Version();
+            }
             const bool v9 = reading && ar.Version() == 9;
             const bool hasNativeModule = reading && (ar.Version() == 9 || ar.Version() == 10);
             const bool startupScriptKeys = reading && ar.Version() >= 9 && ar.Version() <= 12;
@@ -403,6 +413,14 @@ export namespace engine::project
             u32 leftAt;
         };
         static constexpr FormerlyBuiltIn kFormerlyBuiltIn[] = {{u8"particles", 14}, {u8"terrain", 15}, {u8"navigation", 16}};
+
+        /// The script languages that became official plugins, each by its language id (its plugin's
+        /// id) and the project data version it left at. A project read at an older version enables
+        /// the ones its scripts use, and no other: that takes its assets, so the project open does it.
+        static constexpr FormerlyBuiltIn kLanguagesBecamePlugins[] = {{u8"luau", 17}};
+
+        /// Whether the manifest was read at a version older than `version` (and recorded one).
+        [[nodiscard]] bool ReadBefore(u32 version) const noexcept { return readDataVersion >= 9 && readDataVersion < version; }
 
         /// The entry a project before version 11 means by its nativeModule (a library path such as
         /// "Native/libGame.so" or "Native/Game.dll"): the game's package, Plugins/<Game>, its id the

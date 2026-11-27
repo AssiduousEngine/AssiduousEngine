@@ -16,9 +16,9 @@ target_link_libraries(Pipeline.Registration PUBLIC
     Foundation::Physics Foundation::Physics.Resource Pipeline::Physics
     Pipeline::Render
     Foundation::Audio Foundation::Audio.Resource Pipeline::Audio
-    Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
+    Foundation::Script ${SCRIPTLIB_ANGELSCRIPT}
     Foundation::Script.Resource Foundation::Script.Facades
-    Pipeline::Script ${SCRIPTLIB_ANGELSCRIPT_PIPELINE} ${SCRIPTLIB_LUAU_PIPELINE} ${SCRIPTLIB_DOTNET_PIPELINE}
+    Pipeline::Script ${SCRIPTLIB_ANGELSCRIPT_PIPELINE} ${SCRIPTLIB_DOTNET_PIPELINE}
     Pipeline::Scene
     Foundation::Policy)
 

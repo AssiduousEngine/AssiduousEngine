@@ -35,9 +35,6 @@ import foundation.script;              // IScriptManager/Context (the game scrip
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_ANGELSCRIPT)
 #endif
-#ifdef OPTION_HAS_LUAU
-import foundation.script.luau;         // the Luau backend (OPTION_ENABLE_LUAU)
-#endif
 #ifdef OPTION_HAS_DOTNET
 import foundation.script.dotnet;       // the C# backend (OPTION_ENABLE_DOTNET, desktop)
 #endif
@@ -270,14 +267,11 @@ namespace engine::runtime
         // (editor, cook, MCP, exported player) on the same registered surface and under the same
         // kSubsystemFacadeNameCount tripwire.
         engine::RegisterAllScriptFacades();
-        // Every built backend registers (batteries-included); a run resolves by the game script's
-        // language, with one gameplay context per run. Each backend is independently toggleable
-        // (OPTION_ENABLE_ANGELSCRIPT / _LUAU); all build on every platform, web included.
+        // The built-in backends register (batteries-included); a language that is a plugin (luau)
+        // registers as the project's plugins load. A run resolves by the game script's language,
+        // with one gameplay context per run.
 #ifdef OPTION_HAS_ANGELSCRIPT
         foundation::script::angelscript::RegisterAngelScriptBackend();
-#endif
-#ifdef OPTION_HAS_LUAU
-        foundation::script::RegisterLuauScriptBackend();
 #endif
 #ifdef OPTION_HAS_DOTNET
         foundation::script::dotnet::RegisterDotNetScriptBackend();

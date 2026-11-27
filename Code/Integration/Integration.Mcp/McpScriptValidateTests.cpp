@@ -18,6 +18,9 @@ import engine.project;
 import editor.project;
 import editor.mcp;
 import foundation.script; // BehaviorKind, the starter a cook seeds
+#if defined(OPTION_HAS_LUAU)
+import script.luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
+#endif
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -76,7 +79,10 @@ namespace
 TEST_CASE("integration.mcp: script_validate - every enabled backend's starter compiles; "
           "broken source reports lines")
 {
-    pipeline::RegisterPipelineTypes(); // registers the enabled language cooks (idempotent)
+    pipeline::RegisterPipelineTypes(); // registers the built-in language cooks (idempotent)
+#if defined(OPTION_HAS_LUAU)
+    pipeline::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
+#endif
 
     McpServer server;
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
@@ -162,6 +168,9 @@ TEST_CASE("integration.mcp: script_create - starter-seeded asset, unique names, 
 {
     RemoveDirectoryRecursive(u8"mcp_script_project");
     pipeline::RegisterPipelineTypes();
+#if defined(OPTION_HAS_LUAU)
+    pipeline::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
+#endif
 
     McpServer server;
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder

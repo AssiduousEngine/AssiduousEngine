@@ -45,9 +45,6 @@ import foundation.script.resource;     // BehaviorClass (the cooked game class S
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_ANGELSCRIPT)
 #endif
-#ifdef OPTION_HAS_LUAU
-import foundation.script.luau;         // the Luau backend (OPTION_ENABLE_LUAU)
-#endif
 import engine.behavior;    // BehaviorSubsystem (behaviors and the run's shared context)
 import foundation.resource;            // ResourceManager (owned or borrowed: see the infrastructure preset)
 import foundation.content;             // IContentDatabase (preset by the entry point)

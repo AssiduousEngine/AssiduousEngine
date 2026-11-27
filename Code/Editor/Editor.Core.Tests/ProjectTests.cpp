@@ -480,7 +480,7 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
 TEST_CASE("editor-project: the settings describe themselves, and the path mirrors follow the guids")
 {
     const TypeInfo& type = engine::project::ProjectSettings::StaticType();
-    CHECK(type.dataVersion == 16u); // 14, 15 and 16 enable particles, terrain and navigation, which left the engine
+    CHECK(type.dataVersion == 17u); // 14 to 16 enable particles, terrain and navigation, which left the engine; 17 a language its scripts use
     CHECK(type.minReadDataVersion == 9u); // a version 9 manifest still reads
     u32 assets = 0;
     u32 lists = 0;
@@ -1131,7 +1131,7 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
         REQUIRE(saved.HasValue());
         const StringView savedText(reinterpret_cast<const utf8char*>(saved.Value().Data()), saved.Value().Size());
         CHECK_FALSE(savedText.Contains(u8"\"nativeModule\""));
-        CHECK(savedText.Contains(u8"<u32 name=\"version\">16</u32>"));
+        CHECK(savedText.Contains(u8"<u32 name=\"version\">17</u32>"));
     CHECK(savedText.Contains(u8"name=\"runBehaviorId\"")); // the old key reads, the new one is written
     CHECK_FALSE(savedText.Contains(u8"startupScript"));
         project.Reset();
@@ -1580,3 +1580,53 @@ TEST_CASE("editor-project: the files written for an outside editor are not adopt
     (void)RemoveDirectoryRecursive(dir);
 }
 #endif
+
+// A project written before Luau became a plugin keeps the language its scripts use, and gains no
+// other: one with a Luau script enables luau as it opens, one with only AngelScript scripts (and a
+// script with no language, which is AngelScript) does not, and a project at the current version is
+// left as it is.
+TEST_CASE("project: an older project enables the language plugins its scripts use, and no other")
+{
+    pipeline::RegisterScriptAssets();
+    const auto make = [](StringView dir, StringView language, u32 version)
+    {
+        (void)RemoveDirectoryRecursive(dir);
+        REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"Languages").IsOk());
+        {
+            UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+            REQUIRE(project);
+            foundation::content::Instance* instance =
+                project->SourceDb().RootGroup()->CreateInstance(u8"Mover", pipeline::ScriptClassAsset::StaticType());
+            REQUIRE(instance != nullptr);
+            pipeline::ScriptClassAsset script;
+            script.language = String(language);
+            REQUIRE(instance->WriteObject(script).IsOk());
+            REQUIRE(project->SaveSettings().IsOk());
+        }
+        // The manifest as an older engine wrote it.
+        const String manifest = PathJoin(dir, u8"Project.xml");
+        Result<Array<byte>> bytes = ReadFile(manifest.AsView());
+        REQUIRE(bytes.HasValue());
+        const StringView read(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
+        const String current = Format(u8"<u32 name=\"version\">{}</u32>", engine::project::ProjectSettings::StaticType().dataVersion);
+        const usize at = read.Find(current.AsView());
+        REQUIRE(at != StringView::kNotFound);
+        String text(read.SubStr(0, at));
+        text.Append(Format(u8"<u32 name=\"version\">{}</u32>", version).AsView());
+        text.Append(read.SubStr(at + current.Size(), read.Size() - at - current.Size()));
+        REQUIRE(WriteFile(manifest.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.CStr()), text.Size())).IsOk());
+        UniquePtr<EditorProject> reopened = EditorProject::Open(DefaultAllocator(), dir);
+        REQUIRE(reopened);
+        return reopened->Settings().FindPlugin(u8"luau") != nullptr;
+    };
+    CHECK(make(u8"scratch_project_languages_luau", u8"luau", 16));
+    CHECK_FALSE(make(u8"scratch_project_languages_as", u8"angelscript", 16));
+    CHECK_FALSE(make(u8"scratch_project_languages_default", u8"", 16));
+    CHECK_FALSE(make(u8"scratch_project_languages_current", u8"luau", engine::project::ProjectSettings::StaticType().dataVersion)); // enabled by hand, or not
+    const StringView made[] = {u8"scratch_project_languages_luau", u8"scratch_project_languages_as",
+                               u8"scratch_project_languages_default", u8"scratch_project_languages_current"};
+    for (StringView dir : made)
+    {
+        (void)RemoveDirectoryRecursive(dir);
+    }
+}

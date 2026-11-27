@@ -36,7 +36,7 @@ target_link_libraries(Tools.Editor PRIVATE
     Pipeline::Texture Pipeline::Fonts Pipeline::Image Pipeline::Geometry
     Pipeline::Animation Pipeline::Materials Pipeline::Shaders
     Foundation::Input Foundation::Input.Resource Pipeline::Input Engine::Input Foundation::Physics Foundation::Physics.Resource Pipeline::Physics Engine::Physics Foundation::Audio Foundation::Audio.Resource Pipeline::Audio Engine::Audio
-    # Script backends and cooks (AngelScript, Luau) come transitively from Pipeline::Registration.
+    # Script backends and cooks: AngelScript's from Pipeline::Registration, Luau's with its plugin.
     Foundation::Script Foundation::Script.Resource Foundation::Script.Facades Pipeline::Script Engine::Behavior Pipeline::ModelImporter Foundation::Image.Resource
     Foundation::Animation.Resource)
 # Stage the editor's runtime deps beside it and emit Tools.Editor.runtime-libs (the editor packaging

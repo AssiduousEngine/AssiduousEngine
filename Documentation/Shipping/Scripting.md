@@ -13,6 +13,10 @@ game's scripts in one language. The bound engine surface is the same across back
 and idioms differ (e.g. Luau uses colon calls for instance methods, dot calls for static
 facades).
 
+Luau is an official plugin, `luau`: a project that writes Luau enables it in its plugins list
+(Project Settings, or `plugin_enable`), and a project that does not carries no Luau VM. A project
+written before Luau became a plugin enables it as it opens when its scripts use it.
+
 ## The three kinds of behavior
 
 A class the engine runs is a **behavior**, and declares its kind by deriving from it. A script

@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">16</u32>
+		<u32 name="version">17</u32>
 	</array>
 	<string name="name">Shader Gallery</string>
 	<string name="engineVersion">0.1.0</string>

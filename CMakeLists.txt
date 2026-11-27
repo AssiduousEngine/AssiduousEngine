@@ -574,13 +574,10 @@ if(OPTION_ENABLE_ANGELSCRIPT)
     set(SCRIPTLIB_ANGELSCRIPT_PIPELINE Pipeline::Script.AngelScript)
 endif()
 if(OPTION_ENABLE_LUAU)
-    set(SCRIPTLIB_LUAU Foundation::Script.Luau)
-    set(SCRIPTLIB_LUAU_PIPELINE Pipeline::Script.Luau)
+    set(SCRIPTLIB_LUAU Plugins::Luau.Foundation)        # the luau plugin's VM
+    set(SCRIPTLIB_LUAU_PIPELINE Plugins::Luau.Pipeline) # and its cook
 endif()
 
-if(OPTION_ENABLE_LUAU)
-    add_subdirectory(Code/Foundation/Script.Luau)
-endif()
 if(OPTION_ENABLE_ANGELSCRIPT)
     add_subdirectory(Code/Foundation/Script.AngelScript)
 endif()
@@ -659,10 +656,16 @@ util_add_plugin(Code/Plugins/Dialogue) # conversations as text, their runner and
 util_add_plugin(Code/Plugins/Particles) # particle effects: the CPU simulation, its renderer and the effect page
 util_add_plugin(Code/Plugins/Terrain) # terrain and its vegetation: chunks, renderer, brushes and pages
 util_add_plugin(Code/Plugins/Navigation) # navmeshes over Recast and Detour: zones, agents, the bake
+if(OPTION_ENABLE_LUAU)
+    util_add_plugin(Code/Plugins/Luau) # the Luau language: its VM and its cook
+endif()
 # The plugins the engine's hosts link (the players, the editor and the CLI tools, each the parts its
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
 set(UTIL_HOST_PLUGINS dialogue particles terrain navigation)
+if(OPTION_ENABLE_LUAU)
+    list(APPEND UTIL_HOST_PLUGINS luau)
+endif()
 # C#'s bindings cover the official plugins' surface too: the tool loads them before it generates.
 if(TARGET Tools.DotNetBindings)
     util_link_plugins(Tools.DotNetBindings ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
@@ -693,9 +696,6 @@ if(OPTION_BUILD_TOOLS)
     # Per-backend cooks, each gated on its OPTION_ENABLE_* flag.
     if(OPTION_ENABLE_ANGELSCRIPT)
         add_subdirectory(Code/Pipeline/Script.AngelScript.Pipeline)  # AngelScript cook service
-    endif()
-    if(OPTION_ENABLE_LUAU)
-        add_subdirectory(Code/Pipeline/Script.Luau.Pipeline)  # Luau cook service
     endif()
     if(DOTNET_SCRIPTING)
         add_subdirectory(Code/Pipeline/Script.DotNet.Pipeline)  # C# cook service (a project's dotnet build)
@@ -813,7 +813,9 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Pipeline/Script.AngelScript.Pipeline.Tests     Pipeline::Script.AngelScript)
     util_test_suite(Code/Pipeline/Scene.Pipeline.Tests                  Pipeline::Scene)
     util_test_suite(Code/Pipeline/Script.Pipeline.Tests                 Pipeline::Script)
-    util_test_suite(Code/Pipeline/Script.Luau.Pipeline.Tests            Pipeline::Script.Luau)
+    if(OPTION_ENABLE_LUAU)
+        util_test_suite(Code/Plugins/Luau/Luau.Pipeline.Tests Plugins::Luau.Pipeline)
+    endif()
     util_test_suite(Code/Pipeline/Script.DotNet.Pipeline.Tests          Pipeline::Script.DotNet)
     util_test_suite(Code/Pipeline/Shaders.Pipeline.Tests                Pipeline::Shaders)
     util_test_suite(Code/Pipeline/Texture.Compression.Tests            Pipeline::Texture.Compression)
@@ -941,7 +943,9 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Script.AngelScript.Tests        Foundation::Script.AngelScript)
     util_test_suite(Code/Foundation/Script.Resource.Tests           Foundation::Script.Resource)
     util_test_suite(Code/Foundation/Script.Tests                    Foundation::Script)
-    util_test_suite(Code/Foundation/Script.Luau.Tests               Foundation::Script.Luau)
+    if(OPTION_ENABLE_LUAU)
+        util_test_suite(Code/Plugins/Luau/Luau.Foundation.Tests Plugins::Luau.Foundation)
+    endif()
     util_test_suite(Code/Foundation/Script.DotNet.Tests             Foundation::Script.DotNet)
     util_test_suite(Code/Foundation/Settings.Tests                  Foundation::Settings)
     util_test_suite(Code/Foundation/Shaders.Resource.Tests          Foundation::Shaders.Resource)
