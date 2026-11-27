@@ -23,13 +23,13 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module foundation.particles;
+module particles.foundation;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-namespace foundation::particles
+namespace particles
 {
     // A system's modes, so a row names them.
     REFLECT_ENUM(SimulationMode, "rtti::particles")

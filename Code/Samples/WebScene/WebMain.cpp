@@ -33,8 +33,8 @@ import foundation.navigation;
 import foundation.navigation.resource;
 import engine.navigation;
 import foundation.materials;
-import foundation.particles;
-import engine.particles;
+import particles.foundation;
+import particles.engine;
 import foundation.gui;
 import foundation.gui.resources; // GuiDocument (the documents made in code)
 import engine.gui;

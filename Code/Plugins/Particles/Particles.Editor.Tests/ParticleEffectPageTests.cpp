@@ -14,17 +14,17 @@
 
 import foundation.core;
 import foundation.content;
-import foundation.particles;
+import particles.foundation;
 import particles.pipeline;
 import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
-import editor.particles;
+import particles.editor;
 
 using namespace foundation::core;
 using namespace editor;
-namespace particles = foundation::particles;
+using namespace particles; // the page and its rows
 namespace gui = foundation::gui;
 
 namespace
@@ -52,16 +52,16 @@ namespace
 
         Bed()
         {
-            pipeline::RegisterParticleEffectAsset();
+            particles::RegisterParticleEffectAsset();
             (void)RemoveDirectoryRecursive(dir.AsView());
             REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
             project = EditorProject::Open(DefaultAllocator(), dir.AsView());
             REQUIRE(static_cast<bool>(project));
             context.SetProject(project.Get());
-            instance = project->SourceDb().RootGroup()->CreateInstance(u8"Fountain", pipeline::ParticleEffectAsset::StaticType());
+            instance = project->SourceDb().RootGroup()->CreateInstance(u8"Fountain", particles::ParticleEffectAsset::StaticType());
             REQUIRE(instance != nullptr);
-            pipeline::ParticleEffectAsset asset;
-            pipeline::SeedDefaultParticleEffect(asset.Effect());
+            particles::ParticleEffectAsset asset;
+            particles::SeedDefaultParticleEffect(asset.Effect());
             asset.Effect().GetSystem(0)->name = String(u8"Sparks");
             REQUIRE(instance->WriteObject(asset).IsOk());
             app::AssetPageServices services;
@@ -98,9 +98,9 @@ namespace
 TEST_CASE("particle page: the default system the seed and Add System share")
 {
     particles::ParticleEffect fx;
-    pipeline::SeedDefaultParticleEffect(fx);
+    particles::SeedDefaultParticleEffect(fx);
     REQUIRE(fx.SystemCount() == 1);
-    particles::ParticleSystem& added = pipeline::AddDefaultParticleSystem(fx);
+    particles::ParticleSystem& added = particles::AddDefaultParticleSystem(fx);
     REQUIRE(fx.SystemCount() == 2);
     CHECK(&added == fx.GetSystem(1));
     CHECK(added.emitter.mode == particles::EmissionMode::Continuous);
@@ -255,10 +255,10 @@ TEST_CASE("particle page: the asset written outside it (an agent's write) shows 
 {
     Bed bed;
     // The asset is written from outside the page with a second, named system.
-    pipeline::ParticleEffectAsset written;
-    pipeline::SeedDefaultParticleEffect(written.Effect());
+    particles::ParticleEffectAsset written;
+    particles::SeedDefaultParticleEffect(written.Effect());
     written.Effect().GetSystem(0)->name = String(u8"Shells");
-    pipeline::AddDefaultParticleSystem(written.Effect()).name = String(u8"Sparks");
+    particles::AddDefaultParticleSystem(written.Effect()).name = String(u8"Sparks");
     REQUIRE(bed.instance->WriteObject(written).IsOk());
     bed.page->OnAssetExternallyModified();
     CHECK(bed.Effect().SystemCount() == 2);
@@ -273,8 +273,8 @@ TEST_CASE("particle page: the asset written outside it (an agent's write) shows 
 
     // With unsaved edits, another write leaves the page as it is.
     REQUIRE(bed.page->IsDirty());
-    pipeline::ParticleEffectAsset again;
-    pipeline::SeedDefaultParticleEffect(again.Effect());
+    particles::ParticleEffectAsset again;
+    particles::SeedDefaultParticleEffect(again.Effect());
     REQUIRE(bed.instance->WriteObject(again).IsOk());
     bed.page->OnAssetExternallyModified();
     CHECK(bed.Effect().SystemCount() == 2);

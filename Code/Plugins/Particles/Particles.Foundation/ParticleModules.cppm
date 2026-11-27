@@ -13,7 +13,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h" // RTTI_OBJECT, RTTI_DEFINE_OBJECT
 
-export module foundation.particles:modules;
+export module particles.foundation:modules;
 
 import foundation.core;
 import :types;
@@ -22,7 +22,7 @@ import :streams;
 using namespace foundation::core;
 namespace core = foundation::core;
 
-export namespace foundation::particles
+export namespace particles
 {
     // ---- Base classes ------------------------------------------------------------------------
 
@@ -601,21 +601,21 @@ export namespace foundation::particles
             {
                 ar.Key("plane");
                 ar.BeginObject();
-                foundation::particles::Serialize(ar, planes[i]);
+                particles::Serialize(ar, planes[i]);
                 ar.EndObject();
             }
             for (i32 i = 0; i < Clamp(sphereCount, 0, kMaxSpheres); ++i)
             {
                 ar.Key("sphere");
                 ar.BeginObject();
-                foundation::particles::Serialize(ar, spheres[i]);
+                particles::Serialize(ar, spheres[i]);
                 ar.EndObject();
             }
             for (i32 i = 0; i < Clamp(boxCount, 0, kMaxBoxes); ++i)
             {
                 ar.Key("box");
                 ar.BeginObject();
-                foundation::particles::Serialize(ar, boxes[i]);
+                particles::Serialize(ar, boxes[i]);
                 ar.EndObject();
             }
             core::Serialize(ar, "radius", radius);
@@ -806,12 +806,12 @@ export namespace foundation::particles
             // Each curve in an object of its own: a curve writes its keys into the object it is in.
             ar.Key("size");
             ar.BeginObject();
-            foundation::particles::Serialize(ar, size);
+            particles::Serialize(ar, size);
             ar.EndObject();
             core::Serialize(ar, "separateAxes", separateAxes);
             ar.Key("sizeY");
             ar.BeginObject();
-            foundation::particles::Serialize(ar, sizeY);
+            particles::Serialize(ar, sizeY);
             ar.EndObject();
         }
         [[nodiscard]] BehaviorSupport Support() const noexcept override

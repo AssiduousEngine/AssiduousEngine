@@ -13,14 +13,14 @@ module;
 #include "Core/Prelude.h"
 #include <cstddef> // offsetof
 
-export module engine.particles:renderer;
+export module particles.engine:renderer;
 
 import foundation.core;
 import foundation.rhi;
 import foundation.shaders;
 import foundation.shaders.system;
 import foundation.render; // Renderer, RenderRecordContext, ResolvedDraw, DrawItem, DynamicUniformRing, categories
-import foundation.particles; // ParticleBlendMode
+import particles.foundation; // ParticleBlendMode
 import :renderdata;
 import foundation.materials;
 
@@ -30,9 +30,8 @@ namespace rhi = foundation::rhi;
 namespace shaders = foundation::shaders;
 namespace render = foundation::render;
 
-using namespace foundation::particles; // foundation sim types (ParticleEffect, ParticleBlendMode, ...)
 
-export namespace engine::particles
+export namespace particles
 {
     // Foundation aliases (sibling engine::* namespaces would otherwise shadow these).
     namespace render = foundation::render;

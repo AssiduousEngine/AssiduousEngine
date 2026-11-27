@@ -11,8 +11,8 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module engine.particles;
-import foundation.particles.resource;
+module particles.engine;
+import particles.foundation;
 
 import foundation.core;
 import foundation.script.facades; // ComponentMethods<T> (of, addTo, removeFrom), RegisterExtra*
@@ -20,7 +20,7 @@ import foundation.script.facades; // ComponentMethods<T> (of, addTo, removeFrom)
 using namespace foundation::core;
 namespace core = foundation::core;
 
-namespace engine::particles
+namespace particles
 {
     REFLECT_VALUE(ParticleEffectComponent, "rtti::engine::particles")
     {

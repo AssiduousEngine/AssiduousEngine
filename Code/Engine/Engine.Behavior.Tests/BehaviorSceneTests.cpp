@@ -41,8 +41,8 @@ import foundation.audio;              // AudioSourceComponent + its manager (aud
 import engine.audio;       // AudioSourceComponent.of + SceneAudio (audio surface)
 import foundation.animation;          // animation components + managers (animation surface)
 import engine.animation;   // *.of + SceneAnimation (animation surface)
-import foundation.particles;          // ParticleEffectComponent + manager (particle surface)
-import engine.particles;   // *.of + SceneParticles (particle surface)
+import particles.foundation;          // ParticleEffectComponent + manager (particle surface)
+import particles.engine;   // *.of + SceneParticles (particle surface)
 import foundation.net.replication;    // NetworkComponent + manager + .of (net surface)
 import foundation.net;                // BitWriter / BitReader (a delta carried by hand)
 import foundation.spline;             // SplinePoint (the path follow surface)
@@ -53,7 +53,7 @@ using namespace engine::behavior;
 using namespace engine::scene;
 using namespace engine::render;
 using namespace engine::physics;
-using namespace engine::particles;
+using namespace particles;
 using namespace engine::audio;
 using namespace engine::animation;
 using namespace foundation::script;
@@ -5242,9 +5242,9 @@ TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's 
 TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bound and control "
           "the component")
 {
-    engine::particles::RegisterParticleScriptFacade();
+    particles::RegisterParticleScriptFacade();
     ScriptedScene bed;
-    auto* fx = bed.scene.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* fx = bed.scene.AddSystem<particles::ParticleEffectComponentManager>();
 
     RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"FxTweaker",
@@ -5295,9 +5295,9 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bo
 TEST_CASE("script.scene: ParticleEffectComponent::of + scene.particles ops are bound (AngelScript)")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
-    engine::particles::RegisterParticleScriptFacade();
+    particles::RegisterParticleScriptFacade();
     ScriptedScene bed;
-    auto* fx = bed.scene.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* fx = bed.scene.AddSystem<particles::ParticleEffectComponentManager>();
 
     RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"FxTweaker",

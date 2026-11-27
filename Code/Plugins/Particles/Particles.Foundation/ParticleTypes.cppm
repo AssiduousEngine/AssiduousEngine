@@ -7,14 +7,14 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.particles:types;
+export module particles.foundation:types;
 
 import foundation.core;
 
 using namespace foundation::core;
 namespace core = foundation::core;
 
-export namespace foundation::particles
+export namespace particles
 {
     // ---- Simulation, space and render mode enums ---------------------------------------------
 

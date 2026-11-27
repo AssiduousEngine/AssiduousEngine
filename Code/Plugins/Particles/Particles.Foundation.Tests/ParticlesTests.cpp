@@ -9,10 +9,9 @@
 #include "Core/Prelude.h"
 
 import foundation.core;
-import foundation.particles;
+import particles.foundation;
 
 using namespace foundation::core;
-namespace particles = foundation::particles;
 
 // ---- value types -------------------------------------------------------------------------------
 
@@ -742,7 +741,7 @@ TEST_CASE("AlphaOverLifetime sets the envelope (no per-frame accumulation)")
 
 TEST_CASE("particle reflection (batch 1): flat/range module types reflect their config")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules(); // registers module types and the range value types
 
     // A flat behavior: scalar and Float3 properties.
@@ -775,7 +774,7 @@ TEST_CASE("particle reflection (batch 1): flat/range module types reflect their 
 
 TEST_CASE("particle reflection (batch 2): emission-shape initializers reflect")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules();
 
     // EmissionShape: flat struct whose `type` is a named enum (8 shapes).
@@ -806,7 +805,7 @@ TEST_CASE("particle reflection (batch 2): emission-shape initializers reflect")
 
 TEST_CASE("particle reflection (batch 3): force + collision modules reflect their flat config")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules();
 
     const TypeInfo& attractor = AttractorBehavior::StaticType();
@@ -829,7 +828,7 @@ TEST_CASE("particle reflection (batch 3): force + collision modules reflect thei
 
 TEST_CASE("particle reflection (batch 4): curve behaviors reflect via BoundedArray - 20/20 modules")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules();
 
     // AlphaOverLifetime.curve is a Nested ParticleCurveFloat; its `keys` is a count-bound container.
@@ -869,7 +868,7 @@ TEST_CASE("particle reflection (batch 4): curve behaviors reflect via BoundedArr
 
 TEST_CASE("particle reflection (batch 5): a polymorphic module array resolves each module's type")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules();
 
     // A heterogeneous behavior list (the shape ParticleSystem holds): two different concrete
@@ -905,7 +904,7 @@ TEST_CASE("particle reflection (batch 5): a polymorphic module array resolves ea
 
 TEST_CASE("particle reflection (batch 6): polymorphic add/remove/move + EnumerateDerived")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules();
 
     Array<RefPtr<ParticleBehavior>> behaviors;
@@ -947,7 +946,7 @@ TEST_CASE("particle reflection (batch 6): polymorphic add/remove/move + Enumerat
 
 TEST_CASE("particle reflection (batch 7): a whole effect traverses effect -> system -> module -> value")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules(); // also registers the effect, system and emitter value types and the systems container
 
     // The effect-graph value types are published to the global registry (so the script harvest and the
@@ -1026,7 +1025,7 @@ TEST_CASE("particle reflection (batch 7): a whole effect traverses effect -> sys
 
 TEST_CASE("particle reflection (batch 8): every authored field of a system, its modes named, each row where it acts")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     RegisterParticleModules();
     const auto text = [](const PropertyInfo& property, const char* key) -> String
     {
@@ -1090,7 +1089,7 @@ TEST_CASE("particle reflection (batch 8): every authored field of a system, its 
 
 TEST_CASE("ParticleEffect: a system removed, the sub-emitters follow it")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     ParticleEffect effect(u8"Shells");
     ParticleSystem& first = effect.AddSystem(16);
     (void)effect.AddSystem(16);
@@ -1110,7 +1109,7 @@ TEST_CASE("ParticleEffect: a system removed, the sub-emitters follow it")
 
 TEST_CASE("ParticleEffectInstance: a sub-emitter spawns from its own system's deaths only")
 {
-    using namespace foundation::particles;
+    using namespace particles;
     ParticleEffect fx(u8"Shells");
     // Two systems dying at once (shells and smoke), one spawned (sparks): only the shells burst.
     ParticleSystem& shells = fx.AddSystem(16);

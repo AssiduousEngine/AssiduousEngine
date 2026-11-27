@@ -9,11 +9,10 @@
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 import foundation.core;
-import foundation.particles;
-import foundation.particles.resource;
+import particles.foundation;
 
 using namespace foundation::core;
-using namespace foundation::particles;
+using namespace particles;
 
 namespace
 {

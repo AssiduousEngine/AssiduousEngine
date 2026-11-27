@@ -6,6 +6,6 @@
 // The particle effect page: ParticleEffectEditorPage, its factory and RegisterParticleEditor, which
 // the editor's assembly calls.
 
-export module editor.particles;
+export module particles.editor;
 
 export import :page;

@@ -10,10 +10,9 @@
 import foundation.core;
 import foundation.xml;
 import foundation.xml.serialization;
-import foundation.particles;
+import particles.foundation;
 
 using namespace foundation::core;
-namespace particles = foundation::particles;
 namespace xml = foundation::xml;
 
 namespace

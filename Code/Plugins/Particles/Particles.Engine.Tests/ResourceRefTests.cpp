@@ -16,19 +16,17 @@ import foundation.core;
 import foundation.vfs;
 import foundation.content;
 import foundation.resource;
-import foundation.particles;
-import foundation.particles.resource;
-import engine.particles;
+import particles.foundation;
+import particles.engine;
 import engine.render; // CameraComponentManager (the primary camera the manager reads)
 import foundation.scene;
 import foundation.scene.resource;
 import foundation.render; // ExtractedScene (what the manager extracts into)
 
 using namespace foundation::core;
-using namespace engine::particles;
+using namespace particles;
 namespace scene = foundation::scene;
 namespace resource = foundation::resource;
-namespace particles = foundation::particles;
 
 namespace
 {
@@ -81,10 +79,10 @@ TEST_CASE("resource-ref: scene round-trip resolves the effect ref and the manage
     MemoryStream blob;
     {
         scene::Scene scene{DefaultAllocator()};
-        scene.AddSystem<engine::particles::ParticleEffectComponentManager>();
+        scene.AddSystem<particles::ParticleEffectComponentManager>();
         const scene::EntityHandle e = scene.CreateEntity(u8"Emitter");
-        engine::particles::ParticleEffectComponent& c =
-            scene.GetSystem<engine::particles::ParticleEffectComponentManager>()->Add(e);
+        particles::ParticleEffectComponent& c =
+            scene.GetSystem<particles::ParticleEffectComponentManager>()->Add(e);
         c.effectAsset.SetId(effectId);
         c.lightRange = 7.0f;
 
@@ -94,7 +92,7 @@ TEST_CASE("resource-ref: scene round-trip resolves the effect ref and the manage
     }
 
     scene::Scene loaded{DefaultAllocator()};
-    loaded.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    loaded.AddSystem<particles::ParticleEffectComponentManager>();
     REQUIRE(blob.Seek(0, SeekOrigin::Begin) == 0);
     {
         BinarySerializer ar(blob, SerializeMode::Read);
@@ -102,11 +100,11 @@ TEST_CASE("resource-ref: scene round-trip resolves the effect ref and the manage
         REQUIRE(ar.IsOk());
     }
 
-    auto* mgr = loaded.GetSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* mgr = loaded.GetSystem<particles::ParticleEffectComponentManager>();
     REQUIRE(mgr != nullptr);
     REQUIRE(mgr->ComponentCount() == 1u);
-    engine::particles::ParticleEffectComponent* c = nullptr;
-    mgr->ForEach([&](engine::particles::ParticleEffectComponent& pc, scene::EntityHandle) { c = &pc; });
+    particles::ParticleEffectComponent* c = nullptr;
+    mgr->ForEach([&](particles::ParticleEffectComponent& pc, scene::EntityHandle) { c = &pc; });
     REQUIRE(c != nullptr);
     CHECK(c->effectAsset.id == effectId);
     CHECK(c->effectAsset.Get() == nullptr);
@@ -153,7 +151,7 @@ TEST_CASE("resource-ref: SetEffect(proxy) still attaches immediately (sample pat
     particles::ParticleEffectFactory factory;
     resources.AddFactory(&factory);
 
-    engine::particles::ParticleEffectComponent c;
+    particles::ParticleEffectComponent c;
     c.SetEffect(resources.Bind<particles::ParticleEffectResource>(effectId));
     REQUIRE(c.instance.Get() != nullptr);
     REQUIRE(c.effectAsset.Get() != nullptr);
@@ -167,10 +165,10 @@ TEST_CASE("particles: entity-active - starts-inactive never attaches/emits; togg
     particles::RegisterParticleEffectResource();
 
     scene::Scene sceneObj{DefaultAllocator()};
-    sceneObj.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    sceneObj.AddSystem<particles::ParticleEffectComponentManager>();
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"Emitter");
-    engine::particles::ParticleEffectComponent& c =
-        sceneObj.GetSystem<engine::particles::ParticleEffectComponentManager>()->Add(e);
+    particles::ParticleEffectComponent& c =
+        sceneObj.GetSystem<particles::ParticleEffectComponentManager>()->Add(e);
 
     RefPtr<particles::ParticleEffectResource> res =
         MakeRef<particles::ParticleEffectResource>(DefaultAllocator());
@@ -207,7 +205,7 @@ TEST_CASE("particles: the manager takes its camera position from the scene's pri
     // camera rather than stay at the origin.
     particles::RegisterParticleEffectResource();
     scene::Scene sceneObj{DefaultAllocator()};
-    auto* particlesManager = sceneObj.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* particlesManager = sceneObj.AddSystem<particles::ParticleEffectComponentManager>();
     auto* cameras = sceneObj.AddSystem<engine::render::CameraComponentManager>();
 
     sceneObj.Update(0.1f);
@@ -247,7 +245,7 @@ TEST_CASE("particles: a spawned one-shot bursts where its entity is")
     particles::RegisterParticleEffectResource();
 
     scene::Scene sceneObj{DefaultAllocator()};
-    auto* manager = sceneObj.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* manager = sceneObj.AddSystem<particles::ParticleEffectComponentManager>();
 
     RefPtr<particles::ParticleEffectResource> res =
         MakeRef<particles::ParticleEffectResource>(DefaultAllocator());
@@ -259,7 +257,7 @@ TEST_CASE("particles: a spawned one-shot bursts where its entity is")
     sceneObj.Update(0.016f); // a scene already running
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"Burst");
     sceneObj.SetLocalPosition(e, Float3{12.0f, 3.0f, -40.0f});
-    engine::particles::ParticleEffectComponent& c = manager->Add(e);
+    particles::ParticleEffectComponent& c = manager->Add(e);
     c.effectAsset = res.Get();
     sceneObj.Update(0.016f);
 
@@ -278,7 +276,7 @@ TEST_CASE("particles: the simulated (sRGB) colour reaches billboards and lights 
     // decoded where they leave the simulation for the renderer.
     particles::RegisterParticleEffectResource();
     scene::Scene sceneObj{DefaultAllocator()};
-    auto* manager = sceneObj.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* manager = sceneObj.AddSystem<particles::ParticleEffectComponentManager>();
 
     RefPtr<particles::ParticleEffectResource> res =
         MakeRef<particles::ParticleEffectResource>(DefaultAllocator());
@@ -291,7 +289,7 @@ TEST_CASE("particles: the simulated (sRGB) colour reaches billboards and lights 
     sys.emitter.burstCount = 2;
 
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"Glow");
-    engine::particles::ParticleEffectComponent& c = manager->Add(e);
+    particles::ParticleEffectComponent& c = manager->Add(e);
     c.effectAsset = res.Get();
     sceneObj.Update(0.016f);
     REQUIRE(c.instance.Get() != nullptr);
@@ -305,7 +303,7 @@ TEST_CASE("particles: the simulated (sRGB) colour reaches billboards and lights 
 
     REQUIRE(snapshot.Items().Size() == 1u); // the billboard batch
     const auto* batch =
-        static_cast<const engine::particles::ParticleBillboardRenderData*>(snapshot.Items()[0]);
+        static_cast<const particles::ParticleBillboardRenderData*>(snapshot.Items()[0]);
     REQUIRE(batch->count == 2u);
     CHECK(batch->instances[0].color.x == doctest::Approx(SrgbToLinear(0.5f)));
     CHECK(batch->instances[0].color.w == doctest::Approx(1.0f)); // alpha is not decoded
@@ -322,7 +320,7 @@ TEST_CASE("particles: a sorted alpha system's billboards come farthest first, fr
     // goes through the merge buffer the first one grew.
     particles::RegisterParticleEffectResource();
     scene::Scene sceneObj{DefaultAllocator()};
-    auto* manager = sceneObj.AddSystem<engine::particles::ParticleEffectComponentManager>();
+    auto* manager = sceneObj.AddSystem<particles::ParticleEffectComponentManager>();
 
     RefPtr<particles::ParticleEffectResource> res =
         MakeRef<particles::ParticleEffectResource>(DefaultAllocator());
@@ -334,7 +332,7 @@ TEST_CASE("particles: a sorted alpha system's billboards come farthest first, fr
     sys.emitter.burstCount = 150;
 
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"Smoke");
-    engine::particles::ParticleEffectComponent& c = manager->Add(e);
+    particles::ParticleEffectComponent& c = manager->Add(e);
     c.effectAsset = res.Get();
     sceneObj.Update(0.016f);
     REQUIRE(c.instance.Get() != nullptr);
@@ -354,7 +352,7 @@ TEST_CASE("particles: a sorted alpha system's billboards come farthest first, fr
         manager->ExtractRenderData(snapshot);
         REQUIRE(snapshot.Items().Size() == 1u);
         const auto* batch =
-            static_cast<const engine::particles::ParticleBillboardRenderData*>(snapshot.Items()[0]);
+            static_cast<const particles::ParticleBillboardRenderData*>(snapshot.Items()[0]);
         REQUIRE(batch->count == 150u);
         bool farthestFirst = true;
         for (u32 i = 1; i < batch->count; ++i)

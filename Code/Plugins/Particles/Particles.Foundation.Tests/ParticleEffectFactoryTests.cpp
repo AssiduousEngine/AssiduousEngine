@@ -12,13 +12,12 @@ import foundation.core;
 import foundation.vfs;
 import foundation.content;
 import foundation.resource;
-import foundation.particles;
-import foundation.particles.resource;
+import particles.foundation;
 
 using namespace foundation::core;
 using namespace foundation::vfs;
 using namespace foundation::resource;
-using namespace foundation::particles;
+using namespace particles;
 
 namespace
 {

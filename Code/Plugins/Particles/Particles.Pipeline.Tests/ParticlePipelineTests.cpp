@@ -18,15 +18,14 @@ import foundation.rhi;
 import foundation.rhi.null;
 import foundation.texture;
 import foundation.texture.resource;
-import foundation.particles;
-import foundation.particles.resource;
+import particles.foundation;
 import particles.pipeline;
 
 using namespace foundation::core;
 using namespace pipeline;
 using namespace foundation::vfs;
 using namespace foundation::resource;
-using namespace foundation::particles;
+using namespace particles;
 namespace rhi = foundation::rhi;
 
 namespace

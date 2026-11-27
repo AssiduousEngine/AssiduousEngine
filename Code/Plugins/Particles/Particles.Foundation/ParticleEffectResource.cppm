@@ -12,10 +12,13 @@ module;
 #include "Core/Reflection/Reflect.h"
 #include <utility> // std::move
 
-export module foundation.particles.resource;
+export module particles.foundation:resource;
 
 import foundation.core;
-import foundation.particles;
+import :types;
+import :streams;
+import :modules;
+import :effect;
 import foundation.content;
 import foundation.resource;
 import foundation.texture;
@@ -33,7 +36,7 @@ namespace texture = foundation::texture;
 namespace geometry = foundation::geometry;
 namespace materials = foundation::materials;
 
-export namespace foundation::particles
+export namespace particles
 {
     // ---- Effect serializer (bidirectional) ----------------------------------------------------
 
@@ -260,7 +263,7 @@ export namespace foundation::particles
     }
 }
 
-export namespace foundation::particles
+export namespace particles
 {
     // ---- Cooked resource ---------------------------------------------------------------------
     // Both the cooked record and the runtime product (no GPU transform needed): holds a template
@@ -412,7 +415,7 @@ export namespace foundation::particles
     RTTI_DEFINE_OBJECT_VERSIONED(ParticleEffectResource, "rtti::particles", 2)
 }
 
-export namespace foundation::particles
+export namespace particles
 {
     /// The particles resource module: what the engine composition builds this library's
     /// factories from.

@@ -15,7 +15,7 @@ module;
 #include "Core/Reflection/Reflect.h"
 #include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
-export module engine.particles:components;
+export module particles.engine:components;
 
 import foundation.core;
 import foundation.profiler;
@@ -24,9 +24,8 @@ import foundation.scene;              // Scene, ComponentManager, EntityHandle, 
 import foundation.render;             // ExtractedScene, RenderCategories, MultiMeshRenderData
 import foundation.geometry;           // StaticMesh (mesh-mode particles)
 import foundation.materials;          // Material (mesh-mode particles)
-import foundation.particles;          // ParticleEffect / ParticleEffectInstance / ParticleSystem
+import particles.foundation;          // ParticleEffect / ParticleEffectInstance / ParticleSystem
 import foundation.resource;           // Proxy (cooked-resource handle)
-import foundation.particles.resource; // ParticleEffectResource, CloneEffect (cooked-effect path)
 import foundation.texture;            // Texture::View() for resolved per-system textures
 import foundation.texture.resource;
 import foundation.script.facades; // script::Entity/Scene, CurrentRunResources (the SceneParticles handle)
@@ -42,9 +41,8 @@ namespace materials = foundation::materials;
 namespace resource = foundation::resource;
 namespace texture = foundation::texture;
 
-using namespace foundation::particles; // foundation sim types (ParticleEffect, ParticleBlendMode, ...)
 
-export namespace engine::particles
+export namespace particles
 {
     // Foundation aliases (sibling engine::* namespaces would otherwise shadow these).
     namespace render = foundation::render;
@@ -880,7 +878,7 @@ export namespace engine::particles
 
 // Reflection (tooling). The REFLECT_VALUE body and RegisterParticleComponentReflection() live in
 // ParticleSubsystemImpl.cpp, kept out of this interface for GCC's module handling.
-export namespace engine::particles
+export namespace particles
 {
     void RegisterParticleComponentReflection();
 

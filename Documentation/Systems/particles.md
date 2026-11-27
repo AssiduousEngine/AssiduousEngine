@@ -11,21 +11,22 @@ whose implementation is deferred. Authoring + the cooked runtime resource: `part
 ## Modules
 
 Particles are an official plugin, `particles` (`Code/Plugins/Particles`), which a project enables in
-its `plugins` list; projects written before it left the engine enable it on reading.
+its `plugins` list; projects written before it left the engine enable it on reading. Its code is in
+the `particles` namespace.
 
-- **`foundation.particles`** (`Particles.Foundation`) - the runtime, in partitions: `:effect`
+- **`particles.foundation`** (`Particles.Foundation`) - the runtime, in partitions: `:effect`
   (`ParticleEffect`, `ParticleSystem`, `ParticleEmitter`, `ParticleEffectInstance`; the sim driver +
   mode resolution), `:modules` (the initializer and behavior modules, `CPUSimulator`), `:streams`
   (SoA particle data, `ParticleStreamId`), `:types` (enums, ranges, curves, emission shapes).
-- **`foundation.particles.resource`** (`Particles.Foundation`) - the cooked `ParticleEffectResource`
+- **`particles.foundation:resource`** (`Particles.Foundation`) - the cooked `ParticleEffectResource`
   (see authoring doc).
 - **`particles.pipeline`** (`Particles.Pipeline`, the Pipeline part) - `ParticleEffectAsset` + builder.
-- **`engine.particles`** (`Particles.Engine`, the Engine part) - `ParticleEffectComponent` +
+- **`particles.engine`** (`Particles.Engine`, the Engine part) - `ParticleEffectComponent` +
   `ParticleEffectComponentManager` (the scene system that ticks every instance and extracts render
   data), the `ParticleRenderer` (billboards and trails), and `ParticleSubsystem`, which injects the
   manager into every scene and registers the renderer and itself as a render-data provider with
   `RenderSubsystem`, taking both back when the plugin unloads.
-- **`editor.particles`** (`Particles.Editor`, the Editor part) - the effect's editor page (authoring
+- **`particles.editor`** (`Particles.Editor`, the Editor part) - the effect's editor page (authoring
   doc) and the effects' thumbnails.
 
 ## Runtime (shipped)

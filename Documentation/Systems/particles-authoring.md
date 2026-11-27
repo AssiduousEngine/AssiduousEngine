@@ -8,7 +8,7 @@ The two tiers that turn the shipped CPU particle runtime (`particles.md`) into a
 cooked-at-build asset: the cooked runtime resource, the editor asset + builder, and the editor's
 authoring page. Implemented; LUT curve baking is the deferred piece.
 
-## Cooked runtime resource (`foundation.particles.resource`)
+## Cooked runtime resource (`particles.foundation:resource`)
 
 `ParticleEffectResource` - the cooked runtime input - with its factory (`ParticleEffectFactory`) +
 resource-manager registration,

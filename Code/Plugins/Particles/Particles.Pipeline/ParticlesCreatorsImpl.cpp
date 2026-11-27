@@ -13,22 +13,22 @@ module particles.pipeline;
 
 import foundation.core;
 import foundation.content;
-import foundation.particles;
+import particles.foundation;
 import pipeline.core;
 
 using namespace foundation::core;
+using namespace pipeline;
 
-namespace pipeline
+namespace particles
 {
 
-    void SeedDefaultParticleEffect(foundation::particles::ParticleEffect& fx)
+    void SeedDefaultParticleEffect(particles::ParticleEffect& fx)
     {
         (void)AddDefaultParticleSystem(fx);
     }
 
-    foundation::particles::ParticleSystem& AddDefaultParticleSystem(foundation::particles::ParticleEffect& fx)
+    particles::ParticleSystem& AddDefaultParticleSystem(particles::ParticleEffect& fx)
     {
-        namespace particles = foundation::particles;
         particles::ParticleSystem& sys = fx.AddSystem(2000);
         sys.AddInitializer<particles::LifetimeInitializer>().lifetime =
             particles::RangeFloat(1.5f, 2.5f);

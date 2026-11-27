@@ -10,7 +10,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module editor.particles;
+module particles.editor;
 
 import foundation.core;
 import foundation.content;
@@ -19,11 +19,10 @@ import foundation.runtime;
 import foundation.runtime.client;
 import foundation.scene;
 import engine.scene;
-import foundation.particles;
-import foundation.particles.resource; // ParticleEffectResource, ResolveParticleEffectResources (the preview's drawing)
+import particles.foundation;
 import foundation.resource;
 import particles.pipeline;
-import engine.particles;
+import particles.engine;
 import foundation.render; // the emission shape's lines
 import engine.render;
 import foundation.gui;
@@ -33,8 +32,9 @@ import editor.app;
 import editor.preview;
 
 using namespace foundation::core;
+using namespace editor; // the page, context and thumbnail bases
 
-namespace editor
+namespace particles
 {
     namespace gui = foundation::gui;
     namespace scene = foundation::scene;
@@ -139,7 +139,7 @@ namespace editor
     }
 
     ParticleEffectEditorPage::ParticleEffectEditorPage(EditorContext& context, app::AssetPageServices services, foundation::content::Instance& instance)
-        : app::AssetObjectPage(context, Move(services), instance, pipeline::ParticleEffectAsset::StaticType(), kPath), m_format(context.Allocator())
+        : app::AssetObjectPage(context, Move(services), instance, particles::ParticleEffectAsset::StaticType(), kPath), m_format(context.Allocator())
     {
         particles::RegisterParticleModules(); // reflection for the modules and the systems
         HideAssetRows(); // the grid shows the chosen system's rows beside the tree, not the effect's
@@ -284,7 +284,7 @@ namespace editor
 
     particles::ParticleEffect* ParticleEffectEditorPage::Effect() const
     {
-        auto* asset = ObjectAs<pipeline::ParticleEffectAsset>();
+        auto* asset = ObjectAs<particles::ParticleEffectAsset>();
         return asset != nullptr ? &asset->Effect() : nullptr;
     }
 
@@ -488,7 +488,7 @@ namespace editor
     {
         if (Effect() == nullptr)
             return;
-        EditWhole(u8"edit_particle", [](ISerializable& object) { (void)pipeline::AddDefaultParticleSystem(static_cast<pipeline::ParticleEffectAsset&>(object).Effect()); });
+        EditWhole(u8"edit_particle", [](ISerializable& object) { (void)particles::AddDefaultParticleSystem(static_cast<particles::ParticleEffectAsset&>(object).Effect()); });
         Choose(ParticleTreeRow{ParticleRowKind::System, Effect()->SystemCount() - 1, -1});
     }
 
@@ -511,7 +511,7 @@ namespace editor
         if (row.kind != ParticleRowKind::System || effect->SystemCount() < 2)
             return false; // an effect keeps at least one system; the emitter and lists are not removed here
         const i32 index = row.system;
-        EditWhole(u8"edit_particle", [index](ISerializable& object) { static_cast<pipeline::ParticleEffectAsset&>(object).Effect().RemoveSystem(index); });
+        EditWhole(u8"edit_particle", [index](ISerializable& object) { static_cast<particles::ParticleEffectAsset&>(object).Effect().RemoveSystem(index); });
         Choose(ParticleTreeRow{ParticleRowKind::System, Min(index, Effect()->SystemCount() - 1), -1});
         return true;
     }
@@ -653,7 +653,7 @@ namespace editor
             return;
         preview->SetSimulationEnabled(true); // particles show only while simulating
         m_emitter = scenePtr->CreateEntity(u8"Emitter");
-        if (auto* effects = scenePtr->GetSystem<engine::particles::ParticleEffectComponentManager>())
+        if (auto* effects = scenePtr->GetSystem<particles::ParticleEffectComponentManager>())
             (void)effects->Add(m_emitter); // FollowEffect gives it the effect
         const scene::EntityHandle sun = scenePtr->CreateEntity(u8"Sun");
         Transform t;
@@ -673,8 +673,8 @@ namespace editor
     {
         PreviewViewport* preview = m_pane ? m_pane->Viewport() : nullptr;
         scene::Scene* scenePtr = preview != nullptr ? preview->Scene() : nullptr;
-        auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<engine::particles::ParticleEffectComponentManager>() : nullptr;
-        engine::particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
+        auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<particles::ParticleEffectComponentManager>() : nullptr;
+        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
         return component != nullptr ? component->instance.Get() : nullptr;
     }
 
@@ -708,8 +708,8 @@ namespace editor
 
         PreviewViewport* preview = m_pane ? m_pane->Viewport() : nullptr;
         scene::Scene* scenePtr = preview != nullptr ? preview->Scene() : nullptr;
-        auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<engine::particles::ParticleEffectComponentManager>() : nullptr;
-        engine::particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
+        auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<particles::ParticleEffectComponentManager>() : nullptr;
+        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
         if (reshaped)
         {
             ++m_restarts;
@@ -731,8 +731,8 @@ namespace editor
     {
         PreviewViewport* preview = m_pane ? m_pane->Viewport() : nullptr;
         scene::Scene* scenePtr = preview != nullptr ? preview->Scene() : nullptr;
-        auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<engine::particles::ParticleEffectComponentManager>() : nullptr;
-        engine::particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
+        auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<particles::ParticleEffectComponentManager>() : nullptr;
+        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
         foundation::resource::ResourceManager* resources = Context().Resources();
         if (component == nullptr || Effect() == nullptr)
             return;
@@ -904,7 +904,7 @@ namespace editor
 
     const TypeInfo* ParticleEffectPageFactory::PrimaryType() const
     {
-        return &pipeline::ParticleEffectAsset::StaticType();
+        return &particles::ParticleEffectAsset::StaticType();
     }
 
     namespace
@@ -928,7 +928,7 @@ namespace editor
                                                    foundation::resource::ResourceManager& resources,
                                                    ThumbnailFraming& outFraming) override
             {
-                auto* manager = stage.GetSystem<engine::particles::ParticleEffectComponentManager>();
+                auto* manager = stage.GetSystem<particles::ParticleEffectComponentManager>();
                 if (manager == nullptr)
                 {
                     return ThumbnailStageStep::Failed;
@@ -936,13 +936,13 @@ namespace editor
                 if (!m_staged)
                 {
                     const foundation::scene::EntityHandle emitter = stage.CreateEntity(u8"ThumbEmitter");
-                    engine::particles::ParticleEffectComponent& component = manager->Add(emitter);
+                    particles::ParticleEffectComponent& component = manager->Add(emitter);
                     component.effectAsset.SetId(id);
                     component.effectAsset.Bind(resources);
                     m_emitter = emitter;
                     m_staged = true;
                 }
-                engine::particles::ParticleEffectComponent* component = manager->Get(m_emitter);
+                particles::ParticleEffectComponent* component = manager->Get(m_emitter);
                 if (component == nullptr)
                 {
                     return ThumbnailStageStep::Failed;

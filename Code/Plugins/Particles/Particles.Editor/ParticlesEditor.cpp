@@ -12,7 +12,7 @@ import foundation.core;
 import foundation.runtime;
 import editor.core;
 import editor.app;
-import editor.particles;
+import particles.editor;
 
 namespace
 {
@@ -27,10 +27,10 @@ namespace
         {
             return;
         }
-        g_page = editor::RegisterParticleEditor(*editor, *services);
+        g_page = particles::RegisterParticleEditor(*editor, *services);
         if (editor::ThumbnailService* thumbnails = editor->Thumbnails())
         {
-            foundation::core::UniquePtr<editor::ISceneThumbnailGenerator> generator = editor::MakeParticleThumbnailGenerator();
+            foundation::core::UniquePtr<editor::ISceneThumbnailGenerator> generator = particles::MakeParticleThumbnailGenerator();
             g_thumbnails = generator.Get();
             thumbnails->RegisterSceneGenerator(foundation::core::Move(generator));
         }

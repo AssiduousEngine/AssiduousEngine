@@ -16,17 +16,17 @@ export module particles.pipeline;
 import foundation.core;
 import pipeline.core;
 import pipeline.importer; // PipelinePluginServices (the creators added through it)
-import foundation.particles;
-import foundation.particles.resource;
+import particles.foundation;
 import foundation.content;
 
 using namespace foundation::core;
+using namespace pipeline; // the asset and builder bases
 using namespace foundation;
-using namespace foundation::particles;
 namespace core = foundation::core;
 namespace content = foundation::content;
 
-export namespace pipeline{
+export namespace particles
+{
     // Edit-time asset: the authored effect (embedded, since unlike an imported texture there is no
     // external source file). Serialized to a readable .particlefx (XmlSerializer) as fileName and the
     // effect graph. This is a distinct type from the cooked ParticleEffectResource; Build() transforms
@@ -165,10 +165,10 @@ export namespace pipeline{
     // the systems (the legacy reader, SerializeEffect's effectLinks).
 
     /// A new effect's content: one continuous fountain system.
-    void SeedDefaultParticleEffect(foundation::particles::ParticleEffect& effect);
+    void SeedDefaultParticleEffect(particles::ParticleEffect& effect);
     /// Adds the default system (a continuous fountain: a lifetime, a velocity, a size, a colour and
     /// gravity) after the effect's others; what the seed and the editor's Add System make.
-    foundation::particles::ParticleSystem& AddDefaultParticleSystem(foundation::particles::ParticleEffect& effect);
+    particles::ParticleSystem& AddDefaultParticleSystem(particles::ParticleEffect& effect);
     /// File > New's particle creator (pipeline.registration composes every domain's).
     // File > New's particle effect, recorded against the plugin that adds it.
     void AddParticleCreators(PipelinePluginServices& services);

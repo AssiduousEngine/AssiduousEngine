@@ -15,13 +15,13 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module foundation.particles;
+module particles.foundation;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-namespace foundation::particles
+namespace particles
 {
     // ---- range leaf value types --------------------------------------------------------------
     REFLECT_VALUE(RangeFloat, "rtti::particles")

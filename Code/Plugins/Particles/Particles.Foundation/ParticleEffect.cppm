@@ -17,7 +17,7 @@ module;
 #include "Core/Prelude.h"
 #include <utility> // std::move, std::forward (module-local; core Move/Forward also exist)
 
-export module foundation.particles:effect;
+export module particles.foundation:effect;
 
 import foundation.core;
 import :types;
@@ -26,7 +26,7 @@ import :modules;
 
 using namespace foundation::core;
 
-export namespace foundation::particles
+export namespace particles
 {
     // ---- ParticleEmitter (spawn timing only) -------------------------------------------------
 

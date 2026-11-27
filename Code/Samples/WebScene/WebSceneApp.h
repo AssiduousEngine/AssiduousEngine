@@ -55,7 +55,6 @@ namespace samples
     namespace render = foundation::render;
     namespace geometry = foundation::geometry;
     namespace materials = foundation::materials;
-    namespace particles = foundation::particles;
     namespace gui = foundation::gui;
     namespace rhi = foundation::rhi;
     namespace navigation = foundation::navigation;
@@ -494,7 +493,7 @@ namespace samples
 
         void BuildParticles()
         {
-            auto* pmgr = m_scene->GetSystem<engine::particles::ParticleEffectComponentManager>();
+            auto* pmgr = m_scene->GetSystem<particles::ParticleEffectComponentManager>();
             if (pmgr == nullptr)
             {
                 return;

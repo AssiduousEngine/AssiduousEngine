@@ -19,14 +19,14 @@ namespace
 {
     void Load(foundation::runtime::PluginContext& context)
     {
-        pipeline::RegisterParticleEffectAsset();
+        particles::RegisterParticleEffectAsset();
         pipeline::PipelinePluginServices* services = context.Find<pipeline::PipelinePluginServices>();
         if (services == nullptr)
         {
             return;
         }
-        (void)services->AddBuilder(foundation::core::MakeUnique<pipeline::ParticleEffectAssetBuilder>(context.Allocator()));
-        pipeline::AddParticleCreators(*services);
+        (void)services->AddBuilder(foundation::core::MakeUnique<particles::ParticleEffectAssetBuilder>(context.Allocator()));
+        particles::AddParticleCreators(*services);
     }
 }
 

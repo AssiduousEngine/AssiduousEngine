@@ -26,8 +26,8 @@ import engine.render; // MeshComponent / CameraComponent and their managers
 import engine.model;  // InstantiateModel: a cooked model's nodes as entities
 import engine.animation; // SkeletalAnimation/AnimationGraph components (engine-driven skinning)
 import imgui.engine;               // ImguiSubsystem (debug UI)
-import foundation.particles;           // ParticleEffect and the CPU sim (the campfire demo)
-import engine.particles;    // ParticleEffectComponent and the subsystem
+import particles.foundation;           // ParticleEffect and the CPU sim (the campfire demo)
+import particles.engine;    // ParticleEffectComponent and the subsystem
 import foundation.image;               // Image (HDR equirect pixels)
 import foundation.image.io;            // LoadImage
 import foundation.render;              // ViewCamera / ViewportRect (split-screen overrides)
@@ -66,7 +66,6 @@ namespace content = foundation::content;
 namespace resource = foundation::resource;
 namespace model = foundation::model;
 namespace animation = foundation::animation;
-namespace particles = foundation::particles;
 
 namespace
 {
@@ -418,7 +417,7 @@ namespace
         // and probes, so particle regressions show up here, not only in the ParticleFX showcase.
         void BuildParticleDemo()
         {
-            auto* pmgr = m_scene->GetSystem<engine::particles::ParticleEffectComponentManager>();
+            auto* pmgr = m_scene->GetSystem<particles::ParticleEffectComponentManager>();
             if (pmgr == nullptr)
             {
                 return;

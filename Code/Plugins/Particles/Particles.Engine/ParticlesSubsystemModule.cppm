@@ -7,7 +7,7 @@
 // RenderSubsystem through its generic register-renderer and register-provider calls. Depends on
 // render.subsystem, scene and foundation.particles; foundation.render stays ignorant of particles.
 
-export module engine.particles;
+export module particles.engine;
 
 export import :renderdata; // ParticleBillboardInstance, ParticleBillboardRenderData
 export import :renderer;   // ParticleRenderer (dedicated billboard Renderer)

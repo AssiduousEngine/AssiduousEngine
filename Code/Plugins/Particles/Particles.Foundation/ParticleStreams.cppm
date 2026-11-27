@@ -12,13 +12,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.particles:streams;
+export module particles.foundation:streams;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace foundation::particles
+export namespace particles
 {
     // Attribute channels. The core three (Position, Age, Lifetime) are always allocated; the rest are
     // added on demand by the modules that need them. Custom..MaxStreams is user-reserved space.

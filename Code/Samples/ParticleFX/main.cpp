@@ -29,9 +29,8 @@ import foundation.render;
 import imgui.engine;
 import foundation.geometry;
 import foundation.materials;
-import foundation.particles;           // the CPU sim (effect/system/modules)
-import engine.particles; // the ECS component and ParticleSubsystem
-import foundation.particles.resource;  // cooked ParticleEffectResource and its factory
+import particles.foundation;           // the CPU sim (effect/system/modules)
+import particles.engine; // the ECS component and ParticleSubsystem
 import particles.pipeline;    // ParticleEffectAsset and bake (the authoring demo)
 import pipeline.core;              // AssetBuildContext
 import foundation.vfs;                 // NativeFileSystem mount for the content DB
@@ -48,7 +47,6 @@ namespace shell = foundation::shell;
 namespace scene = foundation::scene;
 namespace geometry = foundation::geometry;
 namespace materials = foundation::materials;
-namespace particles = foundation::particles;
 namespace vfs = foundation::vfs;
 namespace content = foundation::content;
 namespace resource = foundation::resource;
@@ -165,7 +163,7 @@ namespace
             BuildMagicCircle(m_magic);
             BuildFireflies(m_fireflies);
 
-            if (auto* pmgr = m_scene->GetSystem<engine::particles::ParticleEffectComponentManager>())
+            if (auto* pmgr = m_scene->GetSystem<particles::ParticleEffectComponentManager>())
             {
                 // One system per cell of a 4x4 showcase grid.
                 // Cell 0: billboard fountain (additive soft dots).
@@ -179,7 +177,7 @@ namespace
                 // Transparent pass).
                 m_debrisEmitter = m_scene->CreateEntity(u8"shards-solid");
                 m_scene->SetLocalPosition(m_debrisEmitter, CellPos(1));
-                engine::particles::ParticleEffectComponent& dc = pmgr->Add(m_debrisEmitter);
+                particles::ParticleEffectComponent& dc = pmgr->Add(m_debrisEmitter);
                 dc.SetEffect(m_debris);
                 dc.mesh = geometry::Primitives::Cube(AppRoot(), 1.0f);
                 dc.material = materials::CreatePBR(
@@ -188,7 +186,7 @@ namespace
 
                 m_glowEmitter = m_scene->CreateEntity(u8"shards-glow");
                 m_scene->SetLocalPosition(m_glowEmitter, CellPos(2));
-                engine::particles::ParticleEffectComponent& gc = pmgr->Add(m_glowEmitter);
+                particles::ParticleEffectComponent& gc = pmgr->Add(m_glowEmitter);
                 gc.SetEffect(m_meshGlow);
                 gc.mesh = geometry::Primitives::Cube(AppRoot(), 1.0f);
                 gc.meshScale = 0.5f;
@@ -204,7 +202,7 @@ namespace
                 // Cell 3: light particles (drifting embers): a point light per particle and a billboard glow.
                 m_emberEmitter = m_scene->CreateEntity(u8"embers");
                 m_scene->SetLocalPosition(m_emberEmitter, CellPos(3));
-                engine::particles::ParticleEffectComponent& ec = pmgr->Add(m_emberEmitter);
+                particles::ParticleEffectComponent& ec = pmgr->Add(m_emberEmitter);
                 ec.SetEffect(m_embers);
                 ec.lightIntensity = 14.0f;
                 ec.lightRange =
@@ -266,7 +264,7 @@ namespace
                 // Cell 13: explosion: a flipbook fireball blast (atlas texture) with debris and a shockwave (soft dot).
                 m_explosionEmitter = m_scene->CreateEntity(u8"explosion");
                 m_scene->SetLocalPosition(m_explosionEmitter, CellPos(13));
-                engine::particles::ParticleEffectComponent& xc = pmgr->Add(m_explosionEmitter);
+                particles::ParticleEffectComponent& xc = pmgr->Add(m_explosionEmitter);
                 xc.SetEffect(m_explosion);
                 if (rhi::Device* dev =
                         (host.Graphics() != nullptr) ? host.Graphics()->Raw() : nullptr)
@@ -1108,7 +1106,7 @@ namespace
         // into a cooked ParticleEffectResource in the per-sample content DB, Bind it through the
         // ResourceManager, and drive a component with the cooked Proxy. This is the editor-to-runtime path
         // (an editor would bake offline; here we bake at startup), run end to end in the app.
-        void SetupCookedDemo(engine::particles::ParticleEffectComponentManager& pmgr)
+        void SetupCookedDemo(particles::ParticleEffectComponentManager& pmgr)
         {
             const core::String outputDirStorage =
                 foundation::vfs::DataPath(DataRoot(), u8"Output/ParticleFX");
@@ -1117,7 +1115,7 @@ namespace
             {
                 return;
             }
-            pipeline::
+            particles::
                 RegisterParticleEffectAsset(); // register cooked, asset and module types and serializable factories
 
             m_contentFs =
@@ -1129,9 +1127,9 @@ namespace
             // Author and bake: cook the authored asset into a content-DB ParticleEffectResource.
             content::Instance* inst = m_contentDb->RootGroup()->CreateInstance(
                 u8"cooked_demo", particles::ParticleEffectResource::StaticType());
-            pipeline::ParticleEffectAsset asset;
+            particles::ParticleEffectAsset asset;
             BuildCookedEffect(asset.Effect());
-            pipeline::ParticleEffectAssetBuilder builder;
+            particles::ParticleEffectAssetBuilder builder;
             pipeline::AssetBuildContext ctx{foundation::core::DefaultAllocator()};
             ctx.output = inst;
             ctx.db = m_contentDb.Get();

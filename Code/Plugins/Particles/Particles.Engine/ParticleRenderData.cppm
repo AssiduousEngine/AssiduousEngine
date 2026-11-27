@@ -13,18 +13,17 @@ module;
 #include <cstddef> // offsetof
 #include <type_traits>
 
-export module engine.particles:renderdata;
+export module particles.engine:renderdata;
 
 import foundation.core;
 import foundation.rhi;
 import foundation.render;    // RenderData base, RenderCategories
-import foundation.particles; // ParticleBlendMode
+import particles.foundation; // ParticleBlendMode
 
 using namespace foundation::core;
-using namespace foundation::particles;
 namespace rhi = foundation::rhi;
 
-export namespace engine::particles
+export namespace particles
 {
     // A particle's colour as simulated (authored sRGB: the effect's colours, curves and trail
     // colour, interpolated as entered) decoded to linear for the renderer. Applied where the

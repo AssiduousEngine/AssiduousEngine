@@ -6,9 +6,10 @@
 // object model, and the CPU simulator. The cooked resource, the scene and render integration,
 // and editor authoring are separate layers on top.
 
-export module foundation.particles;
+export module particles.foundation;
 
 export import :types;   // enums, RangeValue, ParticleCurve, EmissionShape, events, update context
 export import :streams; // ParticleStreamId, the SoA stream container (ParticleStream, CPUStream)
 export import :modules; // initializer, behavior and simulator bases, concrete modules, the CPU simulator
 export import :effect; // ParticleEmitter, ParticleSystem, ParticleEffect, ParticleEffectInstance
+export import :resource; // the cooked ParticleEffectResource, its serializer and factory

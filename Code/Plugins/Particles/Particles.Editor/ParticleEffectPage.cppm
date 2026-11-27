@@ -26,7 +26,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.particles:page;
+export module particles.editor:page;
 
 import foundation.core;
 import foundation.content;
@@ -34,7 +34,7 @@ import foundation.graphics;
 import foundation.runtime;
 import foundation.runtime.client;
 import foundation.scene;
-import foundation.particles;
+import particles.foundation;
 import particles.pipeline;
 import foundation.gui;
 import foundation.gui.toolkit;
@@ -42,10 +42,10 @@ import editor.core;
 import editor.app;
 
 using namespace foundation::core;
+using namespace editor; // the page, context and thumbnail bases
 
-export namespace editor
+export namespace particles
 {
-    namespace particles = foundation::particles;
 
     /// What a row of the page's tree stands for.
     enum class ParticleRowKind : u8

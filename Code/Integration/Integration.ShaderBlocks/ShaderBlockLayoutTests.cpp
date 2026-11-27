@@ -18,7 +18,7 @@ import foundation.render;
 import foundation.shaders;
 import foundation.vfs;
 import foundation.vg.renderer;
-import engine.particles;
+import particles.engine;
 import engine.terrain;
 
 using namespace foundation::core;
@@ -26,7 +26,6 @@ namespace materials = foundation::materials;
 namespace render = foundation::render;
 namespace shaders = foundation::shaders;
 namespace vg = foundation::vg;
-namespace particles = engine::particles;
 namespace terrain = engine::terrain;
 
 namespace

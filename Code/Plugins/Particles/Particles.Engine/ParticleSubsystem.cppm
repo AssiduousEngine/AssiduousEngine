@@ -13,7 +13,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.particles:subsystem;
+export module particles.engine:subsystem;
 
 import foundation.core;
 import foundation.rhi;
@@ -31,7 +31,7 @@ namespace rhi = foundation::rhi;
 namespace shaders = foundation::shaders;
 namespace scene = foundation::scene;
 
-export namespace engine::particles
+export namespace particles
 {
     // Foundation aliases (sibling engine::* namespaces would otherwise shadow these).
     namespace scene = foundation::scene;
