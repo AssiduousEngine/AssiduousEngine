@@ -8,7 +8,7 @@ target_link_libraries(GUISandbox PRIVATE
     Foundation::Graphics Foundation::Graphics.Gpu
     Foundation::Shell Foundation::Image Foundation::Image.IO Foundation::Fonts Foundation::Fonts.TrueType Foundation::Fonts.Bidi Foundation::Fonts.HarfBuzz Foundation::Xml.Serialization Foundation::Fonts.DistanceField.Baker
     Foundation::VG Foundation::VG.Renderer Foundation::GUI Foundation::GUI.Shell Foundation::GUI.Inspector Foundation::GUI.Testing Foundation::GUI.Hosting Foundation::GUI.Viewport Foundation::GUI.Docking Foundation::GUI.Toolkit Foundation::GUI.Code Foundation::GUI.Gamekit Foundation::Input Foundation::Shaders Foundation::RHI.Capture
-    Foundation::Script ${SCRIPTLIB_ANGELSCRIPT}) # the showcase runs AngelScript
+    Foundation::Script $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation>) # the showcase runs AngelScript
 util_copy_sdl3_dll(GUISandbox)
 
 # A sanitized run reports only our leaks, not what the desktop's libraries keep (lsan.supp says
@@ -18,7 +18,7 @@ set(_sandbox_test_env "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsa
 # The image tests: each page drawn offscreen on each backend
 # and compared with its reference in Data/Tests/GUI/Images; skipped (77) without a device. The
 # references are drawn with the pages' scripts running, so they need AngelScript.
-if(OPTION_ENABLE_ANGELSCRIPT)
+if(OPTION_PLUGIN_ANGELSCRIPT)
 foreach(backend vulkan webgpu)
     add_test(NAME GUI.Images.${backend}
              COMMAND GUISandbox --${backend} --image-tests --image-out ${CMAKE_BINARY_DIR}/gui-images)

@@ -19,7 +19,7 @@ import foundation.script.facades; // RegisterScriptFacadeReflection (the Scene f
 import foundation.script.resource; // BehaviorClass (the cooked Game class a run starts from)
 import angelscript.foundation;
 import luau.foundation;
-#ifdef OPTION_HAS_DOTNET
+#ifdef HAS_PLUGIN_CSHARP
 import csharp.foundation; // the C# backend (a Game built into an assembly)
 #endif
 import foundation.net;         // NetSession queries (IsServer/PeerCount)
@@ -1112,7 +1112,7 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     gi.StopRunBehavior();
 }
 
-#ifdef OPTION_HAS_DOTNET
+#ifdef HAS_PLUGIN_CSHARP
 namespace
 {
     struct CapturedLog final : ILogSink
@@ -1168,7 +1168,7 @@ TEST_CASE("game-instance: a C# run behavior starts from its assembly")
     }
     GlobalLogger().RemoveSink(&log);
 }
-#endif // OPTION_HAS_DOTNET
+#endif // HAS_PLUGIN_CSHARP
 
 TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (Luau)")
 {

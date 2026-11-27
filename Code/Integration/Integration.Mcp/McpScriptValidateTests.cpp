@@ -18,10 +18,10 @@ import engine.project;
 import editor.project;
 import editor.mcp;
 import foundation.script; // BehaviorKind, the starter a cook seeds
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
 #endif
-#if defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 import luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
 #endif
 
@@ -37,17 +37,17 @@ namespace
     [[maybe_unused]] void RegisterLanguageCooks()
     {
         pipeline::RegisterPipelineTypes();
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
         angelscript::RegisterAngelScriptScriptCook();
 #endif
-#if defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
         luau::RegisterLuauScriptCook();
 #endif
     }
 }
 
 // The starters and their checks need a language built.
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 namespace
 {
     JsonValue SvCall(McpServer& s, JsonValue arguments)
@@ -254,7 +254,7 @@ TEST_CASE("integration.mcp: script_create - starter-seeded asset, unique names, 
 }
 #endif
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 // A plugin whose Engine part gives scripts a type of its own (`Lantern`), enabled on Win64 only.
 namespace validateprobe
 {
@@ -361,7 +361,7 @@ TEST_CASE("integration.mcp: script_validate - a platform check leaves out the pl
     project.Reset();
     RemoveDirectoryRecursive(dir);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
 // A language with no cook here is refused by name, with the languages the host has: they are the
 // registered cooks, which a language plugin adds as it loads, not a list fixed in the tool.

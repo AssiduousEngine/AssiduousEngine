@@ -14,10 +14,10 @@ import foundation.vg.svg;
 import foundation.script;
 import foundation.gui;
 import foundation.gui.gamekit;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -100,7 +100,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gamekit script: AngelScript pushes, reads and pops screens, and hears one leave")
 {
     core::RefPtr<script::IScriptManager> manager = angelscript::CreateScriptManager(core::DefaultAllocator());
@@ -124,7 +124,7 @@ TEST_CASE("gamekit script: AngelScript pushes, reads and pops screens, and hears
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gamekit script: Luau pushes, reads and pops screens, and hears one leave")
 {
     core::RefPtr<script::IScriptManager> manager = luau::CreateLuauScriptManager(core::DefaultAllocator());

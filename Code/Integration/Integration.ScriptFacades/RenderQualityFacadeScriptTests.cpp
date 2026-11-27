@@ -13,10 +13,10 @@ import foundation.core;
 import foundation.script;
 import foundation.script.facades;
 import engine.render;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -66,7 +66,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("render-quality-facade: AngelScript lists the levels, reads the current one and switches by label")
 {
     RegisterCoreTypes();
@@ -84,7 +84,7 @@ TEST_CASE("render-quality-facade: AngelScript lists the levels, reads the curren
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("render-quality-facade: Luau lists the levels, reads the current one and switches by label")
 {
     RegisterCoreTypes();
@@ -102,7 +102,7 @@ TEST_CASE("render-quality-facade: a context whose run offers no levels lists non
 {
     RegisterCoreTypes();
     render::RegisterRenderScriptFacade();
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
     RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();

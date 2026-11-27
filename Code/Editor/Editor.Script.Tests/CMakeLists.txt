@@ -4,7 +4,7 @@
 add_executable(Editor.Script.Tests TestsMain.cpp ScriptApiBrowserTests.cpp ScriptLanguageServiceTests.cpp ScriptPageTests.cpp)
 target_link_libraries(Editor.Script.Tests PRIVATE
     Editor::Script Editor::App Editor::Core
-    ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} ${SCRIPTLIB_ANGELSCRIPT_PIPELINE} ${SCRIPTLIB_LUAU_PIPELINE} Foundation::Script Foundation::Script.Facades
+    $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation> $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Pipeline> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Pipeline> Foundation::Script Foundation::Script.Facades
     Pipeline::Script Foundation::Content Foundation::VFS Foundation::GUI Foundation::GUI.Toolkit Foundation::GUI.Code Foundation::Core
     doctest::doctest)
 target_compile_definitions(Editor.Script.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS

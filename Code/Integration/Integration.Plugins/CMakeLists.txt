@@ -9,7 +9,7 @@ util_add_plugin(${CMAKE_SOURCE_DIR}/Data/SampleProjects/NativeSample/Plugins/Nat
 add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialoguePluginTests.cpp DialogueCookTests.cpp DialogueEditorTests.cpp
     DialogueRunTests.cpp MillbrookSampleTests.cpp)
 set(_integration_plugins nativesample dialogue)
-if(OPTION_ENABLE_ANGELSCRIPT)
+if(OPTION_PLUGIN_ANGELSCRIPT)
     list(APPEND _integration_plugins angelscript) # Millbrook's scripts
 endif()
 util_link_plugins(Integration.Plugins ROLE editor PLUGINS ${_integration_plugins}) # every part an editor loads
@@ -21,13 +21,11 @@ target_link_libraries(Integration.Plugins PRIVATE
     Foundation::Core doctest::doctest)
 # The dialogue facade's tests and the reference package's component tests run behaviors in each
 # backend that is built.
-if(TARGET ${SCRIPTLIB_ANGELSCRIPT})
-    target_link_libraries(Integration.Plugins PRIVATE ${SCRIPTLIB_ANGELSCRIPT})
-    target_compile_definitions(Integration.Plugins PRIVATE INTEGRATION_HAS_ANGELSCRIPT=1)
+if(TARGET Plugins::AngelScript.Foundation)
+    target_link_libraries(Integration.Plugins PRIVATE Plugins::AngelScript.Foundation)
 endif()
-if(TARGET ${SCRIPTLIB_LUAU})
-    target_link_libraries(Integration.Plugins PRIVATE ${SCRIPTLIB_LUAU})
-    target_compile_definitions(Integration.Plugins PRIVATE INTEGRATION_HAS_LUAU=1)
+if(TARGET Plugins::Luau.Foundation)
+    target_link_libraries(Integration.Plugins PRIVATE Plugins::Luau.Foundation)
 endif()
 target_compile_definitions(Integration.Plugins PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Integration.Plugins PRIVATE

@@ -10,3 +10,6 @@ target_sources(${PLUGIN_LIBRARY}
     PUBLIC
         FILE_SET luau_modules TYPE CXX_MODULES FILES
             LuauScript.cppm)
+
+# What links the language knows it is there: `#ifdef HAS_PLUGIN_LUAU`.
+target_compile_definitions(${PLUGIN_LIBRARY} INTERFACE HAS_PLUGIN_LUAU)

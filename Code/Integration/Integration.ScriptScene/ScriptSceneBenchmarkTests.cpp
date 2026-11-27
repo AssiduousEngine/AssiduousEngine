@@ -34,13 +34,13 @@ import foundation.script.facades;
 import foundation.script.resource;
 import engine.behavior;
 import engine.spline; // PathFollowComponent: the component the fetch measure reaches
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.foundation;
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 import luau.foundation;
 #endif
-#if defined(INTEGRATION_HAS_DOTNET)
+#if defined(HAS_PLUGIN_CSHARP)
 import csharp.foundation;
 #endif
 
@@ -194,13 +194,13 @@ namespace
         {
             static ConsoleSink sink; // a script's errors reach the output
             GlobalLogger().AddSink(&sink);
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
             angelscript::RegisterAngelScriptBackend();
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
             luau::RegisterLuauScriptBackend();
 #endif
-#if defined(INTEGRATION_HAS_DOTNET)
+#if defined(HAS_PLUGIN_CSHARP)
             csharp::RegisterDotNetScriptBackend();
 #endif
             RegisterCoreTypes();
@@ -210,7 +210,7 @@ namespace
             GlobalTypeRegistry().Register(benchnative::Empty::StaticType());
             GlobalTypeRegistry().Register(benchnative::Mover::StaticType());
             GlobalTypeRegistry().Register(benchnative::Fetcher::StaticType());
-#if defined(INTEGRATION_HAS_DOTNET)
+#if defined(HAS_PLUGIN_CSHARP)
             // The process's C# runtime keeps the allocator it starts with for every object it hands
             // C# later, so it starts on one that lives as long as the process, as a game's and the
             // editor's do (the measures' managers each count over a shorter-lived one); and after
@@ -380,7 +380,7 @@ TEST_CASE("script per call: native, the baseline" * doctest::skip())
     foundation::script::benchmark::RunNativeBenchmark();
 }
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 TEST_CASE("script per call: AngelScript" * doctest::skip())
 {
     foundation::script::benchmark::Dialect dialect;
@@ -421,7 +421,7 @@ TEST_CASE("script per call: AngelScript" * doctest::skip())
 }
 #endif
 
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 TEST_CASE("script per call: Luau" * doctest::skip())
 {
     foundation::script::benchmark::Dialect dialect;
@@ -512,7 +512,7 @@ TEST_CASE("script scene: the scene measures in native behaviors" * doctest::skip
     RunSceneMeasures(in);
 }
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 TEST_CASE("script scene: the scene measures in AngelScript" * doctest::skip())
 {
     Behaviours in;
@@ -542,7 +542,7 @@ TEST_CASE("script scene: the scene measures in AngelScript" * doctest::skip())
 }
 #endif
 
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 TEST_CASE("script scene: the scene measures in Luau" * doctest::skip())
 {
     Behaviours in;
@@ -566,7 +566,7 @@ TEST_CASE("script scene: the scene measures in Luau" * doctest::skip())
 }
 #endif
 
-#if defined(INTEGRATION_HAS_DOTNET)
+#if defined(HAS_PLUGIN_CSHARP)
 namespace
 {
     // The C# measures' assembly, as the cook builds a game's (Debug) or optimised (Release).
@@ -621,7 +621,7 @@ TEST_CASE("script scene: the scene measures in C#" * doctest::skip())
 // than when someone next measures.
 TEST_CASE("script scene: each measure's scene runs its behaviours")
 {
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
     BenchScene bench;
     bench.AddScripted(MakeClass(u8"luau", u8"Mover",
                                 u8"Mover = EntityBehavior.class()\n"
@@ -645,7 +645,7 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
     for (scene::EntityHandle root = behaviors.scene.GetFirstRoot(); root.IsAssigned(); root = behaviors.scene.GetNextSibling(root))
         CHECK(behaviors.scene.GetLocalTransform(root).position.x == doctest::Approx(2.0f * kDelta));
 
-#if defined(INTEGRATION_HAS_DOTNET)
+#if defined(HAS_PLUGIN_CSHARP)
     {
         const Array<byte> image = CSharpBench(BENCH_CSHARP_DEBUG_DIR);
         BenchScene csharp;

@@ -13,10 +13,10 @@ import foundation.core;
 import foundation.script;
 import foundation.script.facades;
 import engine.run;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -75,7 +75,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("saves-facade: AngelScript plays a title menu's New Game, save point, Continue and Load")
 {
     angelscript::RegisterAngelScriptBackend();
@@ -113,7 +113,7 @@ TEST_CASE("saves-facade: AngelScript plays a title menu's New Game, save point, 
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("saves-facade: Luau plays a title menu's New Game, save point, Continue and Load")
 {
     luau::RegisterLuauScriptBackend();

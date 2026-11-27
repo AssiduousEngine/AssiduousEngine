@@ -9,10 +9,10 @@
 import foundation.core;
 import foundation.script;
 import foundation.script.facades;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -36,7 +36,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("text-facade: AngelScript reads a decimal from a string, and `otherwise` from text that is not one")
 {
     RegisterCoreTypes();
@@ -53,7 +53,7 @@ TEST_CASE("text-facade: AngelScript reads a decimal from a string, and `otherwis
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("text-facade: Luau reads a decimal from a string, and `otherwise` from text that is not one")
 {
     RegisterCoreTypes();
@@ -80,7 +80,7 @@ TEST_CASE("text-facade: formatDate fills a pattern with the local date and time;
                                    civil.minute < 10 ? u8"0" : u8"", civil.minute, civil.second < 10 ? u8"0" : u8"", civil.second);
     CHECK(TextFacade::formatDate(when, String(u8"YYYY-MM-DD hh:mm:ss at")) == expected.AsView());
     CHECK(TextFacade::formatDate(when, String(u8"no tokens")) == StringView(u8"no tokens"));
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
     RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();

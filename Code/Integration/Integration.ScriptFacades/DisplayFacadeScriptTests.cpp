@@ -14,10 +14,10 @@ import foundation.core;
 import foundation.script;
 import foundation.script.facades;
 import engine.render;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -65,7 +65,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("display-facade: AngelScript lists the present modes, reads the current one and switches by name")
 {
     RegisterCoreTypes();
@@ -84,7 +84,7 @@ TEST_CASE("display-facade: AngelScript lists the present modes, reads the curren
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("display-facade: Luau lists the present modes, reads the current one and switches by name")
 {
     RegisterCoreTypes();
@@ -103,7 +103,7 @@ TEST_CASE("display-facade: a context whose run offers no present modes lists non
 {
     RegisterCoreTypes();
     render::RegisterRenderScriptFacade();
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
     RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();

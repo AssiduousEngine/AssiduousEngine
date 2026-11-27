@@ -105,7 +105,7 @@ namespace
     }
 }
 
-#if defined(OPTION_HAS_LUAU) // the flow imports and cooks a Luau script
+#if defined(HAS_PLUGIN_LUAU) // the flow imports and cooks a Luau script
 TEST_CASE("integration.mcp: the full agent flow - create, import, cook, author, validate, "
           "health, host state")
 {

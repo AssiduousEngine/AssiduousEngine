@@ -22,11 +22,11 @@ import pipeline.core;
 import foundation.script;
 import foundation.script.resource;
 import script.pipeline;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 import angelscript.pipeline;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 import luau.pipeline;
 #endif
@@ -58,10 +58,10 @@ namespace scriptpipe
             (void)logReady;
             // The composition-root registration for whatever backends are compiled in (idempotent);
             // the builder resolves the per-language cook from the registry.
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
             angelscript::RegisterAngelScriptScriptCook();
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
             luau::RegisterLuauScriptCook();
 #endif
             RegisterScriptResource();

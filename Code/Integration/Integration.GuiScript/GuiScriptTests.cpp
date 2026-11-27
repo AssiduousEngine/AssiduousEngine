@@ -19,10 +19,10 @@ import foundation.core;
 import foundation.script;
 import foundation.i18n; // a script's localized texts
 import foundation.gui;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -245,7 +245,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript defines, handles and runs commands")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -269,7 +269,7 @@ TEST_CASE("gui-script: AngelScript defines, handles and runs commands")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau defines, handles and runs commands")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -313,7 +313,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript captures the next key, names it and binds it")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -339,7 +339,7 @@ TEST_CASE("gui-script: AngelScript captures the next key, names it and binds it"
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau captures the next key, names it and binds it")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -360,7 +360,7 @@ TEST_CASE("gui-script: Luau captures the next key, names it and binds it")
 }
 #endif
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript binds widgets to data and to each other")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -392,9 +392,9 @@ TEST_CASE("gui-script: AngelScript binds widgets to data and to each other")
     REQUIRE(loaded.IsOk());
     CheckBindings(bed);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau binds widgets to data and to each other")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -417,9 +417,9 @@ TEST_CASE("gui-script: Luau binds widgets to data and to each other")
     REQUIRE(loaded.IsOk());
     CheckBindings(bed);
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript builds, styles and clicks the GUI's widgets, and holds them weakly")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -467,9 +467,9 @@ TEST_CASE("gui-script: AngelScript builds, styles and clicks the GUI's widgets, 
     CheckStory(bed);
     CheckHandles(bed);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau builds, styles and clicks the GUI's widgets, and holds them weakly")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -514,7 +514,7 @@ TEST_CASE("gui-script: Luau builds, styles and clicks the GUI's widgets, and hol
     CheckStory(bed);
     CheckHandles(bed);
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
 namespace
 {
@@ -537,7 +537,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: an AngelScript handler reads the event and takes it")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -563,9 +563,9 @@ TEST_CASE("gui-script: an AngelScript handler reads the event and takes it")
     REQUIRE(loaded.IsOk());
     CheckEvents(bed);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: a Luau handler reads the event and takes it")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -586,7 +586,7 @@ TEST_CASE("gui-script: a Luau handler reads the event and takes it")
     REQUIRE(loaded.IsOk());
     CheckEvents(bed);
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
 namespace
 {
@@ -611,7 +611,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: an AngelScript handler takes a node's gestures, declared by its touch-action")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -639,9 +639,9 @@ TEST_CASE("gui-script: an AngelScript handler takes a node's gestures, declared 
     REQUIRE(loaded.IsOk());
     CheckGestures(bed);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: a Luau handler takes a node's gestures, declared by its touch-action")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -663,9 +663,9 @@ TEST_CASE("gui-script: a Luau handler takes a node's gestures, declared by its t
     REQUIRE(loaded.IsOk());
     CheckGestures(bed);
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: an AngelScript source and targets drag and drop, a dragquery handler taking a drop")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -715,7 +715,7 @@ TEST_CASE("gui-script: an AngelScript source and targets drag and drop, a dragqu
     CHECK(bed.Number(u8"askedCount") >= 1.0);
     CHECK(bed.Number(u8"droppedCount") == doctest::Approx(2.0));
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
 namespace
 {
@@ -749,7 +749,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript tweens, springs and plays a sequence (E14)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -776,7 +776,7 @@ TEST_CASE("gui-script: AngelScript tweens, springs and plays a sequence (E14)")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau tweens, springs and plays a sequence (E14)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -831,7 +831,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript makes a node leave and hears its transition end (K0)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -857,7 +857,7 @@ TEST_CASE("gui-script: AngelScript makes a node leave and hears its transition e
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau makes a node leave and hears its transition end (K0)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -897,7 +897,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript tweens a data value (K3)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -914,7 +914,7 @@ TEST_CASE("gui-script: AngelScript tweens a data value (K3)")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau tweens a data value (K3)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -944,7 +944,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript reads the input kind and hears it change (K2b)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -963,7 +963,7 @@ TEST_CASE("gui-script: AngelScript reads the input kind and hears it change (K2b
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau reads the input kind and hears it change (K2b)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -980,7 +980,7 @@ TEST_CASE("gui-script: Luau reads the input kind and hears it change (K2b)")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau hears an event a library names, with its detail (K4)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -1020,7 +1020,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript turns listeners off, from inside one too (E16)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -1046,7 +1046,7 @@ TEST_CASE("gui-script: AngelScript turns listeners off, from inside one too (E16
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau turns listeners off, from inside one too (E16)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -1132,7 +1132,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript opens windows, menus and popups of its own (E16)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -1170,7 +1170,7 @@ TEST_CASE("gui-script: AngelScript opens windows, menus and popups of its own (E
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau opens windows, menus and popups of its own (E16)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -1202,7 +1202,7 @@ TEST_CASE("gui-script: Luau opens windows, menus and popups of its own (E16)")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: a node above the anchor is refused as its popup")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -1265,7 +1265,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript fills a list model and reads localized texts (E16)")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -1292,7 +1292,7 @@ TEST_CASE("gui-script: AngelScript fills a list model and reads localized texts 
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau fills a list model and reads localized texts (E16)")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));
@@ -1350,7 +1350,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("gui-script: AngelScript fills in a toast request and posts it, and hears its action")
 {
     RefPtr<IScriptManager> manager = Bound(angelscript::CreateScriptManager(DefaultAllocator()));
@@ -1384,7 +1384,7 @@ TEST_CASE("gui-script: AngelScript fills in a toast request and posts it, and he
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("gui-script: Luau fills in a toast request and posts it, and hears its action")
 {
     RefPtr<IScriptManager> manager = Bound(luau::CreateLuauScriptManager(DefaultAllocator()));

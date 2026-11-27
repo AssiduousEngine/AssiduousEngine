@@ -3,7 +3,7 @@
 # BehaviorSceneTests.cpp interleaves AngelScript and Luau cases (each drives its own real VM), so it
 # builds only when both backends are on. Splitting it into per-backend files would let it run in a
 # single-backend configuration.
-if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
+if(OPTION_PLUGIN_ANGELSCRIPT AND OPTION_PLUGIN_LUAU)
 add_executable(Engine.Behavior.Tests TestsMain.cpp BehaviorSceneTests.cpp)
 target_link_libraries(Engine.Behavior.Tests PRIVATE
     Engine::Behavior Foundation::Script.Resource Foundation::Scene Foundation::Scene.Resource
@@ -14,7 +14,7 @@ target_link_libraries(Engine.Behavior.Tests PRIVATE
     Plugins::Particles.Engine
     Foundation::Net Foundation::Net.Replication
     Foundation::Spline Engine::Spline
-    Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} doctest::doctest)
+    Foundation::Script $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation> doctest::doctest)
 target_compile_definitions(Engine.Behavior.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Engine.Behavior.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"

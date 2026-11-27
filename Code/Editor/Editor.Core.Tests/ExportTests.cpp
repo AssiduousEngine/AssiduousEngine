@@ -37,11 +37,11 @@ import shaders.pipeline;            // ShaderAsset and its compiling cook
 import foundation.script;          // the backend registries and BehaviorClassFactory namespace
 import script.pipeline;            // ScriptClassAsset, ScriptClassAssetBuilder, the assembly cooks
 import foundation.script.resource; // RegisterScriptResource, BehaviorClass, BehaviorClassFactory
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation; // the AngelScript backend (the cook compile-checks against it)
 import angelscript.pipeline;   // RegisterAngelScriptScriptCook
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation; // the Luau backend
 import luau.pipeline;   // RegisterLuauScriptCook
 #endif
@@ -67,7 +67,7 @@ namespace
     }
 }
 
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 namespace
 {
     // A cookable startup-script source for a backend: its language, source-file name, and body.
@@ -83,11 +83,11 @@ namespace
     void RegisterScriptExportDeps()
     {
         namespace script = foundation::script;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
         angelscript::RegisterAngelScriptBackend();
         angelscript::RegisterAngelScriptScriptCook();
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
         luau::RegisterLuauScriptBackend();
         luau::RegisterLuauScriptCook();
 #endif
@@ -100,7 +100,7 @@ namespace
     // script itself but which need some cookable content.
     [[nodiscard]] ScriptSample FirstScriptSample()
     {
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
         return {u8"angelscript", u8"game.as",
                 u8"class Game : RunBehavior {\n  Game() {}\n  void onStart() {}\n  void onUpdate(double dt) {}\n"
                 u8"  void onStop() {}\n}\n"};
@@ -188,9 +188,9 @@ namespace
         NukeTree(distDir);
     }
 }
-#endif // OPTION_HAS_ANGELSCRIPT || OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_ANGELSCRIPT || HAS_PLUGIN_LUAU
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("export: an AngelScript startup script asset cooks into the dist pak and binds like the "
           "player")
 {
@@ -200,9 +200,9 @@ TEST_CASE("export: an AngelScript startup script asset cooks into the dist pak a
          u8"class Game : RunBehavior {\n  Game() {}\n  void onStart() {}\n  void onUpdate(double dt) {}\n"
          u8"  void onStop() {}\n}\n"});
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("export: a Luau startup script asset cooks into the dist pak and binds like the player")
 {
     DriveStartupScriptExport(
@@ -211,7 +211,7 @@ TEST_CASE("export: a Luau startup script asset cooks into the dist pak and binds
          u8"Game = RunBehavior.class()\nfunction Game.new() return setmetatable({}, Game) end\n"
          u8"function Game:onStart() end\nfunction Game:onUpdate(dt) end\nfunction Game:onStop() end\n"});
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
 TEST_CASE("export: project -> dist pak -> player-style load-back (versioned formats)")
 {
@@ -3012,7 +3012,7 @@ TEST_CASE("export: VariantsForPlatform - desktop single pak, web BC + ASTC sibli
     NukeTree(projectDir.AsView());
 }
 
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 TEST_CASE("export: desktop Content.pak is byte-identical with a sibling target DB present (Q2)")
 {
     // A materialized per-target DB (Cooked-web-astc/) is a sibling of Cooked/, so the desktop pack
@@ -3100,7 +3100,7 @@ TEST_CASE("export: desktop Content.pak is byte-identical with a sibling target D
     NukeTree(distA.AsView());
     NukeTree(distB.AsView());
 }
-#endif // OPTION_HAS_ANGELSCRIPT || OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_ANGELSCRIPT || HAS_PLUGIN_LUAU
 
 TEST_CASE("export: player output name carries the executable or page extension (target-platform aware)")
 {
@@ -3622,7 +3622,7 @@ TEST_CASE("export: ExportOne runs the plugins' export hooks over the staged dist
     NukeTree(outRoot.AsView());
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 // A plugin whose Engine part gives scripts a type of its own (`Beacon`), as a platform service's
 // facade would: what the per-platform script check is about.
 namespace scriptprobe
@@ -3771,7 +3771,7 @@ TEST_CASE("export: a script using a plugin's type is refused on a platform the p
     NukeTree(outRoot.AsView());
     NukeTree(package.AsView());
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
 TEST_CASE("export: a pruned or stripped asset's files are its own, never a dotted neighbour's")
 {
@@ -3927,9 +3927,9 @@ TEST_CASE("export: a built player is configured with the project's languages and
     };
     editor::detail::PlayerBuildArguments built =
         editor::detail::PlayerBuildArgumentsFor(Span<const String>(enabled, 2), Span<const String>(definitions, 2), {});
-    CHECK(has(built, u8"-DOPTION_ENABLE_ANGELSCRIPT=ON"));
-    CHECK(has(built, u8"-DOPTION_ENABLE_LUAU=OFF"));
-    CHECK(has(built, u8"-DOPTION_ENABLE_DOTNET=OFF"));
+    CHECK(has(built, u8"-DOPTION_PLUGIN_ANGELSCRIPT=ON"));
+    CHECK(has(built, u8"-DOPTION_PLUGIN_LUAU=OFF"));
+    CHECK(has(built, u8"-DOPTION_PLUGIN_CSHARP=OFF"));
     CHECK(has(built, u8"-DGAME_CODE=/game"));
     CHECK(has(built, u8"-DGAME_EXTRA=1"));
     CHECK(built.given == StringView(u8"GAME_CODE\nGAME_EXTRA\n"));

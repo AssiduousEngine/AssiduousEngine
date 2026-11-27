@@ -23,10 +23,10 @@ import foundation.sequence;
 import foundation.sequence.resource;
 import engine.behavior;
 import engine.sequence;
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.foundation;
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 import luau.foundation;
 #endif
 
@@ -43,10 +43,10 @@ namespace
     {
         static const bool once = []()
         {
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
             angelscript::RegisterAngelScriptBackend();
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
             luau::RegisterLuauScriptBackend();
 #endif
             RegisterCoreTypes();
@@ -186,7 +186,7 @@ namespace
     };
 }
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 TEST_CASE("sequences: an AngelScript behavior plays a sequence and hears its notices")
 {
     SequenceScene s;
@@ -217,7 +217,7 @@ TEST_CASE("sequences: an AngelScript behavior plays a sequence and hears its not
 }
 #endif
 
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 TEST_CASE("sequences: a Luau behavior plays a sequence and hears its notices")
 {
     SequenceScene s;

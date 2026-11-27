@@ -59,7 +59,7 @@ import gui.sandbox.camera; // the Toolkit page's reflected object
 import gui.sandbox.code;   // the Code page
 import gui.sandbox.editor_mock; // --editor-mock: the editor's design
 import foundation.script; // the pages' and the game menu's scripts
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
 
@@ -761,7 +761,7 @@ void GUISandbox::OnStartup(runtime::IApplicationHost& host)
         m_guiHost->SetWindowOpener(Move(opener));
     }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
     RegisterCoreTypes();
     gui::RegisterGuiScriptSurface();
     m_scripts = angelscript::CreateScriptManager(AppRoot());

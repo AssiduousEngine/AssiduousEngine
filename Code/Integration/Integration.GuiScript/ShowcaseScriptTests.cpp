@@ -18,11 +18,11 @@ import foundation.shell;
 import foundation.input;
 import foundation.gui;
 import foundation.gui.gamekit;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 namespace gui = foundation::gui;
 namespace core = foundation::core;
 namespace script = foundation::script;
@@ -351,4 +351,4 @@ TEST_CASE("showcase: in the game the score counts up in whole numbers, the promp
     CHECK(menu.Find(*menu.stack->Top(), SV(u8"play")) != nullptr);
     CHECK(menu.errors.count == 0);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT

@@ -4,13 +4,13 @@
 # its own file, without #ifdefs, compiled only when that backend is on. They share CookBed.h.
 set(_script_pipeline_backend_tests "")
 set(_script_pipeline_backend_libs "")
-if(OPTION_ENABLE_ANGELSCRIPT)
+if(OPTION_PLUGIN_ANGELSCRIPT)
     list(APPEND _script_pipeline_backend_tests AngelScriptPipelineTests.cpp)
-    list(APPEND _script_pipeline_backend_libs ${SCRIPTLIB_ANGELSCRIPT_PIPELINE} ${SCRIPTLIB_ANGELSCRIPT})
+    list(APPEND _script_pipeline_backend_libs $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Pipeline> $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation>)
 endif()
-if(OPTION_ENABLE_LUAU)
+if(OPTION_PLUGIN_LUAU)
     list(APPEND _script_pipeline_backend_tests LuauPipelineTests.cpp)
-    list(APPEND _script_pipeline_backend_libs ${SCRIPTLIB_LUAU_PIPELINE} ${SCRIPTLIB_LUAU})
+    list(APPEND _script_pipeline_backend_libs $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Pipeline> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation>)
 endif()
 add_executable(Script.Pipeline.Tests TestsMain.cpp ScriptPipelineTests.cpp
     ${_script_pipeline_backend_tests} ScriptReflectionTests.cpp CachedCheckManagerTests.cpp ScriptAssemblyPipelineTests.cpp)

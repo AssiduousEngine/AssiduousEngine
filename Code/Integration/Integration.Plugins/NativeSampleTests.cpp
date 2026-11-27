@@ -49,10 +49,10 @@ import foundation.script.resource; // BehaviorClass, BehaviorClassSource: a cook
 import engine.behavior;            // the run host and the scene's behavior systems
 import engine.run;                 // ApplicationRun: a native run behavior
 import foundation.script.facades;  // the facade reflection a script context reads
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.foundation;
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 import luau.foundation;
 #endif
 
@@ -294,17 +294,17 @@ TEST_CASE("plugins: in the player, the Engine part reflects the spin component a
     embedded.OnShutdown(host);
 }
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT) || defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 namespace
 {
     void RegisterSpinScriptsOnce()
     {
         static const bool once = []()
         {
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
             angelscript::RegisterAngelScriptBackend();
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
             luau::RegisterLuauScriptBackend();
 #endif
             RegisterCoreTypes();
@@ -379,7 +379,7 @@ namespace
 }
 #endif
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 TEST_CASE("plugins: an AngelScript behavior reaches the package's component as the engine's, by of, addTo and removeFrom")
 {
     RunSpinScript(u8"angelscript",
@@ -398,7 +398,7 @@ TEST_CASE("plugins: an AngelScript behavior reaches the package's component as t
 }
 #endif
 
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 TEST_CASE("plugins: a Luau behavior reaches the package's component as the engine's, by of, addTo and removeFrom")
 {
     RunSpinScript(u8"luau",

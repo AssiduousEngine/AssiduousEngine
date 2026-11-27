@@ -32,7 +32,7 @@ ver_le() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]; }
 log "Configure ($BUILD): Clang 21 + GCC 14 libstdc++, static libstdc++/libgcc"
 cmake -S . -B "$BUILD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DOPTION_ENABLE_DOTNET=OFF \
+    -DOPTION_PLUGIN_CSHARP=OFF \
     -DCMAKE_C_COMPILER=clang-21 \
     -DCMAKE_CXX_COMPILER=clang++-21 \
     -DCMAKE_ASM_COMPILER=clang++-21 \

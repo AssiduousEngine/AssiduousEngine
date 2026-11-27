@@ -1,17 +1,17 @@
 # ApplicationRunTests.cpp interleaves AngelScript and Luau cases (each drives its own real VM), so it
 # builds only when both backends are on (splitting it per backend would lift this).
-if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
+if(OPTION_PLUGIN_ANGELSCRIPT AND OPTION_PLUGIN_LUAU)
 add_executable(Engine.Run.Tests TestsMain.cpp ApplicationRunTests.cpp RunSavesTests.cpp)
 target_link_libraries(Engine.Run.Tests PRIVATE
     Engine::Run Foundation::Net Foundation::Net.Manager Foundation::Http Foundation::Http.Script
-    Foundation::Input Foundation::Shell ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
+    Foundation::Input Foundation::Shell $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation>
     Foundation::Scene.Resource Foundation::Content Foundation::Resource Foundation::VFS
     doctest::doctest)
 target_compile_definitions(Engine.Run.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Engine.Run.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
 # C#: the test game assembly CSharp.Foundation.Tests builds (its Game class).
-if(DOTNET_SCRIPTING AND NOT EMSCRIPTEN) # the target may be added after this folder: dependencies resolve at generate
+if(OPTION_PLUGIN_CSHARP AND NOT EMSCRIPTEN) # the target may be added after this folder: dependencies resolve at generate
     target_link_libraries(Engine.Run.Tests PRIVATE Plugins::CSharp.Foundation)
     add_dependencies(Engine.Run.Tests CSharp.TestGame)
     target_compile_definitions(Engine.Run.Tests PRIVATE

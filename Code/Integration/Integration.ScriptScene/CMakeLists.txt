@@ -20,13 +20,11 @@ if(TARGET Pipeline::Script)
 endif()
 
 # Each backend is independently switchable; include its leg only when the backend is built.
-if(TARGET ${SCRIPTLIB_ANGELSCRIPT})
-    target_link_libraries(Integration.ScriptScene PRIVATE ${SCRIPTLIB_ANGELSCRIPT})
-    target_compile_definitions(Integration.ScriptScene PRIVATE INTEGRATION_HAS_ANGELSCRIPT=1)
+if(TARGET Plugins::AngelScript.Foundation)
+    target_link_libraries(Integration.ScriptScene PRIVATE Plugins::AngelScript.Foundation)
 endif()
-if(TARGET ${SCRIPTLIB_LUAU})
-    target_link_libraries(Integration.ScriptScene PRIVATE ${SCRIPTLIB_LUAU})
-    target_compile_definitions(Integration.ScriptScene PRIVATE INTEGRATION_HAS_LUAU=1)
+if(TARGET Plugins::Luau.Foundation)
+    target_link_libraries(Integration.ScriptScene PRIVATE Plugins::Luau.Foundation)
 endif()
 
 # C#: its classes built into an assembly over the engine's runtime, which the suite loads. Built
@@ -50,7 +48,7 @@ if(TARGET Plugins::CSharp.Foundation AND NOT EMSCRIPTEN)
     add_custom_target(Integration.ScriptScene.CSharp DEPENDS ${BENCH_OUTPUTS})
     add_dependencies(Integration.ScriptScene Integration.ScriptScene.CSharp)
     target_link_libraries(Integration.ScriptScene PRIVATE Plugins::CSharp.Foundation)
-    target_compile_definitions(Integration.ScriptScene PRIVATE INTEGRATION_HAS_DOTNET=1
+    target_compile_definitions(Integration.ScriptScene PRIVATE
         BENCH_CSHARP_DEBUG_DIR="${CMAKE_CURRENT_BINARY_DIR}/CSharpDebug"
         BENCH_CSHARP_RELEASE_DIR="${CMAKE_CURRENT_BINARY_DIR}/CSharpRelease")
 endif()

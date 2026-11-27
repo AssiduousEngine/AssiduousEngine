@@ -24,11 +24,11 @@ import pipeline.registration;
 import engine.composition;
 import foundation.mcp.script;
 import foundation.runtime; // EnabledPlugin (the languages a created project enables)
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.foundation;
 import angelscript.pipeline; // RegisterAngelScriptScriptCook: the angelscript plugin's Pipeline part
 #endif
-#if defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 import luau.foundation;
 import luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
 #endif
@@ -49,10 +49,10 @@ namespace
     // assertion expects.
     [[nodiscard, maybe_unused]] StringView RegisterSomeBackend()
     {
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
         angelscript::RegisterAngelScriptBackend();
         return StringView(u8"angelscript");
-#elif defined(OPTION_HAS_LUAU)
+#elif defined(HAS_PLUGIN_LUAU)
         luau::RegisterLuauScriptBackend();
         return StringView(u8"luau");
 #else
@@ -350,7 +350,7 @@ TEST_CASE("integration.mcp: asset_list / asset_info read the open project's cont
     CHECK(malformed.Get(u8"result").Get(u8"isError").AsBool() == true);
 }
 
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 namespace
 {
     // The import and cook flow is the same for every backend: RegisterPipelineTypes registers
@@ -432,16 +432,16 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("integration.mcp: an agent imports + cooks an AngelScript source via MCP tools")
 {
     angelscript::RegisterAngelScriptScriptCook(); // the angelscript plugin's part does this as a project enabling it loads
     DriveImportCookFlow(u8"mcp_write_as", u8"mcp_write_as_src", u8"as",
                         u8"class Hello {\n  Hello() {}\n  void greet() {}\n}\n");
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("integration.mcp: an agent imports + cooks a Luau source via MCP tools")
 {
     luau::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
@@ -450,10 +450,10 @@ TEST_CASE("integration.mcp: an agent imports + cooks a Luau source via MCP tools
                         u8"function Hello.new(entity)\n  return setmetatable({}, Hello)\nend\n"
                         u8"function Hello:greet() end\n");
 }
-#endif // OPTION_HAS_LUAU
-#endif // OPTION_HAS_ANGELSCRIPT || OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
+#endif // HAS_PLUGIN_ANGELSCRIPT || HAS_PLUGIN_LUAU
 
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 TEST_CASE("integration.mcp: script_api reports the COMPLETE engine surface, headless, no device")
 {
     // The composition root that describes the surface: every subsystem facade, as metadata only,
@@ -501,7 +501,7 @@ TEST_CASE("integration.mcp: script_api reports the COMPLETE engine surface, head
     CHECK(reported.Get(u8"typeCount").AsInt() > 30);
 }
 
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 namespace
 {
     // One property as `script_api` lists it for `language`, or null when it is not listed.
@@ -553,7 +553,7 @@ namespace
 }
 #endif
 
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 #endif // a language to report on
 
 TEST_CASE("integration.mcp: script_api lists the AngelScript properties a script can use, inherited "
@@ -565,7 +565,7 @@ TEST_CASE("integration.mcp: script_api lists the AngelScript properties a script
 }
 #endif
 
-#if defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 TEST_CASE("integration.mcp: script_api lists the Luau properties a script can use, inherited ones "
           "too, and not an asset reference or a container it cannot")
 {

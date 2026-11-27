@@ -358,8 +358,8 @@ set_target_properties(jolt PROPERTIES POSITION_INDEPENDENT_CODE ON)
 # policy (vendored code builds without our -Werror). scriptstdstring_utils.cpp is
 # deliberately not vendored (needs scriptarray). scriptbuilder parses [metadata] ahead of
 # declarations (the AngelScript editor cook harvests behavior properties through it).
-# Gated on OPTION_ENABLE_ANGELSCRIPT: a disabled backend never compiles its VM.
-if(OPTION_ENABLE_ANGELSCRIPT)
+# Gated on OPTION_PLUGIN_ANGELSCRIPT: a disabled backend never compiles its VM.
+if(OPTION_PLUGIN_ANGELSCRIPT)
 file(GLOB util_angelscript_sources ${CMAKE_CURRENT_SOURCE_DIR}/angelscript/source/*.cpp)
 # x64 Windows needs a hand-written native-call trampoline; the glob above only picks up .cpp,
 # and AngelScript ships the same routines twice, once per assembler dialect. Clang takes the
@@ -411,7 +411,7 @@ if(NOT EMSCRIPTEN)
     find_package(Threads REQUIRED)
     target_link_libraries(angelscript PUBLIC Threads::Threads)
 endif()
-endif() # OPTION_ENABLE_ANGELSCRIPT
+endif() # OPTION_PLUGIN_ANGELSCRIPT
 # On Emscripten as_config.h auto-enables AS_MAX_PORTABILITY (native-call trampolines compile out; the
 # backend is all-generic) AND AS_NO_THREADS, so the web build needs no pthread / SharedArrayBuffer and
 # no manual define here - matching the single-threaded web v1 (JobSystem inline) model.
@@ -430,8 +430,8 @@ endif() # OPTION_ENABLE_ANGELSCRIPT
 # as an exception is a hard abort. PUBLIC so every consumer sees the same luaconf shape.
 # BYTECODE COMPAT NOTE: Luau bytecode is NOT stable across versions - the script cook
 # fingerprint must include this vendored version (see docs/specs/luau-backend.md).
-# Gated on OPTION_ENABLE_LUAU: a disabled backend never compiles its VM.
-if(OPTION_ENABLE_LUAU)
+# Gated on OPTION_PLUGIN_LUAU: a disabled backend never compiles its VM.
+if(OPTION_PLUGIN_LUAU)
 file(GLOB util_luau_sources
     ${CMAKE_CURRENT_SOURCE_DIR}/luau/VM/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/luau/Compiler/src/*.cpp
@@ -453,7 +453,7 @@ target_include_directories(luau PRIVATE
 target_compile_definitions(luau PUBLIC LUA_USE_LONGJMP=1)
 target_compile_features(luau PRIVATE cxx_std_17)
 set_target_properties(luau PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif() # OPTION_ENABLE_LUAU
+endif() # OPTION_PLUGIN_LUAU
 
 # zlib 1.3.2 - deflate and inflate, vendored BY COPY (github.com/madler/zlib, zlib licence; see
 # zlib/README.vendored.md). The library's sources only (no gzip file functions). Z_PREFIX names its

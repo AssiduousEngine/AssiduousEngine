@@ -29,7 +29,7 @@ import pipeline.core;
 import pipeline.importer;
 import pipeline.registration;
 import script.pipeline;
-#ifdef OPTION_HAS_DOTNET
+#ifdef HAS_PLUGIN_CSHARP
 import csharp.pipeline; // RegisterDotNetScriptCook: what the csharp plugin's Pipeline part registers
 #endif
 import engine.behavior;
@@ -43,7 +43,7 @@ using foundation::json::JsonValue;
 namespace json = foundation::json;
 namespace scene = foundation::scene;
 
-#ifdef OPTION_HAS_DOTNET
+#ifdef HAS_PLUGIN_CSHARP
 namespace
 {
     JsonValue CallResponse(McpServer& s, StringView tool, JsonValue arguments)
@@ -325,4 +325,4 @@ TEST_CASE("integration.mcp: C# reaches an official plugin's component as it reac
 
     (void)RemoveDirectoryRecursive(projectDir);
 }
-#endif // OPTION_HAS_DOTNET
+#endif // HAS_PLUGIN_CSHARP

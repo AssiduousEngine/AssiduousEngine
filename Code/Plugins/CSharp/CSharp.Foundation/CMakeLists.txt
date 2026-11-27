@@ -23,3 +23,6 @@ target_sources(${PLUGIN_LIBRARY}
         DotNetRuntimeImpl.cpp
         DotNetScriptImpl.cpp
         DotNetCompiledIn.cpp)
+
+# What links the language knows it is there: `#ifdef HAS_PLUGIN_CSHARP`.
+target_compile_definitions(${PLUGIN_LIBRARY} INTERFACE HAS_PLUGIN_CSHARP)

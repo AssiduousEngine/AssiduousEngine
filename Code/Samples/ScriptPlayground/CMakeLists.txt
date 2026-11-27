@@ -17,7 +17,7 @@ target_link_libraries(ScriptPlayground PRIVATE
     Foundation::Materials Foundation::Materials.Resource
     # Both backends (guarded aliases, empty when a backend is off) so --script= can pick either;
     # the runtime registration itself comes from Engine::DefaultApp.
-    Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} Foundation::Script.Resource
+    Foundation::Script $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation> Foundation::Script.Resource
     Foundation::Script.Facades Engine::Behavior
     Foundation::Policy)
 util_copy_sdl3_dll(ScriptPlayground)

@@ -12,10 +12,10 @@
 import foundation.core;
 import foundation.script;
 import script.pipeline;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.pipeline;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.pipeline;
 #endif
 
@@ -99,7 +99,7 @@ REFLECT_MEMBERS(CheckLateType, "rtti::script::checktest")
     builder.Property<&CheckLateType::count>("count");
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("cached check manager: made once, again when the types change, and ahead (angelscript)")
 {
     angelscript::RegisterAngelScriptScriptCook(); // and its backend
@@ -107,7 +107,7 @@ TEST_CASE("cached check manager: made once, again when the types change, and ahe
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("cached check manager: made once, again when the types change, and ahead (luau)")
 {
     luau::RegisterLuauScriptCook(); // and its backend

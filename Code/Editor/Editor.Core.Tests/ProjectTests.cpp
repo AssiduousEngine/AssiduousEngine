@@ -21,10 +21,10 @@ import render.pipeline; // RenderQualityAsset: an older project's upgrade
 import pipeline.core;   // Asset: what a source file names
 import script.pipeline; // ScriptClassAsset: code, which an older project kept under Sources/
 import pipeline.importer; // ImporterRegistry (new code found under Code/)
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation; // a code language's backend for the adoption test
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation; // a language whose declarations file has a script's extension
 #endif
 import editor.core;
@@ -1505,7 +1505,7 @@ TEST_CASE("editor-project: a companion file moves with its owner, never on its o
     (void)RemoveDirectoryRecursive(dir);
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 // A script made in an outside editor under Code/ becomes an asset where it lies: in the group its
 // folder names (made), its file not copied; a second report adopts nothing more; a file no code
 // importer takes, and one removed, are left alone.
@@ -1546,7 +1546,7 @@ TEST_CASE("editor-project: new code under Code becomes an asset where it lies")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 // The editor writes an outside editor's files into Code/ as a project opens: each language's
 // declarations (Luau's engine.d.luau, whose extension the script importer takes) and the VS Code
 // ones. They are not the project's code: the scan that adopts new code passes them by, and the

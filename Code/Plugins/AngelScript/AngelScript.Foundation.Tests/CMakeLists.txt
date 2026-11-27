@@ -2,7 +2,7 @@
 # too (guarded alias): the registry test proves both backends resolve side by side.
 add_executable(AngelScript.Foundation.Tests TestsMain.cpp ScriptAngelScriptTests.cpp)
 target_link_libraries(AngelScript.Foundation.Tests PRIVATE
-    Plugins::AngelScript.Foundation ${SCRIPTLIB_LUAU} doctest::doctest
+    Plugins::AngelScript.Foundation $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation> doctest::doctest
     ThirdParty::AngelScript) # a test counts the engine's modules through AngelScriptEngineHandle
 target_compile_definitions(AngelScript.Foundation.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(AngelScript.Foundation.Tests PRIVATE

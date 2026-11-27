@@ -20,10 +20,10 @@ import foundation.gui;
 import foundation.gui.gamekit;
 import foundation.gui.resources;
 import engine.gui;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -146,7 +146,7 @@ namespace
     };
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("engine-gui-script: AngelScript finds the screen tier at gui::root() and pushes a cooked document by its guid")
 {
     Bed bed;
@@ -160,7 +160,7 @@ TEST_CASE("engine-gui-script: AngelScript finds the screen tier at gui::root() a
 }
 #endif
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("engine-gui-script: AngelScript reaches a canvas's, a billboard's and a world panel's tree by root()")
 {
     // root() returns a Node handle in a Variant. AngelScript binds that only when the type is
@@ -185,7 +185,7 @@ TEST_CASE("engine-gui-script: AngelScript reaches a canvas's, a billboard's and 
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("engine-gui-script: Luau finds the screen tier at gui.root() and pushes a cooked document by its guid")
 {
     Bed bed;

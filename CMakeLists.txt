@@ -69,7 +69,7 @@ set(ENGINE_PROJECT_PLUGINS "" CACHE STRING "A project's plugin package folders, 
 # template does not carry a plugin the project enables. The exporter sets it.
 option(ENGINE_GAME_PLAYER "Build Engine.GamePlayer, the project's player, without packages of its own" OFF)
 # A project's C#: the folder holding its .csproj, compiled ahead of time (with the engine's managed
-# runtime) into Engine.GamePlayer. The exporter sets it, with OPTION_ENABLE_DOTNET, for a native
+# runtime) into Engine.GamePlayer. The exporter sets it, with OPTION_PLUGIN_CSHARP, for a native
 # export of a project with C#. Desktop.
 set(ENGINE_PROJECT_CSHARP "" CACHE PATH "A project's C# folder (its .csproj's), compiled into Engine.GamePlayer")
 # The GitHub repository (owner/name) whose releases carry what an editor downloads for its own
@@ -177,24 +177,39 @@ option(OPTION_BUILD_TESTS "Build unit tests" ON)
 option(OPTION_BUILD_SAMPLES "Build sample applications" ON)
 option(OPTION_BUILD_TOOLS "Build editor/authoring tooling (the editor libraries + CLI exes)" ON)
 option(OPTION_BUILD_DEPRECATED "Build Code/Deprecated (the old UI framework and its UISandbox)" OFF)
-# Optional plugins are independently switchable; each exposes an OPTION_HAS_* compile define
-# (see the policy block) so C++ can guard usage with #if.
+# Optional plugins are independently switchable. A script language's plugin says it is there to the
+# code that links it: its Foundation library defines HAS_PLUGIN_<LANGUAGE> for its users.
 option(OPTION_GUI_LIBFUZZER "Build a libFuzzer executable per GUI fuzz target (clang; configure the tree with -fsanitize=fuzzer-no-link,address)" OFF)
 option(OPTION_PLUGIN_IMGUI  "Build the Dear ImGui debug-UI plugin (imgui.engine)" ON)
-# Script backends are independently switchable; each defines OPTION_HAS_<backend> (presence macro,
-# guard C++ with `#ifdef`) when enabled. At least one must stay on. AngelScript additionally needs
-# its vendored lib to have built (reconciled after ThirdParty is added, before the backend subdirs).
-option(OPTION_ENABLE_ANGELSCRIPT "Build the AngelScript script backend" ON)
-option(OPTION_ENABLE_LUAU        "Build the Luau script backend" ON)
-# C# scripting: the engine hosts .NET through hostfxr on the desktop. Needs the .NET SDK, so it is on
-# by default for a desktop build and off for the web and Android, where a C# game is compiled into
-# its program (the exporter turns it on for one).
+# The script languages, each an official plugin built or left out. None is required: a game whose
+# logic is native behaviors runs with none. AngelScript also needs its vendored lib to have built
+# (reconciled after ThirdParty is added, before the plugins).
+option(OPTION_PLUGIN_ANGELSCRIPT "Build the AngelScript language plugin (angelscript)" ON)
+option(OPTION_PLUGIN_LUAU        "Build the Luau language plugin (luau)" ON)
+# C#: the engine hosts .NET through hostfxr on the desktop. Needs the .NET SDK, so it is on by default
+# for a desktop build and off for the web, where a C# game is compiled into its program (the exporter
+# turns it on for one). Android has no C#.
 if(EMSCRIPTEN OR ANDROID)
-    set(DOTNET_BY_DEFAULT OFF)
+    set(CSHARP_BY_DEFAULT OFF)
 else()
-    set(DOTNET_BY_DEFAULT ON)
+    set(CSHARP_BY_DEFAULT ON)
 endif()
-option(OPTION_ENABLE_DOTNET      "Build the .NET host for C# scripting" ${DOTNET_BY_DEFAULT})
+option(OPTION_PLUGIN_CSHARP      "Build the C# language plugin (csharp; needs the .NET SDK)" ${CSHARP_BY_DEFAULT})
+if(ANDROID)
+    set(OPTION_PLUGIN_CSHARP OFF)
+endif()
+# The switches' earlier names: a build tree that still has one is told what took its place, and it is
+# dropped from the cache (its value is not carried over).
+foreach(_renamed IN ITEMS "OPTION_ENABLE_ANGELSCRIPT|OPTION_PLUGIN_ANGELSCRIPT" "OPTION_ENABLE_LUAU|OPTION_PLUGIN_LUAU"
+                          "OPTION_ENABLE_DOTNET|OPTION_PLUGIN_CSHARP")
+    string(REPLACE "|" ";" _renamed "${_renamed}")
+    list(GET _renamed 0 _old)
+    list(GET _renamed 1 _new)
+    if(DEFINED ${_old})
+        message(WARNING "${_old} is now ${_new} (${_new} is ${${_new}}); ${_old} is ignored and dropped from the cache")
+        unset(${_old} CACHE)
+    endif()
+endforeach()
 option(OPTION_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
 # A web (Emscripten) build ships a game, not the authoring toolchain: force the tooling group off
@@ -532,56 +547,18 @@ add_subdirectory(Code/Foundation/VG.Resource) # cooked vector images (validated 
 add_subdirectory(Code/Foundation/VG.Renderer)
 add_subdirectory(Code/Foundation/GUI)   # the GUI framework (derived from eepp)
 add_subdirectory(Code/Foundation/Script)
-# --- Script backends: independently switchable via OPTION_ENABLE_* (declared up top) -----------
-# Both OPTION_ENABLE_ANGELSCRIPT/LUAU flags are defined in the option block above. Only AngelScript
-# needs reconciling here: its vendored lib is conditional (it may not build on a target), so a
-# requested but absent AngelScript is switched off. Luau is vendored unconditionally. Then publish
-# the OPTION_HAS_<backend> presence defines (C++ guards usage with #ifdef). No backend is required:
-# a game whose logic is native behaviors runs with none.
-if(OPTION_ENABLE_ANGELSCRIPT AND NOT TARGET ThirdParty::AngelScript)
-    message(STATUS "AngelScript backend requested but its vendored lib did not build - disabling OPTION_ENABLE_ANGELSCRIPT.")
-    set(OPTION_ENABLE_ANGELSCRIPT OFF)
-endif()
-# Presence macros, defined only when enabled, so C++ guards read `#ifdef OPTION_HAS_ANGELSCRIPT`.
-# C# builds on the desktop and the web (the web only compiled into a program: see Code/Plugins/CSharp/DotNet.cmake);
-# Android is not covered.
-set(DOTNET_SCRIPTING OFF)
-if(OPTION_ENABLE_DOTNET AND NOT ANDROID)
-    set(DOTNET_SCRIPTING ON)
-endif()
-target_compile_definitions(policy INTERFACE
-    $<$<BOOL:${OPTION_ENABLE_ANGELSCRIPT}>:OPTION_HAS_ANGELSCRIPT>
-    $<$<BOOL:${OPTION_ENABLE_LUAU}>:OPTION_HAS_LUAU>
-    $<$<BOOL:${DOTNET_SCRIPTING}>:OPTION_HAS_DOTNET>)
-
-# Target-or-empty aliases for the optional backend libs, so a consumer shared by both backends
-# (composition roots, multi-backend test suites) lists ${SCRIPTLIB_*} in target_link_libraries and
-# it resolves to the real target when the backend is on, or to nothing when it is off, with no
-# if() at each site.
-# (The per-backend subdirs are gated whole, so they keep their explicit names.)
-set(SCRIPTLIB_ANGELSCRIPT "")
-set(SCRIPTLIB_LUAU "")
-set(SCRIPTLIB_ANGELSCRIPT_PIPELINE "")
-set(SCRIPTLIB_LUAU_PIPELINE "")
-set(SCRIPTLIB_DOTNET "")
-set(SCRIPTLIB_DOTNET_PIPELINE "")
-if(DOTNET_SCRIPTING)
-    set(SCRIPTLIB_DOTNET Plugins::CSharp.Foundation)        # the csharp plugin's runtime host
-    set(SCRIPTLIB_DOTNET_PIPELINE Plugins::CSharp.Pipeline) # and its cook
-endif()
-if(OPTION_ENABLE_ANGELSCRIPT)
-    set(SCRIPTLIB_ANGELSCRIPT Plugins::AngelScript.Foundation)        # the angelscript plugin's VM
-    set(SCRIPTLIB_ANGELSCRIPT_PIPELINE Plugins::AngelScript.Pipeline) # and its cook
-endif()
-if(OPTION_ENABLE_LUAU)
-    set(SCRIPTLIB_LUAU Plugins::Luau.Foundation)        # the luau plugin's VM
-    set(SCRIPTLIB_LUAU_PIPELINE Plugins::Luau.Pipeline) # and its cook
+# The AngelScript plugin needs its vendored lib, which is conditional (it may not build on a target):
+# a requested but absent AngelScript is switched off. Luau is vendored unconditionally.
+# A suite that runs a language when it is built links it as $<TARGET_NAME_IF_EXISTS:Plugins::<Name>.X>.
+if(OPTION_PLUGIN_ANGELSCRIPT AND NOT TARGET ThirdParty::AngelScript)
+    message(STATUS "AngelScript requested but its vendored lib did not build - switching OPTION_PLUGIN_ANGELSCRIPT off.")
+    set(OPTION_PLUGIN_ANGELSCRIPT OFF)
 endif()
 
 # The csharp plugin's build tools, here at the root: the bindings generator (its custom commands build
 # the managed runtime every C# host needs) and dotnet_link_compiled_runtime, which the root calls
 # for a project's player. The plugin itself is added with the other official plugins below.
-if(DOTNET_SCRIPTING)
+if(OPTION_PLUGIN_CSHARP)
     if(NOT EMSCRIPTEN)
         add_subdirectory(Code/Plugins/CSharp/CSharp.Bindings) # writes the C# bindings from reflection, builds the runtime
     endif()
@@ -655,23 +632,23 @@ util_add_plugin(Code/Plugins/Dialogue) # conversations as text, their runner and
 util_add_plugin(Code/Plugins/Particles) # particle effects: the CPU simulation, its renderer and the effect page
 util_add_plugin(Code/Plugins/Terrain) # terrain and its vegetation: chunks, renderer, brushes and pages
 util_add_plugin(Code/Plugins/Navigation) # navmeshes over Recast and Detour: zones, agents, the bake
-if(OPTION_ENABLE_ANGELSCRIPT)
+if(OPTION_PLUGIN_ANGELSCRIPT)
     util_add_plugin(Code/Plugins/AngelScript) # the AngelScript language: its VM and its cook
 endif()
-if(OPTION_ENABLE_LUAU)
+if(OPTION_PLUGIN_LUAU)
     util_add_plugin(Code/Plugins/Luau) # the Luau language: its VM and its cook
 endif()
-if(DOTNET_SCRIPTING)
+if(OPTION_PLUGIN_CSHARP)
     util_add_plugin(Code/Plugins/CSharp) # the C# language: hosts .NET or calls the runtime compiled in, and its cook
 endif()
 # The plugins the engine's hosts link (the players, the editor and the CLI tools, each the parts its
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
 set(UTIL_HOST_PLUGINS dialogue particles terrain navigation)
-if(OPTION_ENABLE_ANGELSCRIPT)
+if(OPTION_PLUGIN_ANGELSCRIPT)
     list(APPEND UTIL_HOST_PLUGINS angelscript)
 endif()
-if(OPTION_ENABLE_LUAU)
+if(OPTION_PLUGIN_LUAU)
     list(APPEND UTIL_HOST_PLUGINS luau)
 endif()
 # C#'s bindings cover the official plugins' surface too: the tool loads them before it generates.
@@ -679,7 +656,7 @@ endif()
 if(TARGET Tools.DotNetBindings)
     util_link_plugins(Tools.DotNetBindings ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
 endif()
-if(DOTNET_SCRIPTING)
+if(OPTION_PLUGIN_CSHARP)
     list(APPEND UTIL_HOST_PLUGINS csharp)
 endif()
 add_subdirectory(Code/Engine/Engine.Player)        # Generic game runner
@@ -815,15 +792,15 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Pipeline/Physics.Pipeline.Tests                Pipeline::Physics)
     util_test_suite(Code/Pipeline/Render.Pipeline.Tests                 Pipeline::Render)
     util_test_suite(Code/Plugins/Navigation/Navigation.Pipeline.Tests Plugins::Navigation.Pipeline)
-    if(OPTION_ENABLE_ANGELSCRIPT)
+    if(OPTION_PLUGIN_ANGELSCRIPT)
         util_test_suite(Code/Plugins/AngelScript/AngelScript.Pipeline.Tests Plugins::AngelScript.Pipeline)
     endif()
     util_test_suite(Code/Pipeline/Scene.Pipeline.Tests                  Pipeline::Scene)
     util_test_suite(Code/Pipeline/Script.Pipeline.Tests                 Pipeline::Script)
-    if(OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Plugins/Luau/Luau.Pipeline.Tests Plugins::Luau.Pipeline)
     endif()
-    if(DOTNET_SCRIPTING)
+    if(OPTION_PLUGIN_CSHARP)
         util_test_suite(Code/Plugins/CSharp/CSharp.Pipeline.Tests Plugins::CSharp.Pipeline)
         util_test_suite(Code/Plugins/CSharp/CSharp.Tooling.Tests Plugins::CSharp.Tooling)
     endif()
@@ -837,7 +814,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Audio.Tests                  Engine::Audio)
     # Monolithic: its one test file exercises both backends, so it builds only when both
     # are on (a subset config drops it; the default all-on CI config runs it).
-    if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT AND OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Engine/Engine.Run.Tests Engine::Run)
     endif()
     util_test_suite(Code/Engine/Engine.Composition.Tests Engine::Composition)
@@ -851,7 +828,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Render.Tests                 Engine::Render)
     util_test_suite(Code/Engine/Engine.Scene.Tests                  Engine::Scene)
     # Monolithic: one test file exercises both backends, so it builds only when both are on.
-    if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT AND OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Engine/Engine.Behavior.Tests Engine::Behavior)
     endif()
     util_test_suite(Code/Foundation/GUI.Shell.Tests               Foundation::GUI.Shell)
@@ -950,17 +927,17 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Spline.Tests                 Engine::Spline)
     util_test_suite(Code/Engine/Engine.Sequence.Tests               Engine::Sequence)
     util_test_suite(Code/Foundation/Scene.Tests                     Foundation::Scene)
-    if(OPTION_ENABLE_ANGELSCRIPT)
+    if(OPTION_PLUGIN_ANGELSCRIPT)
         util_test_suite(Code/Plugins/AngelScript/AngelScript.Foundation.Tests Plugins::AngelScript.Foundation)
         util_test_suite(Code/Plugins/AngelScript/AngelScript.Engine.Tests Plugins::AngelScript.Engine)
     endif()
     util_test_suite(Code/Foundation/Script.Resource.Tests           Foundation::Script.Resource)
     util_test_suite(Code/Foundation/Script.Tests                    Foundation::Script)
-    if(OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Plugins/Luau/Luau.Foundation.Tests Plugins::Luau.Foundation)
         util_test_suite(Code/Plugins/Luau/Luau.Engine.Tests Plugins::Luau.Engine)
     endif()
-    if(DOTNET_SCRIPTING)
+    if(OPTION_PLUGIN_CSHARP)
         util_test_suite(Code/Plugins/CSharp/CSharp.Foundation.Tests Plugins::CSharp.Foundation)
         util_test_suite(Code/Plugins/CSharp/CSharp.Engine.Tests Plugins::CSharp.Engine)
     endif()
@@ -990,7 +967,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Mcp.Tests                      Foundation::Mcp)
     util_test_suite(Code/Foundation/Mcp.Reflection.Tests           Foundation::Mcp.Reflection)
     # script_api and script_declarations describe a language's bound API: they need one built.
-    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT OR OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Foundation/Mcp.Script.Tests           Foundation::Mcp.Script)
     endif()
     util_test_suite(Code/Foundation/Mcp.Http.Tests                 Foundation::Mcp.Http)
@@ -998,20 +975,20 @@ if(OPTION_BUILD_TESTS)
     # Integration: flow suites that cross collections. The Integration. prefix lets a fast loop run
     # the module suites alone; a full run before review or a push includes these.
     # JSON from scripts: the test file runs on AngelScript and Luau, so build it when either is on.
-    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT OR OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Integration/Integration.Script            Foundation::Script)
     endif()
     # Subsystem script facades (Net.*, Audio.*) on AngelScript and Luau, kept here so the subsystem
     # unit suites stay backend-neutral. Each backend leg is #ifdef-guarded; build if either is on.
-    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT OR OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Integration/Integration.ScriptFacades     Engine::Audio)
     endif()
     # Script behaviours on a scene measured against native components (the script speed work).
-    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT OR OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Integration/Integration.ScriptScene       Engine::Behavior)
     endif()
     # The GUI (foundation.gui) and its satellites from scripts, the engine's GUI among them.
-    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+    if(OPTION_PLUGIN_ANGELSCRIPT OR OPTION_PLUGIN_LUAU)
         util_test_suite(Code/Integration/Integration.GuiScript         Foundation::GUI.Gamekit)
     endif()
     util_test_suite(Code/Integration/Integration.Mcp                Editor::Mcp)  # golden flow: create, open and inspect a project
@@ -1053,8 +1030,8 @@ if(EMSCRIPTEN)
     endif()
     # A project's C#, compiled to bitcode and linked into its web player.
     if(ENGINE_PROJECT_CSHARP AND TARGET Engine.GamePlayer)
-        if(NOT DOTNET_SCRIPTING OR NOT DOTNET_BINDINGS)
-            message(FATAL_ERROR "ENGINE_PROJECT_CSHARP on the web needs OPTION_ENABLE_DOTNET and DOTNET_BINDINGS")
+        if(NOT OPTION_PLUGIN_CSHARP OR NOT DOTNET_BINDINGS)
+            message(FATAL_ERROR "ENGINE_PROJECT_CSHARP on the web needs OPTION_PLUGIN_CSHARP and DOTNET_BINDINGS")
         endif()
         dotnet_link_compiled_runtime(Engine.GamePlayer Game "${ENGINE_PROJECT_CSHARP}")
     endif()
@@ -1080,8 +1057,8 @@ elseif(TARGET Engine.GamePlayer)
 endif()
 # A project's C#, compiled ahead of time into its player.
 if(ENGINE_PROJECT_CSHARP AND TARGET Engine.GamePlayer)
-    if(NOT DOTNET_SCRIPTING)
-        message(FATAL_ERROR "ENGINE_PROJECT_CSHARP needs OPTION_ENABLE_DOTNET (and a desktop build)")
+    if(NOT OPTION_PLUGIN_CSHARP)
+        message(FATAL_ERROR "ENGINE_PROJECT_CSHARP needs OPTION_PLUGIN_CSHARP (and a desktop build)")
     endif()
     dotnet_link_compiled_runtime(Engine.GamePlayer Game "${ENGINE_PROJECT_CSHARP}")
 endif()

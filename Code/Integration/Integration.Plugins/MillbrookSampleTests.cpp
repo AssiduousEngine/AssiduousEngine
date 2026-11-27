@@ -31,7 +31,7 @@ namespace json = foundation::json;
 namespace runtime = foundation::runtime;
 using foundation::json::JsonValue;
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT) // its scripts are AngelScript
+#if defined(HAS_PLUGIN_ANGELSCRIPT) // its scripts are AngelScript
 namespace
 {
     struct Called

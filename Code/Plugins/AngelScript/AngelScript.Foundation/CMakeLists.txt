@@ -13,3 +13,6 @@ target_sources(${PLUGIN_LIBRARY}
     PUBLIC
         FILE_SET angelscript_modules TYPE CXX_MODULES FILES
             AngelScriptScript.cppm)
+
+# What links the language knows it is there: `#ifdef HAS_PLUGIN_ANGELSCRIPT`.
+target_compile_definitions(${PLUGIN_LIBRARY} INTERFACE HAS_PLUGIN_ANGELSCRIPT)

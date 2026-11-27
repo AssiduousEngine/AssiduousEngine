@@ -7,13 +7,11 @@ target_link_libraries(Integration.Script PRIVATE
     Foundation::Json Foundation::Script doctest::doctest)
 
 # Each backend is independently switchable; include its leg only when the backend is built.
-if(TARGET ${SCRIPTLIB_ANGELSCRIPT})
-    target_link_libraries(Integration.Script PRIVATE ${SCRIPTLIB_ANGELSCRIPT})
-    target_compile_definitions(Integration.Script PRIVATE INTEGRATION_HAS_ANGELSCRIPT=1)
+if(TARGET Plugins::AngelScript.Foundation)
+    target_link_libraries(Integration.Script PRIVATE Plugins::AngelScript.Foundation)
 endif()
-if(TARGET ${SCRIPTLIB_LUAU})
-    target_link_libraries(Integration.Script PRIVATE ${SCRIPTLIB_LUAU})
-    target_compile_definitions(Integration.Script PRIVATE INTEGRATION_HAS_LUAU=1)
+if(TARGET Plugins::Luau.Foundation)
+    target_link_libraries(Integration.Script PRIVATE Plugins::Luau.Foundation)
 endif()
 
 target_compile_definitions(Integration.Script PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

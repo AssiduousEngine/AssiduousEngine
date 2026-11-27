@@ -17,10 +17,10 @@ import foundation.shell;
 import foundation.input;
 import foundation.settings;
 import foundation.script;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 import engine.input;
@@ -34,7 +34,7 @@ namespace shell = foundation::shell;
 
 #include "InputTestSupport.h"
 
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 namespace
 {
     // The per-context Input-facade drive, parameterized by the backend's manager and its read and
@@ -99,7 +99,7 @@ namespace
 }
 #endif
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("input: the Input facade resolves PER-CONTEXT services (AngelScript)")
 {
     DrivePerContextInput(angelscript::CreateScriptManager(foundation::core::DefaultAllocator()),
@@ -113,9 +113,9 @@ TEST_CASE("input: the Input facade resolves PER-CONTEXT services (AngelScript)")
                          u8"}\n",
                          u8"void main() { Input::pushSet(\"Menu\"); }\n");
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("input: a script rumbles its own context's pad, and stops it")
 {
     RefPtr<foundation::script::IScriptManager> manager =
@@ -157,9 +157,9 @@ TEST_CASE("input: a script rumbles its own context's pad, and stops it")
     // No input service: a no-op, never a fault.
     REQUIRE(ctxNone->Load(u8"void main() { Input::rumble(1.0f, 1.0f, 1.0f); }\n", u8"main").IsOk());
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("input: a script locks its own context's pointer, reads the lock, and frees it")
 {
     RefPtr<foundation::script::IScriptManager> manager =
@@ -196,9 +196,9 @@ TEST_CASE("input: a script locks its own context's pointer, reads the lock, and 
                           u8"main").IsOk());
     CHECK(ctxNone->GetGlobal(u8"Locked").Get<bool>() == false);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("input: the Input facade resolves PER-CONTEXT services (Luau)")
 {
     DrivePerContextInput(luau::CreateLuauScriptManager(DefaultAllocator()),
@@ -209,7 +209,7 @@ TEST_CASE("input: the Input facade resolves PER-CONTEXT services (Luau)")
                          u8"Move2DY = move.y\n",
                          u8"Input.pushSet(\"Menu\")\n");
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
 TEST_CASE("input.subsystem: the per-surface scene binding rides the source override")
 {
@@ -464,7 +464,7 @@ TEST_CASE("input: a fitted source turned with the present reads the game's frame
     CHECK(mouse->Y() == doctest::Approx(90.0f));
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("input: Input::describe names the control for the device in hand, as a prompt shows it")
 {
     RefPtr<foundation::script::IScriptManager> manager =
@@ -576,7 +576,7 @@ TEST_CASE("input.subsystem: the subsystem tracks the input kind from its active 
     input.BeginFrame(1.0f / 60.0f);
     CHECK(input.InputKinds().Kind() == InputKind::Pad);
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
 namespace
 {

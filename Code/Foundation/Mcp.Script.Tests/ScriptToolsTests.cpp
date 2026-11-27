@@ -15,9 +15,9 @@ import foundation.core;
 import foundation.json;
 import foundation.mcp;
 import foundation.mcp.script;
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.foundation;
-#elif defined(OPTION_HAS_LUAU)
+#elif defined(HAS_PLUGIN_LUAU)
 import luau.foundation;
 #endif
 
@@ -32,7 +32,7 @@ namespace
     // run against whichever single backend the build enabled (the tool is backend-neutral).
     [[nodiscard]] StringView RegisterSomeBackend()
     {
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
         angelscript::RegisterAngelScriptBackend();
         return StringView(u8"angelscript");
 #else
@@ -163,7 +163,7 @@ TEST_CASE("mcp.script: script_declarations writes the backend's declarations fil
     const StringView text(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
     // The core math type is declared, in the backend's own syntax.
     CHECK(text.Find(StringView(u8"Float3")) != StringView::kNotFound);
-#if defined(OPTION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
     CHECK(path.AsView().EndsWith(StringView(u8"as.predefined")));
     CHECK(text.Find(StringView(u8"class Float3")) != StringView::kNotFound);
     CHECK(text.Find(StringView(u8"float x;")) != StringView::kNotFound); // a value's field, as a member

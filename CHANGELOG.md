@@ -14,7 +14,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   every official plugin loaded. A project's own packages are not in them yet.
 - Scripts: C#, beside AngelScript and Luau (experimental): entity, scene and run behaviors written in
   C# over the same facades, built into the project's assembly by the cook. On by default in a
-  desktop build, which needs the .NET 10 SDK (`-DOPTION_ENABLE_DOTNET=OFF` leaves it out); a web
+  desktop build, which needs the .NET 10 SDK (`-DOPTION_PLUGIN_CSHARP=OFF` leaves it out); a web
   export of a C# game compiles it in. Holdout, a first-person shooter, is its sample.
 - Projects: a **Present mode** setting (Display): vsync, the default, mailbox or immediate, which do
   not wait for the display; an export preset's own window can set its own. The player presents in it
@@ -60,6 +60,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - C# is an official plugin as well, `csharp`, on Linux, Windows and the web (not Android). A
   project written before (data version 18 or older) whose scripts are C#, or that has a `.csproj`
   under its Code folder, enables it as it opens; Holdout does.
+- The build switches for the script languages are named for their plugins: `OPTION_PLUGIN_ANGELSCRIPT`,
+  `OPTION_PLUGIN_LUAU` and `OPTION_PLUGIN_CSHARP` replace `OPTION_ENABLE_ANGELSCRIPT`,
+  `OPTION_ENABLE_LUAU` and `OPTION_ENABLE_DOTNET`. A build tree that still has an old name is told
+  the new one, and the old one is dropped.
 - An export refuses a script whose language's plugin the project does not enable on the preset's
   platform (C# on Android, for one), naming the script and the plugin. A player built for a native
   export builds only the script languages the project enables there.

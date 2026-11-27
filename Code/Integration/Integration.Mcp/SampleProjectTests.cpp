@@ -29,7 +29,7 @@ using namespace foundation::core;
 using foundation::json::JsonValue;
 
 // The samples cook their scripts, which are AngelScript.
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 namespace
 {
     // One tools/call round trip through the MCP server; the result must not be an error.
@@ -286,4 +286,4 @@ TEST_CASE("sample project: Masquerade reads, cooks and its overrides match")
     // overrides are the guests', bots', player's, camera's and Ball's settings and references
     CheckSampleProject(u8"Masquerade", u8"scratch_masquerade_versions", {338u, 293.0, 957u});
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT

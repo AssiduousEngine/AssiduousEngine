@@ -18,10 +18,10 @@
 import foundation.core;
 import foundation.json;
 import foundation.script;
-#if INTEGRATION_HAS_ANGELSCRIPT
+#if HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#if INTEGRATION_HAS_LUAU
+#if HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -42,7 +42,7 @@ TEST_CASE("integration.script: JsonValue's reflected surface is registered")
     }
 }
 
-#if INTEGRATION_HAS_ANGELSCRIPT
+#if HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("integration.script: parse / query / build / stringify from AngelScript")
 {
     RegisterJsonTypes();
@@ -75,7 +75,7 @@ TEST_CASE("integration.script: parse / query / build / stringify from AngelScrip
 }
 #endif
 
-#if INTEGRATION_HAS_LUAU
+#if HAS_PLUGIN_LUAU
 TEST_CASE("integration.script: parse / query / build / stringify from Luau")
 {
     RegisterJsonTypes();

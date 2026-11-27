@@ -20,10 +20,10 @@ import foundation.script;
 import foundation.script.facades;
 import foundation.script.resource;
 import engine.behavior;
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 import angelscript.foundation;
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 import luau.foundation;
 #endif
 
@@ -100,10 +100,10 @@ namespace conformance
     {
         static const bool once = []()
         {
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
             angelscript::RegisterAngelScriptBackend();
 #endif
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
             luau::RegisterLuauScriptBackend();
 #endif
             RegisterCoreTypes();
@@ -222,14 +222,14 @@ TEST_CASE("behavior conformance: a native behavior plays the probe")
     conformance::CheckOutcome(conformance::Play(kNativeLanguage, u8"rtti::conformance::Probe", u8""));
 }
 
-#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+#if defined(HAS_PLUGIN_ANGELSCRIPT)
 TEST_CASE("behavior conformance: an AngelScript behavior plays the probe as the native one does")
 {
     conformance::CheckOutcome(conformance::Play(u8"angelscript", u8"Probe", conformance::kAngelScriptProbe));
 }
 #endif
 
-#if defined(INTEGRATION_HAS_LUAU)
+#if defined(HAS_PLUGIN_LUAU)
 TEST_CASE("behavior conformance: a Luau behavior plays the probe as the native one does")
 {
     conformance::CheckOutcome(conformance::Play(u8"luau", u8"Probe", conformance::kLuauProbe));

@@ -19,7 +19,7 @@ cmake --build build/clang -j4                          # everything
   the Steam Deck container, another engine's build). Two ninjas on one tree corrupt its dyndep
   state; two heavy builds at once run the machine out of memory.
 - A desktop build includes C# scripting and needs the .NET 10 SDK (`dotnet` on the path);
-  `-DOPTION_ENABLE_DOTNET=OFF` leaves it out.
+  `-DOPTION_PLUGIN_CSHARP=OFF` leaves it out.
 - Point the compiler's temp at the disk for big builds: `export TMPDIR=$PWD/build/tmp` (an
   absolute path; `/tmp` is a small tmpfs).
 - A tool built before a change does not have it: rebuild the editor, the player or `Tools.Mcp`

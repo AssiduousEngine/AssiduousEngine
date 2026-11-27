@@ -16,7 +16,7 @@ import foundation.gui;
 import foundation.gui.toolkit;
 import foundation.gui.code;
 import script.pipeline;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.pipeline;
 #endif
 import editor.core;
@@ -27,7 +27,7 @@ using namespace foundation::core;
 using namespace editor;
 namespace gui = foundation::gui;
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 namespace
 {
     String DataPath(StringView relative)
@@ -230,9 +230,9 @@ TEST_CASE("script page: the API browser built when it opens and searched; a brea
     CHECK_FALSE(page->HasBreakpointMark(2));
     CHECK_FALSE(bed.context.HasBreakpoint(u8"Hero.as", 3));
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("script page: a source changed outside the editor is not saved over in silence")
 {
     // The page compared its text only with what it last read, never the file: Save wrote over an

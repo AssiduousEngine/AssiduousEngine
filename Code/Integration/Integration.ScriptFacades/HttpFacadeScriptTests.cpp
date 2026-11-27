@@ -15,10 +15,10 @@ import foundation.http.client;
 import foundation.http.script;
 import foundation.script;
 import foundation.script.facades;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -149,7 +149,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("http-facade: AngelScript sends, hears answers on the pump, cancels")
 {
     RegisterCoreTypes();
@@ -170,7 +170,7 @@ TEST_CASE("http-facade: AngelScript sends, hears answers on the pump, cancels")
 }
 #endif
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("http-facade: Luau sends, hears answers on the pump, cancels")
 {
     RegisterCoreTypes();
@@ -190,7 +190,7 @@ TEST_CASE("http-facade: a context with no Http service gets 0 back, and nothing 
 {
     RegisterCoreTypes();
     http::RegisterHttpScriptFacade();
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
     RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();

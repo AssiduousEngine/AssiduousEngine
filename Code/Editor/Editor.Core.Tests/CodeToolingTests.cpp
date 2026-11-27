@@ -12,7 +12,7 @@
 
 import foundation.core;
 import editor.core;
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import foundation.script;
 import luau.foundation;
 import script.pipeline;
@@ -78,7 +78,7 @@ TEST_CASE("code-tooling: generated files follow, a user's edit is kept, a file t
     (void)RemoveDirectoryRecursive(root);
 }
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("code-tooling: Luau's declarations, and VS Code's extension and settings only when asked for")
 {
     luau::RegisterLuauScriptBackend();

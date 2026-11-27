@@ -1,13 +1,13 @@
 # ExportTests is mostly backend-neutral (templates/presets/manifests) and always builds so that
 # coverage is never gated on a script backend. Its two export-driver tests cook a startup script
 # asset, so the file links each enabled backend's cook (guarded) and the script tests themselves are
-# #ifdef'd per backend (OPTION_HAS_ANGELSCRIPT / OPTION_HAS_LUAU).
+# #ifdef'd per backend (HAS_PLUGIN_ANGELSCRIPT / HAS_PLUGIN_LUAU).
 set(_editor_core_script_libs Pipeline::Script Foundation::Script Foundation::Script.Resource)
-if(OPTION_ENABLE_ANGELSCRIPT)
-    list(APPEND _editor_core_script_libs ${SCRIPTLIB_ANGELSCRIPT_PIPELINE} ${SCRIPTLIB_ANGELSCRIPT})
+if(OPTION_PLUGIN_ANGELSCRIPT)
+    list(APPEND _editor_core_script_libs $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Pipeline> $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation>)
 endif()
-if(OPTION_ENABLE_LUAU)
-    list(APPEND _editor_core_script_libs ${SCRIPTLIB_LUAU_PIPELINE} ${SCRIPTLIB_LUAU})
+if(OPTION_PLUGIN_LUAU)
+    list(APPEND _editor_core_script_libs $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Pipeline> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation>)
 endif()
 add_executable(Editor.Core.Tests TestsMain.cpp CommandTests.cpp ActionsTests.cpp ProjectTests.cpp CookServiceTests.cpp
     ProjectRegistryTests.cpp

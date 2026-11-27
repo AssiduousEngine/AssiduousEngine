@@ -9,7 +9,7 @@
 // shared fixture, and a build with neither backend compiles it to an empty translation unit.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+#if defined(HAS_PLUGIN_ANGELSCRIPT) || defined(HAS_PLUGIN_LUAU)
 #include <cmath>
 
 import foundation.core;
@@ -23,10 +23,10 @@ import foundation.script;
 import foundation.script.facades; // ScriptRuntimeBinding, which names the run a context belongs to
 import foundation.run;
 import foundation.runtime; // SubsystemManager, on which the audio subsystem finds the runs
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -285,7 +285,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("audio-facade: the AngelScript Audio facade plays clips/cues/music by asset id and by "
           "content path, and sets the buses by AudioBus (missing content no-ops, never faults)")
 {
@@ -336,9 +336,9 @@ TEST_CASE("audio-facade: the AngelScript Audio facade plays clips/cues/music by 
         u8"}\n"
         u8"void main() { named(); }\n");
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("audio-facade: the Luau Audio facade plays clips/cues/music by asset id and by content "
           "path, and sets the buses by AudioBus (missing content no-ops, never faults)")
 {
@@ -377,6 +377,6 @@ TEST_CASE("audio-facade: the Luau Audio facade plays clips/cues/music by asset i
                      u8"Audio.setBusMuted(\"drums\", true)\n"
                      u8"DrumsVolume = Audio.namedBusVolume(\"drums\")\n");
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
-#endif // OPTION_HAS_ANGELSCRIPT || OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_ANGELSCRIPT || HAS_PLUGIN_LUAU

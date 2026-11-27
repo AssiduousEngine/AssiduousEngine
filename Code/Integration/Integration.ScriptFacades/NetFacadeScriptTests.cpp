@@ -22,10 +22,10 @@ import foundation.resource;
 import foundation.vfs;
 import foundation.script;
 import foundation.script.facades;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.foundation;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -352,7 +352,7 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("net-facade: AngelScript players join, are told things alone, own what is spawned for them, leave")
 {
     RegisterCoreTypes();
@@ -371,9 +371,9 @@ TEST_CASE("net-facade: AngelScript players join, are told things alone, own what
                                u8"void main() { NetHandler @j = joined; Net::onJoin(j);\n"
                                u8"  NetNumberHandler @s = secret; Net::on(\"secret\", s); }\n"});
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("net-facade: Luau players join, are told things alone, own what is spawned for them, leave")
 {
     RegisterCoreTypes();
@@ -388,9 +388,9 @@ TEST_CASE("net-facade: Luau players join, are told things alone, own what is spa
                                u8"Net.onJoin(function(p) Me = p end)\n"
                                u8"Net.on('secret', function(sender, value) Told = value; From = sender end)\n"});
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("net-facade: AngelScript Net.spawn puts a prefab in every peer's scene, from the host only")
 {
     RegisterCoreTypes();
@@ -412,9 +412,9 @@ TEST_CASE("net-facade: AngelScript Net.spawn puts a prefab in every peer's scene
                         },
                         u8"spawn");
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("net-facade: Luau Net.spawn puts a prefab in every peer's scene, from the host only")
 {
     RegisterCoreTypes();
@@ -428,9 +428,9 @@ TEST_CASE("net-facade: Luau Net.spawn puts a prefab in every peer's scene, from 
                         { return Format(u8"Spawned = Net.spawn(Guid.new(\"{}\"), 4, 5, 6):isValid()\n", id); },
                         u8"spawn");
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("net-facade: AngelScript Net.on receives a number, a text and a bare RPC, and replies")
 {
     RegisterCoreTypes();
@@ -478,9 +478,9 @@ TEST_CASE("net-facade: AngelScript Net.on receives a number, a text and a bare R
     CHECK(hostCtx->GetGlobal(u8"Pings").Get<f64>() == doctest::Approx(2.0));
     CHECK(clientCtx->GetGlobal(u8"Ack").Get<f64>() == doctest::Approx(85.0)); // the reply, from inside a handler
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("net-facade: Luau Net.on receives a number, a text and a bare RPC, and replies")
 {
     RegisterCoreTypes();
@@ -518,7 +518,7 @@ TEST_CASE("net-facade: Luau Net.on receives a number, a text and a bare RPC, and
     CHECK(hostCtx->GetGlobal(u8"Pings").Get<f64>() == doctest::Approx(2.0));
     CHECK(clientCtx->GetGlobal(u8"Ack").Get<f64>() == doctest::Approx(85.0));
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
 TEST_CASE("net-facade: a truncated script RPC never reaches the handler")
 {
@@ -546,7 +546,7 @@ TEST_CASE("net-facade: a truncated script RPC never reaches the handler")
     CHECK(counting->calls == 1);
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("net-facade: AngelScript reads the live session through the Net facade")
 {
     RegisterCoreTypes();
@@ -580,9 +580,9 @@ TEST_CASE("net-facade: AngelScript reads the live session through the Net facade
           0.0); // the AS backend unifies integer globals to f64
     CHECK(scriptContext->GetGlobal(u8"CanHost").Get<bool>() == net::NetworkManager::CanHost()); // whether this build can host, not the session's state
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("net-facade: Luau reads the live session through the Net facade")
 {
     RegisterCoreTypes();
@@ -627,4 +627,4 @@ TEST_CASE("net-facade: Luau Net.setRelevanceRadius reaches the host's replicatio
     net::InstallScriptRpcHandlers(fx.binding, later);
     CHECK(later.Replication().RelevanceRadius() == 40.0f);
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU

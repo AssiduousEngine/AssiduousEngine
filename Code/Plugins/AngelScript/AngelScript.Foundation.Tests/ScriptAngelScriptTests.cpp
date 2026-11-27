@@ -21,7 +21,7 @@
 import foundation.core;
 import foundation.script;
 import angelscript.foundation;
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.foundation;
 #endif
 
@@ -1607,7 +1607,7 @@ TEST_CASE("angelscript: a script object outlives the local context reference")
     CHECK(obj->Invoke(u8"ping", Span<Variant>{}).Value().Get<f64>() == 42.0);
 }
 
-#ifdef OPTION_HAS_LUAU // AngelScript and a second backend resolve side by side
+#ifdef HAS_PLUGIN_LUAU // AngelScript and a second backend resolve side by side
 TEST_CASE("angelscript: registry - both backends resolve side by side")
 {
     angelscript::RegisterAngelScriptBackend();
@@ -1635,7 +1635,7 @@ TEST_CASE("angelscript: registry - both backends resolve side by side")
     CHECK(luauCtx->Load(u8"local A = 1\n", u8"main").IsOk());
     CHECK_FALSE(luauCtx->Load(u8"double f() { return 1; }", u8"main").IsOk()); // AngelScript source rejected
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU
 
 // The behaviors module is loaded with each class in its own script section named by its
 // sourceName (not one flat "behaviors#N"), so editor gutter breakpoints, keyed on the source

@@ -1,7 +1,7 @@
 add_executable(Mcp.Script.Tests TestsMain.cpp ScriptToolsTests.cpp)
 # Links whichever backends are enabled; the test registers the first available one.
 target_link_libraries(Mcp.Script.Tests PRIVATE
-    Foundation::Mcp.Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
+    Foundation::Mcp.Script $<TARGET_NAME_IF_EXISTS:Plugins::AngelScript.Foundation> $<TARGET_NAME_IF_EXISTS:Plugins::Luau.Foundation>
     doctest::doctest)
 target_compile_definitions(Mcp.Script.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Mcp.Script.Tests PRIVATE

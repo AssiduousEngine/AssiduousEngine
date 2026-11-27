@@ -12,10 +12,10 @@
 import foundation.core;
 import foundation.script;
 import foundation.gui.code;
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 import angelscript.pipeline;
 #endif
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 import luau.pipeline;
 #endif
 import editor.script;
@@ -91,18 +91,18 @@ namespace
     }
 }
 
-#ifdef OPTION_HAS_ANGELSCRIPT
+#ifdef HAS_PLUGIN_ANGELSCRIPT
 TEST_CASE("script language service: the bound API's completion and hover (angelscript)")
 {
     angelscript::RegisterAngelScriptScriptCook(); // and its backend
     CheckBoundApi(u8"angelscript");
 }
-#endif // OPTION_HAS_ANGELSCRIPT
+#endif // HAS_PLUGIN_ANGELSCRIPT
 
-#ifdef OPTION_HAS_LUAU
+#ifdef HAS_PLUGIN_LUAU
 TEST_CASE("script language service: the bound API's completion and hover (luau)")
 {
     luau::RegisterLuauScriptCook(); // and its backend
     CheckBoundApi(u8"luau");
 }
-#endif // OPTION_HAS_LUAU
+#endif // HAS_PLUGIN_LUAU

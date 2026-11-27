@@ -41,7 +41,7 @@
 - The .NET 10 SDK (`dotnet` on the path), for C# scripting, which a desktop build includes by
   default: it generates the C# bindings and builds the engine's managed runtime and the C# tests.
   On Ubuntu 26.04, `sudo apt install dotnet-sdk-10.0`; elsewhere, Microsoft's installer for the
-  platform. Without it, configure with `-DOPTION_ENABLE_DOTNET=OFF`. Web and Android builds leave C# out
+  platform. Without it, configure with `-DOPTION_PLUGIN_CSHARP=OFF`. Web and Android builds leave C# out
   unless an export of a C# game turns it on.
 - For web builds, emsdk 6.0.5 with the project's response file patch applied; see
   [Guides/emscripten-windows.md](Guides/emscripten-windows.md).

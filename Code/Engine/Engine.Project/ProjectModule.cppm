@@ -428,9 +428,9 @@ export namespace engine::project
         /// A project read at an older version enables the ones its scripts use (or whose project file
         /// it has), and no other: that takes its assets, so the project open does it.
         static constexpr LanguageBecamePlugin kLanguagesBecamePlugins[] = {
-            {u8"luau", 17, {}, u8"OPTION_ENABLE_LUAU"},
-            {u8"angelscript", 18, {}, u8"OPTION_ENABLE_ANGELSCRIPT"},
-            {u8"csharp", 19, u8"csproj", u8"OPTION_ENABLE_DOTNET"}};
+            {u8"luau", 17, {}, u8"OPTION_PLUGIN_LUAU"},
+            {u8"angelscript", 18, {}, u8"OPTION_PLUGIN_ANGELSCRIPT"},
+            {u8"csharp", 19, u8"csproj", u8"OPTION_PLUGIN_CSHARP"}};
 
         /// Whether the manifest was read at a version older than `version` (and recorded one).
         [[nodiscard]] bool ReadBefore(u32 version) const noexcept { return readDataVersion >= 9 && readDataVersion < version; }
