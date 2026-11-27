@@ -18,6 +18,7 @@ import foundation.scene;
 import foundation.geometry;
 import foundation.materials;
 import foundation.heightfield;
+import foundation.resource; // Ref, which Pending names
 import terrain.foundation;
 import foundation.render;
 import engine.render;  // PackEntity (the instanced-mesh emitter's helper)

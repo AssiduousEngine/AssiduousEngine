@@ -124,15 +124,15 @@ namespace
                        u8"StubAsset")
         {
             (void)CreateDirectory(cacheDir);
-            auto generator = MakeUnique<StubGenerator>(DefaultAllocator());
-            generator->prepareCount = &prepares;
-            generator->generateCount = &generates;
-            generator->failGenerate = failGenerate;
-            generator->payloadSeen = &payloadSeen;
-            generator->handStream = handStream;
-            generator->destroyed = &generatorDestroyed;
-            this->generator = generator.Get();
-            service.RegisterGenerator(Move(generator));
+            auto stub = MakeUnique<StubGenerator>(DefaultAllocator());
+            stub->prepareCount = &prepares;
+            stub->generateCount = &generates;
+            stub->failGenerate = failGenerate;
+            stub->payloadSeen = &payloadSeen;
+            stub->handStream = handStream;
+            stub->destroyed = &generatorDestroyed;
+            generator = stub.Get();
+            service.RegisterGenerator(Move(stub));
             content::Instance* inst = &instance;
             Guid knownId = known;
             service.Configure(
