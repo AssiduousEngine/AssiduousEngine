@@ -10,13 +10,13 @@
 import foundation.core;
 import foundation.runtime;
 import foundation.script;
-import foundation.script.luau;
+import luau.foundation;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext&)
     {
-        foundation::script::RegisterLuauScriptBackend();
+        luau::RegisterLuauScriptBackend();
     }
 
     void Unload(foundation::runtime::PluginContext&)

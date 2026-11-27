@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Pipeline::Script.Luau - the `script.luau.pipeline` module (tooling).
+// Luau.Pipeline - the `luau.pipeline` module (tooling).
 //
 // The Luau cook service: compile-checks a Luau behavior in a cooker-owned Luau VM (resolved
 // through the backend registry by language), harvests editor properties by constructing the
@@ -16,19 +16,21 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-export module script.luau.pipeline;
+export module luau.pipeline;
 
 import foundation.core;
 import foundation.script;         // registry, IScriptManager/IScriptContext, RegisterReflectedTypes
 import foundation.script.resource; // BehaviorClassSource and BehaviorProperty
 import foundation.script.facades;  // RegisterScriptFacadeReflection (the cook VM's global surface)
 import script.pipeline;   // IScriptLanguageCook, registry, shared cook helpers
-import foundation.script.luau;     // ensures the Luau backend is available to the registry
+import luau.foundation;     // ensures the Luau backend is available to the registry
 
 using namespace foundation::core;
 using namespace foundation::script;
+using namespace pipeline; // its bases
 
-export namespace pipeline{
+export namespace luau
+{
     // The New Asset starters, one per kind of behavior, each class named after its asset. Luau OOP
     // is a global class table made from its kind; the engine makes one with `<Class>.new(...)`.
     // Editor properties are plain fields set in the constructor, which the cook harvests by

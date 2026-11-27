@@ -25,7 +25,7 @@ import pipeline.importer; // ImporterRegistry (new code found under Code/)
 import foundation.script.angelscript; // a code language's backend for the adoption test
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau; // a language whose declarations file has a script's extension
+import luau.foundation; // a language whose declarations file has a script's extension
 #endif
 import editor.core;
 
@@ -1552,7 +1552,7 @@ TEST_CASE("editor-project: new code under Code becomes an asset where it lies")
 // its cook.
 TEST_CASE("editor-project: the files written for an outside editor are not adopted as code")
 {
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     pipeline::RegisterScriptAssets();
     const StringView dir = u8"scratch_editor_adopt_tooling";
     (void)RemoveDirectoryRecursive(dir);

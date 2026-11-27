@@ -38,7 +38,7 @@ import engine.spline; // PathFollowComponent: the component the fetch measure re
 import foundation.script.angelscript;
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
-import foundation.script.luau;
+import luau.foundation;
 #endif
 #if defined(INTEGRATION_HAS_DOTNET)
 import foundation.script.dotnet;
@@ -198,7 +198,7 @@ namespace
             foundation::script::angelscript::RegisterAngelScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
-            foundation::script::RegisterLuauScriptBackend();
+            luau::RegisterLuauScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_DOTNET)
             foundation::script::dotnet::RegisterDotNetScriptBackend();
@@ -474,7 +474,7 @@ function Bench:texts(n, s, e)
 end
 )lua";
     foundation::script::benchmark::RunScriptBackendBenchmark(
-        [](IAllocator& allocator) { return foundation::script::CreateLuauScriptManager(allocator); }, dialect);
+        [](IAllocator& allocator) { return luau::CreateLuauScriptManager(allocator); }, dialect);
 }
 #endif
 

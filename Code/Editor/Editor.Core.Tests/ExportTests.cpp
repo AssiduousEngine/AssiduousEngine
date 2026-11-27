@@ -42,8 +42,8 @@ import foundation.script.angelscript; // the AngelScript backend (the cook compi
 import script.angelscript.pipeline;   // RegisterAngelScriptScriptCook
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau; // the Luau backend
-import script.luau.pipeline;   // RegisterLuauScriptCook
+import luau.foundation; // the Luau backend
+import luau.pipeline;   // RegisterLuauScriptCook
 #endif
 
 using namespace foundation::core;
@@ -88,8 +88,8 @@ namespace
         pipeline::RegisterAngelScriptScriptCook();
 #endif
 #ifdef OPTION_HAS_LUAU
-        script::RegisterLuauScriptBackend();
-        pipeline::RegisterLuauScriptCook();
+        luau::RegisterLuauScriptBackend();
+        luau::RegisterLuauScriptCook();
 #endif
         script::RegisterScriptResource();
         GlobalTypeRegistry().Register(pipeline::ScriptClassAsset::StaticType());

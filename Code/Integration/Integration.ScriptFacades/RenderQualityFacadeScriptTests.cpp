@@ -17,7 +17,7 @@ import engine.render;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -88,7 +88,7 @@ TEST_CASE("render-quality-facade: AngelScript lists the levels, reads the curren
 TEST_CASE("render-quality-facade: Luau lists the levels, reads the current one and switches by label")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     Check(*manager,
           u8"Listed = table.concat(RenderQuality.levels(), ',')\n"
           u8"Before = RenderQuality.current()\n"
@@ -103,7 +103,7 @@ TEST_CASE("render-quality-facade: a context whose run offers no levels lists non
     RegisterCoreTypes();
     render::RegisterRenderScriptFacade();
 #ifdef OPTION_HAS_LUAU
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8"Count = #RenderQuality.levels(); Current = RenderQuality.current(); Set = RenderQuality.set('Low')\n",

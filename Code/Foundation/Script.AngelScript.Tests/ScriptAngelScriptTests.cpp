@@ -22,7 +22,7 @@ import foundation.core;
 import foundation.script;
 import foundation.script.angelscript;
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -1611,7 +1611,7 @@ TEST_CASE("angelscript: a script object outlives the local context reference")
 TEST_CASE("angelscript: registry - both backends resolve side by side")
 {
     angelscript::RegisterAngelScriptBackend();
-    RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     ScriptBackendRegistry& registry = ScriptBackendRegistry::Get();
 
     const ScriptBackendDesc* as = registry.FindByLanguage(u8"angelscript");

@@ -27,8 +27,8 @@ import foundation.script.angelscript;
 import script.angelscript.pipeline;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
-import script.luau.pipeline;
+import luau.foundation;
+import luau.pipeline;
 #endif
 
 namespace scriptpipe
@@ -62,7 +62,7 @@ namespace scriptpipe
             RegisterAngelScriptScriptCook();
 #endif
 #ifdef OPTION_HAS_LUAU
-            RegisterLuauScriptCook();
+            luau::RegisterLuauScriptCook();
 #endif
             RegisterScriptResource();
             RegisterScriptAssets();

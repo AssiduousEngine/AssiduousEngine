@@ -13,7 +13,7 @@ import foundation.script.facades;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -57,7 +57,7 @@ TEST_CASE("text-facade: AngelScript reads a decimal from a string, and `otherwis
 TEST_CASE("text-facade: Luau reads a decimal from a string, and `otherwise` from text that is not one")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     Check(*manager,
           u8"A = Text.parseFloat('2.5')\n"
           u8"B = Text.parseFloat(' -0.25 ')\n"
@@ -81,7 +81,7 @@ TEST_CASE("text-facade: formatDate fills a pattern with the local date and time;
     CHECK(TextFacade::formatDate(when, String(u8"YYYY-MM-DD hh:mm:ss at")) == expected.AsView());
     CHECK(TextFacade::formatDate(when, String(u8"no tokens")) == StringView(u8"no tokens"));
 #ifdef OPTION_HAS_LUAU
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8"Year = Text.formatDate(1795467854, 'YYYY')\nNow = Time.unixNow()\n", u8"date").IsOk());

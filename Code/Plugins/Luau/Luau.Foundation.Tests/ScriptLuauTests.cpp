@@ -14,7 +14,7 @@
 
 import foundation.core;
 import foundation.script;
-import foundation.script.luau;
+import luau.foundation;
 
 using namespace foundation::core;
 using namespace foundation::script;
@@ -260,7 +260,7 @@ TEST_CASE("script.luau: Float3 maps to Luau's native vector (fast path - fields,
 {
     RegisterCoreTypes(); // reflects Float3 (patches TypeOf<Float3>)
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Float3>()); // the class table: Float3.new, Float3.Dot and the rest
     manager->RegisterType(VecHolder::StaticType());
     manager->FinalizeTypes();
@@ -400,7 +400,7 @@ TEST_CASE("script.luau: a facade Array<T> return crosses as a native table (nume
     RegisterArrayType<LuauRoom>();
     RegisterArrayType<String>();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<LuauRoom>());
     manager->RegisterType(LuauBag::StaticType());
     manager->FinalizeTypes();
@@ -424,7 +424,7 @@ TEST_CASE("script.luau: a table crosses into a facade Array<T> parameter")
     RegisterArrayType<String>();
     RegisterArrayType<f32>();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<LuauRoom>());
     manager->RegisterType(LuauBag::StaticType());
     manager->FinalizeTypes();
@@ -464,7 +464,7 @@ TEST_CASE("script.luau: container members are owner ops - write-through, zero-ba
     RttiRegisterValue_LuauRoom();
     RegisterUniquePtrArrayType<LuauRoom>();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<LuauRoom>());
     manager->RegisterType(LuauShelf::StaticType());
     manager->FinalizeTypes();
@@ -514,7 +514,7 @@ REFLECT_MEMBERS(LuauAliasProbe, "rtti::luau::test")
 
 TEST_CASE("script.luau: a scriptName alias installs the class table under the alias, not the C++ name")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(LuauAliasProbe::StaticType());
     manager->FinalizeTypes();
 
@@ -537,7 +537,7 @@ TEST_CASE("script.luau: a scriptName alias installs the class table under the al
 
     // So do the declarations: `declare class aka`, never the C++ name.
     const TypeInfo* probe[] = {&LuauAliasProbe::StaticType()};
-    const String decls = EmitLuauDeclarations(Span<const TypeInfo* const>{probe, 1});
+    const String decls = luau::EmitLuauDeclarations(Span<const TypeInfo* const>{probe, 1});
     const StringView text = decls.AsView();
     auto has = [text](StringView needle)
     {
@@ -557,7 +557,7 @@ TEST_CASE("script.luau: a scriptName alias installs the class table under the al
 TEST_CASE("script.luau: native-vector construct+access throughput (perf case)")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Float3>());
     manager->FinalizeTypes();
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
@@ -593,7 +593,7 @@ TEST_CASE("script.luau: resumable-thread call throughput (perf case - the execut
     // main state) so the debugger's lua_break can suspend it and shipping runs share one
     // executor with debugging. This records the per-call cost of that executor: each Call is a
     // thread acquire (pooled, no allocation after warmup), an xmove, a resume and an xmove back.
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8"function noop(x) return x + 1 end\n", u8"luau.callperf").IsOk());
 
@@ -620,7 +620,7 @@ TEST_CASE("script.luau: a compile error reports its source line (not -1)")
         void OnError(const ScriptError& error) override { line = error.line; }
     } capture;
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     scriptContext->SetErrorHandler(&capture);
 
@@ -656,7 +656,7 @@ namespace
 
 TEST_CASE("script.luau: Check reports a syntax error with its line and column")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     CheckErrors errors;
     CHECK_FALSE(
         manager->Check(u8"local a = 1\nlocal b = 2\nlocal c = = =\n", u8"typed.luau", errors));
@@ -679,7 +679,7 @@ TEST_CASE("script.luau: Check reports what only the compiler finds")
     {
         source += Format(u8"local v{} = {}\n", i, i);
     }
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     CheckErrors errors;
     CHECK_FALSE(manager->Check(source.AsView(), u8"typed.luau", errors));
     CHECK(errors.count == 1);
@@ -688,7 +688,7 @@ TEST_CASE("script.luau: Check reports what only the compiler finds")
 
 TEST_CASE("script.luau: Check never runs the top level")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     CheckErrors errors;
     CHECK(manager->Check(u8"error(\"ran\")\n", u8"typed.luau", errors));
     CHECK(errors.count == 0);
@@ -707,7 +707,7 @@ TEST_CASE("script.luau: LoadBehaviorModule loads each class as its OWN chunk (pe
         }
     } capture;
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     scriptContext->SetErrorHandler(&capture);
 
@@ -746,7 +746,7 @@ TEST_CASE("script.luau: step debugger breaks on a breakpoint, captures, and cont
         }
     } listener;
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     CHECK(HasScriptCapability(manager->Capabilities(), ScriptCapabilities::Debugger));
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 
@@ -835,7 +835,7 @@ namespace
 TEST_CASE("script.luau: step debugger StepOver stays at the caller depth over a call")
 {
     DebuggerStateCounter listener;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     UniquePtr<IScriptDebugger> debugger = manager->CreateDebugger();
     REQUIRE(debugger.Get() != nullptr);
@@ -884,7 +884,7 @@ TEST_CASE("script.luau: step debugger StepOver stays at the caller depth over a 
 TEST_CASE("script.luau: step debugger StepInto descends into the callee")
 {
     DebuggerStateCounter listener;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     UniquePtr<IScriptDebugger> debugger = manager->CreateDebugger();
     REQUIRE(debugger.Get() != nullptr);
@@ -941,7 +941,7 @@ TEST_CASE("script.luau: step debugger StepInto descends into the callee")
 TEST_CASE("script.luau: step debugger breaks inside a coroutine body, then Continue finishes it")
 {
     DebuggerStateCounter listener;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     UniquePtr<IScriptDebugger> debugger = manager->CreateDebugger();
     REQUIRE(debugger.Get() != nullptr);
@@ -1000,7 +1000,7 @@ TEST_CASE("script.luau: step debugger breaks inside a coroutine body, then Conti
 TEST_CASE("script.luau: a breakpoint keyed on (file, line) survives a module reload")
 {
     DebuggerStateCounter listener;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     UniquePtr<IScriptDebugger> debugger = manager->CreateDebugger();
     REQUIRE(debugger.Get() != nullptr);
@@ -1040,7 +1040,7 @@ TEST_CASE("script.luau: a breakpoint keyed on (file, line) survives a module rel
 TEST_CASE("script.luau: break in a coroutine, Continue to a wait, the wait still fires on schedule")
 {
     DebuggerStateCounter listener;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     UniquePtr<IScriptDebugger> debugger = manager->CreateDebugger();
     REQUIRE(debugger.Get() != nullptr);
@@ -1085,7 +1085,7 @@ TEST_CASE("script.luau: break in a coroutine, Continue to a wait, the wait still
 
 TEST_CASE("script.luau: LoadBehaviorModule consumes cooked bytecode with NO source (the player path)")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
 
     // Cook: compile the class to a blob and serialize it as the cook stores
     // BehaviorClass::bytecode (CompileToBlob, then Serialize, gives the pack bytes).
@@ -1123,7 +1123,7 @@ TEST_CASE("script.luau: LoadBehaviorModule consumes cooked bytecode with NO sour
 TEST_CASE("script.luau: cooked bytecode stays debuggable - breakpoint + local capture via a consumed blob")
 {
     DebuggerStateCounter listener;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
 
     // Cook the debug class to bytecode. CompileToBlob uses debugLevel 2 (matching the runtime
     // source path), so local names survive the cook and consuming bytecode never degrades debugging.
@@ -1185,7 +1185,7 @@ TEST_CASE("script.luau: cooked bytecode stays debuggable - breakpoint + local ca
 
 TEST_CASE("script.luau: bytecode capability - compile at cook, serialize, load in the player")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     // Luau ships bytecode (the cook path): the Bytecode capability is declared.
     CHECK(HasScriptCapability(manager->Capabilities(), ScriptCapabilities::Bytecode));
 
@@ -1221,7 +1221,7 @@ TEST_CASE("script.luau: bytecode capability - compile at cook, serialize, load i
 
 TEST_CASE("script.luau: CompileToBlob rejects a broken source at cook (never reaches the player)")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     // luau_compile embeds the syntax error in the bytecode; CompileToBlob's validating load
     // catches it so the cook fails here rather than shipping an un-loadable chunk.
     CHECK_FALSE(manager->CompileToBlob(kCompileBroken, u8"luau.broken").HasValue());
@@ -1328,7 +1328,7 @@ TEST_CASE("script.luau: a call whose arguments are already native takes the type
         return true;
     }();
     (void)registered;
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<LuauGear>());
     manager->RegisterType(TypeOf<LuauTally>());
     manager->RegisterType(LuauTypedProbe::StaticType());
@@ -1365,10 +1365,10 @@ end
     scriptContext->SetErrorHandler(&errors);
     const auto typedCalls = [&](const char8_t* function) -> u64
     {
-        const u64 before = LuauTypedCallCount();
+        const u64 before = luau::LuauTypedCallCount();
         INFO(std::string(reinterpret_cast<const char*>(errors.lastMessage.CStr()), errors.lastMessage.Size()));
         REQUIRE(scriptContext->Call(function, Span<Variant>{}).HasValue());
-        return LuauTypedCallCount() - before;
+        return luau::LuauTypedCallCount() - before;
     };
 
     CHECK(typedCalls(u8"natives") == 6u);
@@ -1394,7 +1394,7 @@ TEST_CASE("script.luau: reflected enums - named tables + number marshalling both
 {
     RttiRegisterEnum_Facing();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Facing>());
     manager->RegisterType(Compass::StaticType());
     manager->FinalizeTypes();
@@ -1422,7 +1422,7 @@ TEST_CASE("script.luau: a read-only property reads, and an assignment raises ins
 {
     RttiRegisterEnum_Facing();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Facing>());
     manager->RegisterType(Compass::StaticType());
     manager->FinalizeTypes();
@@ -1443,7 +1443,7 @@ TEST_CASE("script.luau: a value of the wrong type for a property says what the p
     // Every refused write said "property is read-only", a wrong type included.
     RttiRegisterEnum_Facing();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Facing>());
     manager->RegisterType(Compass::StaticType());
     manager->FinalizeTypes();
@@ -1514,7 +1514,7 @@ TEST_CASE("script.luau: backend conformance battery")
                                    u8"end\n";                         // 8
     dialect.debugCoroutineBreakLine = 5;
 
-    conformance::RunScriptBackendConformance([]() { return CreateLuauScriptManager(DefaultAllocator()); },
+    conformance::RunScriptBackendConformance([]() { return luau::CreateLuauScriptManager(DefaultAllocator()); },
                                              dialect);
 }
 
@@ -1525,7 +1525,7 @@ TEST_CASE("script.luau: .d.luau declaration emitter - typed surface for luau-ana
 
     const TypeInfo* types[] = {&TypeOf<Float3>(), &VecHolder::StaticType(), &TypeOf<Facing>(),
                                &Compass::StaticType()};
-    const String decls = EmitLuauDeclarations(Span<const TypeInfo* const>{types, 4});
+    const String decls = luau::EmitLuauDeclarations(Span<const TypeInfo* const>{types, 4});
 
     const StringView text = decls.AsView();
     auto has = [text](StringView needle)
@@ -1564,7 +1564,7 @@ TEST_CASE("script.luau: .d.luau declaration emitter - typed surface for luau-ana
 
 TEST_CASE("script.luau: an instance's own fields read as properties, its methods do not")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->FinalizeTypes();
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8"Counter = {}\n"
@@ -1586,7 +1586,7 @@ TEST_CASE("script.luau: an instance's own fields read as properties, its methods
 TEST_CASE("script.luau: Guids compare with == and ~=")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Guid>());
     manager->FinalizeTypes();
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
@@ -1611,7 +1611,7 @@ function Ids:differ() return Guid.new("6b0a7709-5169-4a0e-8077-c78b87a132e6") ~=
 TEST_CASE("script.luau: reflected operators bind as metamethods")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Float2>());
     manager->RegisterType(TypeOf<Color>());
     manager->RegisterType(TypeOf<Quaternion>());
@@ -1666,7 +1666,7 @@ function Ops:qw() return (Quaternion.new(0, 0, 0, 1) * Quaternion.new(0, 0, 0, 1
 TEST_CASE("script.luau: Math carries Min, Max and Clamp")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager); // as a game does: every reflected type
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8R"lua(
@@ -1699,7 +1699,7 @@ function Limits:heldWhole() return Math.ClampInt(12, 1, 10) end
 
 TEST_CASE("script.luau: a coroutine that starts coroutines and cancels its own owner mid-schedule")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(Canceller::StaticType());
     manager->FinalizeTypes();
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
@@ -1747,7 +1747,7 @@ TEST_CASE("script.luau: a coroutine that starts coroutines and cancels its own o
 TEST_CASE("script.luau: a bound method or property refuses a self of another type, and newproxy is gone")
 {
     RttiRegisterEnum_Facing();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(TypeOf<Facing>());
     manager->RegisterType(Compass::StaticType());
     manager->RegisterType(Canceller::StaticType());
@@ -1828,7 +1828,7 @@ function Probe:fine() return 7 end
 TEST_CASE("script.luau: a call past its time budget is stopped, and the context goes on")
 {
     // A script loop that never ended hung the game: there was no budget at all.
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     ScriptBudget budget;
     budget.callSeconds = 0.5;
     manager->SetBudget(budget);
@@ -1859,7 +1859,7 @@ TEST_CASE("script.luau: a call past its time budget is stopped, and the context 
 
 TEST_CASE("script.luau: a call that allocates past the heap budget fails, and the context goes on")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     ScriptBudget budget;
     budget.heapBytes = usize{16} << 20;
     manager->SetBudget(budget);
@@ -1880,7 +1880,7 @@ TEST_CASE("script.luau: a call that allocates past the heap budget fails, and th
 // explicitly, once nothing runs its code).
 TEST_CASE("script.luau: a replaced class's table is collected once no instance holds it")
 {
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     const char8_t* counter = u8"Counter = {}\nCounter.__index = Counter\n"
                              u8"function Counter.new() return setmetatable({}, Counter) end\n";
@@ -1908,7 +1908,7 @@ TEST_CASE("script.luau: a method an instance assigns itself is the one the next 
 {
     // A Lua state machine swaps its own handler (`self.onUpdate = walking`); a call looks the
     // method up each time, so the swap takes effect at once.
-    RefPtr<IScriptContext> scriptContext = CreateLuauScriptManager(DefaultAllocator())->CreateContext();
+    RefPtr<IScriptContext> scriptContext = luau::CreateLuauScriptManager(DefaultAllocator())->CreateContext();
     REQUIRE(scriptContext
                 ->Load(u8"Walker = {}\nWalker.__index = Walker\n"
                        u8"function Walker.new() return setmetatable({}, Walker) end\n"
@@ -1926,7 +1926,7 @@ TEST_CASE("script.luau: a bound method is called by its handle, and a swap still
 {
     // Bind interns the name once; the call still finds the method on the instance, so a handler
     // the instance replaces runs through the same handle.
-    RefPtr<IScriptContext> scriptContext = CreateLuauScriptManager(DefaultAllocator())->CreateContext();
+    RefPtr<IScriptContext> scriptContext = luau::CreateLuauScriptManager(DefaultAllocator())->CreateContext();
     REQUIRE(scriptContext
                 ->Load(u8"Walker = {}\nWalker.__index = Walker\n"
                        u8"function Walker.new() return setmetatable({}, Walker) end\n"
@@ -1954,7 +1954,7 @@ TEST_CASE("script.luau: a constructor that matches none fails without leaking it
 {
     // The refusal was raised with the arguments and the call scope alive: raising unwinds past
     // C++ destructors, so every failed construction leaked them (the leak checker sees it).
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     manager->RegisterType(Compass::StaticType());
     manager->FinalizeTypes();
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();

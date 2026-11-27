@@ -16,7 +16,7 @@ import script.pipeline;
 import script.angelscript.pipeline;
 #endif
 #ifdef OPTION_HAS_LUAU
-import script.luau.pipeline;
+import luau.pipeline;
 #endif
 
 using namespace foundation::core;
@@ -110,7 +110,7 @@ TEST_CASE("cached check manager: made once, again when the types change, and ahe
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("cached check manager: made once, again when the types change, and ahead (luau)")
 {
-    RegisterLuauScriptCook(); // and its backend
+    luau::RegisterLuauScriptCook(); // and its backend
     // A Luau compile resolves no globals, so a name the API lacks is not an error there.
     CheckSharedEngine(Language{u8"luau",
                                u8"Gamma = {}\nGamma.__index = Gamma\nfunction Gamma.new() return setmetatable({}, Gamma) end\n",

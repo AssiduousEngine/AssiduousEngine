@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// script.luau.pipeline tests: the Luau cook service in isolation. The tier starters, the
+// luau.pipeline tests: the Luau cook service in isolation. The tier starters, the
 // construct-and-walk property harvest (number/bool/string/Float3, non-scalars skipped, sorted),
 // the compile-check, and the shared startCoroutine coroutine opt-in, driven straight through
 // IScriptLanguageCook (no project or VFS needed, since Cook takes source bytes directly). The
@@ -15,9 +15,9 @@
 import foundation.core;
 import foundation.script;
 import foundation.script.resource;
-import foundation.script.luau; // CreateLuauScriptManager and LuauBytecodeVersion (the player path)
+import luau.foundation; // luau::CreateLuauScriptManager and luau::LuauBytecodeVersion (the player path)
 import script.pipeline;
-import script.luau.pipeline;
+import luau.pipeline;
 
 using namespace foundation::core;
 using namespace pipeline;
@@ -27,7 +27,7 @@ namespace
 {
     [[nodiscard]] IScriptLanguageCook* LuauCook()
     {
-        RegisterLuauScriptCook(); // registers the Luau backend and cook (idempotent)
+        luau::RegisterLuauScriptCook(); // registers the Luau backend and cook (idempotent)
         return ScriptLanguageCookRegistry::Get().FindByLanguage(u8"luau");
     }
 
@@ -234,7 +234,7 @@ TEST_CASE("luau.cook: the cook stores loadable bytecode in the pack (the player 
     // Player path: a fresh Luau VM reconstructs the blob from the stored bytes with no compiler
     // (CreateBlob, then Serialize(read)), loads it, and instantiates the class, showing the pack
     // carries runnable bytecode, not just source.
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RefPtr<IScriptBlob> blob = manager->CreateBlob();
     REQUIRE(blob.Get() != nullptr);
     {
@@ -254,12 +254,12 @@ TEST_CASE("luau.cook: the fingerprint carries the vendored Luau bytecode version
 {
     IScriptLanguageCook* cook = LuauCook();
     REQUIRE(cook != nullptr);
-    // A vendor bump changes LuauBytecodeVersion(), which flows through the cook's CookVersion()
+    // A vendor bump changes luau::LuauBytecodeVersion(), which flows through the cook's CookVersion()
     // into the registry's combined version and the ScriptClassAssetBuilder fingerprint, recooking
     // every Luau pack. Non-zero (a real bytecode version) and equal to the vendored constant.
-    CHECK(LuauBytecodeVersion() != 0u);
-    CHECK(cook->CookVersion() == LuauBytecodeVersion());
-    CHECK(ScriptLanguageCookRegistry::Get().CombinedCookVersion() >= LuauBytecodeVersion());
+    CHECK(luau::LuauBytecodeVersion() != 0u);
+    CHECK(cook->CookVersion() == luau::LuauBytecodeVersion());
+    CHECK(ScriptLanguageCookRegistry::Get().CombinedCookVersion() >= luau::LuauBytecodeVersion());
 }
 
 namespace luauprobe

@@ -18,7 +18,7 @@ import foundation.mcp.script;
 #if defined(OPTION_HAS_ANGELSCRIPT)
 import foundation.script.angelscript;
 #elif defined(OPTION_HAS_LUAU)
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -36,7 +36,7 @@ namespace
         foundation::script::angelscript::RegisterAngelScriptBackend();
         return StringView(u8"angelscript");
 #else
-        foundation::script::RegisterLuauScriptBackend();
+        luau::RegisterLuauScriptBackend();
         return StringView(u8"luau");
 #endif
     }

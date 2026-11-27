@@ -1,4 +1,4 @@
-# Luau.Pipeline (Plugins::Luau.Pipeline) - `script.luau.pipeline`: the Luau cook (check, cook and
+# Luau.Pipeline (Plugins::Luau.Pipeline) - `luau.pipeline`: the Luau cook (check, cook and
 # the new-file starters), which compiles with the VM. The editor and the tools load it.
 util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART}

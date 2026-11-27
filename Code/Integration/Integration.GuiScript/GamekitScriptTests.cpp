@@ -18,7 +18,7 @@ import foundation.gui.gamekit;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 namespace gui = foundation::gui;
@@ -127,7 +127,7 @@ TEST_CASE("gamekit script: AngelScript pushes, reads and pops screens, and hears
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("gamekit script: Luau pushes, reads and pops screens, and hears one leave")
 {
-    core::RefPtr<script::IScriptManager> manager = script::CreateLuauScriptManager(core::DefaultAllocator());
+    core::RefPtr<script::IScriptManager> manager = luau::CreateLuauScriptManager(core::DefaultAllocator());
     CheckStack(*manager,
                u8"local root = gui.root()\n"
                u8"local stack = ScreenStack.of(root:add(\"Screens\"))\n"

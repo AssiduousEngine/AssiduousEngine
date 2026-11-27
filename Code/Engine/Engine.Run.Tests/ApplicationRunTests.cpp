@@ -18,7 +18,7 @@ import foundation.script;
 import foundation.script.facades; // RegisterScriptFacadeReflection (the Scene facade)
 import foundation.script.resource; // BehaviorClass (the cooked Game class a run starts from)
 import foundation.script.angelscript;
-import foundation.script.luau;
+import luau.foundation;
 #ifdef OPTION_HAS_DOTNET
 import foundation.script.dotnet; // the C# backend (a Game built into an assembly)
 #endif
@@ -569,7 +569,7 @@ TEST_CASE("game-instance: fallback path starts, ticks, and stops a Game script")
 TEST_CASE("game-instance: starts, ticks, and stops a LUAU Game orchestrator (the Game tier)")
 {
     RegisterCoreTypes();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const bool ok = gi.StartRunBehavior(u8"Game = {}\n"
@@ -598,7 +598,7 @@ TEST_CASE("game-instance: starts, ticks, and stops a LUAU Game orchestrator (the
 TEST_CASE("game-instance: a game script fetches over the run's HTTP client; stopping drops what waits")
 {
     RegisterCoreTypes();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     foundation::http::RegisterHttpScriptFacade();
     foundation::http::HttpServer server(DefaultAllocator());
     REQUIRE(server.Start(foundation::http::HttpServerConfig{}));
@@ -755,7 +755,7 @@ TEST_CASE("game-instance: run.loadSceneAsync -> ticket, polled to completion (Lu
     RegisterCoreTypes();
     engine::runtime::RegisterRunScriptFacade();
 
-    RefPtr<script::IScriptManager> manager = foundation::script::CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     foundation::script::RegisterReflectedTypes(*manager);
     RefPtr<script::IScriptContext> scriptContext = manager->CreateContext();
 
@@ -867,7 +867,7 @@ TEST_CASE("game-instance: run.requestExit routes the exit code to the binding (L
     RegisterCoreTypes();
     engine::runtime::RegisterRunScriptFacade();
 
-    RefPtr<script::IScriptManager> manager = foundation::script::CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     foundation::script::RegisterReflectedTypes(*manager);
     RefPtr<script::IScriptContext> scriptContext = manager->CreateContext();
 
@@ -1173,7 +1173,7 @@ TEST_CASE("game-instance: a C# run behavior starts from its assembly")
 TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (Luau)")
 {
     RegisterCoreTypes();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const String handlers[] = {String(u8"onPing")};
@@ -1296,7 +1296,7 @@ TEST_CASE("game-instance: run.setTimeScale/timeScale route from script to the ru
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     f32 captured = -1.0f;
@@ -1364,7 +1364,7 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     Array<bool> calls(DefaultAllocator());
@@ -1408,7 +1408,7 @@ TEST_CASE("game-instance: run.events():emit publishes on the run bus, round-trip
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
     engine::runtime::RegisterRunScriptFacade();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const String handlers[] = {String(u8"onPing")};
@@ -1843,7 +1843,7 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
           "gameplay time")
 {
     RegisterCoreTypes();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     const StringView faulting = u8"Game = {}\n"
@@ -1922,7 +1922,7 @@ TEST_CASE("game-instance: a context for behaviors gets the run's input, run and 
 TEST_CASE("game-instance: the run clock ignores time scale, and a game script's properties read")
 {
     RegisterCoreTypes();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
     CHECK_FALSE(gi.GetRunBehaviorProperty(u8"score").HasValue()); // no script running
@@ -2117,7 +2117,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers in the global store (An
     engine::runtime::RegisterRunScriptFacade();
     engine::runtime::RegisterSaveScriptFacade();
     foundation::script::angelscript::RegisterAngelScriptBackend();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     const String folder = FreshSavesFolder(u8"game_floats");
 
     // AngelScript records a run; it outlives the run, and reads back whole.
@@ -2175,7 +2175,7 @@ TEST_CASE("game-instance: the global store flushes on request and clears (Luau);
 {
     RegisterCoreTypes();
     engine::runtime::RegisterSaveScriptFacade();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     const String folder = FreshSavesFolder(u8"game_luau");
 
     {

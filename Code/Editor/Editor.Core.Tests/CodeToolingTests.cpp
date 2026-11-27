@@ -14,9 +14,9 @@ import foundation.core;
 import editor.core;
 #ifdef OPTION_HAS_LUAU
 import foundation.script;
-import foundation.script.luau;
+import luau.foundation;
 import script.pipeline;
-import script.luau.pipeline;
+import luau.pipeline;
 #endif
 
 using namespace foundation::core;
@@ -81,8 +81,8 @@ TEST_CASE("code-tooling: generated files follow, a user's edit is kept, a file t
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("code-tooling: Luau's declarations, and VS Code's extension and settings only when asked for")
 {
-    foundation::script::RegisterLuauScriptBackend();
-    pipeline::RegisterLuauScriptCook();
+    luau::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptCook();
     const Array<CodeToolingFile> plain = CodeToolingFiles(false);
     const CodeToolingFile* declarations = nullptr;
     for (const CodeToolingFile& file : plain)

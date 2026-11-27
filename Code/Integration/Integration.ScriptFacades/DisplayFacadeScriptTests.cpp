@@ -18,7 +18,7 @@ import engine.render;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -88,7 +88,7 @@ TEST_CASE("display-facade: AngelScript lists the present modes, reads the curren
 TEST_CASE("display-facade: Luau lists the present modes, reads the current one and switches by name")
 {
     RegisterCoreTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     Check(*manager,
           u8"Listed = table.concat(Display.presentModes(), ',')\n"
           u8"Before = Display.presentMode()\n"
@@ -104,7 +104,7 @@ TEST_CASE("display-facade: a context whose run offers no present modes lists non
     RegisterCoreTypes();
     render::RegisterRenderScriptFacade();
 #ifdef OPTION_HAS_LUAU
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8"Count = #Display.presentModes(); Current = Display.presentMode(); Set = Display.setPresentMode('vsync')\n",

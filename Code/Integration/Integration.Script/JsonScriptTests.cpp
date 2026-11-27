@@ -22,7 +22,7 @@ import foundation.script;
 import foundation.script.angelscript;
 #endif
 #if INTEGRATION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -79,7 +79,7 @@ TEST_CASE("integration.script: parse / query / build / stringify from AngelScrip
 TEST_CASE("integration.script: parse / query / build / stringify from Luau")
 {
     RegisterJsonTypes();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 

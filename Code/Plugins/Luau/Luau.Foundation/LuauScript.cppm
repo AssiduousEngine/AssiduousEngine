@@ -22,7 +22,7 @@ module;
 #include "Core/Reflection/Reflect.h"
 #include "LuauInclude.h"
 
-export module foundation.script.luau;
+export module luau.foundation;
 
 import foundation.core;
 import foundation.script;
@@ -30,8 +30,10 @@ import foundation.script.facades; // CollectEmittableTypes, the shared reachabil
 
 namespace core = foundation::core;
 using namespace foundation::core;
+using namespace foundation::script; // the interfaces it implements
+using namespace foundation::script; // the interfaces it implements
 
-namespace foundation::script
+namespace luau
 {
     // The declarations file an outside editor reads in a project's Code folder (Declarations).
     inline constexpr core::StringView kLuauDeclarationsFile = u8"engine.d.luau";
@@ -3910,7 +3912,7 @@ namespace foundation::script
     }
 }
 
-export namespace foundation::script
+export namespace luau
 {
     /// How many reflected method calls from Luau took the typed path (MethodInfo::call) rather
     /// than Variants: what a test reads to know the path was taken.
@@ -4140,7 +4142,7 @@ export namespace foundation::script
     }
 }
 
-namespace foundation::script
+namespace luau
 {
     // The bound surface as a `.d.luau` an external editor (luau-lsp) reads; the declarations come
     // from the same emitter the cook's checks would use.

@@ -19,7 +19,7 @@ import foundation.script.facades;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -175,7 +175,7 @@ TEST_CASE("http-facade: Luau sends, hears answers on the pump, cancels")
 {
     RegisterCoreTypes();
     http::RegisterHttpScriptFacade();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     Check(*manager,
           u8"Calls = 0; Scores = ''; Posted = 0; Why = ''\n"
           u8"Http.get('https://example.com/scores', function(status, body, err) Calls = Calls + 1; Scores = status .. ' ' .. body end)\n"
@@ -191,7 +191,7 @@ TEST_CASE("http-facade: a context with no Http service gets 0 back, and nothing 
     RegisterCoreTypes();
     http::RegisterHttpScriptFacade();
 #ifdef OPTION_HAS_LUAU
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(u8"Id = Http.get('https://example.com/', function() end)\n", u8"none").IsOk());

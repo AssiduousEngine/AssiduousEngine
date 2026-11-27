@@ -27,7 +27,7 @@ import foundation.runtime; // SubsystemManager, on which the audio subsystem fin
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -342,7 +342,7 @@ TEST_CASE("audio-facade: the AngelScript Audio facade plays clips/cues/music by 
 TEST_CASE("audio-facade: the Luau Audio facade plays clips/cues/music by asset id and by content "
           "path, and sets the buses by AudioBus (missing content no-ops, never faults)")
 {
-    DriveAudioFacade(foundation::script::CreateLuauScriptManager(DefaultAllocator()),
+    DriveAudioFacade(luau::CreateLuauScriptManager(DefaultAllocator()),
                      u8"Played = Audio.playOneShotPath(\"sfx/beep\")\n"
                      u8"Spatial = Audio.playOneShot3DPath(\"sfx/beep\", 1, 2, 3)\n"
                      u8"Cue = Audio.playCuePath(\"sfx/steps\")\n"

@@ -17,7 +17,7 @@ import engine.run;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -116,7 +116,7 @@ TEST_CASE("saves-facade: AngelScript plays a title menu's New Game, save point, 
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("saves-facade: Luau plays a title menu's New Game, save point, Continue and Load")
 {
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     Check(u8"Game = {}\n"
           u8"Game.__index = Game\n"
           u8"function Game.new() return setmetatable({}, Game) end\n"

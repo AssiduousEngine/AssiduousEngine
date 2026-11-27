@@ -24,7 +24,7 @@ import engine.gui;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::gui;
@@ -189,7 +189,7 @@ TEST_CASE("engine-gui-script: AngelScript reaches a canvas's, a billboard's and 
 TEST_CASE("engine-gui-script: Luau finds the screen tier at gui.root() and pushes a cooked document by its guid")
 {
     Bed bed;
-    RefPtr<script::IScriptManager> manager = script::CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<script::IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     bed.Run(*manager, StringView(u8"local stack = ScreenStack.of(gui.root():find(\"screens\"))\n"
                                  u8"local menu = nil\n"
                                  u8"function isScreenRoot() return stack ~= nil and 1 or 0 end\n"

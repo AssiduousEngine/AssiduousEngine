@@ -26,7 +26,7 @@ import foundation.script.facades;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -380,7 +380,7 @@ TEST_CASE("net-facade: Luau players join, are told things alone, own what is spa
     RegisterScriptFacadeReflection();
     net::RegisterReplicationComponents();
     net::RegisterNetScriptFacade();
-    PlayTogether(CreateLuauScriptManager(DefaultAllocator()),
+    PlayTogether(luau::CreateLuauScriptManager(DefaultAllocator()),
                  PlayerScripts{u8"Joins = 0; LastJoin = -1; Left = -1\n"
                                u8"Net.onJoin(function(p) Joins = Joins + 1; LastJoin = p end)\n"
                                u8"Net.onLeave(function(p) Left = p end)\n",
@@ -421,7 +421,7 @@ TEST_CASE("net-facade: Luau Net.spawn puts a prefab in every peer's scene, from 
     RegisterScriptFacadeReflection(); // Entity, which Net.spawn returns
     net::RegisterReplicationComponents(); // the Networked Transform the prefab carries
     net::RegisterNetScriptFacade();
-    SpawnOverTheNetwork(CreateLuauScriptManager(DefaultAllocator()),
+    SpawnOverTheNetwork(luau::CreateLuauScriptManager(DefaultAllocator()),
                         [](StringView id)
                         { return Format(u8"Spawned = Net.spawn(Guid.new(\"{}\"), 1, 2, 3):isValid()\n", id); },
                         [](StringView id)
@@ -485,7 +485,7 @@ TEST_CASE("net-facade: Luau Net.on receives a number, a text and a bare RPC, and
 {
     RegisterCoreTypes();
     net::RegisterNetScriptFacade();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> hostCtx = manager->CreateContext();
     RefPtr<IScriptContext> clientCtx = manager->CreateContext();
@@ -588,7 +588,7 @@ TEST_CASE("net-facade: Luau reads the live session through the Net facade")
     RegisterCoreTypes();
     net::RegisterNetScriptFacade();
 
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 
@@ -614,7 +614,7 @@ TEST_CASE("net-facade: Luau Net.setRelevanceRadius reaches the host's replicatio
 {
     RegisterCoreTypes();
     net::RegisterNetScriptFacade();
-    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> manager = luau::CreateLuauScriptManager(DefaultAllocator());
     RegisterReflectedTypes(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     ServerFixture fx;

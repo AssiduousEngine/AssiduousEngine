@@ -16,7 +16,7 @@ import foundation.gui.code;
 import script.angelscript.pipeline;
 #endif
 #ifdef OPTION_HAS_LUAU
-import script.luau.pipeline;
+import luau.pipeline;
 #endif
 import editor.script;
 
@@ -102,7 +102,7 @@ TEST_CASE("script language service: the bound API's completion and hover (angels
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("script language service: the bound API's completion and hover (luau)")
 {
-    pipeline::RegisterLuauScriptCook(); // and its backend
+    luau::RegisterLuauScriptCook(); // and its backend
     CheckBoundApi(u8"luau");
 }
 #endif // OPTION_HAS_LUAU

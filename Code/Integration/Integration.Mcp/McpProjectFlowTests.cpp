@@ -27,8 +27,8 @@ import foundation.mcp.script;
 import foundation.script.angelscript;
 #endif
 #if defined(OPTION_HAS_LUAU)
-import foundation.script.luau;
-import script.luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
+import luau.foundation;
+import luau.pipeline; // RegisterLuauScriptCook: what the luau plugin's Pipeline part registers
 #endif
 import editor.mcp;
 import editor.project;  // the seeded project, opened to check it
@@ -51,7 +51,7 @@ namespace
         foundation::script::angelscript::RegisterAngelScriptBackend();
         return StringView(u8"angelscript");
 #elif defined(OPTION_HAS_LUAU)
-        foundation::script::RegisterLuauScriptBackend();
+        luau::RegisterLuauScriptBackend();
         return StringView(u8"luau");
 #else
         return StringView{}; // no language built: the tests that need one are left out
@@ -384,7 +384,7 @@ TEST_CASE("integration.mcp: an agent imports + cooks an AngelScript source via M
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("integration.mcp: an agent imports + cooks a Luau source via MCP tools")
 {
-    pipeline::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
+    luau::RegisterLuauScriptCook(); // the luau plugin's part does this as a project enabling it loads
     DriveImportCookFlow(u8"mcp_write_luau", u8"mcp_write_luau_src", u8"luau",
                         u8"Hello = {}\nHello.__index = Hello\n"
                         u8"function Hello.new(entity)\n  return setmetatable({}, Hello)\nend\n"
@@ -510,7 +510,7 @@ TEST_CASE("integration.mcp: script_api lists the Luau properties a script can us
           "too, and not an asset reference or a container it cannot")
 {
     engine::RegisterAllScriptFacades();
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     CheckListedProperties(u8"luau");
 }
 #endif

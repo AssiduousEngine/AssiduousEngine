@@ -10,13 +10,13 @@
 import foundation.core;
 import foundation.runtime;
 import script.pipeline;
-import script.luau.pipeline;
+import luau.pipeline;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext&)
     {
-        pipeline::RegisterLuauScriptCook();
+        luau::RegisterLuauScriptCook();
     }
 
     void Unload(foundation::runtime::PluginContext&)

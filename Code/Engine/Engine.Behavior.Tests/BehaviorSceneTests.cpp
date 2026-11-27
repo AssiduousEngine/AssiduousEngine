@@ -28,7 +28,7 @@ import foundation.resource;
 import foundation.script;
 import foundation.script.facades; // script::Entity, RegisterExtraScriptRootType/FacadeName
 import foundation.script.angelscript;
-import foundation.script.luau;
+import luau.foundation;
 import foundation.script.resource;
 import engine.behavior;
 import foundation.physics;
@@ -191,7 +191,7 @@ namespace
             }();
             (void)logReady;
             foundation::script::angelscript::RegisterAngelScriptBackend();
-            foundation::script::RegisterLuauScriptBackend();
+            luau::RegisterLuauScriptBackend();
             RegisterCoreTypes();
             RegisterBehaviorComponentReflection();
             RegisterScriptFacadeReflection();
@@ -2347,7 +2347,7 @@ TEST_CASE("script.scene: LUAU a breakpoint in a nested entity.send handler pause
 // threads BehaviorClass::bytecode into LoadBehaviorModule and the backend loads it with no compiler.
 TEST_CASE("script.scene: LUAU a behavior runs from cooked bytecode with no source (player path)")
 {
-    foundation::script::RegisterLuauScriptBackend();
+    luau::RegisterLuauScriptBackend();
     ScriptedScene bed;
 
     RefPtr<BehaviorClass> mover = MakeClassLang(
@@ -2364,7 +2364,7 @@ TEST_CASE("script.scene: LUAU a behavior runs from cooked bytecode with no sourc
 
     // Cook the source to bytecode (a standalone Luau manager, as the cook does), store it on the
     // class, then strip the source: only the bytecode can drive the behaviour now, as in the player.
-    RefPtr<IScriptManager> cooker = foundation::script::CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptManager> cooker = luau::CreateLuauScriptManager(DefaultAllocator());
     Result<RefPtr<IScriptBlob>> blob = cooker->CompileToBlob(mover->source.AsView(), u8"Mover.luau");
     REQUIRE(blob.HasValue());
     MemoryStream cooked;
@@ -2703,7 +2703,7 @@ namespace
         ContactWorld()
         {
             foundation::script::angelscript::RegisterAngelScriptBackend();
-            foundation::script::RegisterLuauScriptBackend();
+            luau::RegisterLuauScriptBackend();
             RegisterCoreTypes();
             engine::physics::RegisterPhysicsComponentReflection();
             RegisterBehaviorComponentReflection();

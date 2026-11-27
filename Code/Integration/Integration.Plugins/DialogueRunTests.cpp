@@ -32,7 +32,7 @@ import foundation.script.resource;
 import foundation.script.angelscript;
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
-import foundation.script.luau;
+import luau.foundation;
 #endif
 import engine.behavior;
 import engine.run;
@@ -69,7 +69,7 @@ namespace
             foundation::script::angelscript::RegisterAngelScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
-            foundation::script::RegisterLuauScriptBackend();
+            luau::RegisterLuauScriptBackend();
 #endif
             RegisterCoreTypes();
             engine::behavior::RegisterBehaviorComponentReflection();

@@ -1,5 +1,5 @@
 # Luau.Foundation (Plugins::Luau.Foundation) - the Luau language: its VM, the script manager and
-# contexts over it, and the backend's registration (`foundation.script.luau`). Not a part: the Engine
+# contexts over it, and the backend's registration (`luau.foundation`). Not a part: the Engine
 # part registers the backend from it and the Pipeline part's cook compiles with it.
 util_add_plugin_library()
 target_link_libraries(${PLUGIN_LIBRARY}

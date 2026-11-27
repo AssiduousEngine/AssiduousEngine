@@ -14,7 +14,7 @@ module;
 #include "Core/Log/Log.h"
 #include "Profiler/Profiler.h" // PROFILE_SCOPE: a check's stages
 
-module script.luau.pipeline;
+module luau.pipeline;
 
 import foundation.core;
 import foundation.profiler;
@@ -23,12 +23,14 @@ import foundation.script;
 import foundation.script.resource;
 import foundation.script.facades;
 import script.pipeline;
-import foundation.script.luau;
+import luau.foundation;
 
 using namespace foundation::core;
 using namespace foundation::script;
+using namespace pipeline; // its bases
 
-namespace pipeline{
+namespace luau
+{
     namespace
     {
         // The Luau property probe, loaded into the same context as the class (globals persist
@@ -108,7 +110,7 @@ namespace pipeline{
             };
             const auto identifierEnd = [&](usize at)
             {
-                while (at < text.Size() && detail::IsIdentChar(text[at]))
+                while (at < text.Size() && pipeline::detail::IsIdentChar(text[at]))
                 {
                     ++at;
                 }
@@ -436,7 +438,7 @@ namespace pipeline{
     {
         // The cook needs the Luau backend in the registry; register it idempotently so a cook is
         // never resolvable without its VM.
-        foundation::script::RegisterLuauScriptBackend();
+        luau::RegisterLuauScriptBackend();
         ScriptLanguageCookRegistry::Get().Register(
             String(u8"luau"), UniquePtr<IScriptLanguageCook>(
                                   DefaultAllocator().New<LuauScriptCook>(), DefaultAllocator()));

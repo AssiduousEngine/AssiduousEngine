@@ -21,7 +21,7 @@ import foundation.script;
 import foundation.script.angelscript;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import luau.foundation;
 #endif
 import engine.input;
 import foundation.run;
@@ -201,7 +201,7 @@ TEST_CASE("input: a script locks its own context's pointer, reads the lock, and 
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("input: the Input facade resolves PER-CONTEXT services (Luau)")
 {
-    DrivePerContextInput(foundation::script::CreateLuauScriptManager(DefaultAllocator()),
+    DrivePerContextInput(luau::CreateLuauScriptManager(DefaultAllocator()),
                          u8"Down = Input.isDown(\"Jump\")\n"
                          u8"MoveY = Input.valueY(\"Move\")\n"
                          u8"local move = Input.value2D(\"Move\")\n"

@@ -53,7 +53,7 @@ import foundation.script.facades;  // the facade reflection a script context rea
 import foundation.script.angelscript;
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
-import foundation.script.luau;
+import luau.foundation;
 #endif
 
 using namespace foundation::core;
@@ -305,7 +305,7 @@ namespace
             foundation::script::angelscript::RegisterAngelScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_LUAU)
-            foundation::script::RegisterLuauScriptBackend();
+            luau::RegisterLuauScriptBackend();
 #endif
             RegisterCoreTypes();
             engine::behavior::RegisterBehaviorComponentReflection();
