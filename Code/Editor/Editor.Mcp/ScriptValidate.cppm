@@ -39,12 +39,33 @@ using foundation::json::JsonValue;
 
 namespace editor::mcp::detail
 {
-    inline Array<String> ScriptLanguageChoices()
+    /// The languages this host can check and create scripts in: those whose cook is registered,
+    /// which a language plugin adds as it loads. Asked at each call, since a project's plugins load
+    /// after the tools are registered.
+    [[nodiscard]] inline String ScriptLanguageList()
     {
-        Array<String> choices;
-        choices.PushBack(String(u8"angelscript"));
-        choices.PushBack(String(u8"luau"));
-        return choices;
+        const Array<String> languages = pipeline::ScriptLanguageCookRegistry::Get().Languages();
+        if (languages.IsEmpty())
+        {
+            return String(u8"none");
+        }
+        String list;
+        for (const String& language : languages)
+        {
+            if (!list.IsEmpty())
+            {
+                list.Append(u8", ");
+            }
+            list.Append(language.AsView());
+        }
+        return list;
+    }
+
+    /// The refusal for a language this host has no cook for.
+    [[nodiscard]] inline String NoScriptLanguage(StringView language)
+    {
+        return Format(u8"no '{}' language here: its plugin is not enabled or not loaded (this host has: {})", language,
+                      ScriptLanguageList().AsView());
     }
 }
 
@@ -74,8 +95,10 @@ export namespace editor::mcp
             u8"does not enable on that platform takes its facades with it), as an export for it does.",
             SchemaBuilder()
                 .Str(u8"source", u8"the full script source text", true)
-                .Enum(u8"language", detail::ScriptLanguageChoices(),
-                      u8"the script backend to compile against", true)
+                .Str(u8"language", u8"the script language to compile against: one whose plugin the project "
+                                   u8"enables (angelscript, luau, csharp); an unknown one is refused with "
+                                   u8"the list",
+                     true)
                 .Str(u8"name", u8"a display name for error messages (e.g. the intended file "
                                u8"name; default 'script')")
                 .Str(u8"platform", Format(u8"also check it for this platform's plugins ({}); needs an open project",
@@ -99,10 +122,7 @@ export namespace editor::mcp
                     pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(language.AsView());
                 if (cook == nullptr)
                 {
-                    return Err(Format(u8"the '{}' backend is not available in this host (its "
-                                      u8"cook did not register - the backend may be disabled "
-                                      u8"in this build)",
-                                      language.AsView()));
+                    return Err(detail::NoScriptLanguage(language.AsView()));
                 }
 
                 const String source = args.Get(u8"source").AsString();

@@ -26,7 +26,7 @@ import pipeline.core;
 import script.pipeline;
 import editor.project;
 import :session;
-import :script_validate; // ScriptLanguageChoices (the shared language enum)
+import :script_validate; // NoScriptLanguage (the shared refusal)
 
 using namespace foundation::core;
 using foundation::json::JsonValue;
@@ -80,8 +80,9 @@ export namespace editor::mcp
             u8"make the class attachable.",
             SchemaBuilder()
                 .Str(u8"name", u8"the asset name (also the source file stem)", true)
-                .Enum(u8"language", detail::ScriptLanguageChoices(), u8"the script backend",
-                      true)
+                .Str(u8"language", u8"the script language: one whose plugin the project enables "
+                                   u8"(angelscript, luau, csharp); an unknown one is refused with the list",
+                     true)
                 .Enum(u8"kind", detail::BehaviorKindChoices(),
                       u8"the kind of behavior to seed (default entity)")
                 .Str(u8"group", u8"source-DB group path to place it in (slash-joined; "
@@ -107,9 +108,7 @@ export namespace editor::mcp
                     pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(language.AsView());
                 if (backend == nullptr || backend->fileExtensions.IsEmpty() || cook == nullptr)
                 {
-                    return Err(Format(u8"the '{}' backend is not available in this host (it "
-                                      u8"may be disabled in this build)",
-                                      language.AsView()));
+                    return Err(detail::NoScriptLanguage(language.AsView()));
                 }
                 const foundation::script::BehaviorKind kind =
                     detail::ParseBehaviorKind(args.Get(u8"kind").AsString().AsView());

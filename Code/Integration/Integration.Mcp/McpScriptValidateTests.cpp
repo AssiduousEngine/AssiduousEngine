@@ -340,3 +340,34 @@ TEST_CASE("integration.mcp: script_validate - a platform check leaves out the pl
     RemoveDirectoryRecursive(dir);
 }
 #endif // OPTION_HAS_ANGELSCRIPT
+
+// A language with no cook here is refused by name, with the languages the host has: they are the
+// registered cooks, which a language plugin adds as it loads, not a list fixed in the tool.
+TEST_CASE("integration.mcp: script_validate refuses a language with no cook, naming the ones there are")
+{
+    McpServer server;
+    editor::mcp::ProjectSession session;
+    editor::mcp::RegisterScriptValidateTool(server, session);
+    const auto refusal = [&server](StringView tool, StringView arguments)
+    {
+        const String line = Format(u8"{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{{\"name\":\"{}\",\"arguments\":{}}}}}",
+                                   tool, arguments);
+        const LineOutcome outcome = server.HandleLine(line.AsView());
+        REQUIRE(outcome.state == LineState::Answered);
+        const JsonValue result = json::Parse(outcome.response.AsView()).value.Get(u8"result");
+        CHECK(result.Get(u8"isError").AsBool());
+        return result.Get(u8"content").At(0).Get(u8"text").AsString();
+    };
+    const String text = refusal(u8"script_validate", u8"{\"source\":\"x\",\"language\":\"nosuchlanguage\"}");
+    CHECK(text.AsView().StartsWith(u8"no 'nosuchlanguage' language here"));
+    const Array<String> languages = pipeline::ScriptLanguageCookRegistry::Get().Languages();
+    CHECK(text.AsView().Contains(u8"(this host has: "));
+    for (const String& language : languages)
+    {
+        CHECK(text.AsView().Contains(language.AsView()));
+    }
+    if (languages.IsEmpty())
+    {
+        CHECK(text.AsView().EndsWith(u8"(this host has: none)"));
+    }
+}

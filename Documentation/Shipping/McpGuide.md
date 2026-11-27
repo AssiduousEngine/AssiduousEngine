@@ -413,7 +413,8 @@ and is changed through its facade instead (`scene.animation.setClip`); a list me
 methods rather than a property. A member with `readOnly: true` (a network identity's
 `authority`, for one) reads and refuses assignment in every backend. `script_create` seeds a starter asset
 (`kind`: entity, scene or run behavior), then edit the returned source FILE, loop on
-`script_validate`, and `asset_cook` to make the class attachable. A script file may declare several
+`script_validate`, and `asset_cook` to make the class attachable. Their `language` is one the host
+has a cook for; an unknown one is refused with the list. A script file may declare several
 classes (data, helpers); the one it plays is the one deriving from a kind (`class Coin :
 EntityBehavior`; Luau `Coin = EntityBehavior.class()`), of any name. A script with none is a module
 of helpers, refused where a behavior is set; two that derive from a kind fail the cook, naming
