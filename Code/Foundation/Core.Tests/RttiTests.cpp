@@ -657,7 +657,7 @@ TEST_CASE("rtti: RetractProperty takes back an extension, and it can be added ag
     RttiRegisterValue_Tank();
     REQUIRE(ExtendProperty<&DoubleLitres>("doubled")); // repeats of the case above are harmless
     REQUIRE(ExtendProperty<&TripleLitres>("tripled"));
-    const u32 count = PropertyCount(TypeOf<Tank>());
+    const usize count = PropertyCount(TypeOf<Tank>());
 
     CHECK(RetractProperty<&TripleLitres>());
     CHECK(FindProperty(TypeOf<Tank>(), "tripled") == nullptr);
