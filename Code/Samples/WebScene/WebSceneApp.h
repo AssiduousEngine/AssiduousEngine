@@ -57,7 +57,6 @@ namespace samples
     namespace materials = foundation::materials;
     namespace gui = foundation::gui;
     namespace rhi = foundation::rhi;
-    namespace navigation = foundation::navigation;
 
 
 
@@ -191,11 +190,11 @@ namespace samples
 
             // Navigation crowd: re-target each agent when it arrives so they ping-pong across the
             // field, routing around the obstacle box and avoiding one another (Detour crowd).
-            if (auto* agents = m_scene->GetSystem<engine::navigation::NavAgentComponentManager>())
+            if (auto* agents = m_scene->GetSystem<navigation::NavAgentComponentManager>())
             {
                 for (NavAgent& a : m_navAgents)
                 {
-                    engine::navigation::NavAgentComponent* comp = agents->Get(a.entity);
+                    navigation::NavAgentComponent* comp = agents->Get(a.entity);
                     if (comp != nullptr && comp->finishedNav())
                     {
                         a.goingA = !a.goingA;
@@ -969,7 +968,7 @@ namespace samples
             }
 
             // Overlay the navmesh surface (cyan) and the agents' target lines (yellow).
-            if (auto* navSys = m_scene->GetSystem<engine::navigation::NavigationSceneSystem>())
+            if (auto* navSys = m_scene->GetSystem<navigation::NavigationSceneSystem>())
             {
                 navSys->Settings().debugDraw = true;
                 navSys->Settings().debugDrawPaths = true;
@@ -979,8 +978,8 @@ namespace samples
             // binding the baked navmesh.
             {
                 scene::EntityHandle zoneEntity = m_scene->CreateEntity(u8"nav-zone");
-                engine::navigation::NavMeshZoneComponent& zone =
-                    m_scene->GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(
+                navigation::NavMeshZoneComponent& zone =
+                    m_scene->GetSystem<navigation::NavMeshZoneComponentManager>()->Add(
                         zoneEntity);
                 zone.extents = core::Float3{14.0f, 4.0f, 14.0f};
                 zone.zone = m_navZone; // implicit RefPtr to Ref conversion, as with mesh = Primitives::...
@@ -988,7 +987,7 @@ namespace samples
 
             // Six agents (small spheres): three lanes each direction, crossing the field.
             auto* meshes = m_scene->GetSystem<engine::render::MeshComponentManager>();
-            auto* agentMgr = m_scene->GetSystem<engine::navigation::NavAgentComponentManager>();
+            auto* agentMgr = m_scene->GetSystem<navigation::NavAgentComponentManager>();
             const core::f32 lanes[] = {-6.0f, 0.0f, 6.0f};
             for (core::f32 lane : lanes)
             {
@@ -1000,7 +999,7 @@ namespace samples
         }
 
         void SpawnNavAgent(engine::render::MeshComponentManager& meshes,
-                           engine::navigation::NavAgentComponentManager& agentMgr,
+                           navigation::NavAgentComponentManager& agentMgr,
                            core::Float3 home, core::Float3 away)
         {
             scene::EntityHandle e = m_scene->CreateEntity(u8"nav-agent");

@@ -1,5 +1,5 @@
 # Navigation.Engine (Plugins::Navigation.Engine) - the navigation plugin's runtime: the zone and agent
-# components, the per-scene navigation system and the NavigationSubsystem (`engine.navigation`).
+# components, the per-scene navigation system and the NavigationSubsystem (`navigation.engine`).
 # Every host loads it.
 util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART}

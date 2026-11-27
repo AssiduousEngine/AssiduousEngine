@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Navigation - implementation unit.
+// Navigation.Foundation - implementation unit.
 //
 // All Recast and Detour use lives here. The interface stays free of rc* and dt* types, both to
 // keep the API clean and because GCC's module serializer cannot digest the third-party headers
@@ -22,14 +22,14 @@ module;
 #include <cmath>
 #include <cstring>
 
-module foundation.navigation;
+module navigation.foundation;
 
 import foundation.core;
 import foundation.profiler;
 
 using namespace foundation::core;
 
-namespace foundation::navigation
+namespace navigation
 {
     namespace
     {

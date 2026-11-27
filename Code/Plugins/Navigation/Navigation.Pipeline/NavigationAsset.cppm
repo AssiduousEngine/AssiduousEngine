@@ -24,11 +24,12 @@ import foundation.core;
 import pipeline.core;
 import pipeline.importer; // PipelinePluginServices (the creator added through it)
 import foundation.content;
-import foundation.navigation.resource;
+import navigation.foundation;
 
 using namespace foundation::core;
+using namespace pipeline; // its bases
 
-export namespace pipeline
+export namespace navigation
 {
     // The data stream carrying the baked navmesh beside the asset envelope.
     inline constexpr StringView kNavMeshStreamName = u8"navmesh";
@@ -100,7 +101,7 @@ export namespace pipeline
         }
         [[nodiscard]] const TypeInfo* ProductType() const override
         {
-            return &foundation::navigation::NavigationZoneSource::StaticType();
+            return &navigation::NavigationZoneSource::StaticType();
         }
         // 3: the product carries no frame-convention stamp (every bake is rigid-frame).
         [[nodiscard]] u32 Version() const override { return 3; }
@@ -130,7 +131,7 @@ export namespace pipeline
                     return loaded;
                 }
             }
-            foundation::navigation::NavigationZoneSource product;
+            navigation::NavigationZoneSource product;
             product.navMeshBlob = na.navMeshBlob;
             return ctx.output->WriteObject(product);
         }

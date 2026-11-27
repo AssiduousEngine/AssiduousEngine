@@ -8,26 +8,27 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.navigation;
+module navigation.editor;
 
 import foundation.core;
 import foundation.json;
 import foundation.mcp;
 import foundation.scene;
 import foundation.content;
-import engine.navigation;
+import navigation.engine;
 import editor.core;
 import editor.scene; // the gizmo and inspector-extras registries, the scene page tools' lookups
 import editor.mcp;   // PluginTools
 
 using namespace foundation::core;
+using namespace editor; // its bases
 using foundation::json::JsonValue;
 using foundation::mcp::SchemaBuilder;
 using foundation::mcp::ToolAnnotations;
 using foundation::mcp::ToolResult;
 namespace scene = foundation::scene;
 
-namespace editor::navigation
+namespace navigation
 {
     namespace
     {
@@ -39,11 +40,11 @@ namespace editor::navigation
         public:
             [[nodiscard]] const TypeInfo* ComponentType() const override
             {
-                return &TypeOf<engine::navigation::NavMeshZoneComponent>();
+                return &TypeOf<navigation::NavMeshZoneComponent>();
             }
             void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override
             {
-                const auto* zone = component.TryGet<engine::navigation::NavMeshZoneComponent>();
+                const auto* zone = component.TryGet<navigation::NavMeshZoneComponent>();
                 if (zone == nullptr)
                 {
                     return;
@@ -70,11 +71,11 @@ namespace editor::navigation
                                      context->Notify(NoticeKind::Error, u8"No project is open.");
                                      return;
                                  }
-                                 auto* zones = edit.Scene().GetSystem<engine::navigation::NavMeshZoneComponentManager>();
+                                 auto* zones = edit.Scene().GetSystem<navigation::NavMeshZoneComponentManager>();
                                  for (const Guid& id : at->Entities())
                                  {
                                      const scene::EntityHandle entity = edit.Resolve(id);
-                                     engine::navigation::NavMeshZoneComponent* zone = zones != nullptr && entity.IsAssigned() ? zones->Get(entity) : nullptr;
+                                     navigation::NavMeshZoneComponent* zone = zones != nullptr && entity.IsAssigned() ? zones->Get(entity) : nullptr;
                                      if (zone == nullptr)
                                          continue;
                                      foundation::content::Instance* target = zone->zone.id.IsNil() ? nullptr : context->Project()->SourceDb().GetInstance(zone->zone.id);
@@ -98,13 +99,13 @@ namespace editor::navigation
 
     void RegisterNavigationInspectorExtras()
     {
-        InspectorExtrasRegistry::Get().Register(TypeOf<engine::navigation::NavMeshZoneComponent>(),
+        InspectorExtrasRegistry::Get().Register(TypeOf<navigation::NavMeshZoneComponent>(),
                                                 [](InspectorExtras& extras) { AddBake(extras); });
     }
 
     void RemoveNavigationInspectorExtras()
     {
-        InspectorExtrasRegistry::Get().Remove(TypeOf<engine::navigation::NavMeshZoneComponent>());
+        InspectorExtrasRegistry::Get().Remove(TypeOf<navigation::NavMeshZoneComponent>());
     }
 
     void RegisterNavigationBakeTool(editor::mcp::PluginTools& tools, EditorContext& context)
@@ -147,7 +148,7 @@ namespace editor::navigation
                 SceneEditContext& edit = page.scene->EditContext();
                 scene::Scene& sceneRef = edit.Scene();
                 auto* zones =
-                    sceneRef.GetSystem<engine::navigation::NavMeshZoneComponentManager>();
+                    sceneRef.GetSystem<navigation::NavMeshZoneComponentManager>();
                 scene::EntityHandle zoneEntity{};
                 const String named = args.Get(u8"entity").AsString();
                 if (!named.IsEmpty())
@@ -170,7 +171,7 @@ namespace editor::navigation
                     if (zones != nullptr)
                     {
                         zones->ForEach(
-                            [&](engine::navigation::NavMeshZoneComponent&, scene::EntityHandle e)
+                            [&](navigation::NavMeshZoneComponent&, scene::EntityHandle e)
                             {
                                 zoneEntity = e;
                                 ++count;
@@ -183,7 +184,7 @@ namespace editor::navigation
                                           count));
                     }
                 }
-                engine::navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
+                navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
                 foundation::content::Instance* target =
                     zone->zone.id.IsNil() ? nullptr
                                           : ctx->Project()->SourceDb().GetInstance(zone->zone.id);

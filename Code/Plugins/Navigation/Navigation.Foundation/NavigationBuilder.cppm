@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Navigation - :builder partition.
+// Navigation.Foundation - :builder partition.
 //
 // NavigationMeshBuilder: the Recast bake. Triangle soup (positions and triangle indices, in
 // whatever space the caller chose; the engine bakes in zone-local space) and an agent
@@ -12,13 +12,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.navigation:builder;
+export module navigation.foundation:builder;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace foundation::navigation
+export namespace navigation
 {
     // The agent profile the navmesh is baked for. Radius, height and climb are baked in, so a
     // navmesh is per profile, which the zone model relies on. Cell size and height set the voxel

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Editor::Navigation - implementation unit.
+// Navigation.Editor - implementation unit.
 //
 // The bake logic and its heavy imports (navigation.pipeline for the asset write) live here, out of
 // the interface, to keep GCC's module build light. See NavigationBake.cppm for the surface.
@@ -10,29 +10,29 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-module editor.navigation;
+module navigation.editor;
 
 import foundation.core;
 import foundation.scene;
 import foundation.content;
-import engine.navigation;
-import foundation.navigation;
-import foundation.navigation.resource;
+import navigation.engine;
+import navigation.foundation;
 import navigation.pipeline;
 import editor.core;
 import foundation.settings;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor::navigation
+namespace navigation
 {
-    namespace nav = foundation::navigation;
+    namespace nav = ::navigation;
 
     namespace
     {
         // A zone's bake settings. The bake covers the zone's box (zone-local, where the geometry
         // is), so a ground plane as wide as the level does not widen the grid past the zone.
-        [[nodiscard]] nav::NavigationBakeParams ParamsFor(const engine::navigation::NavMeshZoneComponent& zone,
+        [[nodiscard]] nav::NavigationBakeParams ParamsFor(const navigation::NavMeshZoneComponent& zone,
                                                           bool parallelBake)
         {
             nav::NavigationBakeParams params;
@@ -170,12 +170,12 @@ namespace editor::navigation
                                   foundation::content::Instance& targetAsset, bool parallelBake)
     {
         BakeResult result;
-        auto* zones = scene.GetSystem<engine::navigation::NavMeshZoneComponentManager>();
+        auto* zones = scene.GetSystem<navigation::NavMeshZoneComponentManager>();
         if (zones == nullptr)
         {
             return result;
         }
-        engine::navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
+        navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
         if (zone == nullptr)
         {
             return result;
@@ -191,7 +191,7 @@ namespace editor::navigation
         result.triangleCount = CollectNavigationGeometry(scene, zoneEntity, zone->extents,
                                                          zone->cellSize, verts, indices);
 
-        pipeline::NavigationZoneAsset asset;
+        navigation::NavigationZoneAsset asset;
         if (result.triangleCount > 0)
         {
             const nav::NavigationBakeParams params = ParamsFor(*zone, parallelBake);
@@ -206,7 +206,7 @@ namespace editor::navigation
             const Status baked = nav::NavigationMeshBuilder::BuildTiled(
                 Span<const Float3>{verts.Data(), verts.Size()},
                 Span<const u32>{indices.Data(), indices.Size()}, params, blob, &stages);
-            if (auto* system = scene.GetSystem<engine::navigation::NavigationSceneSystem>())
+            if (auto* system = scene.GetSystem<navigation::NavigationSceneSystem>())
             {
                 system->SetBakeStages(
                     zoneEntity, static_cast<Array<Float3>&&>(stages.contourLines),
@@ -221,7 +221,7 @@ namespace editor::navigation
         }
 
         // Only a bake is written: a bake that made nothing leaves the zone its last navmesh.
-        if (result.baked && !pipeline::WriteNavigationZoneAsset(targetAsset, asset).IsOk())
+        if (result.baked && !navigation::WriteNavigationZoneAsset(targetAsset, asset).IsOk())
         {
             LOG_ERROR(u8"Editor", u8"navigation bake: writing the zone asset failed");
             result.baked = false;
@@ -237,8 +237,8 @@ namespace editor::navigation
                                                   bool parallelBake)
     {
         RegionRebakeResult result;
-        auto* zones = scene.GetSystem<engine::navigation::NavMeshZoneComponentManager>();
-        engine::navigation::NavMeshZoneComponent* zone =
+        auto* zones = scene.GetSystem<navigation::NavMeshZoneComponentManager>();
+        navigation::NavMeshZoneComponent* zone =
             (zones != nullptr) ? zones->Get(zoneEntity) : nullptr;
         if (zone == nullptr)
         {
@@ -251,10 +251,10 @@ namespace editor::navigation
 
         // The existing blob's grid anchors the patch; with no tiled blob it falls back to a full
         // bake (which is also the migration path for v1 assets).
-        pipeline::NavigationZoneAsset asset;
+        navigation::NavigationZoneAsset asset;
         nav::NavigationTileGridDesc grid;
         const bool haveTiled =
-            pipeline::EnsureNavMeshLoaded(targetAsset, asset).IsOk() &&
+            navigation::EnsureNavMeshLoaded(targetAsset, asset).IsOk() &&
             !asset.navMeshBlob.IsEmpty() &&
             nav::ReadTiledBlobGrid(
                 Span<const byte>{reinterpret_cast<const byte*>(asset.navMeshBlob.Data()),
@@ -336,7 +336,7 @@ namespace editor::navigation
 
         asset.navMeshBlob.Resize(blob.Size());
         MemCopy(asset.navMeshBlob.Data(), blob.Data(), blob.Size());
-        if (!pipeline::WriteNavigationZoneAsset(targetAsset, asset).IsOk())
+        if (!navigation::WriteNavigationZoneAsset(targetAsset, asset).IsOk())
         {
             return result;
         }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// engine.navigation scene integration: a baked zone and a MoveEntity agent. At Start the subsystem
+// navigation.engine scene integration: a baked zone and a MoveEntity agent. At Start the subsystem
 // loads the zone and registers the agent; navigate() then steers it, and the Update tick writes the
 // steered position back to the entity transform until it arrives.
 
@@ -15,15 +15,14 @@ import foundation.vfs;
 import foundation.content;
 import foundation.resource;
 import foundation.scene;
-import foundation.navigation;
-import foundation.navigation.resource;
-import engine.navigation;
+import navigation.foundation;
+import navigation.engine;
 import foundation.xml;               // XmlDocument (a version 1 zone record)
 import foundation.xml.serialization; // XmlSerializer
 
 using namespace foundation::core;
-using namespace foundation::navigation;
-using namespace engine::navigation;
+using namespace navigation;
+using namespace navigation;
 namespace scene = foundation::scene;
 namespace content = foundation::content;
 using foundation::resource::ResourceManager;

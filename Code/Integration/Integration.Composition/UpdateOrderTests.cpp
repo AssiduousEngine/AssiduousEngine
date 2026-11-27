@@ -12,7 +12,7 @@ import foundation.core;
 import foundation.scene;
 import engine.composition;
 import engine.behavior;
-import engine.navigation;
+import navigation.engine;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
@@ -21,10 +21,10 @@ TEST_CASE("integration.composition: scripts update before the crowd and every sy
 {
     scene::Scene level(DefaultAllocator(), u8"level");
     engine::AddAllSceneManagers(level);
-    engine::navigation::AddNavigationSceneManagers(level); // the crowd, a game enabling navigation has
+    navigation::AddNavigationSceneManagers(level); // the crowd, a game enabling navigation has
     auto* behaviors = level.GetSystem<engine::behavior::EntityBehaviorSystem>();
     auto* levelScript = level.GetSystem<engine::behavior::SceneBehaviorSystem>();
-    auto* crowd = level.GetSystem<engine::navigation::NavigationSceneSystem>();
+    auto* crowd = level.GetSystem<navigation::NavigationSceneSystem>();
     REQUIRE(behaviors != nullptr);
     REQUIRE(levelScript != nullptr);
     REQUIRE(crowd != nullptr);

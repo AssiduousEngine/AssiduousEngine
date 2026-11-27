@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// foundation.navigation tests. Everything here is headless: the target links only
-// Foundation::Navigation (Recast, Detour and Core), no render, physics or device. The bake is a
+// navigation.foundation tests. Everything here is headless: the target links only
+// Navigation.Foundation (Recast, Detour and Core), no render, physics or device. The bake is a
 // pure function; the runtime wrappers need only a serialized blob.
 //
 // Coverage:
@@ -17,10 +17,10 @@
 #include <cmath> // std::isfinite
 
 import foundation.core;
-import foundation.navigation;
+import navigation.foundation;
 
 using namespace foundation::core;
-using namespace foundation::navigation;
+using namespace navigation;
 
 namespace
 {

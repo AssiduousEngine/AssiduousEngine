@@ -18,14 +18,14 @@ namespace
 {
     void Load(foundation::runtime::PluginContext& context)
     {
-        pipeline::RegisterNavigationZoneAsset();
+        navigation::RegisterNavigationZoneAsset();
         pipeline::PipelinePluginServices* services = context.Find<pipeline::PipelinePluginServices>();
         if (services == nullptr)
         {
             return;
         }
-        (void)services->AddBuilder(foundation::core::MakeUnique<pipeline::NavigationZoneAssetBuilder>(context.Allocator()));
-        pipeline::AddNavigationCreators(*services);
+        (void)services->AddBuilder(foundation::core::MakeUnique<navigation::NavigationZoneAssetBuilder>(context.Allocator()));
+        navigation::AddNavigationCreators(*services);
     }
 }
 

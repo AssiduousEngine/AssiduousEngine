@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Navigation - implementation unit.
+// Navigation.Engine - implementation unit.
 //
 // The component reflection (REFLECT_VALUE bodies) lives here, out of the interface units, for GCC's
 // module handling. Surfaces the zone and agent components to the editor inspector
@@ -13,22 +13,21 @@ module;
 #include "Core/Reflection/Reflect.h"
 #include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
-module engine.navigation;
+module navigation.engine;
 
 import foundation.core;
 import foundation.runtime;
 import foundation.profiler;
 import foundation.scene;
 import foundation.resource;
-import foundation.navigation;
-import foundation.navigation.resource;
+import navigation.foundation;
 import foundation.render;
 import engine.render;
 import foundation.script.facades;
 
 using namespace foundation::core;
 
-namespace engine::navigation
+namespace navigation
 {
     namespace
     {
@@ -47,7 +46,7 @@ namespace engine::navigation
                 zones->ForEach(
                     [&](NavMeshZoneComponent& z, foundation::scene::EntityHandle entity)
                     {
-                        foundation::navigation::NavigationZoneResource* product = z.zone.Get();
+                        navigation::NavigationZoneResource* product = z.zone.Get();
                         if (product == nullptr || !product->IsValid())
                         {
                             return;
@@ -176,7 +175,7 @@ namespace engine::navigation
     }
 }
 
-namespace engine::navigation
+namespace navigation
 {
     REFLECT_VALUE(NavMeshZoneComponent, "rtti::engine::navigation")
     {

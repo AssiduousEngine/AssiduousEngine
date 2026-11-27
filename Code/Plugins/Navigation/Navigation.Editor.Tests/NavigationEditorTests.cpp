@@ -13,7 +13,7 @@ import foundation.scene;
 import foundation.content;
 import foundation.physics; // MotionKind
 import engine.physics;     // RigidBodyComponent (the static ground the bake collects)
-import engine.navigation;
+import navigation.engine;
 import navigation.pipeline; // NavigationZoneAsset
 import foundation.gui.toolkit; // IPropertySource (InspectorExtras::AddSection)
 import foundation.input;       // ScriptedInputSource (the page interface)
@@ -22,7 +22,7 @@ import editor.camera;
 import editor.viewporttools; // ViewportToolManager (the page interface)
 import editor.scene;
 import editor.mcp;          // PluginTools, ProjectSession
-import editor.navigation;
+import navigation.editor;
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -143,8 +143,8 @@ namespace
 TEST_CASE("navigation-editor: the zone's gizmo draws its box when selected")
 {
     GizmoRendererRegistry registry;
-    editor::navigation::AddNavigationGizmos(registry);
-    IGizmoRenderer* zone = registry.Find(&TypeOf<engine::navigation::NavMeshZoneComponent>());
+    navigation::AddNavigationGizmos(registry);
+    IGizmoRenderer* zone = registry.Find(&TypeOf<navigation::NavMeshZoneComponent>());
     REQUIRE(zone != nullptr);
     CHECK_FALSE(zone->DrawWhenUnselected());
 }
@@ -152,23 +152,23 @@ TEST_CASE("navigation-editor: the zone's gizmo draws its box when selected")
 TEST_CASE("navigation-editor: a zone has a Bake Navigation action that says what it needs, and it goes with the plugin")
 {
     scene::Scene level{DefaultAllocator()};
-    engine::navigation::AddNavigationSceneManagers(level);
+    navigation::AddNavigationSceneManagers(level);
     EditorCommandStack commands;
     SceneEditContext edit(level, commands);
     EditorContext context{DefaultAllocator()};
     String said;
     context.OnNotice = [&said](NoticeKind, StringView message) { said = String(message); };
     const Guid zoneId = edit.CreateEntity(u8"Zone");
-    level.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(edit.Resolve(zoneId));
+    level.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(edit.Resolve(zoneId));
 
-    const TypeInfo& zoneType = TypeOf<engine::navigation::NavMeshZoneComponent>();
+    const TypeInfo& zoneType = TypeOf<navigation::NavMeshZoneComponent>();
     const auto gather = [&]()
     {
         Extras extras(edit, context, zoneId);
         InspectorExtrasRegistry::Get().ForEach(zoneType, [&extras](const InspectorExtrasProvider& provider) { provider(extras); });
         return extras;
     };
-    editor::navigation::RegisterNavigationInspectorExtras();
+    navigation::RegisterNavigationInspectorExtras();
     {
         Extras extras = gather();
         REQUIRE(extras.labels.Size() == 1u);
@@ -176,13 +176,13 @@ TEST_CASE("navigation-editor: a zone has a Bake Navigation action that says what
         extras.actions[0]();
         CHECK(said == String(u8"No project is open."));
     }
-    editor::navigation::RemoveNavigationInspectorExtras();
+    navigation::RemoveNavigationInspectorExtras();
     CHECK(gather().labels.IsEmpty());
 }
 
 TEST_CASE("navigation-editor: navigation_bake bakes a page's zone into its asset, and says why not")
 {
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     const StringView dir = u8"scratch_navigation_bake_project";
     (void)RemoveDirectoryRecursive(dir);
     REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
@@ -195,14 +195,14 @@ TEST_CASE("navigation-editor: navigation_bake bakes a page's zone into its asset
     editor::mcp::ProjectSession session;
     Array<String> registered;
     editor::mcp::PluginTools tools(server, session, registered);
-    editor::navigation::RegisterNavigationBakeTool(tools, context);
+    navigation::RegisterNavigationBakeTool(tools, context);
     CHECK(server.HasTool(u8"navigation_bake"));
     Random rng(77);
     auto* page = static_cast<HeadlessScenePage*>(context.AdoptPage(UniquePtr<EditorPage>(
         DefaultAllocator().New<HeadlessScenePage>(u8"Block", Guid::Generate(rng)), DefaultAllocator())));
     SceneEditContext& edit = page->EditContext();
     scene::Scene& sceneRef = edit.Scene();
-    engine::navigation::AddNavigationSceneManagers(sceneRef);
+    navigation::AddNavigationSceneManagers(sceneRef);
     if (!sceneRef.HasSystem<engine::physics::RigidBodyComponentManager>())
     {
         sceneRef.AddSystem<engine::physics::RigidBodyComponentManager>();
@@ -217,8 +217,8 @@ TEST_CASE("navigation-editor: navigation_bake bakes a page's zone into its asset
     ground.motion = foundation::physics::MotionKind::Static;
     ground.halfExtents = Float3{10, 0.5f, 10};
     const Guid zoneId = edit.CreateEntity(u8"Zone");
-    engine::navigation::NavMeshZoneComponent& zone =
-        sceneRef.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(
+    navigation::NavMeshZoneComponent& zone =
+        sceneRef.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(
             edit.Resolve(zoneId));
     zone.extents = Float3{15, 10, 15};
 
@@ -238,7 +238,7 @@ TEST_CASE("navigation-editor: navigation_bake bakes a page's zone into its asset
 
     // With the asset the zone bakes; the scene's only zone is found without naming it.
     foundation::content::Instance* asset = project->SourceDb().RootGroup()->CreateInstance(
-        u8"BlockZone", pipeline::NavigationZoneAsset::StaticType());
+        u8"BlockZone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(asset != nullptr);
     zone.zone.SetId(asset->Id());
     bake = Call(server, u8"navigation_bake", u8"{}");
@@ -246,12 +246,12 @@ TEST_CASE("navigation-editor: navigation_bake bakes a page's zone into its asset
     CHECK(bake.payload.Get(u8"baked").AsBool());
     CHECK(bake.payload.Get(u8"triangles").AsNumber() == doctest::Approx(12.0)); // the slab's box
     CHECK(bake.payload.Get(u8"asset").AsString() == Format(u8"{}", asset->Id()));
-    pipeline::NavigationZoneAsset readBack;
+    navigation::NavigationZoneAsset readBack;
     {
         RefPtr<ISerializable> object = asset->ReadObject();
-        auto* stored = Cast<pipeline::NavigationZoneAsset>(object.Get());
+        auto* stored = Cast<navigation::NavigationZoneAsset>(object.Get());
         REQUIRE(stored != nullptr);
-        REQUIRE(pipeline::EnsureNavMeshLoaded(*asset, *stored).IsOk());
+        REQUIRE(navigation::EnsureNavMeshLoaded(*asset, *stored).IsOk());
         CHECK_FALSE(stored->navMeshBlob.IsEmpty());
     }
 

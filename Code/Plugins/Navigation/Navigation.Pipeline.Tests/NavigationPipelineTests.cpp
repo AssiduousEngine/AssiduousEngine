@@ -14,12 +14,11 @@ import foundation.vfs;
 import foundation.content;
 import foundation.resource;
 import pipeline.core;
-import foundation.navigation;
-import foundation.navigation.resource;
+import navigation.foundation;
 import navigation.pipeline;
 
 using namespace foundation::core;
-using namespace foundation::navigation;
+using namespace navigation;
 namespace content = foundation::content;
 using foundation::resource::ResourceManager;
 using foundation::resource::Proxy;
@@ -60,7 +59,7 @@ namespace
 
 TEST_CASE("navigation.pipeline: bake -> asset (sidecar) -> cook -> product -> query")
 {
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     RegisterNavigationResource();
     RemoveTree(u8"scratch_navpipe_src_db");
     RemoveTree(u8"scratch_navpipe_out_db");
@@ -83,29 +82,29 @@ TEST_CASE("navigation.pipeline: bake -> asset (sidecar) -> cook -> product -> qu
 
     // Author the source asset: blob written to the sidecar, not inline in the envelope.
     auto* zoneInstance =
-        srcDb.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+        srcDb.RootGroup()->CreateInstance(u8"zone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(zoneInstance != nullptr);
     {
-        pipeline::NavigationZoneAsset asset;
+        navigation::NavigationZoneAsset asset;
         asset.navMeshBlob.Resize(blob.Size());
         MemCopy(asset.navMeshBlob.Data(), blob.Data(), blob.Size());
-        REQUIRE(pipeline::WriteNavigationZoneAsset(*zoneInstance, asset).IsOk());
+        REQUIRE(navigation::WriteNavigationZoneAsset(*zoneInstance, asset).IsOk());
     }
 
     // The envelope alone carries no blob; the sidecar restores it.
     {
         RefPtr<ISerializable> object = zoneInstance->ReadObject();
-        auto* readBack = Cast<pipeline::NavigationZoneAsset>(object.Get());
+        auto* readBack = Cast<navigation::NavigationZoneAsset>(object.Get());
         REQUIRE(readBack != nullptr);
         CHECK(readBack->navMeshBlob.IsEmpty()); // not inline in the (text-capable) envelope
-        REQUIRE(pipeline::EnsureNavMeshLoaded(*zoneInstance, *readBack).IsOk());
+        REQUIRE(navigation::EnsureNavMeshLoaded(*zoneInstance, *readBack).IsOk());
         CHECK(readBack->navMeshBlob.Size() == blob.Size()); // but the sidecar has it
     }
 
     // Cook through the builder into the output db.
-    pipeline::NavigationZoneAssetBuilder builder;
+    navigation::NavigationZoneAssetBuilder builder;
     {
-        pipeline::NavigationZoneAsset asset;
+        navigation::NavigationZoneAsset asset;
         pipeline::AssetBuildContext ctx{DefaultAllocator()};
         ctx.sources = &srcMount;
         ctx.db = &srcDb;

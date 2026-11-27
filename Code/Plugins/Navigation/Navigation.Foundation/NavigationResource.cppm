@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Navigation.Resource - the `foundation.navigation.resource` module.
+// Navigation.Foundation - the `navigation.foundation:resource` partition.
 //
 // Cooked navigation content, split as collision shapes are:
 //   * NavigationZoneSource: the cooked record, the serialized tiled navmesh blob a bake
@@ -17,17 +17,17 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module foundation.navigation.resource;
+export module navigation.foundation:resource;
 
 import foundation.core;
 import foundation.resource;
 import foundation.content;
-import foundation.navigation;
+import :mesh; // the loaded navmesh a resource holds
 
 using namespace foundation::core;
 namespace resource = foundation::resource;
 
-export namespace foundation::navigation
+export namespace navigation
 {
     // Cooked record: the serialized navmesh blob (from NavigationMeshBuilder::BuildTiled), baked
     // in the zone's scale-free RigidPart frame (the runtime places it in the same frame).
@@ -110,7 +110,7 @@ export namespace foundation::navigation
     RTTI_DEFINE_OBJECT(NavigationZoneResource, "rtti::navigation")
 }
 
-export namespace foundation::navigation
+export namespace navigation
 {
     /// The navigation resource module: the engine composition composes this library's factories
     /// from it.

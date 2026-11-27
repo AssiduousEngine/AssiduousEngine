@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Navigation - :subsystem partition.
+// Navigation.Engine - :subsystem partition.
 //
 // NavigationSceneSystem: the per-scene navigation runtime. At OnSceneStarted it loads every
 // NavMeshZoneComponent's cooked navmesh into a live zone (one dtCrowd and query each) and registers
@@ -17,20 +17,19 @@ module;
 #include "Core/Log/Log.h"
 #include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
-export module engine.navigation:subsystem;
+export module navigation.engine:subsystem;
 
 import foundation.core;
 import foundation.runtime;
 import foundation.profiler;
 import foundation.scene;
 import engine.scene;
-import foundation.navigation;
-import foundation.navigation.resource;
+import navigation.foundation;
 import :components;
 
 using namespace foundation::core;
 
-export namespace engine::navigation
+export namespace navigation
 {
     namespace scene = foundation::scene;
 

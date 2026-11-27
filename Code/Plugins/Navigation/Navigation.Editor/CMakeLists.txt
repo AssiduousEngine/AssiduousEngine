@@ -1,4 +1,4 @@
-# Navigation.Editor (Plugins::Navigation.Editor) - `editor.navigation`: the bake, its preferences,
+# Navigation.Editor (Plugins::Navigation.Editor) - `navigation.editor`: the bake, its preferences,
 # the zone's gizmo, the inspector's Bake Navigation action and the navigation_bake MCP tool.
 util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART} PUBLIC

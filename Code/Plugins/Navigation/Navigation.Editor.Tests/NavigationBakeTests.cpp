@@ -18,20 +18,19 @@ import foundation.geometry;
 import engine.render;
 import engine.physics;
 import foundation.physics;
-import engine.navigation;
+import navigation.engine;
 import terrain.engine;
 import terrain.foundation;
 import foundation.heightfield;
-import foundation.navigation;
-import foundation.navigation.resource;
+import navigation.foundation;
 import navigation.pipeline;
-import editor.navigation;
+import navigation.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace geometry = foundation::geometry;
 namespace content = foundation::content;
-using namespace foundation::navigation;
+using namespace navigation;
 
 namespace
 {
@@ -79,11 +78,11 @@ namespace
     // to bake, or Recast found no walkable surface).
     Array<byte> BakeCollected(scene::Scene& sceneObj, scene::EntityHandle zoneEntity, usize& outTriangles)
     {
-        const engine::navigation::NavMeshZoneComponent& z =
-            *sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Get(zoneEntity);
+        const navigation::NavMeshZoneComponent& z =
+            *sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Get(zoneEntity);
         Array<Float3> verts;
         Array<u32> indices;
-        outTriangles = editor::navigation::CollectNavigationGeometry(
+        outTriangles = navigation::CollectNavigationGeometry(
             sceneObj, zoneEntity, z.extents, z.cellSize, verts, indices);
 
         Array<byte> blob;
@@ -145,7 +144,7 @@ namespace
                                 Float3 zoneExtents, usize& outTriangles)
     {
         scene::Scene sceneObj(DefaultAllocator(), u8"bake_terrain");
-        engine::navigation::AddNavigationSceneManagers(sceneObj);
+        navigation::AddNavigationSceneManagers(sceneObj);
         auto* terrains = sceneObj.AddSystem<terrain::TerrainComponentManager>();
 
         scene::EntityHandle terrainEntity = sceneObj.CreateEntity(u8"terrain");
@@ -153,8 +152,8 @@ namespace
         tc.terrain = foundation::resource::Ref<terrain::TerrainResource>(terrain);
 
         scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
-        engine::navigation::NavMeshZoneComponent& z =
-            sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
+        navigation::NavMeshZoneComponent& z =
+            sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
         z.extents = zoneExtents;
         sceneObj.UpdateTransforms();
 
@@ -174,50 +173,50 @@ namespace
     }
 }
 
-TEST_CASE("editor.navigation: bake collects scene geometry and writes a loadable zone asset")
+TEST_CASE("navigation.editor: bake collects scene geometry and writes a loadable zone asset")
 {
     RegisterNavigationResource();
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     RemoveTree(u8"scratch_navbake_db");
 
     foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_db", foundation::core::DefaultAllocator());
     content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
     auto* assetInstance =
-        db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+        db.RootGroup()->CreateInstance(u8"zone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(assetInstance != nullptr);
 
     // Scene: a static ground slab at the origin (its top at y 0) and a zone entity that covers it.
     scene::Scene sceneObj(DefaultAllocator(), u8"bake");
-    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    navigation::AddNavigationSceneManagers(sceneObj);
     sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
     (void)AddBody(sceneObj, u8"ground", Float3{0, -0.5f, 0}, Float3{10, 0.5f, 10},
                   foundation::physics::MotionKind::Static);
 
     scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
-    engine::navigation::NavMeshZoneComponent& z =
-        sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
+    navigation::NavMeshZoneComponent& z =
+        sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
     z.extents = Float3{15, 10, 15};
 
     sceneObj.UpdateTransforms();
 
     // Bake: collect the slab's triangles (a box: 12) and write the navmesh into the asset sidecar.
-    const editor::navigation::BakeResult result =
-        editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
+    const navigation::BakeResult result =
+        navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
     CHECK(result.triangleCount == 12u);
     CHECK(result.baked);
     // What the editor tells the author: the asset is written, so a cook applies it; the scene was
     // not touched, so there is nothing to save.
-    const String told = editor::navigation::DescribeBake(result);
+    const String told = navigation::DescribeBake(result);
     CHECK(told.AsView().ContainsIgnoreCase(u8"cook"));
     CHECK_FALSE(told.AsView().ContainsIgnoreCase(u8"save"));
 
     // The written asset carries a navmesh (in the sidecar) that loads and paths.
-    pipeline::NavigationZoneAsset readBack;
+    navigation::NavigationZoneAsset readBack;
     {
         RefPtr<ISerializable> object = assetInstance->ReadObject();
-        auto* asset = Cast<pipeline::NavigationZoneAsset>(object.Get());
+        auto* asset = Cast<navigation::NavigationZoneAsset>(object.Get());
         REQUIRE(asset != nullptr);
-        REQUIRE(pipeline::EnsureNavMeshLoaded(*assetInstance, *asset).IsOk());
+        REQUIRE(navigation::EnsureNavMeshLoaded(*assetInstance, *asset).IsOk());
         REQUIRE(!asset->navMeshBlob.IsEmpty());
         readBack.navMeshBlob = asset->navMeshBlob;
     }
@@ -234,24 +233,24 @@ TEST_CASE("editor.navigation: bake collects scene geometry and writes a loadable
     RemoveTree(u8"scratch_navbake_db");
 }
 
-TEST_CASE("editor.navigation: bake succeeds when the zone shares a SCALED entity with its ground")
+TEST_CASE("navigation.editor: bake succeeds when the zone shares a SCALED entity with its ground")
 {
     // A nav zone authored directly on the ground entity, where that entity is scaled up (for
     // example a unit plane scaled to 20x20). The bake frame must be rigid: otherwise
     // Inverse(zoneWorld) cancels the entity's scale, hands Recast a 1x1 plane, and the agent-radius
     // erosion wipes it ("No walkable geometry inside the zone"). With RigidPart the geometry keeps
     // its true world size and bakes.
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     RemoveTree(u8"scratch_navbake_scaled_db");
 
     foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_scaled_db", foundation::core::DefaultAllocator());
     content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
     auto* assetInstance =
-        db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+        db.RootGroup()->CreateInstance(u8"zone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(assetInstance != nullptr);
 
     scene::Scene sceneObj(DefaultAllocator(), u8"bake_scaled");
-    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    navigation::AddNavigationSceneManagers(sceneObj);
     sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
 
     // One entity carries both the ground slab and the zone, scaled up 20x in X and Z: a unit
@@ -260,8 +259,8 @@ TEST_CASE("editor.navigation: bake succeeds when the zone shares a SCALED entity
     scene::EntityHandle entity = AddBody(sceneObj, u8"ground_zone", Float3{0, 0, 0},
                                          Float3{0.5f, 0.5f, 0.5f}, foundation::physics::MotionKind::Static);
 
-    engine::navigation::NavMeshZoneComponent& z =
-        sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(entity);
+    navigation::NavMeshZoneComponent& z =
+        sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(entity);
     z.extents = Float3{15, 10, 15};
 
     Transform t = sceneObj.GetLocalTransform(entity);
@@ -269,51 +268,51 @@ TEST_CASE("editor.navigation: bake succeeds when the zone shares a SCALED entity
     sceneObj.SetLocalTransform(entity, t);
     sceneObj.UpdateTransforms();
 
-    const editor::navigation::BakeResult result =
-        editor::navigation::BakeNavigationZone(sceneObj, entity, *assetInstance);
+    const navigation::BakeResult result =
+        navigation::BakeNavigationZone(sceneObj, entity, *assetInstance);
     CHECK(result.triangleCount == 12u); // the slab's box
     CHECK(result.baked);                // fails without RigidPart: the geometry shrinks 20x and erodes away
 
     RemoveTree(u8"scratch_navbake_scaled_db");
 }
 
-TEST_CASE("editor.navigation: a bake that makes nothing leaves the zone its last navmesh")
+TEST_CASE("navigation.editor: a bake that makes nothing leaves the zone its last navmesh")
 {
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     RemoveTree(u8"scratch_navbake_keep_db");
     foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_keep_db", foundation::core::DefaultAllocator());
     content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
-    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(assetInstance != nullptr);
 
     scene::Scene sceneObj(DefaultAllocator(), u8"bake_keep");
-    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    navigation::AddNavigationSceneManagers(sceneObj);
     sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
     const scene::EntityHandle ground =
         AddBody(sceneObj, u8"ground", Float3{0, 0, 0}, Float3{10, 0.5f, 10}, foundation::physics::MotionKind::Static);
     const scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
-    sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents = Float3{15, 10, 15};
+    sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents = Float3{15, 10, 15};
     sceneObj.UpdateTransforms();
-    REQUIRE(editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance).baked);
-    pipeline::NavigationZoneAsset first;
-    REQUIRE(pipeline::EnsureNavMeshLoaded(*assetInstance, first).IsOk());
+    REQUIRE(navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance).baked);
+    navigation::NavigationZoneAsset first;
+    REQUIRE(navigation::EnsureNavMeshLoaded(*assetInstance, first).IsOk());
     REQUIRE_FALSE(first.navMeshBlob.IsEmpty());
 
     // The floor gone: nothing to bake against, and the asset keeps what it had.
     sceneObj.DestroyEntity(ground);
     sceneObj.UpdateTransforms();
-    const editor::navigation::BakeResult empty = editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
+    const navigation::BakeResult empty = navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
     CHECK_FALSE(empty.baked);
     CHECK(empty.triangleCount == 0u);
-    pipeline::NavigationZoneAsset kept;
-    REQUIRE(pipeline::EnsureNavMeshLoaded(*assetInstance, kept).IsOk());
+    navigation::NavigationZoneAsset kept;
+    REQUIRE(navigation::EnsureNavMeshLoaded(*assetInstance, kept).IsOk());
     CHECK(kept.navMeshBlob.Size() == first.navMeshBlob.Size());
-    CHECK(editor::navigation::DescribeBake(empty).AsView().Contains(u8"keeps its last bake"));
+    CHECK(navigation::DescribeBake(empty).AsView().Contains(u8"keeps its last bake"));
 
     RemoveTree(u8"scratch_navbake_keep_db");
 }
 
-TEST_CASE("editor.navigation: terrain contributes walkable surface to the bake")
+TEST_CASE("navigation.editor: terrain contributes walkable surface to the bake")
 {
     usize triangles = 0;
     Array<byte> blob = BakeTerrainZone(
@@ -325,7 +324,7 @@ TEST_CASE("editor.navigation: terrain contributes walkable surface to the bake")
                      Float3{10, 2, 0}));
 }
 
-TEST_CASE("editor.navigation: a terrain hole is no walkable surface - a strip across the zone blocks the path")
+TEST_CASE("navigation.editor: a terrain hole is no walkable surface - a strip across the zone blocks the path")
 {
     // The terrain holes rule: a stride block with a cut sample is left out of the bake, so the
     // navmesh opens there. A strip of cut samples across the whole zone leaves the agent no way
@@ -358,7 +357,7 @@ TEST_CASE("editor.navigation: a terrain hole is no walkable surface - a strip ac
                      Float3{-10, 2, 5}));
 }
 
-TEST_CASE("editor.navigation: an agent paths across sloped terrain")
+TEST_CASE("navigation.editor: an agent paths across sloped terrain")
 {
     // A gentle ramp: ~4 units of rise over the 32-unit footprint (~7 degrees).
     usize triangles = 0;
@@ -371,7 +370,7 @@ TEST_CASE("editor.navigation: an agent paths across sloped terrain")
                      Float3{10, 3, 0}));
 }
 
-TEST_CASE("editor.navigation: a too-steep terrain wall splits the navmesh")
+TEST_CASE("navigation.editor: a too-steep terrain wall splits the navmesh")
 {
     // A cliff across the middle: ~24 units of rise over one cell (~88 degrees), far past the
     // walkable-slope filter, so the two plateaus must not connect.
@@ -392,12 +391,12 @@ TEST_CASE("editor.navigation: a too-steep terrain wall splits the navmesh")
 // under itself, so only static, solid bodies are level geometry: dynamic and kinematic bodies,
 // triggers and bare render meshes across the floor leave the path open, and a static wall in the
 // same place cuts it.
-TEST_CASE("editor.navigation: only static, solid bodies are baked; what moves and bare meshes are not")
+TEST_CASE("navigation.editor: only static, solid bodies are baked; what moves and bare meshes are not")
 {
     const auto bake = [](bool staticWall, usize& triangles)
     {
         scene::Scene sceneObj(DefaultAllocator(), u8"bake_movers");
-        engine::navigation::AddNavigationSceneManagers(sceneObj);
+        navigation::AddNavigationSceneManagers(sceneObj);
         sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
         auto* meshes = sceneObj.AddSystem<engine::render::MeshComponentManager>();
         using foundation::physics::MotionKind;
@@ -413,7 +412,7 @@ TEST_CASE("editor.navigation: only static, solid bodies are baked; what moves an
             (void)AddBody(sceneObj, u8"wall", Float3{0, 1.5f, 0}, Float3{0.5f, 1.5f, 15}, MotionKind::Static);
         }
         scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
-        sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents =
+        sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents =
             Float3{15, 10, 15};
         sceneObj.UpdateTransforms();
         return BakeCollected(sceneObj, zoneEntity, triangles);
@@ -435,17 +434,17 @@ TEST_CASE("editor.navigation: only static, solid bodies are baked; what moves an
 // A level's ground is often a static plane as wide as physics allows (2000 m, for example). Its
 // triangles reach far past the zone, and sizing the navmesh grid from them gives a 2000 m grid
 // that does not load at runtime, so the zone's box bounds the bake.
-TEST_CASE("editor.navigation: a ground plane wider than the zone bakes to the zone's box")
+TEST_CASE("navigation.editor: a ground plane wider than the zone bakes to the zone's box")
 {
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     RemoveTree(u8"scratch_navbake_plane_db");
     foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_plane_db", foundation::core::DefaultAllocator());
     content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
-    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(assetInstance != nullptr);
 
     scene::Scene sceneObj(DefaultAllocator(), u8"bake_plane");
-    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    navigation::AddNavigationSceneManagers(sceneObj);
     sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
     const scene::EntityHandle ground = AddBody(sceneObj, u8"ground", Float3{0, 0, 0}, Float3{1, 1, 1},
                                                foundation::physics::MotionKind::Static);
@@ -454,17 +453,17 @@ TEST_CASE("editor.navigation: a ground plane wider than the zone bakes to the zo
     plane.shape = foundation::physics::ShapeKind::Plane;
     plane.planeHalfExtent = 1000.0f;
     scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
-    sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents =
+    sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents =
         Float3{20, 6, 20};
     sceneObj.UpdateTransforms();
 
-    const editor::navigation::BakeResult result =
-        editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
+    const navigation::BakeResult result =
+        navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
     REQUIRE(result.baked);
     RefPtr<ISerializable> object = assetInstance->ReadObject();
-    auto* asset = Cast<pipeline::NavigationZoneAsset>(object.Get());
+    auto* asset = Cast<navigation::NavigationZoneAsset>(object.Get());
     REQUIRE(asset != nullptr);
-    REQUIRE(pipeline::EnsureNavMeshLoaded(*assetInstance, *asset).IsOk());
+    REQUIRE(navigation::EnsureNavMeshLoaded(*assetInstance, *asset).IsOk());
     const Span<const byte> blob{reinterpret_cast<const byte*>(asset->navMeshBlob.Data()),
                                 asset->navMeshBlob.Size()};
     NavigationTileGridDesc grid;
@@ -475,28 +474,28 @@ TEST_CASE("editor.navigation: a ground plane wider than the zone bakes to the zo
     RemoveTree(u8"scratch_navbake_plane_db");
 }
 
-TEST_CASE("editor.navigation: a zone whose cell size is zero is not baked, and the bake says why")
+TEST_CASE("navigation.editor: a zone whose cell size is zero is not baked, and the bake says why")
 {
-    pipeline::RegisterNavigationZoneAsset();
+    navigation::RegisterNavigationZoneAsset();
     RemoveTree(u8"scratch_navbake_zero_db");
     foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_zero_db", foundation::core::DefaultAllocator());
     content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
-    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", navigation::NavigationZoneAsset::StaticType());
     REQUIRE(assetInstance != nullptr);
 
     scene::Scene sceneObj(DefaultAllocator(), u8"bake_zero");
-    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    navigation::AddNavigationSceneManagers(sceneObj);
     sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
     (void)AddBody(sceneObj, u8"ground", Float3{0, 0, 0}, Float3{10, 0.5f, 10}, foundation::physics::MotionKind::Static);
     const scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
-    engine::navigation::NavMeshZoneComponent& zone =
-        sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
+    navigation::NavMeshZoneComponent& zone =
+        sceneObj.GetSystem<navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
     zone.extents = Float3{15, 10, 15};
     zone.cellSize = 0.0f;
     sceneObj.UpdateTransforms();
-    const editor::navigation::BakeResult result = editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
+    const navigation::BakeResult result = navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
     CHECK_FALSE(result.baked);
     CHECK(result.unusableCells);
-    CHECK(editor::navigation::DescribeBake(result).AsView().Contains(u8"Cell Size"));
+    CHECK(navigation::DescribeBake(result).AsView().Contains(u8"Cell Size"));
     RemoveTree(u8"scratch_navbake_zero_db");
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Navigation - :components partition.
+// Navigation.Engine - :components partition.
 //
 // The authoring components:
 //   * NavMeshZoneComponent: a navmesh zone: AABB half-extents (the bake region), the bake
@@ -16,19 +16,18 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.navigation:components;
+export module navigation.engine:components;
 
 import foundation.core;
 import foundation.scene;
 import foundation.resource;
-import foundation.navigation;
-import foundation.navigation.resource;
+import navigation.foundation;
 
 using namespace foundation::core;
 
-export namespace engine::navigation
+export namespace navigation
 {
-    namespace nav = foundation::navigation;
+    namespace nav = ::navigation;
 
     struct NavMeshZoneComponent
     {
@@ -72,7 +71,7 @@ export namespace engine::navigation
         bool avoidOthers = true;
 
         // Runtime (transient):
-        foundation::navigation::NavigationAgentId agentId; // in its zone's crowd; invalid = not registered
+        navigation::NavigationAgentId agentId; // in its zone's crowd; invalid = not registered
         bool registered = false; // tried for a crowd (at the start, or on the first update after it was added)
         i32 zoneIndex = -1; // subsystem live-zone index, -1 = outside every zone
         Float3 target{0, 0, 0};
@@ -258,7 +257,7 @@ export namespace engine::navigation
         struct ReleasedAgent
         {
             i32 zoneIndex = -1;
-            foundation::navigation::NavigationAgentId agentId;
+            navigation::NavigationAgentId agentId;
         };
         [[nodiscard]] Array<ReleasedAgent> TakeReleased()
         {

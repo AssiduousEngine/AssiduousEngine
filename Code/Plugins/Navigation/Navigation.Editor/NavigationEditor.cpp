@@ -14,7 +14,7 @@ import foundation.runtime;
 import editor.core;
 import editor.scene;
 import editor.mcp; // McpPluginServices
-import editor.navigation;
+import navigation.editor;
 
 namespace
 {
@@ -27,13 +27,13 @@ namespace
         {
             return;
         }
-        editor::navigation::RegisterNavigationEditorSettings(*editor);
-        editor::GizmoRendererProviders::Get().Register(&editor::navigation::AddNavigationGizmos);
-        editor::navigation::RegisterNavigationInspectorExtras();
+        navigation::RegisterNavigationEditorSettings(*editor);
+        editor::GizmoRendererProviders::Get().Register(&navigation::AddNavigationGizmos);
+        navigation::RegisterNavigationInspectorExtras();
         if (editor::mcp::McpPluginServices* mcp = context.Find<editor::mcp::McpPluginServices>())
         {
             (void)mcp->AddTools([editor](editor::mcp::PluginTools& tools)
-                                { editor::navigation::RegisterNavigationBakeTool(tools, *editor); });
+                                { navigation::RegisterNavigationBakeTool(tools, *editor); });
         }
         g_loaded = true;
     }
@@ -44,11 +44,11 @@ namespace
         {
             return;
         }
-        editor::navigation::RemoveNavigationInspectorExtras();
-        editor::GizmoRendererProviders::Get().Unregister(&editor::navigation::AddNavigationGizmos);
+        navigation::RemoveNavigationInspectorExtras();
+        editor::GizmoRendererProviders::Get().Unregister(&navigation::AddNavigationGizmos);
         if (editor::EditorContext* editor = context.Find<editor::EditorContext>())
         {
-            editor::navigation::RemoveNavigationEditorSettings(*editor);
+            navigation::RemoveNavigationEditorSettings(*editor);
         }
         g_loaded = false;
     }

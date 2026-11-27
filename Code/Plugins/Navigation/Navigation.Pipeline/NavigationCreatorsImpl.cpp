@@ -16,8 +16,9 @@ import foundation.content;
 import pipeline.core;
 
 using namespace foundation::core;
+using namespace pipeline; // its bases
 
-namespace pipeline
+namespace navigation
 {
     void AddNavigationCreators(PipelinePluginServices& services)
     {

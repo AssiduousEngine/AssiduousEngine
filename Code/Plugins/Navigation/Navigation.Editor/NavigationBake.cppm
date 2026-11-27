@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Editor::Navigation - the `editor.navigation` module (interface).
+// Navigation.Editor - the `navigation.editor` module (interface).
 //
 // The "Bake Navigation" flow: collect the scene's static geometry touching a zone's box (what its
 // systems answer through AsStaticGeometrySource: physics' static, solid bodies and terrain's
@@ -18,7 +18,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h" // RTTI_OBJECT (the settings section)
 
-export module editor.navigation;
+export module navigation.editor;
 
 import foundation.core;
 import foundation.scene;
@@ -28,8 +28,9 @@ import editor.scene; // GizmoRendererRegistry
 import editor.mcp;   // PluginTools
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor::navigation
+export namespace navigation
 {
     namespace scene = foundation::scene;
 

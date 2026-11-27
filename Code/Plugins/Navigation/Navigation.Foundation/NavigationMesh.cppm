@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Navigation - :mesh partition.
+// Navigation.Foundation - :mesh partition.
 //
 // The Detour runtime wrappers: NavigationMesh (a loaded tiled navmesh), its query
 // (NavigationMeshQuery, for pathfinding) and its crowd (NavigationCrowd, agents that steer to
@@ -13,13 +13,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.navigation:mesh;
+export module navigation.foundation:mesh;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace foundation::navigation
+export namespace navigation
 {
     // A straight-line path across the navmesh (corner points from start to end). `complete`
     // is false when the destination could not be reached; `corners` then leads to the nearest
@@ -103,7 +103,7 @@ export namespace foundation::navigation
         void DebugTriangles(Array<Float3>& out) const;
 
         // Internal: the Detour dtNavMesh* as an opaque handle, for query and crowd construction
-        // inside foundation.navigation only. Null when invalid. Do not reinterpret elsewhere.
+        // inside navigation.foundation only. Null when invalid. Do not reinterpret elsewhere.
         [[nodiscard]] void* NativeHandle() const noexcept;
 
     private:
