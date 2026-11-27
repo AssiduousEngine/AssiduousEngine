@@ -1,5 +1,7 @@
 # Stability: what the audit recheck found still open
 
+> ARCHIVED 2026-11-27. Built 2026-11-16, U0 to U6 (week-2026-11-14.md). Its caveats (tests that need TSan, a project-level peer setting) are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: APPROVED 2026-11-16 (user). Sized L, phases U0 to U6; targeted suites per change, the full lanes at the end of the day.
 > Origin: `Documentation/Audits/engine-audit-recheck-2026-11-16.md` (the 2026-11-11 audit reread
 > against master after the leftovers series). Its rows were weighed again here on 2026-11-16 (master

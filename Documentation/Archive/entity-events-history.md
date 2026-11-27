@@ -1,5 +1,7 @@
 # Entity events without bridges
 
+> ARCHIVED 2026-11-27. Built 2026-11-19: domains post entity events to the scene, the behavior system is a sink, Engine.Integration and its bridges are gone (eb2d0c622, 62b10f329, 37e2a52a8). The cost it names as easy to fix (skip an event whose target has no handler) is in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED and built 2026-11-19, with the decisions below settled. Read again on master at
 > `3ebb9e4a8`, after the behavior naming landed; line numbers will drift.
 

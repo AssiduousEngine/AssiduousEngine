@@ -1,13 +1,15 @@
 # Native behaviors
 
+> ARCHIVED 2026-11-27. Built 2026-11-21 and 22, N0 to N2 (week-2026-11-21.md), NativeSample's scene included. Two decided checks not built (the cooked property list against reflection; a cook after a plugin reload) are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-19 as part of the script backends spec (proposed 2026-11-18), split out on
-> 2026-11-21 with no decision changed: [script-backends-as-plugins.md](script-backends-as-plugins.md)
+> 2026-11-21 with no decision changed: [script-backends-as-plugins.md](script-backends-as-plugins-history.md)
 > keeps the languages as plugins, this spec the game logic that needs no language. N0 to N2 are
 > built (2026-11-22); NativeSample's own scene does not use its native behaviors yet. Read on master
 > at `0618e177f`.
 >
 > The changes to how script calls are made are a separate proposal:
-> [scripting-typed-calls.md](scripting-typed-calls.md). Neither depends on the other.
+> [scripting-typed-calls.md](scripting-typed-calls-history.md). Neither depends on the other.
 
 ## Goal
 
@@ -82,7 +84,7 @@ that line falls inside `BehaviorSubsystem.cppm` is not measured; it is the first
    overrides.
 2. **A language is an implementation of the layer.** AngelScript, Luau and C# implement it through
    their VMs, as they do today (from their plugins, once
-   [script-backends-as-plugins.md](script-backends-as-plugins.md) is built; this spec does not wait
+   [script-backends-as-plugins.md](script-backends-as-plugins-history.md) is built; this spec does not wait
    for it).
 3. **Native classes are an implementation too.** A plugin's Engine part registers C++ classes
    deriving from `engine::RunBehavior`, `SceneBehavior` or `EntityBehavior` (the naming spec's
@@ -131,7 +133,7 @@ Component managers stay what they are: the way to update many entities as data. 
   cannot, since an event handler is declared by its name. A marker on the registration (as `.Pure()`
   marks a pure method) would be needed only for a method registered under an `on` name that is not
   a handler; helpers simply do not take `on` names.
-- **Naming**: [run-and-behavior-naming.md](run-and-behavior-naming.md) is built (the kinds as base
+- **Naming**: [run-and-behavior-naming.md](run-and-behavior-naming-history.md) is built (the kinds as base
   types, `Engine.Behavior` and its types, `ApplicationRun`, the `Facade` suffix, the data
   migrations). What it left here is the service lookup's move to a neutral call scope (proposal 4)
   and how a native class's handlers are found (above).
@@ -322,7 +324,7 @@ Each step stands on its own and leaves the tree green.
    out the same (Integration.ScriptScene).
    NativeSample gains one of each kind, and the conformance suites gain a native column beside the
    languages. A project with no language enabled then has every kind:
-   [script-backends-as-plugins.md](script-backends-as-plugins.md)'s scriptless project gains a
+   [script-backends-as-plugins.md](script-backends-as-plugins-history.md)'s scriptless project gains a
    native run behavior to check with.
 
 None of these waits for the languages to become plugins: the seam comes first, and native classes
@@ -331,7 +333,7 @@ then work in a project that also uses a VM.
 ## Risks
 
 - **The seam's cost.** Every handler call goes through one more interface. The typed call path
-  ([scripting-typed-calls.md](scripting-typed-calls.md)) measures script calls against native ones;
+  ([scripting-typed-calls.md](scripting-typed-calls-history.md)) measures script calls against native ones;
   N1 is measured the same way before and after. Measured 2026-11-22 (`build/clang-reldbg`,
   Integration.ScriptScene's measures, three runs each, alternating with `f7238a93f`, the commit
   before the seam): AngelScript did not move, and Luau's calls into the engine were 7 to 11%

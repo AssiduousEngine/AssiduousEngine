@@ -1,10 +1,12 @@
 # Run, facade and behavior naming
 
+> ARCHIVED 2026-11-27. Built 2026-11-14 to 19, steps 1 to 5d (week-2026-11-14.md), C# on the dotnet branch. Two old names left in code and the spelling "behavior" everywhere (decision 4) are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-19. Nothing here is built. Read on master at `7fefb9087`, and on `dotnet` at
 > `6df9380b9` for C#.
 >
 > The names decided here are the ones
-> [native-behaviors.md](native-behaviors.md) builds on: its gameplay layer and native behaviors
+> [native-behaviors.md](native-behaviors-history.md) builds on: its gameplay layer and native behaviors
 > use them.
 
 ## Goal
@@ -126,7 +128,7 @@ kind is needed.
   is not found by the runtime and declares no kind.
 - **Native C++:** a class derives from `engine::RunBehavior` (or the other two) and is registered
   by its plugin's Engine part. How its handlers are found was decided in
-  [native-behaviors.md](native-behaviors.md): reflected methods found by name.
+  [native-behaviors.md](native-behaviors-history.md): reflected methods found by name.
 
 ### Handlers, aligned
 

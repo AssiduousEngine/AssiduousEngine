@@ -230,7 +230,7 @@
 ## Engine
 
 - **A sequencer for cutscenes** (user 2026-11-08, from the flagship's act 1; spec PROPOSED
-  2026-11-20 in `../Specs/sequencer.md`, which supersedes this draft): timelines that drive
+  2026-11-20 in `../Archive/sequencer-history.md`, which supersedes this draft): timelines that drive
   several entities at once (transforms and any reflected property, skeletal clips, camera cuts,
   sounds, events, fades, nested sequences), authored on a timeline page and played from script. The
   flagship's cutscenes run as script for now (its dialogue runner's steps: camera, fades, shakes,
@@ -267,7 +267,7 @@
     scene page runs it in the page's simulation with events held back (Traktor's `preview`).
   - **Open**: whether a sequence can blend into gameplay animation (Godot's one mixer does; the
     others hard-cut), and whether skeletal clips and property tracks share one clip format (Zero
-    does). Spec it (`Specs/sequencer.md`) once the flagship's script cutscenes have run long
+    does). Spec it (`Archive/sequencer-history.md`) once the flagship's script cutscenes have run long
     enough to say what the tracks must be.
 
 - **A sequence play's start order, per scene** (user 2026-11-21): `SequencePlay::Begin` takes its
@@ -433,7 +433,7 @@ alone (`StyleValue.cppm`, ParseFilters): a list naming any other function does n
 
 ### What the stability spec left out, by area (2026-11-13; moved from 0.2)
 
-Re-checked against master on 2026-11-15 and taken as `Specs/stability-leftovers.md` (approved,
+Re-checked against master on 2026-11-15 and taken as `Archive/stability-leftovers-history.md` (approved,
 T0 to T7); what it leaves to the backlog is listed there, under "Left in the backlog". The list as
 the audit wrote it is in git history.
 

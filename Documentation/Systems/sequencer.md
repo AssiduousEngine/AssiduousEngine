@@ -1,7 +1,7 @@
 # Sequencer
 
 Cutscene timelines: a sequence drives several entities at once and is played from script. The
-design and what is still to come are in [Specs/sequencer.md](../Specs/sequencer.md).
+design and what is still to come are in [Archive/sequencer-history.md](../Archive/sequencer-history.md).
 
 ## Layers
 

@@ -1,14 +1,16 @@
 # Script backends as plugins
 
+> ARCHIVED 2026-11-27. Built on branch `systems-plugins`, 2026-11-26 and 27: AngelScript, Luau and C# are official plugins, a project enables the languages it uses (data versions 17 to 19), the build switches are OPTION_PLUGIN_*, C#'s player is chosen through a plugin's player hook, and one template carries every language (decision 5, measured). Item 6 (a plugin's version in its cook recipe) was closed as already covered by each VM's bytecode version. A native export of a project with no language is in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-19; refreshed and APPROVED again 2026-11-26. The refresh re-read the code on
 > `systems-plugins` at `42ec3ebfc`, where C# is on the branch and particles, terrain and navigation
 > are already plugins. It fits the spec to the `<Name>.Foundation` library
-> ([systems-as-plugins.md](systems-as-plugins.md), G8), lists what the first reading missed and
+> ([systems-as-plugins.md](systems-as-plugins-history.md), G8), lists what the first reading missed and
 > records the user's decisions of 2026-11-26. Decision 5 (templates per language set) waits for the
 > measurements in the last step. Nothing here is built.
 >
-> Game logic that needs no language is [native-behaviors.md](native-behaviors.md) (built). The
-> changes to how script calls are made are [scripting-typed-calls.md](scripting-typed-calls.md).
+> Game logic that needs no language is [native-behaviors.md](native-behaviors-history.md) (built). The
+> changes to how script calls are made are [scripting-typed-calls.md](scripting-typed-calls-history.md).
 > Neither depends on this spec.
 
 ## Goal
@@ -17,7 +19,7 @@ Scripting is optional. Each language backend is a plugin. A project enables the 
 uses, and a project that uses none has no VM.
 
 A game with no language gets its logic from native run, scene and entity behaviors
-([native-behaviors.md](native-behaviors.md)), behind the same gameplay layer the languages
+([native-behaviors.md](native-behaviors-history.md)), behind the same gameplay layer the languages
 implement.
 
 ## The plugins

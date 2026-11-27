@@ -1,5 +1,7 @@
 # Scripting: faults reported, cook and run agreeing, a cheaper call path
 
+> ARCHIVED 2026-11-27. Built 2026-11-14, C0 to C6 (C6 cut to the declarations file). Its non-goals and C6's default argument values and bitflag enums are in backlog-0.2.md, "Scripting: later". Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: DONE 2026-11-14 (C0 to C6; C6 cut to the declarations file, the rest to backlog-0.2).
 > APPROVED 2026-11-14 (user: "spec approved"). Sized L, in phases C0 to C6, each green on
 > clang and gcc before the next and on the five lanes at the end.

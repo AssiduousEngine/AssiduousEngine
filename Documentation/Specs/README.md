@@ -8,27 +8,18 @@ for every one.
 
 | Spec | Size | State |
 |---|---|---|
-| [stability.md](stability.md) | L | APPROVED 2026-11-13: the audit's re-checked findings, data loss first, S0 to S8 |
+| [online.md](online.md) | L | APPROVED 2026-11-22, not started: online services (achievements, stats, leaderboards, cloud saves, presence) behind a backend plugin, Steam's first, O0 to O7 |
+| [terrain-improvements.md](terrain-improvements.md) | L | PROPOSED 2026-11-14: detiling, steep faces, distance scale, geomorphing, ground rules, authoring, T0 to T6 |
 | [2d-games.md](2d-games.md) | L | PROPOSED: 2D inside the 3D world, L0 to L7 |
-| [plugins.md](plugins.md) | L | APPROVED 2026-11-03: source plugins for every host and platform, X0 to X6 |
 | [whiteboxing.md](whiteboxing.md) | M | PROPOSED and reviewed 2026-09-23: parametric blockout pieces, P0 to P3 |
 | [script-run-modules.md](script-run-modules.md) | M (L with P2) | PROPOSED 2026-09-26: one script module per run, hot reload that migrates |
-| [code-editing.md](code-editing.md) | L | APPROVED 2026-11-17, built 2026-11-18 (C# on dotnet; no entity handler yet): a project's Code folder, outside code editors, log references, E0 to E6 |
-| [scripting-typed-calls.md](scripting-typed-calls.md) | L | APPROVED 2026-11-18: script speed measured against native code, then a typed call path and names bound once |
-| [script-backends-as-plugins.md](script-backends-as-plugins.md) | M | APPROVED 2026-11-19 (split 2026-11-21): each script language a plugin, a project with none carrying no VM, steps 1 to 6 |
-| [native-behaviors.md](native-behaviors.md) | L | APPROVED 2026-11-19 (split from script backends 2026-11-21), N0 and N1 built 2026-11-21: a gameplay layer the languages implement, and native run, scene and entity behaviors (handlers reflected methods found by name, a Native Behavior asset per class, marked fields as properties, reload while editing, crashes that name the behavior), N0 to N2 |
-| [run-and-behavior-naming.md](run-and-behavior-naming.md) | M | APPROVED 2026-11-19: ApplicationRun, the Facade suffix, RunBehavior/SceneBehavior/EntityBehavior as base types |
-| [entity-events.md](entity-events.md) | M | APPROVED and built 2026-11-19: domains post entity events to the scene; Engine.Integration and its bridges gone |
-| [terrain-improvements.md](terrain-improvements.md) | L | PROPOSED 2026-11-14: detiling, steep faces, distance scale, geomorphing, ground rules, authoring, T0 to T6 |
-| [sequencer.md](sequencer.md) | L | APPROVED 2026-11-20; Q0 to Q4 built (model, asset, scene player, component, clips, sounds, camera cuts, fades, the editor's panel, MCP tools), Q5 next: cutscene timelines, track kinds from each domain, holds for dialogue, Q0 to Q5 |
-| [dialogue.md](dialogue.md) | L | APPROVED 2026-11-21, D0 to D6 built: dialogue as an official plugin (conversations as text, cook checks, a per-run runner and `Dialogue` facade, a line track for sequences, a stock box, an editor page, MCP), D0 to D7 |
-| [dialogue-sample.md](dialogue-sample.md) | M | APPROVED 2026-11-21: Millbrook, the dialogue sample (dialogue's D8), a village fair from Kenney's kits, S0 to S5 |
 
 A spec moves to `../Archive/<name>-history.md` once it is built (or made obsolete), with a banner
 saying so, and leaves this index; whatever it still owes goes to the backlogs in `../Plans/`
-(`weekly_backlog.md`, or `backlog-0.1.md` / `backlog-0.2.md` for a release). The sweep of
-2026-11-02 archived every built spec of the time and put their leftovers under "Left over from the
-specs archived 2026-11-02" in `weekly_backlog.md`.
+(`weekly_backlog.md`, or `backlog-0.1.md` / `backlog-0.2.md` for a release). The sweeps of
+2026-11-02 and 2026-11-27 archived every built spec of their time and put their leftovers under
+"Left over from the specs archived ..." in `weekly_backlog.md` (the large ones of 2026-11-27 in
+`backlog-0.2.md`).
 
 Sizes: S = a session or less, M = a few sessions, L = a multi-session track landing in phases,
 green after each.

@@ -84,7 +84,7 @@ the dist's `player.xml`; a preset whose level is not one of the project's is ref
   `playerReason`). Before anything cooks, the project's scripts are checked against what the preset's
   platform has of the plugins; a script using one absent there refuses the export. A plugin's Tooling
   part adds hooks through `ExportPluginServices` (`:export_hooks`); they run once the dist is staged,
-  and one that fails fails the export. Detail: `Documentation/Specs/plugins.md`.
+  and one that fails fails the export. Detail: `Documentation/Archive/plugins-history.md`.
 - **CLI** (`Tools.Export`): `<project> [--out <dir>] [--preset <name> | --all] [--rebuild] [--data-root <dir>]`,
   `--template list|import|create`; host-preset fallback when no `export_presets.xml`. `--platform <name>`
   exports the chosen preset for another platform, and `--content-only` (with `--platform`) stages what

@@ -1,5 +1,7 @@
 # Code editing: a project's Code folder, outside code editors, log references
 
+> ARCHIVED 2026-11-27. Built 2026-11-18, E0 to E6 (C# on the dotnet branch). The entity reference handler (waits for something that logs entity references) and debugging from an outside editor are in weekly_backlog.md and backlog-0.2.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: APPROVED 2026-11-17 (the user answered its questions). Sized L: E0 to E6 below, each green on its own. Asked for by the user
 > before Holdout ships: the built-in code page is not where a real project's code gets written, so
 > the engine works with an outside editor (VS Code first, any editor by a command), keeps code apart

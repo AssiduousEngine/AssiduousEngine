@@ -1,5 +1,7 @@
 # Scripting: measured, then typed calls and bound names
 
+> ARCHIVED 2026-11-27. Built 2026-11-18 to 20, steps 1 to 6 (the general typed path on master, the C# half merged with dotnet), with the numbers in the spec. The web measures and the C# runtime's allocator are in weekly_backlog.md; the call costs its last section leaves each to its own decision are in backlog-0.2.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-18. Nothing here is built. Read on master at `6cebdf698` (AngelScript, Luau,
 > the engine layer) and on `dotnet` at `094a81e4b` (C#); `dotnet` has been rebased since, so the
 > line numbers below are read again before each step is built. No timings were taken: every

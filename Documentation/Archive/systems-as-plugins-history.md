@@ -1,9 +1,11 @@
 # Engine systems as plugins
 
+> ARCHIVED 2026-11-27. Built on branch `systems-plugins`, 2026-11-26 and 27: particles, terrain (with vegetation) and navigation are official plugins, with the hooks that let a plugin take back what it added; physics and audio stay in the engine (user). Step 7 became the script backends spec, also built. G7 (plugin shaders, optional) and the unchecked risk about sequence tracks of an absent plugin are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-26 (user), built on branch `systems-plugins`. Nothing here is built yet. Read on master at `6d58c84d9`. Particles, terrain
 > with vegetation, and navigation move out of the engine into official plugins, after the
 > groundwork every move shares. The script languages already have their own approved spec,
-> [script-backends-as-plugins.md](script-backends-as-plugins.md), which needs the refresh listed
+> [script-backends-as-plugins.md](script-backends-as-plugins-history.md), which needs the refresh listed
 > here before it is built. Physics and audio stay in the engine (user, 2026-11-26).
 
 ## Goal
@@ -13,7 +15,7 @@ asset types in its New menu, no pages, no script surface, and no code in a playe
 project. A project enables the systems it uses, the way it enables Dialogue today.
 
 What this does not change: official plugins are compiled into the export templates, dormant unless
-a project enables them ([plugins.md](plugins.md), Decided 2). A template player keeps carrying
+a project enables them ([plugins.md](plugins-history.md), Decided 2). A template player keeps carrying
 every system; only a player built for one project gets smaller. The gain is a cleaner engine with
 a smaller core, and projects that show only what they use.
 
@@ -203,7 +205,7 @@ it. Each manifest lists its types' data versions.
 
 ## Script languages: what the spec needs before it is built
 
-[script-backends-as-plugins.md](script-backends-as-plugins.md) still holds; these change it:
+[script-backends-as-plugins.md](script-backends-as-plugins-history.md) still holds; these change it:
 - C# export always builds a player for the project, with the game's code compiled in
   (`Editor.Project/ExportImpl.cpp`, `ChoosePlayer`), and links it through
   `dotnet_link_compiled_runtime`, a path outside `util_link_plugins`. The C# plugin's build or

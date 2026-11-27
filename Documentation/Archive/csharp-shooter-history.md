@@ -1,5 +1,7 @@
 # The C# sample: a first-person shooter
 
+> ARCHIVED 2026-11-27. Built 2026-11-17 to 19, F0 to F5, on the dotnet branch and merged: Holdout. F6's README, pictures, Samples.json entry and Integration check, and two small controls (crouch, gamepad aim slowdown), are in weekly_backlog.md; Windows and the Deck wait for the Deck export of C#. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: APPROVED 2026-11-17 (user). Sized L, phases F0 to F6, on the `dotnet` branch. Read
 > CONVENTIONS.md first.
 

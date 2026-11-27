@@ -410,7 +410,7 @@ deferred); the manifest reserves a `nativeModule` field, and §3.1's `RegisterEd
 entry-point convention is deliberately DLL-compatible (one C-linkage export resolving to it).
 Since built (2026-11-04): the game's native code is a plugin package under the project's
 `Plugins/<Game>/`, one entry of the manifest's plugins list; `nativeModule` is gone (project data
-version 11 migrates it). See `Documentation/Specs/plugins.md`.
+version 11 migrates it). See `Documentation/Archive/plugins-history.md`.
 
 ### 3.10 Editor logging (✅ DECIDED 2026-07-11 - improved over Sedulous; lands EARLY, with phase 2)
 

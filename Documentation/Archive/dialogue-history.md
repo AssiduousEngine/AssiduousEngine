@@ -1,5 +1,7 @@
 # Dialogue as an official plugin
 
+> ARCHIVED 2026-11-27. Built 2026-11-21, D0 to D6, and D8 (Millbrook, its own spec). D7, the first game moved onto the plugin, is that game's work, outside this repo. The checks not built (the cast's own, indentation, the smaller D2 warnings) are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-21. D0 to D6 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue

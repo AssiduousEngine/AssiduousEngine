@@ -1,5 +1,7 @@
 # A sequencer for cutscenes
 
+> ARCHIVED 2026-11-27. Built 2026-11-20 to 22, Q0 to Q4, and Q5's sample half (Millbrook plays sequences). The first game's own cutscenes on sequences are that game's work, outside this repo. Preview cuts, sound in the editor's panel and the later track kinds are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `18d154549`), Q3 2026-11-21 (to `3f78d54e2`), Q4 2026-11-21 (to `74f0019f6`); Q5 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
 > in `../Plans/backlog-0.1.md` ("A sequencer for cutscenes", 2026-11-08), which this answers.
 

@@ -1,5 +1,7 @@
 # C# scripting
 
+> ARCHIVED 2026-11-27. Built 2026-11-16 to 19, D0 to D5c: C# hosted through hostfxr, the bridge and bindings, cooked C# classes, the runtime compiled into a native player and into the web. D5d (the Steam Deck) is in backlog-0.2.md; a C# export run on Windows is the user's check. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: APPROVED 2026-11-16 (user): engine-hosted, the web test first. Sized L, phases D0 to D5,
 > on the `dotnet` branch; an experiment until D0 and D1 show it holds. Targeted suites per change,
 > the full lanes at the end of the day. Read CONVENTIONS.md first.

@@ -1,7 +1,7 @@
 # Dialogue
 
 Conversations and their staging, as an official engine plugin (`Code/Plugins/Dialogue/`, id
-`dialogue`). The design and what is still to come are in [Specs/dialogue.md](../Specs/dialogue.md).
+`dialogue`). The design and what is still to come are in [Archive/dialogue-history.md](../Archive/dialogue-history.md).
 
 ## The package
 

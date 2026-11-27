@@ -1,6 +1,8 @@
 # The dialogue sample: Millbrook
 
-> APPROVED 2026-11-21. The dialogue spec's D8 ([dialogue.md](dialogue.md)): a new sample project
+> ARCHIVED 2026-11-27. Built 2026-11-21 to 24, S0 to S5 and save slots: Millbrook, with its README, credits and its Integration.Plugins check. Screenshots and a played Linux export are in weekly_backlog.md. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
+> APPROVED 2026-11-21. The dialogue spec's D8 ([dialogue.md](dialogue-history.md)): a new sample project
 > that shows the dialogue plugin and the sequencer used together, built through the MCP tools as
 > the other samples are, cooked and exported. It stands for the sequencer spec's "small sequence
 > in a sample game" (its Q5) too.

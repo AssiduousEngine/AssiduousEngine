@@ -376,7 +376,7 @@ From the stability leftovers (T5), moved here by the user. Two parts, each its o
 
 ## Scripting: later (2026-11-14)
 
-What `Specs/scripting.md` leaves out, from the same review of the AngelScript integration:
+What `Archive/scripting-history.md` leaves out, from the same review of the AngelScript integration:
 
 - **Typed messages and delayed posting**: a handler whose parameter type selects the message, beside
   the named events, and a message posted for a later frame.
@@ -391,7 +391,7 @@ What `Specs/scripting.md` leaves out, from the same review of the AngelScript in
   out, in both languages.
 - **Bitflag enums** (moved likewise): an enum the reflection marks as flags combines with `|` and
   tests with `&` in script, in both languages.
-- **A context per language in one run** (moved out of `Specs/scripting-typed-calls.md`, 2026-11-18):
+- **A context per language in one run** (moved out of `Archive/scripting-typed-calls-history.md`, 2026-11-18):
   `ScriptRunHost::EnsureContext` refuses a second language in a run. One context, manager and
   debugger per language would let a project mix them (a typed gameplay core with light level
   scripts). Messages and events already cross as `Variant`s, so behaviours in different languages
@@ -401,7 +401,7 @@ What `Specs/scripting.md` leaves out, from the same review of the AngelScript in
 
 ## Native behaviors: live objects carried across a plugin reload (user 2026-11-21)
 
-`Specs/native-behaviors.md` reloads native classes with their plugin while editing only: the
+`Archive/native-behaviors-history.md` reloads native classes with their plugin while editing only: the
 editor's `ReloadPlugins` stops every run first, so no behavior object outlives a reload. Later, a
 run could survive it, as Godot's GDExtension reload does (`GDExtension::prepare_reload` /
 `finish_reload`): before the plugin unloads, save each live native object's properties by their
@@ -614,3 +614,16 @@ scene's own for now (user, 2026-11-22). Review later whether it moves too: the s
 more per slot (the entity's name, hierarchy and active state), so it moves only if Core's pool can
 hold that at no cost to the scene's iteration, and the scene gains the pool's id stamp (a handle
 from one scene failing in another, which `WeakSceneRef` covers for scripts today).
+
+## Left over from the specs archived 2026-11-27 (the large ones)
+
+The small leftovers are in `weekly_backlog.md`; the specs are in `Archive/<name>-history.md`.
+- **C# on the Steam Deck** (dotnet-scripting D5d): the Deck's container build with C# compiled into
+  the player; Holdout's Windows and Deck runs wait for it.
+- **Debugging scripts from an outside editor** (code-editing, decision 4): a `launch.json` a code
+  editor attaches with, per language.
+- **Script call costs left each to its own decision** (scripting-typed-calls, "What remains"):
+  AngelScript's and Luau's handler call (a prepared context per handler, a plain call when no
+  debugger is attached), strings crossing by copy, and behavior lists kept contiguous. Each touches
+  the debugger.
+

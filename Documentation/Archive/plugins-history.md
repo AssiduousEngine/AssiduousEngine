@@ -1,5 +1,7 @@
 # Plugins
 
+> ARCHIVED 2026-11-27. Built 2026-11-03 and 04, X0 to X8, and merged (109c06f33): manifests, parts, the plugin host in every host, project packages, plugin services for each layer, export of a project's plugins. The per-user plugin folder and an engine SDK stay the spec's own "not here". Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: APPROVED 2026-11-03 (user), on branch `plugin`. Sized L, in phases X0 to X6, green after each.
 > Origin: the 0.1 online system needs a Steam backend, which is the engine's first real plugin;
 > the user asked for a plugin API that carries it and is shaped for arbitrary plugins on
@@ -180,7 +182,7 @@ to each other and the dependency order are never written twice. The part then ad
 its engine links.
 
 A package may also hold `<Name>.Foundation`, its Foundation library (amended 2026-11-26,
-[systems-as-plugins.md](systems-as-plugins.md), G8): the plugin's types, its resources and the code
+[systems-as-plugins.md](systems-as-plugins-history.md), G8): the plugin's types, its resources and the code
 over its third-party libraries, which every part uses. It is not a part: no host loads it, it has
 no entry and the manifest does not list it. `util_add_plugin` adds it before the parts when the
 folder exists, and its CMakeLists starts with `util_add_plugin_library()`, which builds

@@ -1,6 +1,6 @@
 # DotNetWeb: the C# web test
 
-D0 of [the C# scripting spec](../../../Documentation/Specs/dotnet-scripting.md): can C# compiled by
+D0 of [the C# scripting spec](../../../Documentation/Archive/dotnet-scripting-history.md): can C# compiled by
 NativeAOT-LLVM (LLVM bitcode for `browser-wasm`, built with the emsdk it needs, 3.1.56) be linked
 into a program built with the engine's own Emscripten (6.0.5), and run?
 

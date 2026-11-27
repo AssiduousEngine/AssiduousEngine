@@ -21,11 +21,49 @@ Proposed and still wanted; each spec holds its design:
 - `Specs/whiteboxing.md`: parametric blockout pieces driving a mesh and a collider, P0 to P3.
 - `Specs/script-run-modules.md`: one script module per run, hot reload that migrates live state, P0
   to P2. Its origin was a fault seen on the Sedulous side; whether it is wanted here is the user's.
+- `Specs/terrain-improvements.md` (proposed 2026-11-14): detiling, steep faces, distance scale,
+  geomorphing, ground rules, authoring, T0 to T6.
+- `Specs/online.md` (approved 2026-11-22, not started): online services behind a backend plugin,
+  O0 to O7.
+
+## Left over from the specs archived 2026-11-27
+
+Each spec is in `Archive/<name>-history.md`, its banner saying what was built.
+- **entity-events**: skip an entity event whose target has no handler for it before building the
+  message (`OnEntityEvent` builds it always); the spec named it as the cost it makes easy to fix.
+- **stability-recheck**: the TypeRegistry lock and the reverb race are only shown by TSan, which no
+  lane runs; a project-level setting for the network peer caps (both clients stay at 64).
+- **systems-as-plugins**: G7, plugin shaders (optional; `particle*.hlsl` and `terrain*.hlsl` are still
+  in `Data/Engine/Shaders`); check that a sequence track of an absent plugin's kind (dialogue's line
+  track) survives opening the sequence without the plugin, as unresolved components do.
+- **script-backends-as-plugins**: a native export of a project with no language (NativeSample) run
+  end to end; the editor and play in editor were run on it 2026-11-27.
+- **run-and-behavior-naming**: two old names left, `SerializeSceneScriptSettings`
+  (Engine.Behavior) and `GameEditorPage::StartGameScriptFromProject` (Editor.Play); decision 4, the
+  spelling "behavior" everywhere (about 280 "behaviour" left, mostly comments, a few identifiers such
+  as `ReplicateBehaviourState`, `BindBoxBehaviours`, `FillScriptBehaviour`; AngelScript's own API
+  names are exempt).
+- **native-behaviors**: the cooked property list checked against reflection when an object is made,
+  faulting it on a mismatch (decided, not built); a cook after Reload Project Plugins (the asset's
+  environment hash makes the next cook redo it, but nothing starts one).
+- **code-editing**: an entity reference handler for log lines, once something logs entity references.
+- **sequencer**: preview cuts in the editor's panel; sound when the panel plays (an editor scene has
+  no audio group until it simulates); the later track kinds (time dilation, look-at, spawning a
+  prefab). The first game's own cutscenes on sequences are that game's.
+- **dialogue**: the cast's own checks in `dialogue_validate` (a duplicate id, a speaker with no
+  mood); an indentation warning on the page; the smaller D2 items (`list(<name>)` values, a
+  portrait per mood warning, adding every clip in a folder on the cast page). D7, the first game
+  moved onto the plugin, is that game's.
+- **dialogue-sample** (Millbrook): screenshots for its README; its export played on Linux.
+- **csharp-shooter** (Holdout): F6, a README with pictures, its `Samples.json` entry, an Integration
+  check that it reads and cooks (as Millbrook's), its Linux native export run; crouch, and the
+  gamepad aim slowdown over an enemy.
+- **dotnet-scripting**: a C# sample's export run on Windows (the user's).
+- **scripting-typed-calls**: the measures on the web (desktop and phone browsers); the C# runtime's
+  allocator (left undecided).
 
 ## Left over from the save slots spec (archived 2026-11-24)
 
-- The dotnet branch, at its next rebase: the C# bindings of `Saves`, `SaveStore` and `SlotWrites`,
-  and Holdout's script moved off `Save` to `Saves.global()`.
 - The docs site (its own repository): the saving page (`Saves`, `SaveStore`, slots,
   `Dialogue.useSave`, `Text.formatDate`, `Time.unixNow`) and the MCP save tools.
 - Cloud saves (online.md, O4): a slot deleted on one machine while another was offline comes back

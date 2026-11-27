@@ -62,7 +62,7 @@ carries every plugin the project enables on the preset's platform at a version a
 there and the project enables none of its own packages there; otherwise it builds the project's
 player from the engine checkout (`Engine.GamePlayer`, with `ENGINE_PROJECT_PLUGINS` or, without
 packages, `ENGINE_GAME_PLAYER`), and it stages each enabled plugin's deploy files beside the player
-(see `Documentation/Specs/plugins.md`, Decision 6). Symbols do not justify a
+(see `Documentation/Archive/plugins-history.md`, Decision 6). Symbols do not justify a
 separate template; they are an optional group on Debug/RelWithDebInfo templates, and export defaults to
 NOT staging them into the shipped dist (ship stripped, retain symbols beside the template for
 symbolication). The player renders from the cooked shader pack, so it carries no shader compiler: the

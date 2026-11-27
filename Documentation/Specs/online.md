@@ -5,7 +5,7 @@
 > Origin: the 0.1 release's last system (user, 2026-11-03): "Survey the reference engines", and
 > "the point here is not to copy one reference or the other. It is to come up with a suitable API
 > that fits our engine". Its first platform backend, Steam, is a plugin, which is why the plugin
-> API (`Specs/plugins.md`) came first. Read CONVENTIONS.md first.
+> API (`Archive/plugins-history.md`) came first. Read CONVENTIONS.md first.
 
 ## Goal
 
@@ -73,10 +73,11 @@ purchases and stores, the platform's overlay UI, platforms other than Linux, Win
 - **Outside tools named in Preferences**: the Android export's SDK and JDK are folders named on
   Preferences' Export tab, else `ANDROID_HOME` and `JAVA_HOME`, checked before the export runs with
   a message naming what is missing (`CheckAndroidExport`). The pattern Decision 8 follows.
-- **The `Save` facade** (`Code/Engine/Engine.Run/RunSave.cppm`, `Documentation/Shipping/
-  Scripting.md`, "Saving"): typed values by key in one settings file the host names (the player
-  in the user data directory, play in editor in the project's `Editor/` folder), written whole and
-  atomically when the run ends or at `Save::flush()`. The web player mounts IndexedDB over the
+- **The `Saves` facade** (`Code/Engine/Engine.Run/RunSave.cppm`, `Documentation/Shipping/
+  Scripting.md`, "Saving"): typed values by key in a global store and in named slots, each a file
+  in the folder the host names (the player in the user data directory, play in editor in the
+  project's `Editor/` folder), written whole and atomically when the run ends or at a store's
+  `flush()`. The web player mounts IndexedDB over the
   user data directory (`Engine.Player/WebMain.cpp:93`), so a file there persists in the browser.
 - **The run's services** (`foundation.run`): per-run state a facade finds by type, app-wide state
   on the subsystem manager (`SubsystemManager::RegisterService`).
@@ -291,13 +292,13 @@ silent success.
   `isUnlocked(id)`; `achievements()` (each id, unlocked, progress). Clearing is the editor's and the
   Local backend's only (a development reset), never in a shipped player.
 - **Stats**: `getInt`/`getFloat`, `setInt`/`setFloat`, `addInt`; written to the backend in batches
-  by the subsystem (at most as often as the backend allows, and when the run ends), as `Save` writes
-  its file.
+  by the subsystem (at most as often as the backend allows, and when the run ends), as `Saves` writes
+  its files.
 - **Leaderboards**: `submit(board, score, handler)`, keeping the player's best unless the board says
   otherwise; `fetch(board, range, count, handler)` with `range` `top`, `aroundMe` or `friends`,
   each entry its rank, name, score and whether it is the player.
-- **Cloud saves**: no new API. The `Save` facade's file is what syncs: the backend reads it before
-  the run's first read and writes it when `Save` flushes (Decision 6).
+- **Cloud saves**: no new API. The `Saves` facade's files are what syncs: the backend reads one
+  before the run's first read of it and writes it when it flushes (Decision 6).
 - **Rich presence**: `setPresence(key, value)`, `clearPresence()`.
 - **DLC**: `owns(id)`, `ownedDlc()`. Installing and buying are not here.
 
@@ -331,18 +332,20 @@ does. The game's scripts never see a platform's ids.
 - **Play in editor uses the enabled backend** (ruling 7): with the Steam plugin enabled and the
   Steam client running, a play in editor run reaches the developer's Steam account, as a
   development build started outside Steam does. With no backend plugin enabled it uses Local, its
-  state in the project's `Editor/` folder (as `Save` keeps its own there). A development reset
+  state in the project's `Editor/` folder (as `Saves` keeps its own there). A development reset
   (clearing achievements and stats) is the editor's for either backend: Local clears its file,
   Steam's backend calls `ResetAllStats` (`ISteamUserStats`; that it is fit for this is checked in O6).
 - The Local backend keeps its state in one file in the user data directory (in the browser's
   storage on the web): unlocked achievements, stats, a local table per leaderboard (the one user's
   scores), presence in memory, DLC owned as the definitions mark for development.
 
-## Decision 6 - cloud saves are the save file
+## Decision 6 - cloud saves are the save files
 
-The `Save` facade stays the one save API. A backend with `cloudSaves` keeps the save file in its
-cloud: it reads the cloud copy before the run's first read (the newer of the cloud and the local
-file wins, the other kept beside it), and writes it when `Save` flushes. Steam does this through
+The `Saves` facade stays the one save API. A backend with `cloudSaves` keeps the save files (the
+global store and each slot) in its cloud: it reads a file's cloud copy before the run's first read of
+it (the newer of the cloud and the local file wins, the other kept beside it), and writes it when it
+flushes. A slot deleted on one machine must not come back from another (weekly_backlog.md, from the
+save slots spec). Steam does this through
 `ISteamRemoteStorage` (so the engine decides when and what), rather than Auto-Cloud (configured on
 Steam's site, which a project can still choose instead, with the plugin's cloud setting off).
 

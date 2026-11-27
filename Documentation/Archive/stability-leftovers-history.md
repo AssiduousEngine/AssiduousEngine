@@ -1,5 +1,7 @@
 # Stability: what the first series left out
 
+> ARCHIVED 2026-11-27. Built 2026-11-15 and 16, T0 to T7 and the T1 remainders (week-2026-11-14.md). Its glTF items are in backlog-0.2.md; its DX12 items are covered by the MSVC lanes. Non-authoritative: the spec as approved, kept as the record of what was built and why; line numbers will have drifted.
+
 > STATUS: APPROVED 2026-11-15 (user). Sized L, phases T0 to T7, each green on the lanes before the next.
 > Origin: `backlog-0.1.md`, "What the stability spec left out, by area" (the 2026-11-11 audit's
 > findings the first series did not take). Every item was read again in today's source on
