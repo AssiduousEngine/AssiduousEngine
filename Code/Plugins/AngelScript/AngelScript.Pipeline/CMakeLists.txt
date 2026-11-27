@@ -8,7 +8,7 @@ target_link_libraries(${PLUGIN_PART}
     PUBLIC Foundation::Core Pipeline::Core Foundation::Content
            Foundation::Script Foundation::Script.Resource Foundation::Script.Facades
            Pipeline::Script Foundation::Policy
-    PRIVATE Foundation::Profiler Foundation::Runtime ThirdParty::AngelScript)
+    PRIVATE Foundation::Profiler Foundation::Runtime Pipeline::Importer ThirdParty::AngelScript)
 
 target_sources(${PLUGIN_PART}
     PRIVATE

@@ -2,8 +2,8 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // AngelScript.Pipeline's entry, the part the editor and the command-line tools load. Load registers
-// the AngelScript cook, so AngelScript scripts check, cook and start from a template; Unload takes
-// it back.
+// the AngelScript cook, so AngelScript scripts check, cook and start from a template, and adds
+// File > New's AngelScript entries; Unload takes them back.
 
 #include "Core/Prelude.h"
 #include "Runtime/PluginEntry.h"
@@ -11,13 +11,24 @@
 import foundation.core;
 import foundation.runtime;
 import script.pipeline;
+import pipeline.core;     // AssetCreator
+import pipeline.importer; // PipelinePluginServices
 import angelscript.pipeline;
 
 namespace
 {
-    void Load(foundation::runtime::PluginContext&)
+    void Load(foundation::runtime::PluginContext& context)
     {
         angelscript::RegisterAngelScriptScriptCook();
+        // File > New's entries for the language, where the host offers its pipeline registries; recorded,
+        // so the unload takes them out again.
+        if (pipeline::PipelinePluginServices* services = context.Find<pipeline::PipelinePluginServices>())
+        {
+            for (pipeline::AssetCreator& creator : pipeline::ScriptCreatorsFor(u8"angelscript"))
+            {
+                (void)services->AddCreator(foundation::core::Move(creator));
+            }
+        }
     }
 
     void Unload(foundation::runtime::PluginContext&)

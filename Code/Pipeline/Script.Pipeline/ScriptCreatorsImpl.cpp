@@ -129,21 +129,20 @@ namespace pipeline
         registry.Register(Move(creator));
     }
 
-    usize RegisterScriptCreators(AssetCreatorRegistry& registry)
+    Array<AssetCreator> ScriptCreatorsFor(StringView languageId)
     {
         using foundation::script::BehaviorKind;
         // A creator per kind, named for it ("Luau Entity Behavior").
         static const BehaviorKind kKinds[] = {BehaviorKind::Entity, BehaviorKind::Scene, BehaviorKind::Run};
-        usize registered = 0;
-        for (const foundation::script::ScriptBackendDesc& backend :
-             foundation::script::ScriptBackendRegistry::Get().All())
+        Array<AssetCreator> creators;
+        const foundation::script::ScriptBackendDesc* found = foundation::script::ScriptBackendRegistry::Get().FindByLanguage(languageId);
+        // A backend with no cook (compile and harvest) cannot seed a starter.
+        if (found == nullptr || ScriptLanguageCookRegistry::Get().FindByLanguage(languageId) == nullptr)
         {
-            // A backend with no cook (compile and harvest) cannot seed a starter.
-            if (ScriptLanguageCookRegistry::Get().FindByLanguage(backend.languageId.AsView()) ==
-                nullptr)
-            {
-                continue;
-            }
+            return creators;
+        }
+        const foundation::script::ScriptBackendDesc& backend = *found;
+        {
             const String extension = backend.fileExtensions.IsEmpty()
                                          ? String(backend.languageId.AsView())
                                          : String(backend.fileExtensions[0].AsView());
@@ -163,8 +162,7 @@ namespace pipeline
                     return CreateScriptInstance(context, languageId.AsView(), extension.AsView(),
                                                 kind, base.AsView());
                 };
-                registry.Register(Move(creator));
-                ++registered;
+                creators.PushBack(Move(creator));
             }
             // A language whose classes build together (C#) needs its project file: one creator
             // for it, seeded from the project build's template.
@@ -179,6 +177,19 @@ namespace pipeline
                 {
                     return CreateScriptProjectInstance(context, languageId.AsView(), projectExtension.AsView());
                 };
+                creators.PushBack(Move(creator));
+            }
+        }
+        return creators;
+    }
+
+    usize RegisterScriptCreators(AssetCreatorRegistry& registry)
+    {
+        usize registered = 0;
+        for (const foundation::script::ScriptBackendDesc& backend : foundation::script::ScriptBackendRegistry::Get().All())
+        {
+            for (AssetCreator& creator : ScriptCreatorsFor(backend.languageId.AsView()))
+            {
                 registry.Register(Move(creator));
                 ++registered;
             }

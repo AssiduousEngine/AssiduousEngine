@@ -7,7 +7,7 @@
 util_add_plugin(${CMAKE_SOURCE_DIR}/Data/SampleProjects/NativeSample/Plugins/NativeSample)
 
 add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialoguePluginTests.cpp DialogueCookTests.cpp DialogueEditorTests.cpp
-    DialogueRunTests.cpp MillbrookSampleTests.cpp)
+    DialogueRunTests.cpp MillbrookSampleTests.cpp ScriptLanguagePluginTests.cpp)
 set(_integration_plugins nativesample dialogue)
 if(OPTION_PLUGIN_ANGELSCRIPT)
     list(APPEND _integration_plugins angelscript) # Millbrook's scripts

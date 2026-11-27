@@ -1712,9 +1712,13 @@ export namespace pipeline{
     /// ScriptAssemblyAsset. Null when the language has no project build or a write is refused.
     [[nodiscard]] foundation::content::Instance* CreateScriptProjectInstance(const AssetCreationContext& context, StringView languageId,
                                                                              StringView dottedExtension);
-    /// File > New's script creators: three per registered backend with a cook (Behavior,
-    /// Level, Game), and a project creator for one whose classes build together. Answers how many
-    /// it registered. Register the cooks first.
+    /// File > New's creators for script language `languageId`: one per behavior kind and, for a
+    /// language whose classes build together (C#), its project file. None when the language has no
+    /// backend or cook registered. A language's plugin adds them as it loads.
+    [[nodiscard]] Array<AssetCreator> ScriptCreatorsFor(StringView languageId);
+
+    /// ScriptCreatorsFor every registered language, into `registry`: for a host that registers its
+    /// languages itself (a test, a sample). Answers how many it registered. Register the cooks first.
     usize RegisterScriptCreators(AssetCreatorRegistry& registry);
 
     /// The Native Behavior creator's label, as File > New and asset_create name it.
