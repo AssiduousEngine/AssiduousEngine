@@ -45,6 +45,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Terrain and vegetation are an official plugin, `terrain`: a project enables them in its plugins
+  list. A project written before (data version 14 or older) enables them as it is read; a new
+  project starts without them. The sample projects enable them.
 - Particles are an official plugin, `particles`: a project enables them in its plugins list. A
   project written before (data version 13 or older) enables them as it is read, so nothing it did
   stops working; a new project starts without them. The sample projects enable them.

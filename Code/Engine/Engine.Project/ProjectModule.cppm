@@ -402,7 +402,7 @@ export namespace engine::project
             StringView id;
             u32 leftAt;
         };
-        static constexpr FormerlyBuiltIn kFormerlyBuiltIn[] = {{u8"particles", 14}};
+        static constexpr FormerlyBuiltIn kFormerlyBuiltIn[] = {{u8"particles", 14}, {u8"terrain", 15}};
 
         /// The entry a project before version 11 means by its nativeModule (a library path such as
         /// "Native/libGame.so" or "Native/Game.dll"): the game's package, Plugins/<Game>, its id the

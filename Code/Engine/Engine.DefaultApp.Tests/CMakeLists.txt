@@ -3,7 +3,7 @@ add_executable(Engine.DefaultApp.Tests TestsMain.cpp StandardFactoriesTests.cpp 
 target_link_libraries(Engine.DefaultApp.Tests PRIVATE Engine::DefaultApp Engine::Composition
     Foundation::Script.Facades
     Foundation::Fonts.Resource Foundation::Texture.Resource Foundation::Content
-    Foundation::Heightfield Foundation::Terrain.Resource
+    Foundation::Heightfield
     Foundation::VFS Foundation::Xml Foundation::Scene Foundation::Scene.Resource
     Foundation::Image Foundation::Image.IO Foundation::RHI.TestSupport doctest::doctest)
 # The screenshot round trip runs on whichever real backends this build has (never assumed).

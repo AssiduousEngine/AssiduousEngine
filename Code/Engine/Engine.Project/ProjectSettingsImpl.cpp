@@ -37,9 +37,9 @@ namespace engine::project
         // 9 carried two settings of a removed UI library; 9 and 10 named the native game module by
         // its library path, which reads as the entry of the game's package; 9 to 11 carried the
         // scene-pass MSAA count, which is a quality level's now; 9 to 12 named the run behavior
-        // startupScript and startupScriptId; 9 to 13 had particles in the engine, which a project
-        // read from them enables as a plugin.
-        builder.DataVersion(14).ReadsDataVersionsFrom(9);
+        // startupScript and startupScriptId; 9 to 13 had particles in the engine and 9 to 14 terrain,
+        // which a project read from them enables as plugins.
+        builder.DataVersion(15).ReadsDataVersionsFrom(9);
         // The enums the display settings take (their enumerators name the dialog's and the MCP
         // tools' choices): FitMode is the core's.
         RegisterCoreTypes();

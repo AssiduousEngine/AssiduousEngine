@@ -23,10 +23,6 @@ set(_terrain_common_libs
     Foundation::Geometry
     Foundation::Materials
     Foundation::Heightfield
-    Foundation::Terrain.Resource
-    Engine::Terrain
-    Engine::Vegetation
-    Foundation::Vegetation
     Foundation::Policy)
 
 if(EMSCRIPTEN)
@@ -88,5 +84,6 @@ else()
 
 endif()
 
-# Dear ImGui, which the app loads as a plugin (its part linked, and the registry listing it).
-util_link_plugins(TerrainPlayground ROLE player PLUGINS imgui)
+# Dear ImGui and terrain, which the app loads as plugins (their parts linked, and the registry
+# listing them).
+util_link_plugins(TerrainPlayground ROLE player PLUGINS imgui terrain)

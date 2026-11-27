@@ -25,10 +25,6 @@ import fonts.pipeline;
 import image.pipeline;
 import heightfield.pipeline;
 import foundation.heightfield.resource;
-import terrain.pipeline;
-import foundation.terrain.resource;
-import vegetation.pipeline;
-import foundation.vegetation.resource;
 import foundation.image.resource;
 import geometry.pipeline;
 import animation.pipeline;
@@ -106,12 +102,6 @@ namespace pipeline
         RegisterImageAsset();
         RegisterHeightfieldAsset();
         foundation::heightfield::RegisterHeightfieldResourceTypes(); // Heightfield product and source
-        RegisterTerrainAsset();
-        foundation::terrain::RegisterTerrainResourceTypes(); // Terrain product and source
-        RegisterSplatmapAsset();
-        foundation::terrain::RegisterSplatmapResourceTypes(); // Splatmap product and source
-        RegisterVegetationMaskAsset();
-        foundation::vegetation::RegisterVegetationMaskResourceTypes(); // Vegetation mask product and source
         RegisterMeshAssets();
         RegisterAnimationAssets();
         RegisterPropertyAnimationAssets();
@@ -166,9 +156,6 @@ namespace pipeline
         AddBuilder<FontAssetBuilder>(registry);
         AddBuilder<ImageAssetBuilder>(registry);
         AddBuilder<HeightfieldAssetBuilder>(registry);
-        AddBuilder<TerrainAssetBuilder>(registry);
-        AddBuilder<SplatmapAssetBuilder>(registry);
-        AddBuilder<VegetationMaskAssetBuilder>(registry);
         AddBuilder<StaticMeshAssetBuilder>(registry);
         AddBuilder<SkinnedMeshAssetBuilder>(registry);
         AddBuilder<SkeletonAssetBuilder>(registry);
@@ -216,8 +203,6 @@ namespace pipeline
         AddImporter<FontAssetImporter>(registry);
         AddImporter<ImageFileImporter>(registry);
         AddImporter<HeightfieldFileImporter>(registry);
-        AddImporter<SplatmapFileImporter>(registry);
-        AddImporter<VegetationMaskFileImporter>(registry);
     }
 
     void AfterImport(IAllocator& allocator, foundation::content::Instance& primary,
@@ -242,8 +227,6 @@ namespace pipeline
         RegisterAudioCreators(registry);
         RegisterGuiCreators(registry);
         RegisterHeightfieldCreators(registry);
-        RegisterTerrainCreators(registry);
-        RegisterVegetationCreators(registry);
         RegisterAnimationCreators(registry);
         RegisterPropertyAnimationCreators(registry);
         RegisterSequenceCreators(registry);

@@ -28,8 +28,6 @@ target_link_libraries(Tools.Editor PRIVATE
     Editor::Scene # the scene page, its hierarchy and inspector
     Editor::Play # the Game tabs and the PIE tools
     Editor::Spline # the scene view's spline tool
-    Editor::Terrain # the scene view's terrain brushes
-    Editor::Vegetation # the scene view's vegetation brush
     Editor::Generic # the fallback asset page
     Editor::Image Editor::Heightfield Editor::Texture Editor::Fonts Editor::Geometry Editor::Physics Editor::Materials Editor::Render Editor::Audio Editor::Input Editor::Script Editor::Shaders Editor::GUI Editor::Animation # the asset pages
     Pipeline::Core Pipeline::Cook

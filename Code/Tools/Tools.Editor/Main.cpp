@@ -61,8 +61,6 @@ import editor.app;
 import editor.scene; // RegisterSceneEditor
 import editor.play; // RegisterPlayInEditor, the game-audio preference
 import editor.spline; // RegisterSplineViewportTools
-import editor.terrain; // RegisterTerrainSceneTools
-import editor.vegetation; // RegisterVegetationViewportTools, RegisterVegetationToolPanels
 import editor.generic; // RegisterGenericAssetEditor
 import editor.image; // RegisterImageEditor
 import editor.heightfield; // RegisterHeightfieldEditor
@@ -84,8 +82,6 @@ import image.pipeline;
 import foundation.image.resource;
 import geometry.pipeline;
 import heightfield.pipeline; // HeightfieldAsset (New Asset > Terrain > Heightfield)
-import terrain.pipeline;     // TerrainAsset + SplatmapAsset (New Asset > Terrain)
-import vegetation.pipeline;  // VegetationMaskAsset (New Asset > Terrain > Vegetation Mask)
 import animation.pipeline;
 import materials.pipeline;
 import shaders.pipeline;
@@ -299,9 +295,6 @@ int main(int argc, char** argv)
         // the PIE tools.
         editor::RegisterPlayInEditor(app.Context(), host, app);
         // The scene view's tools by domain; the toolbar shows them in this order.
-        editor::RegisterTerrainSceneTools(app.Context()); // sculpt, paint layers, cut holes; their panels; splatmap thumbnails
-        editor::RegisterVegetationViewportTools(); // paint vegetation, paint props
-        editor::RegisterVegetationToolPanels();
         editor::RegisterSplineViewportTools(); // the spline control-point editor
         // The asset pages. Each asks the application's page services source for its services when
         // it is created. The generic page is the fallback for an asset with no page of its own;
@@ -309,8 +302,6 @@ int main(int argc, char** argv)
         const editor::app::AssetPageServicesSource& pageServices = app.PageServicesSource();
         editor::RegisterImageEditor(app.Context(), pageServices);
         editor::RegisterHeightfieldEditor(app.Context(), pageServices); // and its thumbnails
-        editor::RegisterTerrainEditor(app.Context(), pageServices);
-        editor::RegisterVegetationMaskEditor(app.Context(), pageServices);
         editor::RegisterTextureEditor(app.Context(), pageServices);     // and its thumbnails
         editor::RegisterFontEditor(app.Context(), pageServices);        // and its thumbnails
         editor::RegisterMeshEditor(app.Context(), pageServices);        // static and skinned
@@ -329,11 +320,12 @@ int main(int argc, char** argv)
         editor::RegisterGenericAssetEditor(app.Context(), pageServices);
         // A tripwire on the thumbnail generators: each domain's registration above registers its
         // generators too. Bump a count when a domain gains one, so a generator that stops
-        // registering fails here rather than showing as icons where pictures were. Five draw from
-        // an image (texture, font, heightfield, audio clip, splat map); seven stage a scene (mesh,
+        // registering fails here rather than showing as icons where pictures were. Four draw from
+        // an image (texture, font, heightfield, audio clip); seven stage a scene (mesh,
         // material, prefab, scene, skeleton, model manifest, collision shape). A plugin's come with it
-        // when a project enables it (the particle effect's from the particles plugin).
-        DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->GeneratorCount() == 5);
+        // when a project enables it (the particle effect's from the particles plugin, the splat map's
+        // from the terrain plugin).
+        DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->GeneratorCount() == 4);
         DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->SceneGeneratorCount() == 7);
         // The script cooks (idempotent by languageId; RegisterAllBuilders below registers them for
         // the cook service too): the script page's check compiles through them.

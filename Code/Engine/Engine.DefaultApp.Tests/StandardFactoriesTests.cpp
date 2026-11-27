@@ -24,7 +24,6 @@ import foundation.xml.serialization;
 import foundation.fonts.resource;
 import foundation.texture.resource;
 import foundation.heightfield;          // Heightfield product type (terrain factory pins)
-import foundation.terrain.resource;     // TerrainResource and Splatmap product types
 import engine.defaultapp;
 import engine.composition; // FullComposition: the set the runtime composes from
 import engine.gui; // the engine GUI every game has with the GUI built
@@ -66,7 +65,7 @@ namespace
 }
 
 TEST_CASE("defaultapp: attaching a manager registers the composition's headless factory set, with "
-          "the font and terrain pins")
+          "the font and heightfield pins")
 {
     foundation::vfs::NativeFileSystem mount(u8"scratch_defaultapp_factories", foundation::core::DefaultAllocator());
     foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount, foundation::xml::XmlSerializerFactory(),
@@ -91,10 +90,9 @@ TEST_CASE("defaultapp: attaching a manager registers the composition's headless 
     // player has no dev-tree TTF fallback.
     CHECK(resources.HasFactory(foundation::fonts::Font::StaticType().id));
 
-    // Terrain pins: a cooked Terrain binds its whole CPU ref chain (bundle, grid and splat raster).
-    CHECK(resources.HasFactory(foundation::terrain::TerrainResource::StaticType().id));
+    // The heightfield a collider or a terrain names is the engine's (physics registers it); the
+    // terrain's own resources come with the terrain plugin.
     CHECK(resources.HasFactory(foundation::heightfield::Heightfield::StaticType().id));
-    CHECK(resources.HasFactory(foundation::terrain::SplatWeights::StaticType().id));
 
     // Device gating: no GraphicsDevice on the host means no texture factory.
     CHECK(!resources.HasFactory(foundation::texture::Texture::StaticType().id));

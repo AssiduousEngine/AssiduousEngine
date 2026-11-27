@@ -124,9 +124,10 @@ namespace samples
             if (foundation::runtime::PluginHost* plugins = CreatePluginHost(foundation::runtime::HostRole::Player))
             {
                 (void)plugins->AddLinked(foundation::runtime::LinkedPluginList());
-                foundation::runtime::EnabledPlugin imgui;
-                imgui.id = u8"imgui";
-                (void)plugins->Load(foundation::core::Span<const foundation::runtime::EnabledPlugin>(&imgui, 1));
+                foundation::runtime::EnabledPlugin enabled[2];
+                enabled[0].id = u8"imgui";
+                enabled[1].id = u8"terrain"; // the terrain and vegetation it shows
+                (void)plugins->Load(foundation::core::Span<const foundation::runtime::EnabledPlugin>(enabled, 2));
             }
         }
 

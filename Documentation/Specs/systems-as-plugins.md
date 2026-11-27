@@ -184,8 +184,9 @@ it. Each manifest lists its types' data versions.
 - The heightfield stays in the engine: physics uses it. Its resource module lives in
   `Foundation/Heightfield.Resource`, but only `TerrainDomain` registered it
   (`Engine.Terrain/TerrainComponentsImpl.cpp:147`); physics' domain registers it instead.
-- Vegetation's scatter tool reaches `PhysicsSceneSystem` directly; it moves to a scene capability
-  for overlap queries, so the plugin does not link physics' internals.
+- Vegetation's scatter tool reaches `PhysicsSceneSystem` directly. With physics staying in the
+  engine (Decided, 1), the Editor part links `Engine::Physics` as it links `Engine::Render`; no
+  overlap capability is needed for the move.
 - Projects: Snowline only.
 
 **Navigation** (`navigation`), size M.
@@ -223,7 +224,7 @@ plugin to the `plugins` list of every project written before the move, the shape
 `dialogue` entry has (decided, user, 2026-11-26): whatever a project did with the system, a script
 adding a component included, keeps working; a project that does not want it removes it. New projects
 start without it. `ProjectSettings::kFormerlyBuiltIn` lists each system with the version it left at
-(particles at 14). Type names and hashes stay as they are, so existing files read unchanged. Every
+(particles at 14, terrain at 15). Type names and hashes stay as they are, so existing files read unchanged. Every
 sample project is migrated by it and committed.
 
 Each plugin's modules are named as Dialogue's are (`<name>.foundation`, `<name>.engine`,

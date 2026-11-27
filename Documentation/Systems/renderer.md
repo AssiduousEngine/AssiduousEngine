@@ -163,7 +163,7 @@ engine.render (SCENE-COUPLED integration)
  the norm.
 ```
 
-Other renderable subsystems (`Engine.Terrain`, `Engine.Particles`, `Engine.Vegetation`) depend on `foundation.render` only for the extension points (`RenderData`/
+Other renderable subsystems (the terrain plugin's `Terrain.Engine`, with its vegetation, and the particles plugin's `Particles.Engine`) depend on `foundation.render` only for the extension points (`RenderData`/
 `RenderCategory`/`Renderer`/`IRenderDataProvider`). They register with the `RenderSubsystem`:
 `RegisterRenderer` returns the renderer id their `RenderData` carries, and `RegisterProvider(scene,
 provider)` adds a per-scene extractor that writes into the snapshot after the built-in ones.
@@ -177,7 +177,7 @@ The contract between "the world" and "the GPU". Ported model, rebuilt frame-leve
 - **`RenderData`** - base for a unit of renderable work, allocated from a per-frame
  **frame arena** (bump allocator), trivially destructible, valid one frame. Subclasses:
  `MeshRenderData` (and `MultiMeshRenderData`, an instanced set), `SpriteRenderData`, and outside
- the core `TerrainRenderData` (Engine.Terrain) and `ParticleRenderDataBase` (Engine.Particles).
+ the core `TerrainRenderData` (Terrain.Engine) and `ParticleRenderDataBase` (Particles.Engine).
  Lights, decals and reflection probes are plain records on the snapshot, not `RenderData`.
  Carries a `RenderCategory`, a `rendererId` (which registered `Renderer` draws it, so several
  renderers can share a category), a `RenderDataKind`, world center + radius (sort and cull), a
@@ -540,7 +540,7 @@ Which entity is under a pixel (or inside a rect) of a view, answered by the GPU 
 Grass and props over a terrain are per-chunk INSTANCED SETS through the MeshRenderer's
 MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-vegetation-history.md`.
 
-- **Data.** `TerrainVegetationComponent` (Engine.Vegetation) on the terrain entity (or a child
+- **Data.** `TerrainVegetationComponent` (Terrain.Engine) on the terrain entity (or a child
   of it; the manager walks the ancestry for the `TerrainComponent`): TWO lists since
   2026-09-23 (user: "the same component, but with multiple lists"). `proceduralLayers`
   (`ProceduralVegetationLayer`): placement Uniform / Splat / Mask / SplatTimesMask, splat layer
@@ -613,10 +613,10 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
   the bind group; Vulkan had accepted it).
 - **Tests.** `Vegetation.Tests` (seed determinism, density -> count and the cap, the splat /
   slope / height rules, normal alignment, bounds growth, fade math, `ChunksTouchedBy`),
-  `Engine.Vegetation.Tests` (reflection + wire, one set per painted chunk with the fade prefix,
+  `Terrain.Engine.Tests` (reflection + wire, one set per painted chunk with the fade prefix,
   out-of-range absent, region-scoped regrow, the build budget, nothing without a layer),
   `Render.Tests` (eviction, castShadows gate, region alignment),
-  `Engine.Vegetation.Backend.Tests` (a splat-driven grass layer draws on the painted half only
+  `Terrain.Engine.Backend.Tests` (a splat-driven grass layer draws on the painted half only
   and thins with distance; Vulkan + WebGPU). `TerrainPlayground` grows a grass layer over the
   x < 0 half of its dome with HUD density / fade / shadow controls.
 - **Painted mask (P1, 2026-09-22).** `VegetationMask` (Foundation/Vegetation.Resource): u8
