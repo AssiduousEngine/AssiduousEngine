@@ -133,7 +133,7 @@ int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
 
     PlayerOptions options;
     f32 exitAfterSeconds = 0.0f;
-    f64 profileCaptureSeconds = 0.0; // --profile-capture: seconds to capture from the start
+    [[maybe_unused]] f64 profileCaptureSeconds = 0.0; // --profile-capture: seconds to capture from the start (read where profiling is built)
     if (mounts.game)
     {
         options.projectDir = String(u8"(the host's mount)"); // named in the log only
