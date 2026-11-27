@@ -91,6 +91,7 @@ namespace
         u32 saves = 0;
         Array<String> opened;
         Array<String> created;
+        Array<String> createdLanguages; // the last create's, joined by commas
 
         /// Adds `more` older projects after the three, which exist on disk when `real` is set;
         /// `configure` adds to the view's services (the Samples tab's client).
@@ -116,7 +117,19 @@ namespace
             services.controller = controller.Get();
             Launcher* self = this;
             services.open = [self](StringView path) { self->opened.PushBack(String(path)); };
-            services.create = [self](StringView directory, StringView) { self->created.PushBack(String(directory)); };
+            services.create = [self](StringView directory, StringView, Span<const String> languages)
+            {
+                self->created.PushBack(String(directory));
+                String joined;
+                for (const String& language : languages)
+                {
+                    joined.Append(joined.IsEmpty() ? StringView{} : StringView(u8","));
+                    joined.Append(language.AsView());
+                }
+                self->createdLanguages.PushBack(Move(joined));
+            };
+            services.languages.PushBack(editor::ScriptLanguageChoice{String(u8"angelscript"), String(u8"AngelScript")});
+            services.languages.PushBack(editor::ScriptLanguageChoice{String(u8"luau"), String(u8"Luau")});
             services.storeChanged = [self]() { ++self->saves; };
             services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
             if (configure)
@@ -429,6 +442,14 @@ TEST_CASE("launcher: New Project starts where the last project went, checks as i
     REQUIRE(create != nullptr);
     CHECK(parent->GetText() == l.root.AsView()); // the last location
     CHECK(ownFolder->IsChecked());               // a folder of its name, unless turned off
+    // A check box per language the editor has: AngelScript checked, Luau not.
+    auto* angelscript = FindId<gui::CheckBox>(*dialog, u8"new-project-language-angelscript");
+    auto* luau = FindId<gui::CheckBox>(*dialog, u8"new-project-language-luau");
+    REQUIRE(angelscript != nullptr);
+    REQUIRE(luau != nullptr);
+    CHECK(angelscript->GetText() == StringView(u8"AngelScript"));
+    CHECK(angelscript->IsChecked());
+    CHECK_FALSE(luau->IsChecked());
     CHECK_FALSE(create->IsEnabled());
     CHECK(line->HasClass(u8"error"));
     CHECK(where->GetText() == StringView(u8"Give the project a name."));
@@ -453,14 +474,44 @@ TEST_CASE("launcher: New Project starts where the last project went, checks as i
     CHECK(line->HasClass(u8"error"));
     CHECK(ownFolder->HandleActivate());
     CHECK(create->IsEnabled());
+    CHECK(luau->HandleActivate()); // Luau as well
 
     const u32 before = l.saves;
     CHECK(create->HandleActivate());
     CHECK(l.view->CreateDialog() == nullptr);
     REQUIRE(l.created.Size() == 1u);
     CHECK(l.created[0] == PathJoin(l.root.AsView(), u8"Harbour"));
+    CHECK(l.createdLanguages[0] == StringView(u8"angelscript,luau"));
     CHECK(l.controller->LastLocation() == l.root.AsView()); // remembered for the next one
     CHECK(l.saves == before + 1u);
+}
+
+TEST_CASE("launcher: New Project with no language unchecked makes a project with none, and an editor with none hides the row")
+{
+    {
+        Launcher l;
+        l.controller->SetLastLocation(l.root.AsView());
+        l.view->ShowCreateDialog();
+        gui::Window* dialog = l.view->CreateDialog();
+        REQUIRE(dialog != nullptr);
+        auto* angelscript = FindId<gui::CheckBox>(*dialog, u8"new-project-language-angelscript");
+        REQUIRE(angelscript != nullptr);
+        CHECK(angelscript->HandleActivate()); // unchecked: native behaviors only
+        auto* name = FindId<gui::TextField>(*dialog, u8"new-project-name");
+        name->RequestFocus();
+        l.scene->GetEventDispatcher()->InjectText(u8"Quiet");
+        CHECK(FindId<gui::Button>(*dialog, u8"new-project-create")->HandleActivate());
+        REQUIRE(l.createdLanguages.Size() == 1u);
+        CHECK(l.createdLanguages[0].IsEmpty());
+    }
+    Launcher bare(0, false, [](app::ProjectManagerView::Services& services) { services.languages.Clear(); });
+    bare.view->ShowCreateDialog();
+    gui::Window* dialog = bare.view->CreateDialog();
+    REQUIRE(dialog != nullptr);
+    auto* row = FindId<gui::UIWidget>(*dialog, u8"new-project-languages-field");
+    REQUIRE(row != nullptr);
+    CHECK_FALSE(row->IsDisplayed());
+    CHECK_FALSE(FindId<gui::UIWidget>(*dialog, u8"new-project-languages-label")->IsDisplayed());
 }
 
 namespace

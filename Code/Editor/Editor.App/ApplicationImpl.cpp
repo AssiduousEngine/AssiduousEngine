@@ -1018,12 +1018,17 @@ namespace editor::app
                 const String path(directory);
                 self->Later([self, path]() { self->OpenFromManager(path.AsView()); });
             };
-            services.create = [self](StringView directory, StringView name)
+            services.create = [self](StringView directory, StringView name, Span<const String> languages)
             {
                 const String path(directory);
                 const String projectName(name);
-                self->Later([self, path, projectName]() { self->CreateFromManager(path.AsView(), projectName.AsView()); });
+                Array<String> chosen;
+                for (const String& language : languages)
+                    chosen.PushBack(language);
+                self->Later([self, path, projectName, chosen = Move(chosen)]()
+                            { self->CreateFromManager(path.AsView(), projectName.AsView(), Span<const String>(chosen.Data(), chosen.Size())); });
             };
+            services.languages = editor::LinkedScriptLanguages(m_editorAllocator, m_config.linkedPlugins);
             services.storeChanged = [self]() { (void)editor::SaveEditorSettingsToUserData(self->m_editorSettings); };
             services.loadMarkup = [self](StringView path) { return self->m_window.LoadMarkup(path); };
             // The Samples tab downloads from GitHub over https, with the system's roots.
@@ -1235,7 +1240,7 @@ namespace editor::app
     // New Project from the manager: a folder that already holds a project is refused; otherwise the
     // project is made there (its location too, when that is new) with the starter content and
     // opened.
-    void EditorApplication::CreateFromManager(StringView directory, StringView name)
+    void EditorApplication::CreateFromManager(StringView directory, StringView name, Span<const String> languages)
     {
         engine::project::ProjectSettings probed;
         if (editor::ProbeProject(directory, probed).IsOk())
@@ -1250,6 +1255,10 @@ namespace editor::app
         EditorSession::OpenOptions options;
         options.scaffold = true;
         options.scaffoldName = String(name);
+        Array<StringView> languageIds;
+        for (const String& language : languages)
+            languageIds.PushBack(language.AsView());
+        options.scaffoldLanguages = Span<const StringView>(languageIds.Data(), languageIds.Size());
         options.seed = true;
         m_window.ShowScreen({});
         if (!m_session.Open(directory, options))

@@ -1652,3 +1652,37 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
         (void)RemoveDirectoryRecursive(dir);
     }
 }
+
+// New Project offers the script languages among the plugins the editor links, by the names their
+// manifests give, and nothing else they link.
+TEST_CASE("project: the linked script languages are the language plugins linked, ordered by name")
+{
+    const auto manifestOf = [](StringView id, StringView name)
+    {
+        foundation::runtime::PluginManifest manifest;
+        manifest.id = String(id);
+        manifest.name = String(name);
+        manifest.version = String(u8"1.0.0");
+        manifest.engineVersion = String(engine::project::kEngineVersionString);
+        MemoryStream xml;
+        REQUIRE(foundation::runtime::WritePluginManifest(manifest, xml).IsOk());
+        Array<char8_t> text;
+        for (byte b : xml.Bytes())
+        {
+            text.PushBack(static_cast<char8_t>(b));
+        }
+        text.PushBack(u8'\0');
+        return text;
+    };
+    const Array<char8_t> luau = manifestOf(u8"luau", u8"Luau");
+    const Array<char8_t> meter = manifestOf(u8"meter", u8"Meter"); // a plugin, not a language
+    const Array<char8_t> angelscript = manifestOf(u8"angelscript", u8"AngelScript");
+    const foundation::runtime::LinkedPlugin linked[] = {
+        {luau.Data(), nullptr, 0}, {meter.Data(), nullptr, 0}, {angelscript.Data(), nullptr, 0}};
+    const Array<ScriptLanguageChoice> languages = LinkedScriptLanguages(DefaultAllocator(), Span<const foundation::runtime::LinkedPlugin>(linked, 3));
+    REQUIRE(languages.Size() == 2u);
+    CHECK(languages[0].id == StringView(u8"angelscript"));
+    CHECK(languages[0].name == StringView(u8"AngelScript"));
+    CHECK(languages[1].id == StringView(u8"luau"));
+    CHECK(LinkedScriptLanguages(DefaultAllocator(), {}).IsEmpty()); // a build with no language
+}

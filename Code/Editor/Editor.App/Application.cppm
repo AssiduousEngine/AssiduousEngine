@@ -241,7 +241,7 @@ export namespace editor::app
         // The Samples tab's release files, as --release-files names them (empty: GitHub's release).
         [[nodiscard]] Function<String(StringView)> ReleaseFiles();
         void OpenFromManager(StringView directory);
-        void CreateFromManager(StringView directory, StringView name);
+        void CreateFromManager(StringView directory, StringView name, Span<const String> languages);
         void AskMcpFolders(editor::EditorProject& project, const Array<String>& folders);
         // Play in editor's saves (Game > Open Saves Folder, Clear Saves...).
         [[nodiscard]] String PlaySavesFolder();

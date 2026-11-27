@@ -1,6 +1,7 @@
 <!--
-  New Project: a name, the folder it is made in, and whether it gets a folder of its name there (on
-  unless turned off). The check line under them is kept current as the fields change and is
+  New Project: a name, the folder it is made in, whether it gets a folder of its name there (on
+  unless turned off), and the script languages it enables (one check box each, filled in by the view
+  from the languages the editor has; the row hides when it has none). The check line under them is kept current as the fields change and is
   coloured by what it says; Create waits while it is red.
 -->
 <Panel class="dialog-body new-project">
@@ -12,6 +13,11 @@
             <Panel class="new-project-folder"><TextField id="new-project-parent" placeholder="The folder it is made in"/><Button id="new-project-browse" text="Browse..."/></Panel>
             <CheckBox id="new-project-own-folder" text="Create a folder named after the project in it"/>
             <Label class="form-help" text="The location starts where your last project went."/>
+        </Panel>
+        <Label id="new-project-languages-label" class="form-label" text="Languages"/>
+        <Panel id="new-project-languages-field" class="form-field">
+            <Panel id="new-project-languages" class="new-project-languages"/>
+            <Label class="form-help" text="The script languages its game is written in. Project Settings changes them later."/>
         </Panel>
     </Panel>
     <Panel id="new-project-check" class="new-project-check">

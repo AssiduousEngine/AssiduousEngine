@@ -45,6 +45,9 @@ Rules:
   probes the manifest and gates it (`ProjectOpenGate`: NotAProject / OpenDirectly / PromptOlderBackup /
   PromptNewerEngine) and composes the prompt copy; New Project's check line and the registry's edits
   (pin, locate, remove, sort) are there too. The App layer only renders dialogs.
+- New Project offers a check box per script language the editor links (`LinkedScriptLanguages`: the
+  official language plugins among its linked plugins), `kNewProjectLanguages` (AngelScript) checked;
+  the project enables the checked ones. `project_create` takes the same choice as `languages`.
 - Version prompts: older/unstamped projects offer Back Up and Open (`BackupProjectManifest` copies
   `Project.xml` to `Project.xml.<oldver>.bak`, "unstamped" when it has none; the project opens and is
   re-stamped); newer-engine projects get a hard warning. Content assets migrate through their own

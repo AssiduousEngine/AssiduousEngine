@@ -73,6 +73,49 @@ export namespace editor
     /// language a script with none recorded is written in.
     inline constexpr StringView kNewProjectLanguages[] = {u8"angelscript"};
 
+    /// A script language New Project offers: its plugin id and the name its manifest gives it.
+    struct ScriptLanguageChoice
+    {
+        String id;
+        String name;
+    };
+
+    /// The script languages among the plugins this binary links (the official language plugins, by
+    /// their ids), ordered by name: what New Project offers. Empty in a build with no language.
+    [[nodiscard]] inline Array<ScriptLanguageChoice> LinkedScriptLanguages(IAllocator& allocator,
+                                                                          Span<const foundation::runtime::LinkedPlugin> linked)
+    {
+        Array<ScriptLanguageChoice> languages(allocator);
+        for (const foundation::runtime::LinkedPlugin& plugin : linked)
+        {
+            const StringView xml{plugin.manifestXml};
+            MemoryStream stream(allocator);
+            (void)stream.Write(xml.Data(), xml.Size());
+            (void)stream.Seek(0, SeekOrigin::Begin);
+            foundation::runtime::PluginManifest manifest;
+            if (!foundation::runtime::ReadPluginManifest(stream, manifest).IsOk())
+            {
+                continue;
+            }
+            for (const ProjectSettings::FormerlyBuiltIn& language : ProjectSettings::kLanguagesBecamePlugins)
+            {
+                if (manifest.id == language.id)
+                {
+                    languages.PushBack(ScriptLanguageChoice{Move(manifest.id), Move(manifest.name)});
+                    break;
+                }
+            }
+        }
+        for (usize i = 1; i < languages.Size(); ++i) // a handful: insertion order by name
+        {
+            for (usize j = i; j > 0 && languages[j].name.AsView().Compare(languages[j - 1].name.AsView()) < 0; --j)
+            {
+                Swap(languages[j], languages[j - 1]);
+            }
+        }
+        return languages;
+    }
+
     // An opened project: the manifest and the mounted source and cooked content databases.
     class EditorProject
     {

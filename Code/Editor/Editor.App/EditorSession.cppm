@@ -98,6 +98,9 @@ export namespace editor::app
             /// scaffolds only through its New Project flow).
             bool scaffold = false;
             String scaffoldName{u8"Untitled"};
+            /// The script languages a project this open makes enables (their plugin ids); they must
+            /// outlive the open.
+            Span<const StringView> scaffoldLanguages{editor::kNewProjectLanguages};
             /// Seeds the starter content into a project this open created.
             bool seed = false;
         };
@@ -116,7 +119,7 @@ export namespace editor::app
             bool seed = false;
             m_project = editor::EditorProject::Open(editor::EditorRootAllocator(), directory);
             if (!m_project && options.scaffold)
-                if (editor::EditorProject::Create(editor::EditorRootAllocator(), directory, options.scaffoldName.AsView()).IsOk())
+                if (editor::EditorProject::Create(editor::EditorRootAllocator(), directory, options.scaffoldName.AsView(), options.scaffoldLanguages).IsOk())
                 {
                     m_project = editor::EditorProject::Open(editor::EditorRootAllocator(), directory);
                     seed = m_project && options.seed;

@@ -59,8 +59,12 @@ export namespace editor::app
             foundation::shell::IDialogService* dialogs = nullptr; // null: no folder or file dialogs
             /// Opens the project in this folder (the application checks its engine first).
             Function<void(StringView)> open;
-            /// Makes a project named `name` in `directory`, then opens it.
-            Function<void(StringView directory, StringView name)> create;
+            /// Makes a project named `name` in `directory` with the script `languages` enabled (their
+            /// plugin ids), then opens it.
+            Function<void(StringView directory, StringView name, Span<const String> languages)> create;
+            /// The script languages New Project offers, a check box each (LinkedScriptLanguages);
+            /// those in editor::kNewProjectLanguages start checked.
+            Array<editor::ScriptLanguageChoice> languages;
             /// Called when the recent list or its layout changed, so the store is saved.
             Function<void()> storeChanged;
             /// Loads a dialog's markup by its path (New Project's).
@@ -645,9 +649,9 @@ export namespace editor::app
             return true;
         }
 
-        /// New Project: a name, the folder it is made in (starting where the last project went), and
-        /// whether it gets a folder of its name there. The check line under them says what Create
-        /// would do, and Create waits while it is red.
+        /// New Project: a name, the folder it is made in (starting where the last project went),
+        /// whether it gets a folder of its name there, and the script languages it enables. The check
+        /// line under them says what Create would do, and Create waits while it is red.
         void ShowCreateDialog()
         {
             gui::SceneRoot* root = m_content ? Cast<gui::SceneRoot>(m_content->GetRootNode()) : nullptr;
@@ -674,6 +678,27 @@ export namespace editor::app
             gui::Window* dialog = m_dialog.Get();
             if (ownFolder != nullptr)
                 ownFolder->SetChecked(true);
+            // A check box per language this editor has, its id the language's; the row hides with none.
+            Array<gui::CheckBox*> languageBoxes;
+            if (auto* languages = Cast<gui::UIWidget>(FindIn(*body, u8"new-project-languages")))
+            {
+                for (const editor::ScriptLanguageChoice& language : m_services.languages)
+                {
+                    RefPtr<gui::CheckBox> box = MakeRef<gui::CheckBox>(m_allocator);
+                    box->SetId(Format(u8"new-project-language-{}", language.id.AsView()).AsView());
+                    box->SetText(language.name.AsView());
+                    bool byDefault = false;
+                    for (StringView id : editor::kNewProjectLanguages)
+                        byDefault = byDefault || id == language.id.AsView();
+                    box->SetChecked(byDefault);
+                    languageBoxes.PushBack(box.Get());
+                    languages->AddChild(box.Get());
+                }
+            }
+            const char8_t* const languageRow[] = {u8"new-project-languages-label", u8"new-project-languages-field"};
+            for (const char8_t* id : languageRow)
+                if (auto* w = Cast<gui::UIWidget>(FindIn(*body, id)))
+                    w->SetDisplayed(!m_services.languages.IsEmpty());
             if (m_services.controller != nullptr && !m_services.controller->LastLocation().IsEmpty())
                 parent->SetText(m_services.controller->LastLocation());
             else
@@ -689,7 +714,7 @@ export namespace editor::app
             parent->SetOnTextChanging([refresh](StringView) { refresh(); });
             if (ownFolder != nullptr)
                 ownFolder->SetOnToggled([refresh](bool) { refresh(); });
-            create->SetOnClick([self, dialog, check, parent]()
+            create->SetOnClick([self, dialog, check, parent, languageBoxes]()
                                {
                                    const editor::NewProjectCheck result = check();
                                    if (result.level == editor::NewProjectCheckLevel::Error)
@@ -700,9 +725,14 @@ export namespace editor::app
                                        if (self->m_services.storeChanged)
                                            self->m_services.storeChanged();
                                    }
+                                   Array<String> languages;
+                                   for (usize i = 0; i < languageBoxes.Size(); ++i)
+                                       if (languageBoxes[i]->IsChecked())
+                                           languages.PushBack(self->m_services.languages[i].id);
                                    dialog->Close();
                                    if (self->m_services.create)
-                                       self->m_services.create(result.target.AsView(), result.name.AsView());
+                                       self->m_services.create(result.target.AsView(), result.name.AsView(),
+                                                               Span<const String>(languages.Data(), languages.Size()));
                                });
             if (browse != nullptr)
                 browse->SetOnClick([self, parent, refresh]()
