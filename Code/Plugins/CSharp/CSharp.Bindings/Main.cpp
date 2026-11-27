@@ -31,9 +31,11 @@ int main(int argc, char** argv)
     // so its domain registers its facade and components as in a project that enables it.
     IAllocator& allocator = DefaultAllocator();
     foundation::runtime::SubsystemManager subsystems(allocator);
+    // Before the host: the host's unload, as it is destroyed, reverses what the plugins added through
+    // the services, which must still be there.
+    engine::EnginePluginServices services(allocator);
     foundation::runtime::PluginHost plugins(allocator, subsystems, foundation::runtime::HostRole::Player,
                                             engine::project::kEngineVersionString);
-    engine::EnginePluginServices services(allocator);
     (void)services.Attach(plugins);
     const Span<const foundation::runtime::LinkedPlugin> linked = foundation::runtime::LinkedPluginList();
     if (!plugins.AddLinked(linked).IsOk())
