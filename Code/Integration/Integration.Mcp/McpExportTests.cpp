@@ -91,10 +91,10 @@ TEST_CASE("integration.mcp: project_export - a real dist from an authored projec
     // With no project open, the tool refuses with guidance.
     (void)ExCall(server, u8"project_export", JsonValue::MakeObject(), /*expectOk=*/false);
 
-    (void)ExCall(server, u8"project_create",
-                 ExStr(ExStr(JsonValue::MakeObject(), u8"directory", u8"mcp_export_project"),
-                       u8"name", u8"Exportable"),
-                 true);
+    // No script language: the project writes none, and the host's player need not carry one.
+    JsonValue create = ExStr(ExStr(JsonValue::MakeObject(), u8"directory", u8"mcp_export_project"), u8"name", u8"Exportable");
+    create.Set(u8"languages", JsonValue::MakeArray());
+    (void)ExCall(server, u8"project_create", Move(create), true);
     (void)ExCall(server, u8"project_open",
                  ExStr(JsonValue::MakeObject(), u8"directory", u8"mcp_export_project"), true);
 
