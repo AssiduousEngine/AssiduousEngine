@@ -57,6 +57,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   choice too). A project written before (data version 17 or older) whose scripts use AngelScript
   enables it as it opens; one with no AngelScript scripts starts without it and carries no
   AngelScript VM. The samples that use it enable it.
+- C# is an official plugin as well, `csharp`, on Linux, Windows and the web (not Android). A
+  project written before (data version 18 or older) whose scripts are C#, or that has a `.csproj`
+  under its Code folder, enables it as it opens; Holdout does.
 - The engine builds with no script language: switching off AngelScript, Luau and C# is allowed, and
   a game whose logic is native behaviors reads, runs and cooks without one.
 - Navigation is an official plugin, `navigation`: a project enables it in its plugins list, and its

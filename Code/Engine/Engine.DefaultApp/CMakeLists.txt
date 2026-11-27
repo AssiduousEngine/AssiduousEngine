@@ -24,14 +24,8 @@ target_link_libraries(Engine.DefaultApp
             Foundation::Profiler Foundation::Profiler.GUI Foundation::Policy Engine::Composition 
             Foundation::Image Foundation::Image.IO Foundation::RHI.Capture)
 
-# The script VM built into the default application: C#, when it is on (OPTION_ENABLE_DOTNET and the
-# target-or-empty ${SCRIPTLIB_DOTNET}). AngelScript and Luau are plugins the host links and a
-# project enables; a run resolves the backend by the game script's language.
-target_link_libraries(Engine.DefaultApp PUBLIC ${SCRIPTLIB_DOTNET})
-# C# (OPTION_ENABLE_DOTNET, desktop): the managed runtime it runs in is built beside the binaries.
-if(DOTNET_SCRIPTING AND NOT EMSCRIPTEN)
-    add_dependencies(Engine.DefaultApp DotNet.Runtime)
-endif()
+# No script VM is built in: the languages (angelscript, luau, csharp) are plugins the host links and
+# a project enables; a run resolves the backend by the game script's language.
 
 target_sources(Engine.DefaultApp
     PRIVATE

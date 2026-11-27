@@ -97,7 +97,7 @@ export namespace editor
             {
                 continue;
             }
-            for (const ProjectSettings::FormerlyBuiltIn& language : ProjectSettings::kLanguagesBecamePlugins)
+            for (const ProjectSettings::LanguageBecamePlugin& language : ProjectSettings::kLanguagesBecamePlugins)
             {
                 if (manifest.id == language.id)
                 {

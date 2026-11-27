@@ -9,7 +9,7 @@
 # the engine's own.
 
 find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
-set(DOTNET_RUNTIME_SOURCE ${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed)
+set(DOTNET_RUNTIME_SOURCE ${CMAKE_SOURCE_DIR}/Code/Plugins/CSharp/CSharp.Foundation/Managed)
 if(EMSCRIPTEN)
     # A web build cannot run the bindings generator (its tools are wasm): a desktop build's, staged
     # beside its runtime (Bin/.../DotNet/Engine.g.cs), is given. Their layouts hold on wasm32: fields

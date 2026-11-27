@@ -135,7 +135,7 @@ export namespace editor::mcp
                 .Str(u8"directory", u8"path to create the project at", true)
                 .Str(u8"name", u8"the project's display name", true)
                 .Arr(u8"languages", u8"string",
-                     u8"the script languages to enable, by plugin id (angelscript, luau); [] for none. "
+                     u8"the script languages to enable, by plugin id (angelscript, luau, csharp); [] for none. "
                      u8"Default: angelscript")
                 .Build(),
                 foundation::mcp::ToolAnnotations::Creates().OpenWorld(),
@@ -158,7 +158,7 @@ export namespace editor::mcp
                         chosen.PushBack(list.At(i).AsString());
                     }
                     String known;
-                    for (const engine::project::ProjectSettings::FormerlyBuiltIn& language :
+                    for (const engine::project::ProjectSettings::LanguageBecamePlugin& language :
                          engine::project::ProjectSettings::kLanguagesBecamePlugins)
                     {
                         known.Append(known.IsEmpty() ? StringView{} : StringView(u8", "));
@@ -167,7 +167,7 @@ export namespace editor::mcp
                     for (const String& language : chosen)
                     {
                         bool isLanguage = false;
-                        for (const engine::project::ProjectSettings::FormerlyBuiltIn& official :
+                        for (const engine::project::ProjectSettings::LanguageBecamePlugin& official :
                              engine::project::ProjectSettings::kLanguagesBecamePlugins)
                         {
                             isLanguage = isLanguage || official.id == language.AsView();

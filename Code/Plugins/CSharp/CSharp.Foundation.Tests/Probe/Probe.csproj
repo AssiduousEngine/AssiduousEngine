@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The C# side of Script.DotNet.Tests: the entry point the host test calls. -->
+  <!-- The C# side of CSharp.Foundation.Tests: the entry point the host test calls. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>

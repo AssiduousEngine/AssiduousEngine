@@ -18,7 +18,7 @@ target_link_libraries(Pipeline.Registration PUBLIC
     Foundation::Audio Foundation::Audio.Resource Pipeline::Audio
     Foundation::Script
     Foundation::Script.Resource Foundation::Script.Facades
-    Pipeline::Script ${SCRIPTLIB_DOTNET_PIPELINE}
+    Pipeline::Script
     Pipeline::Scene
     Foundation::Policy)
 

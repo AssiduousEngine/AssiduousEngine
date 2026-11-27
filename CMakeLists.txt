@@ -543,7 +543,7 @@ if(OPTION_ENABLE_ANGELSCRIPT AND NOT TARGET ThirdParty::AngelScript)
     set(OPTION_ENABLE_ANGELSCRIPT OFF)
 endif()
 # Presence macros, defined only when enabled, so C++ guards read `#ifdef OPTION_HAS_ANGELSCRIPT`.
-# C# builds on the desktop and the web (the web only compiled into a program: see cmake/DotNet.cmake);
+# C# builds on the desktop and the web (the web only compiled into a program: see Code/Plugins/CSharp/DotNet.cmake);
 # Android is not covered.
 set(DOTNET_SCRIPTING OFF)
 if(OPTION_ENABLE_DOTNET AND NOT ANDROID)
@@ -566,8 +566,8 @@ set(SCRIPTLIB_LUAU_PIPELINE "")
 set(SCRIPTLIB_DOTNET "")
 set(SCRIPTLIB_DOTNET_PIPELINE "")
 if(DOTNET_SCRIPTING)
-    set(SCRIPTLIB_DOTNET Foundation::Script.DotNet)
-    set(SCRIPTLIB_DOTNET_PIPELINE Pipeline::Script.DotNet)
+    set(SCRIPTLIB_DOTNET Plugins::CSharp.Foundation)        # the csharp plugin's runtime host
+    set(SCRIPTLIB_DOTNET_PIPELINE Plugins::CSharp.Pipeline) # and its cook
 endif()
 if(OPTION_ENABLE_ANGELSCRIPT)
     set(SCRIPTLIB_ANGELSCRIPT Plugins::AngelScript.Foundation)        # the angelscript plugin's VM
@@ -578,12 +578,14 @@ if(OPTION_ENABLE_LUAU)
     set(SCRIPTLIB_LUAU_PIPELINE Plugins::Luau.Pipeline) # and its cook
 endif()
 
+# The csharp plugin's build tools, here at the root: the bindings generator (its custom commands build
+# the managed runtime every C# host needs) and dotnet_link_compiled_runtime, which the root calls
+# for a project's player. The plugin itself is added with the other official plugins below.
 if(DOTNET_SCRIPTING)
-    add_subdirectory(Code/Foundation/Script.DotNet)   # C# scripting: hosts .NET, or calls the runtime compiled in
     if(NOT EMSCRIPTEN)
-        add_subdirectory(Code/Tools/Tools.DotNetBindings) # writes the C# bindings from reflection, builds the runtime
+        add_subdirectory(Code/Plugins/CSharp/CSharp.Bindings) # writes the C# bindings from reflection, builds the runtime
     endif()
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DotNet.cmake) # dotnet_link_compiled_runtime
+    include(${CMAKE_CURRENT_SOURCE_DIR}/Code/Plugins/CSharp/DotNet.cmake) # dotnet_link_compiled_runtime
 endif()
 add_subdirectory(Code/Foundation/Script.Resource)   # cooked script classes and factory (source and harvested metadata)
 add_subdirectory(Code/Foundation/Script.Facades)    # curated behavior facades (Entity/Log/Time/Random), shared by the cook VM and the runtime
@@ -659,6 +661,9 @@ endif()
 if(OPTION_ENABLE_LUAU)
     util_add_plugin(Code/Plugins/Luau) # the Luau language: its VM and its cook
 endif()
+if(DOTNET_SCRIPTING)
+    util_add_plugin(Code/Plugins/CSharp) # the C# language: hosts .NET or calls the runtime compiled in, and its cook
+endif()
 # The plugins the engine's hosts link (the players, the editor and the CLI tools, each the parts its
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
@@ -670,8 +675,12 @@ if(OPTION_ENABLE_LUAU)
     list(APPEND UTIL_HOST_PLUGINS luau)
 endif()
 # C#'s bindings cover the official plugins' surface too: the tool loads them before it generates.
+# The languages add nothing to it, and C# itself would make the tool link what it builds.
 if(TARGET Tools.DotNetBindings)
     util_link_plugins(Tools.DotNetBindings ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
+endif()
+if(DOTNET_SCRIPTING)
+    list(APPEND UTIL_HOST_PLUGINS csharp)
 endif()
 add_subdirectory(Code/Engine/Engine.Player)        # Generic game runner
 
@@ -696,11 +705,6 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Pipeline/ModelImporter) # top-level model import: model IR -> cooked geometry/material/texture/animation resources
     add_subdirectory(Code/Editor/Editor.ModelPreview) # a model file opened for viewing without a project (no editor core: the model viewer links it too)
     add_subdirectory(Code/Pipeline/Script.Pipeline)  # script class asset/builder/importer (cook; backend-neutral)
-    # Per-backend cooks, each gated on its OPTION_ENABLE_* flag (a language that is a plugin
-    # brings its own).
-    if(DOTNET_SCRIPTING)
-        add_subdirectory(Code/Pipeline/Script.DotNet.Pipeline)  # C# cook service (a project's dotnet build)
-    endif()
     add_subdirectory(Code/Editor/Editor.Spline) # interactive spline viewport tool (editor exe only)
     add_subdirectory(Code/Editor/Editor.Animation) # the animation pages: clip, skeleton, graph
     add_subdirectory(Code/Editor/Editor.PropertyAnimation) # property animation in the scene: its panel under the viewport
@@ -819,7 +823,9 @@ if(OPTION_BUILD_TESTS)
     if(OPTION_ENABLE_LUAU)
         util_test_suite(Code/Plugins/Luau/Luau.Pipeline.Tests Plugins::Luau.Pipeline)
     endif()
-    util_test_suite(Code/Pipeline/Script.DotNet.Pipeline.Tests          Pipeline::Script.DotNet)
+    if(DOTNET_SCRIPTING)
+        util_test_suite(Code/Plugins/CSharp/CSharp.Pipeline.Tests Plugins::CSharp.Pipeline)
+    endif()
     util_test_suite(Code/Pipeline/Shaders.Pipeline.Tests                Pipeline::Shaders)
     util_test_suite(Code/Pipeline/Texture.Compression.Tests            Pipeline::Texture.Compression)
     util_test_suite(Code/Pipeline/Texture.Pipeline.Tests                Pipeline::Texture)
@@ -953,7 +959,10 @@ if(OPTION_BUILD_TESTS)
         util_test_suite(Code/Plugins/Luau/Luau.Foundation.Tests Plugins::Luau.Foundation)
         util_test_suite(Code/Plugins/Luau/Luau.Engine.Tests Plugins::Luau.Engine)
     endif()
-    util_test_suite(Code/Foundation/Script.DotNet.Tests             Foundation::Script.DotNet)
+    if(DOTNET_SCRIPTING)
+        util_test_suite(Code/Plugins/CSharp/CSharp.Foundation.Tests Plugins::CSharp.Foundation)
+        util_test_suite(Code/Plugins/CSharp/CSharp.Engine.Tests Plugins::CSharp.Engine)
+    endif()
     util_test_suite(Code/Foundation/Settings.Tests                  Foundation::Settings)
     util_test_suite(Code/Foundation/Shaders.Resource.Tests          Foundation::Shaders.Resource)
     util_test_suite(Code/Foundation/Shaders.System.Tests            Foundation::Shaders.System)

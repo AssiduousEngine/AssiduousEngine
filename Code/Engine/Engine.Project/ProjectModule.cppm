@@ -414,10 +414,19 @@ export namespace engine::project
         };
         static constexpr FormerlyBuiltIn kFormerlyBuiltIn[] = {{u8"particles", 14}, {u8"terrain", 15}, {u8"navigation", 16}};
 
-        /// The script languages that became official plugins, each by its language id (its plugin's
-        /// id) and the project data version it left at. A project read at an older version enables
-        /// the ones its scripts use, and no other: that takes its assets, so the project open does it.
-        static constexpr FormerlyBuiltIn kLanguagesBecamePlugins[] = {{u8"luau", 17}, {u8"angelscript", 18}};
+        /// A script language that became an official plugin: its language id (its plugin's id), the
+        /// project data version it left at, and the extension of its project file when its classes
+        /// build together as one (C#'s .csproj), else empty.
+        struct LanguageBecamePlugin
+        {
+            StringView id;
+            u32 leftAt;
+            StringView projectExtension;
+        };
+        /// A project read at an older version enables the ones its scripts use (or whose project file
+        /// it has), and no other: that takes its assets, so the project open does it.
+        static constexpr LanguageBecamePlugin kLanguagesBecamePlugins[] = {
+            {u8"luau", 17, {}}, {u8"angelscript", 18, {}}, {u8"csharp", 19, u8"csproj"}};
 
         /// Whether the manifest was read at a version older than `version` (and recorded one).
         [[nodiscard]] bool ReadBefore(u32 version) const noexcept { return readDataVersion >= 9 && readDataVersion < version; }

@@ -13,10 +13,12 @@ game's scripts in one language. The bound engine surface is the same across back
 and idioms differ (e.g. Luau uses colon calls for instance methods, dot calls for static
 facades).
 
-AngelScript and Luau are official plugins, `angelscript` and `luau`: a project enables the
-languages it writes in its plugins list (Project Settings, or `plugin_enable`), and carries no VM
-for a language it does not. A new project enables AngelScript. A project written before a language
-became a plugin enables it as it opens when its scripts use it.
+AngelScript, Luau and C# are official plugins, `angelscript`, `luau` and `csharp`: a project
+enables the languages it writes in its plugins list (New Project's Languages, Project Settings, or
+`plugin_enable`), and carries no VM for a language it does not. A new project enables AngelScript
+unless told otherwise. A project written before a language became a plugin enables it as it opens
+when its scripts use it (for C#, also when it has a `.csproj`). C# does not run on Android, so the
+`csharp` plugin is not offered there.
 
 ## The three kinds of behavior
 

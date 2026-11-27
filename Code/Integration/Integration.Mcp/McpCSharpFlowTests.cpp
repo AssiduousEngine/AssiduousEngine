@@ -29,6 +29,9 @@ import pipeline.core;
 import pipeline.importer;
 import pipeline.registration;
 import script.pipeline;
+#ifdef OPTION_HAS_DOTNET
+import script.dotnet.pipeline; // RegisterDotNetScriptCook: what the csharp plugin's Pipeline part registers
+#endif
 import engine.behavior;
 import editor.mcp;
 import foundation.net.replication; // NetworkComponent: a component the behaviour reaches with of()
@@ -110,7 +113,8 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
 
     pipeline::RegisterPipelineTypes();
     pipeline::BuilderRegistry builders{DefaultAllocator()};
-    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot()); // registers C#'s cooks
+    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot());
+    pipeline::RegisterDotNetScriptCook(DefaultAllocator()); // the csharp plugin's part does this as a project enabling it loads
     pipeline::ImporterRegistry importers{DefaultAllocator()};
     pipeline::RegisterAllImporters(importers);
     pipeline::IScriptAssemblyCook* csharp = pipeline::ScriptAssemblyCookRegistry::Get().FindByLanguage(u8"csharp");

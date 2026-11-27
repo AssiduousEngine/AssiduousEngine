@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The C# end of the bridge (Code/Foundation/Script.DotNet/DotNetBridge.cppm): the engine's table of
+// The C# end of the bridge (Code/Plugins/CSharp/CSharp.Foundation/DotNetBridge.cppm): the engine's table of
 // functions, the value that crosses, and the call the generated bindings make. The same under
 // CoreCLR and NativeAOT: no DllImport, no reflection, no runtime code generation.
 using System;

@@ -32,9 +32,6 @@ import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade
 import foundation.script;              // IScriptManager/Context (the game script)
-#ifdef OPTION_HAS_DOTNET
-import foundation.script.dotnet;       // the C# backend (OPTION_ENABLE_DOTNET, desktop)
-#endif
 import engine.behavior;    // BehaviorSubsystem (behaviors and the run's shared context)
 import foundation.resource;            // ResourceManager (owned or borrowed: see the infrastructure preset)
 import foundation.content;             // IContentDatabase (preset by the entry point)
@@ -264,12 +261,9 @@ namespace engine::runtime
         // (editor, cook, MCP, exported player) on the same registered surface and under the same
         // kSubsystemFacadeNameCount tripwire.
         engine::RegisterAllScriptFacades();
-        // The built-in backend (C#) registers here; a language that is a plugin (angelscript, luau)
-        // registers as the project's plugins load. A run resolves by the game script's language,
-        // with one gameplay context per run.
-#ifdef OPTION_HAS_DOTNET
-        foundation::script::dotnet::RegisterDotNetScriptBackend();
-#endif
+        // The script languages are plugins (angelscript, luau, csharp): each registers its backend
+        // as the project's plugins load. A run resolves by the game script's language, with one
+        // gameplay context per run.
         // Networking: the Net facade type is registered by the surface root above. Each
         // ApplicationRun owns its own endpoint and goes online at runtime via the facade
         // (Net.startServer/connect from the game's menu); there is no app-owned socket. The primary

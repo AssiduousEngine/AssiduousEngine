@@ -318,7 +318,7 @@ namespace editor
         Array<foundation::content::Instance*> instances;
         bool collected = false;
         const StringView scriptType(reinterpret_cast<const utf8char*>(pipeline::ScriptClassAsset::StaticType().name));
-        for (const ProjectSettings::FormerlyBuiltIn& language : ProjectSettings::kLanguagesBecamePlugins)
+        for (const ProjectSettings::LanguageBecamePlugin& language : ProjectSettings::kLanguagesBecamePlugins)
         {
             if (!settings.ReadBefore(language.leftAt) || settings.FindPlugin(language.id) != nullptr)
             {
@@ -329,6 +329,7 @@ namespace editor
                 CollectInstances(*project.SourceDb().RootGroup(), instances);
                 collected = true;
             }
+            bool used = false;
             for (foundation::content::Instance* instance : instances)
             {
                 if (instance->TypeName() != scriptType)
@@ -337,15 +338,28 @@ namespace editor
                 }
                 const RefPtr<ISerializable> object = instance->ReadObject();
                 const auto* script = Cast<pipeline::ScriptClassAsset>(object.Get());
-                const StringView used = script == nullptr || script->language.IsEmpty() ? StringView(u8"angelscript") : script->language.AsView();
-                if (used == language.id)
+                const StringView scriptLanguage = script == nullptr || script->language.IsEmpty() ? StringView(u8"angelscript") : script->language.AsView();
+                if (scriptLanguage == language.id)
                 {
-                    foundation::runtime::EnabledPlugin entry;
-                    entry.id = String(language.id);
-                    settings.plugins.PushBack(Move(entry));
-                    LOG_INFO(u8"Project", u8"enabled the {} plugin: the project's scripts use it", language.id);
+                    used = true;
                     break;
                 }
+            }
+            // A project file of the language (C#'s .csproj) uses it too, whether or not a class has
+            // been imported from it yet. It is looked for by its extension: the language's cook,
+            // which would know it, is a plugin that has not loaded when a project opens.
+            if (!used && !language.projectExtension.IsEmpty())
+            {
+                foundation::vfs::NativeFileSystem sourceFs(project.SourcesRoot().AsView(), project.Allocator());
+                project.AddCodeFolder(sourceFs);
+                used = !pipeline::ListSourcesUnder(sourceFs, StringView{}, language.projectExtension).IsEmpty();
+            }
+            if (used)
+            {
+                foundation::runtime::EnabledPlugin entry;
+                entry.id = String(language.id);
+                settings.plugins.PushBack(Move(entry));
+                LOG_INFO(u8"Project", u8"enabled the {} plugin: the project's scripts use it", language.id);
             }
         }
     }

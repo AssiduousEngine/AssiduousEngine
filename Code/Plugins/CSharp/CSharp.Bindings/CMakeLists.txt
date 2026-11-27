@@ -1,7 +1,7 @@
 # Tools.DotNetBindings - writes the engine's C# bindings, generated from its reflection.
 add_executable(Tools.DotNetBindings Main.cpp)
 # The whole script surface: every facade and every component's reflection, as an application's scripts see it.
-target_link_libraries(Tools.DotNetBindings PRIVATE Foundation::Script.DotNet Engine::Composition Engine::Project Foundation::Runtime)
+target_link_libraries(Tools.DotNetBindings PRIVATE Plugins::CSharp.Foundation Engine::Composition Engine::Project Foundation::Runtime)
 # The official plugins' Engine parts link in after they are added (the root CMakeLists, beside
 # UTIL_HOST_PLUGINS), so their facades and components reach C# as the engine's do.
 # What C# leaves out of that surface is exactly LeftOut.txt's lines, each with its reason.
@@ -12,7 +12,7 @@ add_test(NAME Tools.DotNetBindings.LeftOut
 # into DotNet/ beside the binaries, where the engine looks for it.
 find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
 # Global (cached), since dotnet_link_compiled_runtime below is called from other folders.
-set(DOTNET_RUNTIME_SOURCE ${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed CACHE INTERNAL "")
+set(DOTNET_RUNTIME_SOURCE ${CMAKE_SOURCE_DIR}/Code/Plugins/CSharp/CSharp.Foundation/Managed CACHE INTERNAL "")
 set(DOTNET_RUNTIME_OUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/DotNet CACHE INTERNAL "")
 set(DOTNET_RUNTIME_BINDINGS ${CMAKE_CURRENT_BINARY_DIR}/Engine.g.cs CACHE INTERNAL "")
 add_custom_command(

@@ -10,12 +10,12 @@ target_link_libraries(Engine.Run.Tests PRIVATE
 target_compile_definitions(Engine.Run.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Engine.Run.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
-# C#: the test game assembly Script.DotNet.Tests builds (its Game class).
+# C#: the test game assembly CSharp.Foundation.Tests builds (its Game class).
 if(DOTNET_SCRIPTING AND NOT EMSCRIPTEN) # the target may be added after this folder: dependencies resolve at generate
-    target_link_libraries(Engine.Run.Tests PRIVATE Foundation::Script.DotNet)
-    add_dependencies(Engine.Run.Tests Script.DotNet.TestGame)
+    target_link_libraries(Engine.Run.Tests PRIVATE Plugins::CSharp.Foundation)
+    add_dependencies(Engine.Run.Tests CSharp.TestGame)
     target_compile_definitions(Engine.Run.Tests PRIVATE
-        CSHARP_TESTGAME_DIR="${CMAKE_BINARY_DIR}/Code/Foundation/Script.DotNet.Tests/TestGame")
+        CSHARP_TESTGAME_DIR="${CMAKE_BINARY_DIR}/Code/Plugins/CSharp/CSharp.Foundation.Tests/TestGame")
 endif()
 add_test(NAME Engine.Run.Tests COMMAND Engine.Run.Tests)
 endif()

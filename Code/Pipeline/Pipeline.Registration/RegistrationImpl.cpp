@@ -49,9 +49,6 @@ import foundation.audio;
 import foundation.audio.resource;
 import audio.pipeline;
 import foundation.script;
-#ifdef OPTION_HAS_DOTNET
-import script.dotnet.pipeline;
-#endif
 import foundation.script.resource;
 import script.pipeline;
 import scene.pipeline;
@@ -117,9 +114,8 @@ namespace pipeline
         foundation::audio::RegisterAudioResource();
         RegisterScriptAssets();
         foundation::script::RegisterScriptResource();
-        // The script builder resolves a per-language cook through the registry. A language that is
-        // a plugin (angelscript, luau) registers its cook as the host loads it; C#'s registers with
-        // the builders (RegisterAllBuilders).
+        // The script builder resolves a per-language cook through the registry. The languages are
+        // plugins (angelscript, luau, csharp): each registers its cook as the host loads it.
         // Scenes are packed and read as SceneDocument (export staging and a headless scene cook):
         // register the type and its serializer so ReadObject/WriteObject round-trip them.
         GlobalTypeRegistry().Register(foundation::scene::SceneDocument::StaticType());
@@ -161,11 +157,6 @@ namespace pipeline
         AddBuilder<AudioBusLayoutAssetBuilder>(registry);
         AddBuilder<SoundCueAssetBuilder>(registry);
         AddBuilder<ScriptAssemblyAssetBuilder>(registry);
-#ifdef OPTION_HAS_DOTNET
-        // C#'s cooks (the class cook and the project build) and its backend; made from the builders'
-        // allocator, as the project build starts the managed runtime to describe what it built.
-        RegisterDotNetScriptCook(registry.Allocator());
-#endif
         AddBuilder<ScriptClassAssetBuilder>(registry);
         AddBuilder<NativeBehaviorAssetBuilder>(registry);
     }

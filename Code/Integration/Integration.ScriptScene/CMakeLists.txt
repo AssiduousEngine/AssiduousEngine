@@ -31,7 +31,7 @@ endif()
 
 # C#: its classes built into an assembly over the engine's runtime, which the suite loads. Built
 # twice: Debug, as the engine's cook builds a game's, and Release, to show what that costs.
-if(TARGET Foundation::Script.DotNet AND NOT EMSCRIPTEN)
+if(TARGET Plugins::CSharp.Foundation AND NOT EMSCRIPTEN)
     find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
     set(BENCH_RUNTIME_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/DotNet)
     set(BENCH_OUTPUTS)
@@ -49,7 +49,7 @@ if(TARGET Foundation::Script.DotNet AND NOT EMSCRIPTEN)
     endforeach()
     add_custom_target(Integration.ScriptScene.CSharp DEPENDS ${BENCH_OUTPUTS})
     add_dependencies(Integration.ScriptScene Integration.ScriptScene.CSharp)
-    target_link_libraries(Integration.ScriptScene PRIVATE Foundation::Script.DotNet)
+    target_link_libraries(Integration.ScriptScene PRIVATE Plugins::CSharp.Foundation)
     target_compile_definitions(Integration.ScriptScene PRIVATE INTEGRATION_HAS_DOTNET=1
         BENCH_CSHARP_DEBUG_DIR="${CMAKE_CURRENT_BINARY_DIR}/CSharpDebug"
         BENCH_CSHARP_RELEASE_DIR="${CMAKE_CURRENT_BINARY_DIR}/CSharpRelease")

@@ -482,7 +482,7 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
 TEST_CASE("editor-project: the settings describe themselves, and the path mirrors follow the guids")
 {
     const TypeInfo& type = engine::project::ProjectSettings::StaticType();
-    CHECK(type.dataVersion == 18u); // 14 to 16 enable particles, terrain and navigation, which left the engine; 17 and 18 a language its scripts use
+    CHECK(type.dataVersion == 19u); // 14 to 16 enable particles, terrain and navigation, which left the engine; 17 to 19 a language its scripts use
     CHECK(type.minReadDataVersion == 9u); // a version 9 manifest still reads
     u32 assets = 0;
     u32 lists = 0;
@@ -1594,20 +1594,34 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
     {
         bool angelscript = false;
         bool luau = false;
+        bool csharp = false;
     };
-    const auto make = [](StringView dir, StringView language, u32 version)
+    // A project with one script asset in `language` (empty: none recorded), or, when `projectFile` is
+    // given, that file under its Code folder and no asset; its manifest as an engine at `version` wrote it.
+    const auto make = [](StringView dir, StringView language, u32 version, StringView projectFile = {})
     {
         (void)RemoveDirectoryRecursive(dir);
         REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"Languages").IsOk());
         {
             UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
             REQUIRE(project);
-            foundation::content::Instance* instance =
-                project->SourceDb().RootGroup()->CreateInstance(u8"Mover", pipeline::ScriptClassAsset::StaticType());
-            REQUIRE(instance != nullptr);
-            pipeline::ScriptClassAsset script;
-            script.language = String(language);
-            REQUIRE(instance->WriteObject(script).IsOk());
+            if (projectFile.IsEmpty())
+            {
+                foundation::content::Instance* instance =
+                    project->SourceDb().RootGroup()->CreateInstance(u8"Mover", pipeline::ScriptClassAsset::StaticType());
+                REQUIRE(instance != nullptr);
+                pipeline::ScriptClassAsset script;
+                script.language = String(language);
+                REQUIRE(instance->WriteObject(script).IsOk());
+            }
+            else
+            {
+                const String code = PathJoin(dir, u8"Code/Game");
+                REQUIRE(CreateDirectories(code.AsView()));
+                const StringView text = u8"<Project Sdk=\"Microsoft.NET.Sdk\"/>\n";
+                REQUIRE(WriteFile(PathJoin(code.AsView(), projectFile).AsView(),
+                                  Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+            }
             project->Settings().plugins.Clear(); // no language plugin, as an older engine wrote it
             REQUIRE(project->SaveSettings().IsOk());
         }
@@ -1626,7 +1640,8 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
         UniquePtr<EditorProject> reopened = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(reopened);
         return Enabled{reopened->Settings().FindPlugin(u8"angelscript") != nullptr,
-                       reopened->Settings().FindPlugin(u8"luau") != nullptr};
+                       reopened->Settings().FindPlugin(u8"luau") != nullptr,
+                       reopened->Settings().FindPlugin(u8"csharp") != nullptr};
     };
     const u32 current = engine::project::ProjectSettings::StaticType().dataVersion;
     const Enabled luau = make(u8"scratch_project_languages_luau", u8"luau", 16);
@@ -1638,6 +1653,12 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
     const Enabled unnamed = make(u8"scratch_project_languages_default", u8"", 16);
     CHECK(unnamed.angelscript); // a script with no language is AngelScript
     CHECK_FALSE(unnamed.luau);
+    const Enabled csharp = make(u8"scratch_project_languages_cs", u8"csharp", 18);
+    CHECK(csharp.csharp);
+    CHECK_FALSE(csharp.angelscript);
+    const Enabled csproj = make(u8"scratch_project_languages_csproj", {}, 18, u8"Game.csproj"); // no class imported yet
+    CHECK(csproj.csharp);
+    CHECK_FALSE(csproj.angelscript); // no script asset at all
     // At the current version a language is enabled by hand, or not.
     const Enabled currentLuau = make(u8"scratch_project_languages_current", u8"luau", current);
     CHECK_FALSE(currentLuau.luau);
@@ -1646,7 +1667,8 @@ TEST_CASE("project: an older project enables the language plugins its scripts us
     CHECK_FALSE(currentAs.angelscript);
     const StringView made[] = {u8"scratch_project_languages_luau", u8"scratch_project_languages_as",
                                u8"scratch_project_languages_default", u8"scratch_project_languages_current",
-                               u8"scratch_project_languages_current_as"};
+                               u8"scratch_project_languages_current_as", u8"scratch_project_languages_cs",
+                               u8"scratch_project_languages_csproj"};
     for (StringView dir : made)
     {
         (void)RemoveDirectoryRecursive(dir);
