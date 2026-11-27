@@ -312,3 +312,15 @@ TEST_CASE("script pipeline: a language's project build is found while registered
     CHECK(ScriptAssemblyCookRegistry::Get().LanguageOfProject(u8"idleproj").IsEmpty());
     CHECK_FALSE(ScriptAssemblyCookRegistry::Get().Unregister(u8"idletest"));
 }
+
+// A language is a plugin: a script in one whose cook is not registered checks as one error that
+// names the plugin to enable, rather than a compile failure.
+TEST_CASE("script pipeline: a script in a language whose plugin is not loaded names the plugin to enable")
+{
+    ScriptSourceDocument doc;
+    doc.Bind(u8".", u8"lost.lost", u8"lostlang");
+    doc.SetSource(u8"anything\n");
+    CHECK_FALSE(doc.Validate());
+    REQUIRE(doc.Errors().Size() == 1u);
+    CHECK(doc.Errors()[0].message == StringView(u8"written in lostlang, whose plugin is not loaded here - enable plugin 'lostlang' to check it"));
+}

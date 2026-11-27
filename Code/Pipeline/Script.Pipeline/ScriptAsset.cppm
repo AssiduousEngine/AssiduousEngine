@@ -1114,14 +1114,14 @@ export namespace pipeline{
 
             const StringView language = LanguageOf(scriptAsset);
 
-            // The cook comes from the registry, by language, never a named cook type.
-            // No cook is a configuration error, surfaced as a cook error.
+            // The cook comes from the registry, by language, never a named cook type. A language is
+            // a plugin, so no cook means the project does not enable it (or the host did not load
+            // it): said with the plugin to enable.
             IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(language);
             if (cook == nullptr)
             {
-                LOG_ERROR(
-                    u8"Script", u8"'{}': no script cook registered for language '{}' - cook failed",
-                    scriptAsset.fileName.View(), language);
+                LOG_ERROR(u8"Script", u8"'{}' is written in {}, whose plugin is not loaded here - enable plugin '{}' to cook it",
+                          scriptAsset.fileName.View(), language, language);
                 return Status{ErrorCode::NotSupported};
             }
 
@@ -1242,8 +1242,8 @@ export namespace pipeline{
             IScriptAssemblyCook* cook = ScriptAssemblyCookRegistry::Get().FindByLanguage(project.language.AsView());
             if (cook == nullptr)
             {
-                LOG_ERROR(u8"Script", u8"'{}': no project build registered for language '{}' - cook failed", project.fileName.View(),
-                          project.language);
+                LOG_ERROR(u8"Script", u8"'{}' is a {} project, whose plugin is not loaded here - enable plugin '{}' to build it",
+                          project.fileName.View(), project.language, project.language);
                 return Status{ErrorCode::NotSupported};
             }
             String text;
@@ -1571,9 +1571,8 @@ export namespace pipeline{
             if (cook == nullptr)
             {
                 CompileError e;
-                e.message = String(u8"no script cook registered for language '");
-                e.message.Append(m_language.AsView());
-                e.message.Append(u8"'");
+                e.message = Format(u8"written in {}, whose plugin is not loaded here - enable plugin '{}' to check it",
+                                   m_language, m_language);
                 m_errors.PushBack(Move(e));
                 m_lastCompileOk = false;
                 return false;

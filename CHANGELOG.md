@@ -64,6 +64,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   `OPTION_PLUGIN_LUAU` and `OPTION_PLUGIN_CSHARP` replace `OPTION_ENABLE_ANGELSCRIPT`,
   `OPTION_ENABLE_LUAU` and `OPTION_ENABLE_DOTNET`. A build tree that still has an old name is told
   the new one, and the old one is dropped.
+- A script in a language the project does not enable says so with the plugin to enable: in the cook,
+  in the script page's check, and once per language when a run starts its behaviors.
 - An export refuses a script whose language's plugin the project does not enable on the preset's
   platform (C# on Android, for one), naming the script and the plugin. A player built for a native
   export builds only the script languages the project enables there.
