@@ -170,9 +170,13 @@ each of these:
    A project that did not enable a language still opens its files as text with highlighting.
    Moving them would need plugins to bring editor data, which nothing does yet; revisit when one
    does.
-5. **Templates per language set.** Official plugins are compiled into the export templates and
-   dormant unless enabled (plugins decision 1), so a template carries every VM. Recommended: measure
-   what each VM adds to a player first, and decide after the moves (the last step below).
+5. **Templates per language set: no, one template carries every language (user, 2026-11-27).**
+   Official plugins are compiled into the export templates and dormant unless enabled (plugins
+   decision 1). Measured on a shipping `Engine.Player` (Linux, clang, stripped): 20.43 MB with no
+   language; AngelScript adds 1.59 MB, Luau 1.02 MB, C# 0.15 MB (it hosts the installed .NET; a C#
+   game gets a player of its own anyway), all three 2.73 MB (13%). A language a project does not
+   enable never starts. A project that wants the bytes back exports natively, which builds only its
+   own languages.
 
 ## Order of work
 
