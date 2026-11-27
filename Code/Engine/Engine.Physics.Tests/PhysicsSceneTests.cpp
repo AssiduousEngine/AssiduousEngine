@@ -2019,10 +2019,12 @@ TEST_CASE("physics: the domain registers the heightfield resource a heightfield 
 {
     // A heightfield collider's surface is a Ref<Heightfield>: physics owns its resource module, so
     // it resolves in a project without terrain.
+    // Compare by id, as the composition tells modules apart. In a shared build the test and
+    // Engine.Physics each have their own copy of the module's record, at different addresses.
     bool found = false;
     for (const foundation::resource::ResourceModule* module : engine::physics::PhysicsDomain().resources)
     {
-        found = found || module == &foundation::heightfield::kHeightfieldResourceModule;
+        found = found || module->id == foundation::heightfield::kHeightfieldResourceModule.id;
     }
     CHECK(found);
 }
