@@ -700,6 +700,7 @@ export namespace editor::mcp
                 out.Set(u8"planned", JsonValue::MakeNumber(static_cast<f64>(done.planned)));
                 out.Set(u8"cooked", JsonValue::MakeNumber(static_cast<f64>(done.cooked)));
                 out.Set(u8"failed", JsonValue::MakeNumber(static_cast<f64>(done.failed)));
+                out.Set(u8"skipped", JsonValue::MakeNumber(static_cast<f64>(done.skipped)));
                 out.Set(u8"orphansSwept",
                         JsonValue::MakeNumber(static_cast<f64>(done.orphansSwept)));
                 out.Set(u8"upToDate", JsonValue::MakeNumber(static_cast<f64>(done.upToDate)));
@@ -746,6 +747,7 @@ export namespace editor::mcp
             outcome.planned = plan.dirty.Size();
             outcome.cooked = stats.cooked;
             outcome.failed = stats.failed;
+            outcome.skipped = stats.skipped;
             outcome.orphansSwept = stats.orphansSwept;
             outcome.upToDate = plan.upToDate;
             outcome.unbuildable = plan.unbuildable;

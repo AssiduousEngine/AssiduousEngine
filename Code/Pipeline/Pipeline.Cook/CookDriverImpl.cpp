@@ -146,6 +146,7 @@ namespace pipeline
         Serialize(ar, "source", r.source);
         Serialize(ar, "recipeHash", r.recipeHash);
         Serialize(ar, "failed", r.failed);
+        Serialize(ar, "skipped", r.skipped);
         Serialize(ar, "files", r.files);
         Serialize(ar, "reads", r.reads);
         Serialize(ar, "references", r.references);
@@ -296,7 +297,7 @@ namespace pipeline
 
         const CookRecord* record = m_db.Find(item.source);
         const bool productExists = m_cookedDb->GetInstance(item.source) != nullptr;
-        const bool clean = !force && record != nullptr && !record->failed &&
+        const bool clean = !force && record != nullptr && !record->failed && !record->skipped &&
                            record->recipeHash == item.recipeHash && productExists;
         if (clean)
         {
@@ -378,7 +379,7 @@ namespace pipeline
         CookStats stats;
         stats.orphansSwept = plan.orphansSweptCount;
 
-        Array<bool> results;
+        Array<ItemOutcome> results;
         results.Resize(plan.dirty.Size());
         usize done = 0;
         usize begin = 0;
@@ -398,7 +399,7 @@ namespace pipeline
                 m_jobs->ParallelFor(static_cast<u32>(end - begin), [&, begin](u32 i)
                                     {
                                         CookItem& it = plan.dirty[begin + i];
-                                        results[begin + i] = it.copiedForward ? true : CookItem_(it);
+                                        results[begin + i] = it.copiedForward ? ItemOutcome::Built : CookItem_(it);
                                     });
             }
             else
@@ -406,15 +407,20 @@ namespace pipeline
                 for (usize i = begin; i < end; ++i)
                 {
                     results[i] =
-                        plan.dirty[i].copiedForward ? true : CookItem_(plan.dirty[i]);
+                        plan.dirty[i].copiedForward ? ItemOutcome::Built : CookItem_(plan.dirty[i]);
                 }
             }
 
             for (usize i = begin; i < end; ++i)
             {
-                if (!results[i])
+                const bool built = results[i] == ItemOutcome::Built;
+                if (results[i] == ItemOutcome::Failed)
                 {
                     ++stats.failed;
+                }
+                else if (results[i] == ItemOutcome::Skipped)
+                {
+                    ++stats.skipped;
                 }
                 else if (plan.dirty[i].copiedForward)
                 {
@@ -424,15 +430,14 @@ namespace pipeline
                 {
                     ++stats.cooked;
                 }
-                if (results[i])
+                if (built)
                 {
                     stats.cookedProducts.PushBack(plan.dirty[i].source);
                 }
                 ++done;
                 if (progress != nullptr && progress->onItem)
                 {
-                    progress->onItem(done, plan.dirty.Size(), plan.dirty[i].path.AsView(),
-                                     results[i]);
+                    progress->onItem(done, plan.dirty.Size(), plan.dirty[i].path.AsView(), built);
                 }
             }
             begin = end;
@@ -732,14 +737,14 @@ namespace pipeline
         return group->CreateInstanceWithId(item.source, source->Name(), *productType);
     }
 
-    bool CookDriver::CookItem_(CookItem& item)
+    CookDriver::ItemOutcome CookDriver::CookItem_(CookItem& item)
     {
         content::Instance* source = item.sourceInstance; // snapshotted (no DB query off-thread)
         Asset* asset = Cast<Asset>(item.asset.Get());
         content::Instance* product = item.product;
         if (source == nullptr || asset == nullptr || product == nullptr)
         {
-            return false;
+            return ItemOutcome::Failed;
         }
 
         AssetBuildContext ctx{*m_allocator};
@@ -760,14 +765,16 @@ namespace pipeline
         ScopedLock lock(m_recordMutex);
         CookRecord& record = m_db.Upsert(item.source);
         record.recipeHash = item.recipeHash;
-        record.failed = !built.IsOk();
+        const bool skipped = built.Code() == ErrorCode::Unavailable; // the builder said why
+        record.failed = !built.IsOk() && !skipped;
+        record.skipped = skipped;
         if (Array<CookFileMemo>* memos = m_pendingMemos.Find(item.source))
         {
             record.files = Move(*memos);
         }
         record.reads = item.deps.reads;
         record.references = item.deps.references;
-        if (!built.IsOk())
+        if (record.failed)
         {
             LOG_ERROR(u8"Cook", u8"'{}' failed to cook", item.path);
         }
@@ -775,7 +782,7 @@ namespace pipeline
         // blobs, texture tables) alive until the whole cook finishes runs large scenes
         // out of memory.
         item.asset = RefPtr<ISerializable>{};
-        return built.IsOk();
+        return built.IsOk() ? ItemOutcome::Built : skipped ? ItemOutcome::Skipped : ItemOutcome::Failed;
     }
 
     content::Group* CookDriver::MirrorGroup(content::Group& sourceGroup)

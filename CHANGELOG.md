@@ -68,7 +68,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   revert, and Reload Project Plugins. They were dropped from a scene read from its file (a save after
   would have lost them), and Reload Project Plugins now resolves them when the plugin is back.
 - A script in a language the project does not enable says so with the plugin to enable: in the cook,
-  in the script page's check, and once per language when a run starts its behaviors.
+  in the script page's check, and once per language when a run starts its behaviors. The cook skips
+  it rather than failing it: the Assets panel shows it Skipped, the cook's toast is not an error,
+  and `asset_cook` counts it under `skipped`. It cooks once the plugin is enabled.
 - An export refuses a script whose language's plugin the project does not enable on the preset's
   platform (C# on Android, for one), naming the script and the plugin. A player built for a native
   export builds only the script languages the project enables there.

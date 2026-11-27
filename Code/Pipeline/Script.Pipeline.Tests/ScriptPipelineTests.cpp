@@ -18,6 +18,7 @@ import pipeline.core;
 import foundation.vfs; // SourcePath
 import script.pipeline;
 import foundation.script.resource; // BehaviorClassSource
+import foundation.content; // the cooked database a build writes into
 
 using namespace foundation::core;
 using namespace pipeline;
@@ -323,4 +324,36 @@ TEST_CASE("script pipeline: a script in a language whose plugin is not loaded na
     CHECK_FALSE(doc.Validate());
     REQUIRE(doc.Errors().Size() == 1u);
     CHECK(doc.Errors()[0].message == StringView(u8"written in lostlang, whose plugin is not loaded here - enable plugin 'lostlang' to check it"));
+}
+
+// The cook skips a script whose language's plugin is not loaded instead of failing it: its builder
+// answers Unavailable, which the driver counts as skipped.
+TEST_CASE("script pipeline: the class builder skips a script whose language's plugin is not loaded")
+{
+    foundation::script::RegisterScriptResource();
+    RegisterScriptAssets();
+    const StringView srcDir = u8"scratch_scriptpipe_skip_src";
+    const StringView outDir = u8"scratch_scriptpipe_skip_out";
+    (void)RemoveDirectoryRecursive(srcDir);
+    (void)RemoveDirectoryRecursive(outDir);
+    REQUIRE(CreateDirectories(srcDir));
+    REQUIRE(CreateDirectories(outDir));
+    const StringView text = u8"anything\n";
+    REQUIRE(WriteFile(PathJoin(srcDir, u8"lost.lost").AsView(),
+                      Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+    {
+        foundation::vfs::NativeFileSystem sources(srcDir, DefaultAllocator());
+        foundation::vfs::NativeFileSystem output(outDir, DefaultAllocator());
+        foundation::content::ContentDatabase outputDb(DefaultAllocator(), output, BinarySerializerFactory(), u8".rasset");
+        ScriptClassAsset asset;
+        asset.fileName = foundation::vfs::SourcePath(u8"lost.lost");
+        asset.language = String(u8"lostlang");
+        ScriptClassAssetBuilder builder;
+        AssetBuildContext ctx{DefaultAllocator()};
+        ctx.sources = &sources;
+        ctx.output = outputDb.RootGroup()->CreateInstance(u8"cooked", foundation::script::BehaviorClassSource::StaticType());
+        CHECK(builder.Build(asset, ctx).Code() == ErrorCode::Unavailable);
+    }
+    (void)RemoveDirectoryRecursive(srcDir);
+    (void)RemoveDirectoryRecursive(outDir);
 }

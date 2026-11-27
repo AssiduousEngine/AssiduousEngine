@@ -50,7 +50,8 @@ export namespace editor
         NoBuilder,
         Cooked,
         Missing,
-        Failed
+        Failed,
+        Skipped, // not built, no fault of its own: what it needs is not here (its language's plugin)
     };
 
     /// What the most recent cook did: the plan's split (planned, the dirty items; upToDate;
@@ -61,6 +62,7 @@ export namespace editor
         usize planned = 0;
         usize cooked = 0;
         usize failed = 0;
+        usize skipped = 0; // not built, no fault of their own (their plugin is not loaded)
         usize orphansSwept = 0;
         usize upToDate = 0;
         usize unbuildable = 0;

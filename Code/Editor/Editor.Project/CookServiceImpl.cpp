@@ -10,6 +10,7 @@
 // recomputing recipes (exact dirtiness is the driver's job at cook time):
 //   NoBuilder: the instance's type has no registered builder (scenes, raw data)
 //   Failed:    the last cook of this asset failed (the Console has the log)
+//   Skipped:   the last cook passed it over, through no fault of its own (its plugin is not loaded)
 //   Missing:   no record or no product yet (never cooked, or swept)
 //   Cooked:    record and product exist (a stale recipe still shows Cooked until the next cook)
 //
@@ -224,13 +225,19 @@ namespace editor
                                               self->Post(Move(line));
                                           };
                                           CookStats stats = driver->ExecuteBuilds(plan, &progress);
-                                          if (stats.cooked + stats.failed + stats.orphansSwept > 0)
+                                          if (stats.cooked + stats.failed + stats.skipped + stats.orphansSwept > 0)
                                           {
                                               String done(u8"cook finished: ");
                                               AppendCount(done, stats.cooked);
                                               done.Append(u8" cooked, ");
                                               AppendCount(done, stats.failed);
                                               done.Append(u8" failed");
+                                              if (stats.skipped > 0)
+                                              {
+                                                  done.Append(u8", ");
+                                                  AppendCount(done, stats.skipped);
+                                                  done.Append(u8" skipped");
+                                              }
                                               self->Post(Move(done));
                                           }
                                           {
@@ -238,6 +245,7 @@ namespace editor
                                               self->m_lastCooked = Move(stats.cookedProducts);
                                               self->m_lastSummary.cooked = stats.cooked;
                                               self->m_lastSummary.failed = stats.failed;
+                                              self->m_lastSummary.skipped = stats.skipped;
                                               self->m_lastSummary.orphansSwept = stats.orphansSwept;
                                           }
                                           self->m_cooking.store(false);
@@ -448,6 +456,10 @@ namespace editor
         if (record != nullptr && record->failed)
         {
             return CookBadge::Failed;
+        }
+        if (record != nullptr && record->skipped)
+        {
+            return CookBadge::Skipped;
         }
         const bool productExists = m_project->CookedDb().GetInstance(instance.Id()) != nullptr;
         return (record != nullptr && productExists) ? CookBadge::Cooked : CookBadge::Missing;

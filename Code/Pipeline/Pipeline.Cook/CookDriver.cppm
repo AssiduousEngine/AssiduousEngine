@@ -58,6 +58,10 @@ export namespace pipeline
         Guid source;
         u64 recipeHash = 0;
         bool failed = false;
+        // Not built, through no fault of its own: its builder said what it needs is not here (a
+        // script whose language's plugin is not loaded). Never clean, like a failure, so it builds
+        // once that is here; not a failure.
+        bool skipped = false;
         Array<CookFileMemo> files;
         Array<Guid> reads;
         Array<Guid> references;
@@ -79,7 +83,7 @@ export namespace pipeline
         // The allocator (required; the owner decides) backs the cook records.
         explicit CookDb(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
 
-        static constexpr u32 kVersion = 2; // 2: a file memo records when it was hashed
+        static constexpr u32 kVersion = 3; // 2: a file memo records when it was hashed; 3: a record says it was skipped
         // Annotated on the member, not the class: dllexport on a class emits every
         // implicit member (CookDb holds move-only UniquePtr storage, so its copy constructor is
         // deleted) and flags each non-exported member type C4251.
@@ -180,6 +184,7 @@ export namespace pipeline
     {
         usize cooked = 0;
         usize failed = 0;
+        usize skipped = 0;          // not built, no fault of their own (ErrorCode::Unavailable: a plugin not loaded)
         usize copiedForward = 0;    // invariant products carried from the host DB (variant cook)
         usize orphansSwept = 0;     // (CookPlan carries the swept count from PrepareProducts)
         Array<Guid> cookedProducts; // successfully (re)built or copied products, for hot reload
@@ -282,9 +287,17 @@ export namespace pipeline
         // builder's product type. Mutates the cooked DB, so main thread only (see Execute).
         [[nodiscard]] content::Instance* EnsureProduct(const CookItem& item);
 
+        // What one item's build came to.
+        enum class ItemOutcome : u8
+        {
+            Built,
+            Failed,
+            Skipped, // its builder said what it needs is not here (ErrorCode::Unavailable)
+        };
+
         // Cook one item into its pre-created product and update its record. Runs on worker
         // threads: no DB mutation here, only reads and the product's own file writes.
-        [[nodiscard]] bool CookItem_(CookItem& item);
+        [[nodiscard]] ItemOutcome CookItem_(CookItem& item);
 
         // Copy-forward (main thread, in PrepareProducts): if `item` is an invariant product whose
         // host record recipe matches, copy the host product into item.product and stamp the target

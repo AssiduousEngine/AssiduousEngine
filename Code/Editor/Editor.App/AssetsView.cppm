@@ -946,6 +946,10 @@ export namespace editor::app
                         shown.Badge = String(u8"Failed");
                         shown.BadgeClass = String(u8"danger");
                         break;
+                    case editor::CookBadge::Skipped: // its plugin is not loaded (the Console says which)
+                        shown.Badge = String(u8"Skipped");
+                        shown.BadgeClass = String(u8"info");
+                        break;
                     case editor::CookBadge::NoBuilder:
                         break;
                     }

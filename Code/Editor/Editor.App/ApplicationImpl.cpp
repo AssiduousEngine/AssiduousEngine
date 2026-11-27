@@ -190,10 +190,15 @@ namespace editor::app
         services.cookFinished = [self]()
         {
             // Failures stay until dismissed (the Console has the log); a cook of nothing says nothing.
+            // Skipped assets are no fault: their plugin is not loaded, which the Console names.
             const usize failed = self->m_cookService.LastCookSummary().failed;
             const usize cooked = self->m_cookService.LastCookSummary().cooked;
+            const usize skipped = self->m_cookService.LastCookSummary().skipped;
             if (failed > 0)
                 self->ShowToast(editor::NoticeKind::Error, Format(u8"Cook: {} failed, {} cooked (see Console).", failed, cooked).AsView());
+            else if (skipped > 0)
+                self->ShowToast(editor::NoticeKind::Info,
+                                Format(u8"Cook: {} cooked, {} skipped: their plugin is not loaded (see Console).", cooked, skipped).AsView());
             else if (cooked > 0)
                 self->ShowToast(editor::NoticeKind::Success, Format(u8"Cook finished: {} asset(s).", cooked).AsView());
         };

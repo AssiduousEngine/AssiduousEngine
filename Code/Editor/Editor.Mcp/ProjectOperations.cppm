@@ -41,6 +41,7 @@ export namespace editor::mcp
         usize planned = 0;
         usize cooked = 0;
         usize failed = 0;
+        usize skipped = 0; // not built, no fault of their own: their plugin is not loaded
         usize orphansSwept = 0;
         usize upToDate = 0;
         usize unbuildable = 0;

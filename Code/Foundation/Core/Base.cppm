@@ -228,6 +228,7 @@ export namespace foundation::core
         Internal,
         Cancelled, ///< told to stop through its CancelToken, and stopped
         OutOfDate, ///< no longer matches what it serves (a swapchain its surface outgrew): make it again
+        Unavailable, ///< what it needs is not here (a plugin not loaded): not done, and no fault of its own
     };
 
     class Status

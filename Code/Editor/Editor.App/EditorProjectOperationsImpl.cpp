@@ -63,6 +63,7 @@ namespace editor::app
         outcome.planned = summary.planned;
         outcome.cooked = summary.cooked;
         outcome.failed = summary.failed;
+        outcome.skipped = summary.skipped;
         outcome.orphansSwept = summary.orphansSwept;
         outcome.upToDate = summary.upToDate;
         outcome.unbuildable = summary.unbuildable;

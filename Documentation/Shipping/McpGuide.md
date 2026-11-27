@@ -417,7 +417,9 @@ methods rather than a property. A member with `readOnly: true` (a network identi
 `authority`, for one) reads and refuses assignment in every backend. `script_create` seeds a starter asset
 (`kind`: entity, scene or run behavior), then edit the returned source FILE, loop on
 `script_validate`, and `asset_cook` to make the class attachable. Their `language` is one the host
-has a cook for; an unknown one is refused with the list. A script file may declare several
+has a cook for; an unknown one is refused with the list. A script whose language's plugin the project
+does not enable is counted under `asset_cook`'s `skipped`, not `failed`: it is not broken, and the
+log names the plugin to enable. A script file may declare several
 classes (data, helpers); the one it plays is the one deriving from a kind (`class Coin :
 EntityBehavior`; Luau `Coin = EntityBehavior.class()`), of any name. A script with none is a module
 of helpers, refused where a behavior is set; two that derive from a kind fail the cook, naming

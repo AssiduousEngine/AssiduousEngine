@@ -55,6 +55,7 @@ namespace
         static inline u32 version = 1;
         static inline u64 environment = 0;
         static inline bool fail = false;
+        static inline bool unavailable = false; // what it needs is not here (a plugin not loaded)
 
         [[nodiscard]] const TypeInfo* AssetType() const override
         {
@@ -72,6 +73,10 @@ namespace
             if (fail)
             {
                 return Status{ErrorCode::Unknown};
+            }
+            if (unavailable)
+            {
+                return Status{ErrorCode::Unavailable};
             }
             const CookWidgetAsset& wa = static_cast<const CookWidgetAsset&>(asset);
             CookWidgetProduct product;
@@ -232,6 +237,7 @@ namespace
             CookWidgetBuilder::version = 1;
             CookWidgetBuilder::environment = 0;
             CookWidgetBuilder::fail = false;
+            CookWidgetBuilder::unavailable = false;
         }
 
         ~Fixture() { RemoveTree(); }
@@ -514,6 +520,34 @@ TEST_CASE("cook: failures stay dirty and keep the record failed; orphans are swe
     CHECK(swept.orphansSwept == 1u);
     CHECK(fx.cookedDb->GetInstance(a) == nullptr);
     CHECK(driver.Plan().orphans.IsEmpty());
+}
+
+// A builder that says what it needs is not here (a script whose language's plugin is not loaded): the
+// item is skipped, not failed, and its record is not clean, so it cooks once that is here.
+TEST_CASE("cook: an item whose builder is unavailable is skipped, not failed, and cooks once it is available")
+{
+    Fixture fx(u8"scratch_cook_test_skipped");
+    const Guid a = fx.AddWidget(u8"A", 5);
+    CookDriver driver = fx.MakeDriver();
+    CookWidgetBuilder::unavailable = true;
+    CookPlan plan = driver.Plan();
+    const CookStats stats = driver.Execute(plan);
+    CHECK(stats.skipped == 1u);
+    CHECK(stats.failed == 0u);
+    CHECK(stats.cooked == 0u);
+    const CookRecord* record = driver.Db().Find(a);
+    REQUIRE(record != nullptr);
+    CHECK(record->skipped);
+    CHECK_FALSE(record->failed);
+
+    CHECK(PlanDirty(driver) == 1u); // never clean while skipped
+    CookWidgetBuilder::unavailable = false; // the plugin arrives
+    CookPlan retry = driver.Plan();
+    const CookStats cooked = driver.Execute(retry);
+    CHECK(cooked.cooked == 1u);
+    CHECK_FALSE(driver.Db().Find(a)->skipped);
+    CHECK(PlanDirty(driver) == 0u);
+    CHECK(fx.CookedValue(a) == 5);
 }
 
 TEST_CASE("cook: a source with no builder is unbuildable; one with a builder that does not read is unreadable")

@@ -1116,13 +1116,13 @@ export namespace pipeline{
 
             // The cook comes from the registry, by language, never a named cook type. A language is
             // a plugin, so no cook means the project does not enable it (or the host did not load
-            // it): said with the plugin to enable.
+            // it): the script is skipped, not failed, and says the plugin to enable.
             IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(language);
             if (cook == nullptr)
             {
-                LOG_ERROR(u8"Script", u8"'{}' is written in {}, whose plugin is not loaded here - enable plugin '{}' to cook it",
-                          scriptAsset.fileName.View(), language, language);
-                return Status{ErrorCode::NotSupported};
+                LOG_WARNING(u8"Script", u8"'{}' is written in {}, whose plugin is not loaded here - enable plugin '{}' to cook it",
+                            scriptAsset.fileName.View(), language, language);
+                return Status{ErrorCode::Unavailable};
             }
 
             BehaviorClassSource cooked;
@@ -1242,9 +1242,9 @@ export namespace pipeline{
             IScriptAssemblyCook* cook = ScriptAssemblyCookRegistry::Get().FindByLanguage(project.language.AsView());
             if (cook == nullptr)
             {
-                LOG_ERROR(u8"Script", u8"'{}' is a {} project, whose plugin is not loaded here - enable plugin '{}' to build it",
-                          project.fileName.View(), project.language, project.language);
-                return Status{ErrorCode::NotSupported};
+                LOG_WARNING(u8"Script", u8"'{}' is a {} project, whose plugin is not loaded here - enable plugin '{}' to build it",
+                            project.fileName.View(), project.language, project.language);
+                return Status{ErrorCode::Unavailable};
             }
             String text;
             if (const Status read = ReadSourceText(ctx, project.fileName.View(), text); !read.IsOk())
