@@ -306,3 +306,25 @@ TEST_CASE("dotnet bridge: a resource reference crosses as its guid")
     REQUIRE(FromVariant(unset, out).IsOk());
     CHECK(read.IsNil());
 }
+
+// C# writes its results into buffers the engine owns per thread, so they end with their thread and
+// nothing of C#'s is left at exit: one per slot, aligned, kept while it is big enough, grown when not.
+TEST_CASE("dotnet bridge: a thread's scratch buffers are the engine's, one per slot, aligned and grown on demand")
+{
+    const DotNetEngineFunctions& engine = EngineFunctions(DefaultAllocator());
+    REQUIRE(engine.scratch != nullptr);
+    void* error = engine.scratch(0, 10);
+    void* text = engine.scratch(1, 10);
+    void* value = engine.scratch(2, 256);
+    REQUIRE(error != nullptr);
+    REQUIRE(text != nullptr);
+    REQUIRE(value != nullptr);
+    CHECK(error != text);
+    CHECK(text != value);
+    CHECK(reinterpret_cast<uptr>(value) % 16 == 0);
+    CHECK(engine.scratch(1, 200) == text); // still big enough: the same buffer
+    u8* grown = static_cast<u8*>(engine.scratch(1, 5000));
+    REQUIRE(grown != nullptr);
+    grown[4999] = 1; // as long as asked for (ASAN catches a short one)
+    CHECK(engine.scratch(kScratchSlots, 1) == nullptr);
+}

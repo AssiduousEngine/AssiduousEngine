@@ -73,10 +73,8 @@ public static unsafe class Runtime
     static readonly Dictionary<(Type, string, int), MethodInfo?> s_methods = new();
 
     [ThreadStatic] static string? t_error;
-    [ThreadStatic] static byte* t_errorBytes;
-    [ThreadStatic] static byte* t_text;          // a text result, until the thread's next call
-    [ThreadStatic] static int t_textCapacity;
-    [ThreadStatic] static byte* t_bytes;         // a value result's bytes, until the thread's next call
+    // Results go back in the engine's per-thread buffers (Bridge.Scratch), which end with their
+    // thread: none of the runtime's own to free.
 
     const int kValueCapacity = 256;
 
@@ -618,14 +616,12 @@ public static unsafe class Runtime
     public static byte* LastError(int* length)
     {
         string text = t_error ?? "";
-        if (t_errorBytes != null)
-            NativeMemory.Free(t_errorBytes);
         int count = Encoding.UTF8.GetByteCount(text);
-        t_errorBytes = (byte*)NativeMemory.Alloc((nuint)System.Math.Max(count, 1));
+        byte* bytes = (byte*)Bridge.Scratch(ScratchSlot.Error, (ulong)System.Math.Max(count, 1));
         fixed (char* chars = text)
-            Encoding.UTF8.GetBytes(chars, text.Length, t_errorBytes, count);
+            Encoding.UTF8.GetBytes(chars, text.Length, bytes, count);
         *length = count;
-        return t_errorBytes;
+        return bytes;
     }
 
     /// <summary>Whether this runtime was compiled ahead of time with the application (an exported player):
@@ -728,17 +724,11 @@ public static unsafe class Runtime
     static void SetText(string text, out byte* bytes, out int length)
     {
         int count = Encoding.UTF8.GetByteCount(text);
-        if (t_textCapacity < count + 1)
-        {
-            if (t_text != null)
-                NativeMemory.Free(t_text);
-            t_textCapacity = System.Math.Max(count + 1, 256);
-            t_text = (byte*)NativeMemory.Alloc((nuint)t_textCapacity);
-        }
+        byte* buffer = (byte*)Bridge.Scratch(ScratchSlot.Text, (ulong)count + 1);
         fixed (char* chars = text)
-            Encoding.UTF8.GetBytes(chars, text.Length, t_text, count);
-        t_text[count] = 0;
-        bytes = t_text;
+            Encoding.UTF8.GetBytes(chars, text.Length, buffer, count);
+        buffer[count] = 0;
+        bytes = buffer;
         length = count;
     }
 
@@ -749,8 +739,6 @@ public static unsafe class Runtime
         *result = default;
         if (value == null)
             return;
-        if (t_bytes == null)
-            t_bytes = (byte*)NativeMemory.AlignedAlloc(kValueCapacity, 16);
         switch (value)
         {
         case string s:
@@ -764,6 +752,6 @@ public static unsafe class Runtime
             *result = Bridge.Lend(handler);
             return;
         }
-        *result = Bridge.PackValue(value, t_bytes, kValueCapacity);
+        *result = Bridge.PackValue(value, (byte*)Bridge.Scratch(ScratchSlot.Value, kValueCapacity), kValueCapacity);
     }
 }

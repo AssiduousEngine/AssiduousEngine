@@ -80,7 +80,15 @@ export namespace csharp
         /// A list of `count` values, as a handle the caller owns: what a list argument crosses as.
         /// The call it is given to converts it into its parameter's container, element by element.
         i32 (*makeList)(const DotNetValue* items, u32 count, DotNetValue* out) = nullptr;
+        /// The calling thread's buffer `slot` (kScratchSlots of them), at least `size` bytes and
+        /// 16-byte aligned: where C# puts a result the engine reads back before its next call (the
+        /// last failure's reason, a text result, a value's bytes). The engine owns it, so it ends
+        /// with its thread; valid until the thread asks for the slot again.
+        void* (*scratch)(u32 slot, u64 size) = nullptr;
     };
+
+    /// How many scratch buffers a thread has (DotNetEngineFunctions::scratch).
+    inline constexpr u32 kScratchSlots = 3;
 
     /// The table, filled; handles are made from `allocator` (the host's), the first call's.
     [[nodiscard]] const DotNetEngineFunctions& EngineFunctions(IAllocator& allocator) noexcept;

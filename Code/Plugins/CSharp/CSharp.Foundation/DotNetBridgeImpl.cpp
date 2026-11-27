@@ -24,6 +24,12 @@ namespace csharp
         // until the thread's next call into the bridge).
         thread_local String t_error;
         thread_local String t_text;
+        // Per calling thread: the buffers C# writes its results into (Scratch), in 16-byte blocks.
+        struct alignas(16) ScratchBlock
+        {
+            u8 bytes[16];
+        };
+        thread_local Array<ScratchBlock> t_scratch[kScratchSlots];
         // What handles are made from: the host's allocator, given with the table.
         IAllocator* s_allocator = nullptr;
         // How many calls took the typed path (TypedCallCount).
@@ -425,6 +431,17 @@ namespace csharp
                 *length = t_error.Size();
             return t_error.CStr();
         }
+
+        void* Scratch(u32 slot, u64 size)
+        {
+            if (slot >= kScratchSlots)
+                return nullptr;
+            Array<ScratchBlock>& blocks = t_scratch[slot];
+            const usize needed = static_cast<usize>((size + sizeof(ScratchBlock) - 1) / sizeof(ScratchBlock));
+            if (blocks.Size() < needed)
+                blocks.Resize(needed > 16 ? needed : 16); // 256 bytes at the least: most results fit
+            return blocks.Data();
+        }
     }
 
     namespace
@@ -604,6 +621,7 @@ namespace csharp
             f.listSize = &ListSize;
             f.listAt = &ListAt;
             f.makeList = &MakeList;
+            f.scratch = &Scratch;
             return f;
         }();
         return functions;

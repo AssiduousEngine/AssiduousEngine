@@ -58,6 +58,15 @@ public unsafe struct EngineFunctions
     public delegate* unmanaged<DotNetValue*, ulong*, int> ListSize;
     public delegate* unmanaged<DotNetValue*, ulong, DotNetValue*, int> ListAt;
     public delegate* unmanaged<DotNetValue*, uint, DotNetValue*, int> MakeList;
+    public delegate* unmanaged<uint, ulong, void*> Scratch;
+}
+
+/// <summary>The engine's per-thread buffers a result is written into (EngineFunctions.Scratch).</summary>
+public enum ScratchSlot : uint
+{
+    Error = 0, // the last failure's reason
+    Text = 1,  // a text result
+    Value = 2, // a value result's bytes
 }
 
 /// <summary>A call into the engine that failed; the engine's reason is the message.</summary>
@@ -302,6 +311,9 @@ public static unsafe class Bridge
     }
 
     public static nint TypeById(ulong id) => s_engine.TypeById(id);
+    /// <summary>The calling thread's engine-owned buffer for a result (ScratchSlot), at least
+    /// `size` bytes: the engine reads it back before its next call.</summary>
+    public static void* Scratch(ScratchSlot slot, ulong size) => s_engine.Scratch((uint)slot, size);
 
     /// <summary>`handler` given to the engine, which keeps it until it lets the handler go (the
     /// runtime's Release frees it); null crosses as nothing.</summary>
