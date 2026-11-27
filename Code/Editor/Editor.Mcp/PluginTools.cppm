@@ -5,8 +5,8 @@
 //
 // The open project's plugins over MCP: plugin_list reports each entry of the project's list as
 // the process's plugin host left it (loaded, not enabled here, refused, missing) with its
-// settings, plugin_enable adds an entry or changes its path and platforms, plugin_disable removes
-// one, plugin_settings_set changes a loaded plugin's settings, and plugin_scaffold makes the game's
+// settings, plugin_enable adds an entry or changes its path and platforms, plugin_disable turns
+// one off (the project keeps its settings for when it is enabled again), plugin_settings_set changes a loaded plugin's settings, and plugin_scaffold makes the game's
 // own package or adds parts to it (what the editor's Add Native Code does). A plugin's settings are
 // its own reflected type, labelled as the project's settings are, so both read and check them
 // through :reflected_fields. An entry whose plugin is not loaded keeps its settings as written:
@@ -185,7 +185,7 @@ export namespace editor::mcp
         server.RegisterTool(
             u8"plugin_enable",
             Format(u8"Enable a plugin in the open project, or change an enabled one's `path` or `platforms`; "
-                   u8"its settings are kept. `id` is the plugin's manifest id. `path` locates a project-local "
+                   u8"its settings are kept, and a plugin disabled before gets back the settings it had. `id` is the plugin's manifest id. `path` locates a project-local "
                    u8"package (a folder with its Plugin.xml, relative to the project; \"\" for the engine's). "
                    u8"`platforms` lists the platforms it is enabled on ({}), [] for every one "
                    u8"its manifest supports. Refused when the id is not a plugin id, when the package at `path` "
@@ -214,6 +214,8 @@ export namespace editor::mcp
                                       id));
                 }
                 runtime::EnabledPlugin* existing = project.Settings().FindPlugin(id.AsView());
+                if (existing == nullptr)
+                    existing = project.Settings().FindDisabledPlugin(id.AsView());
                 runtime::EnabledPlugin entry;
                 entry.id = id;
                 if (existing != nullptr)
@@ -284,23 +286,18 @@ export namespace editor::mcp
                                           names.IsEmpty() ? StringView(u8"none") : names.AsView()));
                     }
                 }
-                if (existing != nullptr)
-                {
-                    existing->path = Move(entry.path);
-                    existing->platforms = Move(entry.platforms);
-                }
-                else
-                {
-                    project.Settings().plugins.PushBack(Move(entry));
-                }
+                // A plugin turned off before comes back with the settings it had.
+                runtime::EnabledPlugin& enabled = project.Settings().EnablePlugin(id.AsView());
+                enabled.path = Move(entry.path);
+                enabled.platforms = Move(entry.platforms);
                 return detail::SavePluginList(*s);
             });
 
         server.RegisterTool(
             u8"plugin_disable",
-            u8"Disable a plugin in the open project: its entry leaves the list, and its settings with it "
-            u8"(plugin_list shows them first). The plugin stays loaded in a host until it next opens the "
-            u8"project. Returns the list as plugin_list does.",
+            u8"Disable a plugin in the open project: its entry leaves the list, and the project keeps its "
+            u8"settings for when plugin_enable turns it on again. The plugin stays loaded in a host until it "
+            u8"next opens the project. Returns the list as plugin_list does.",
             SchemaBuilder().Str(u8"id", u8"the plugin's id, as plugin_list names it", true).Build(),
             foundation::mcp::ToolAnnotations::Adjusts(),
             [s](const JsonValue& args) -> ToolResult
@@ -310,15 +307,8 @@ export namespace editor::mcp
                     return Err(String(u8"no project is open (call project_open first)"));
                 }
                 const String id(args.Get(u8"id").AsString());
-                Array<runtime::EnabledPlugin>& plugins = s->project->Settings().plugins;
-                for (usize i = 0; i < plugins.Size(); ++i)
-                {
-                    if (plugins[i].id == id)
-                    {
-                        plugins.RemoveAt(i);
-                        return detail::SavePluginList(*s);
-                    }
-                }
+                if (s->project->Settings().DisablePlugin(id.AsView()))
+                    return detail::SavePluginList(*s);
                 return Err(Format(u8"the project enables no plugin '{}' (plugin_list names them)", id));
             });
 

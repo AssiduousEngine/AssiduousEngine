@@ -390,11 +390,17 @@ TEST_CASE("integration.mcp: an agent enables and disables plugins in the project
     CHECK(entry->platforms.IsEmpty());
     CHECK(SettingsText(*entry) == String(kept));
 
-    // Disabling removes the entry; one the project does not enable is refused.
+    // Disabling removes the entry and keeps its settings, which enabling it again brings back; one
+    // the project does not enable is refused.
     const Called gone = disable(u8"steam");
     REQUIRE_FALSE(gone.error);
     CHECK(gone.value.Get(u8"plugins").Count() == 1);
     CHECK(disable(u8"steam").error);
+    REQUIRE_FALSE(enable(u8"steam", {u8"Linux64"}).error);
+    entry = session.project->Settings().FindPlugin(u8"steam");
+    REQUIRE(entry != nullptr);
+    CHECK(SettingsText(*entry) == String(kept));
+    REQUIRE_FALSE(disable(u8"steam").error);
 
     session.plugins = nullptr;
     owner.project.Reset();
@@ -403,6 +409,11 @@ TEST_CASE("integration.mcp: an agent enables and disables plugins in the project
     REQUIRE(static_cast<bool>(reopened));
     REQUIRE(reopened->Settings().plugins.Size() == 1u);
     CHECK(reopened->Settings().plugins[0].id == String(kMeter));
+    const runtime::EnabledPlugin* off = reopened->Settings().FindDisabledPlugin(u8"steam");
+    REQUIRE(off != nullptr); // saved with the project
+    CHECK(SettingsText(*off) == String(kept));
+    REQUIRE(off->platforms.Size() == 1u);
+    CHECK(off->platforms[0] == String(u8"Linux64"));
     reopened.Reset();
     (void)RemoveDirectoryRecursive(dir);
 }

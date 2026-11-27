@@ -260,12 +260,7 @@ namespace editor
             return Status{ErrorCode::Internal};
         }
         if (project.Settings().FindPlugin(id.AsView()) == nullptr)
-        {
-            foundation::runtime::EnabledPlugin entry;
-            entry.id = id;
-            entry.path = path;
-            project.Settings().plugins.PushBack(Move(entry));
-        }
+            project.Settings().EnablePlugin(id.AsView()).path = path;
         return project.SaveSettings();
     }
 

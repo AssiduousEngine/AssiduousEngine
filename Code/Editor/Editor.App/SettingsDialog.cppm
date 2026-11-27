@@ -17,9 +17,10 @@
 // folder each time the dialog opens): each package no entry names and each linked plugin no entry
 // enables, unchecked, or with why it cannot be enabled. Save writes the rows back (dropping a
 // list's empty and repeated entries), keeps the path mirrors beside the guids, writes each loaded
-// plugin's settings into its entry, removes the entries left unchecked (a package's folder stays)
+// plugin's settings into its entry, turns off the entries left unchecked (a package's folder stays)
 // and adds the plugins checked (on every platform their manifests support), persists the manifest
-// and notifies the editor; a changed plugin list takes effect at the next Build Project Plugins and
+// and notifies the editor; a plugin unchecked keeps its settings in the project for when it is
+// checked again. A changed plugin list takes effect at the next Build Project Plugins and
 // Reload Project Plugins. Cancel or closing leaves the manifest as it was.
 module;
 #include "Core/Prelude.h"
@@ -233,7 +234,7 @@ export namespace editor::app
                 gui::PropertyInfo& enabled = m_bag->Add(Format(u8"{}.enabled", group).AsView(), gui::PropertyKind::Bool, gui::Variant(true));
                 enabled.DisplayName = String(u8"Enabled");
                 enabled.Category = String(kPluginsCategory);
-                enabled.Description = String(u8"Unchecked, Save removes it and its settings from the project; a package's folder stays.");
+                enabled.Description = String(u8"Unchecked, Save turns it off; the project keeps its settings for when it is enabled again, and a package's folder stays.");
                 const engine::project::PluginStatus status = engine::project::PluginStatusOf(entry, host, m_allocator);
                 String state(engine::project::PluginStateName(status.state));
                 if (!status.reason.IsEmpty())
@@ -410,15 +411,17 @@ export namespace editor::app
                 if (!foundation::runtime::WritePluginSettings(*plugin.object, entry->settings, m_allocator).IsOk())
                     LOG_ERROR(u8"Editor", u8"plugin '{}': its settings did not write into the project", plugin.id);
             }
-            // The entries left unchecked go, with their settings; the plugins checked join, on every
-            // platform their manifests support.
+            // The entries left unchecked turn off, the project keeping their settings; the plugins
+            // checked join (with the settings they had, if they were on before), on every platform
+            // their manifests support.
             m_pluginsChanged = false;
             for (usize i = settings.plugins.Size(); i-- > 0;)
             {
-                const String path = Format(u8"plugins.{}.enabled", settings.plugins[i].id);
+                const String id = settings.plugins[i].id;
+                const String path = Format(u8"plugins.{}.enabled", id);
                 if (m_bag->FindInfo(path) != nullptr && !m_bag->GetValue(path, 0).AsBool())
                 {
-                    settings.plugins.RemoveAt(i);
+                    (void)settings.DisablePlugin(id.AsView());
                     m_pluginsChanged = true;
                 }
             }
@@ -429,10 +432,7 @@ export namespace editor::app
                 if (!plugin.problem.IsEmpty() || m_bag->FindInfo(path) == nullptr || !m_bag->GetValue(path, 0).AsBool() ||
                     settings.FindPlugin(plugin.id.AsView()) != nullptr)
                     continue;
-                foundation::runtime::EnabledPlugin entry;
-                entry.id = String(plugin.id.AsView(), m_allocator);
-                entry.path = String(plugin.path.AsView(), m_allocator);
-                settings.plugins.PushBack(Move(entry));
+                settings.EnablePlugin(plugin.id.AsView()).path = String(plugin.path.AsView(), m_allocator);
                 m_pluginsChanged = true;
             }
         }

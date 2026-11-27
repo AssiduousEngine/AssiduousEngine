@@ -255,7 +255,8 @@ read or suit this engine, or its id is taken). A package in the folder is never 
 there. `plugin_enable` (`id`, optional `path` and
 `platforms`) adds an entry or changes an enabled one's path and platforms, keeping its settings;
 it refuses a platform the plugin's manifest does not support and a `path` whose package is
-another plugin. `plugin_disable` removes an entry and its settings. A host loads the project's
+another plugin. `plugin_disable` removes an entry, and the project keeps its settings: a
+`plugin_enable` of it later brings them back. A host loads the project's
 plugins when it opens the project, so either takes effect there. `plugin_scaffold` (`parts`: any of
 Engine, Pipeline, Tooling, Editor; default Engine) makes the game's own native code, a plugin package
 at `Plugins/<Game>` enabled in the project, or adds to it the parts it lacks, as the editor's Add

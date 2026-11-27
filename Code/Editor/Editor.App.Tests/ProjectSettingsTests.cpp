@@ -303,8 +303,9 @@ namespace
 
 // A package extracted into the project's Plugins folder shows unchecked under Plugins, and one that
 // cannot be enabled says why with no check box; checking it and saving adds its entry, and
-// unchecking that entry and saving removes it, leaving the folder, so it is offered again.
-TEST_CASE("project settings: a package in Plugins/ is offered unchecked; Save adds what is checked and removes what is not")
+// unchecking that entry and saving turns it off, leaving the folder, so it is offered again; the
+// project keeps its settings, which checking it again brings back.
+TEST_CASE("project settings: a package in Plugins/ is offered unchecked; Save adds what is checked and turns off what is not, keeping its settings")
 {
     Bed bed;
     bed.dialog->Close();
@@ -333,6 +334,10 @@ TEST_CASE("project settings: a package in Plugins/ is offered unchecked; Save ad
     REQUIRE(entry != nullptr);
     CHECK(entry->path == String(u8"Plugins/Lantern"));
     CHECK(entry->platforms.IsEmpty());
+    const StringView configured = u8"<i32 name=\"wick\">7</i32>";
+    Array<u8>& written = bed.project->Settings().FindPlugin(u8"lantern")->settings;
+    written.Resize(configured.Size());
+    MemCopy(written.Data(), configured.Data(), configured.Size());
 
     REQUIRE(bed.dialog->Open(*bed.root));
     gui::PropertyBag& again = bed.Bag();
@@ -343,7 +348,15 @@ TEST_CASE("project settings: a package in Plugins/ is offered unchecked; Save ad
     REQUIRE(bed.dialog->Save());
     CHECK(bed.project->Settings().FindPlugin(u8"lantern") == nullptr);
     CHECK(FileExists(u8"project_settings_project/Plugins/Lantern/Plugin.xml"));
+    REQUIRE(bed.project->Settings().FindDisabledPlugin(u8"lantern") != nullptr);
 
     REQUIRE(bed.dialog->Open(*bed.root));
     REQUIRE(bed.Bag().FindInfo(u8"available.0.enabled") != nullptr); // offered again
+    bed.Edit(u8"available.0.enabled", gui::Variant(true));
+    REQUIRE(bed.dialog->Save());
+    const foundation::runtime::EnabledPlugin* back = bed.project->Settings().FindPlugin(u8"lantern");
+    REQUIRE(back != nullptr);
+    CHECK(back->path == String(u8"Plugins/Lantern"));
+    CHECK(StringView(reinterpret_cast<const utf8char*>(back->settings.Data()), back->settings.Size()) == configured);
+    CHECK(bed.project->Settings().FindDisabledPlugin(u8"lantern") == nullptr);
 }

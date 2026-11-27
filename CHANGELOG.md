@@ -67,6 +67,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - A scene's components of a plugin that is not loaded survive Simulate, an undone prefab apply or
   revert, and Reload Project Plugins. They were dropped from a scene read from its file (a save after
   would have lost them), and Reload Project Plugins now resolves them when the plugin is back.
+- A plugin turned off keeps its settings: unchecking it in Project Settings, or `plugin_disable`,
+  leaves them in the project (`disabledPlugins`), and turning it on again brings them back. They
+  were lost, so a dialogue plugin turned off and on forgot its commands and flags and its
+  conversations failed to cook.
 - A script in a language the project does not enable says so with the plugin to enable: in the cook,
   in the script page's check, and once per language when a run starts its behaviors. The cook skips
   it rather than failing it: the Assets panel shows it Skipped, the cook's toast is not an error,

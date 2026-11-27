@@ -215,6 +215,10 @@ export namespace engine::project
         // whose plugin is missing is kept as read and written back unchanged. Appended: a manifest
         // saved before it reads none.
         Array<foundation::runtime::EnabledPlugin> plugins;
+        // The entries of plugins turned off, kept with their platforms and settings so turning one on
+        // again brings its configuration back. Nothing loads or exports them. Appended: a manifest
+        // saved before it reads none.
+        Array<foundation::runtime::EnabledPlugin> disabledPlugins;
 
         // The game's quality levels (Render Quality assets), in the order an options menu lists
         // them, and the one it starts at where no export preset picks another (play-in-editor, a run
@@ -254,6 +258,65 @@ export namespace engine::project
                 }
             }
             return nullptr;
+        }
+
+        /// The entry kept for plugin `id` while it is turned off, or null.
+        [[nodiscard]] foundation::runtime::EnabledPlugin* FindDisabledPlugin(StringView id) noexcept
+        {
+            for (foundation::runtime::EnabledPlugin& entry : disabledPlugins)
+            {
+                if (entry.id.AsView() == id)
+                    return &entry;
+            }
+            return nullptr;
+        }
+
+        /// Turns plugin `id` off: its entry moves to disabledPlugins, settings and all, over any
+        /// entry kept there for it before. False when the project enables no such plugin.
+        bool DisablePlugin(StringView id)
+        {
+            for (usize i = 0; i < plugins.Size(); ++i)
+            {
+                if (plugins[i].id.AsView() != id)
+                    continue;
+                foundation::runtime::EnabledPlugin entry = Move(plugins[i]);
+                plugins.RemoveAt(i);
+                ForgetDisabledPlugin(id);
+                disabledPlugins.PushBack(Move(entry));
+                return true;
+            }
+            return false;
+        }
+
+        /// Turns plugin `id` on and answers its entry: the enabled one when there is one, else the
+        /// entry kept when it was turned off (its settings back), else a new entry with defaults.
+        foundation::runtime::EnabledPlugin& EnablePlugin(StringView id)
+        {
+            if (foundation::runtime::EnabledPlugin* entry = FindPlugin(id))
+                return *entry;
+            for (usize i = 0; i < disabledPlugins.Size(); ++i)
+            {
+                if (disabledPlugins[i].id.AsView() == id)
+                {
+                    plugins.PushBack(Move(disabledPlugins[i]));
+                    disabledPlugins.RemoveAt(i);
+                    return plugins[plugins.Size() - 1];
+                }
+            }
+            foundation::runtime::EnabledPlugin entry;
+            entry.id = String(id);
+            plugins.PushBack(Move(entry));
+            return plugins[plugins.Size() - 1];
+        }
+
+        /// Drops the entry kept for plugin `id` while it was off, if any.
+        void ForgetDisabledPlugin(StringView id)
+        {
+            for (usize i = disabledPlugins.Size(); i-- > 0;)
+            {
+                if (disabledPlugins[i].id.AsView() == id)
+                    disabledPlugins.RemoveAt(i);
+            }
         }
 
         /// The player's window in a few words: "1280 × 720, windowed", "1280 × 720, fullscreen",
@@ -383,6 +446,7 @@ export namespace engine::project
             }
             SerializeAppended(ar, "mcpFolders", mcpFolders);
             SerializeAppended(ar, "presentMode", presentMode);
+            SerializeAppended(ar, "disabledPlugins", disabledPlugins);
             if (!nativeModule.IsEmpty())
             {
                 foundation::runtime::EnabledPlugin entry = NativeModulePackageEntry(nativeModule.AsView());
