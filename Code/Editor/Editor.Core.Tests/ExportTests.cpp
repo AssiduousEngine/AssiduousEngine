@@ -3713,7 +3713,7 @@ TEST_CASE("export: a script using a plugin's type is refused on a platform the p
     NukeTree(projectDir.AsView());
     NukeTree(toolDir.AsView());
     NukeTree(outRoot.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Script Plugins", {}).IsOk()); // the beacon plugin alone
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Script Plugins").IsOk()); // AngelScript, its language
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
     foundation::runtime::EnabledPlugin entry;
@@ -3743,7 +3743,10 @@ TEST_CASE("export: a script using a plugin's type is refused on a platform the p
     REQUIRE(CreateDirectory(toolDir.AsView()));
     foundation::vfs::NativeFileSystem toolFs(toolDir.AsView(), foundation::core::DefaultAllocator());
     SaveText(toolFs, GetExecutableName(u8"Engine.Player").AsView(), u8"#!player\n");
-    SaveText(toolFs, u8"Engine.Player.plugins", Format(u8"{}|{}\n", StringView(kBeaconPlugin), package).AsView());
+    // The template carries the beacon plugin and the scripts' language, so the export gets as far as the scripts.
+    const String angelscript = PathJoin(PathParent(TestDataRoot()), u8"Code/Plugins/AngelScript");
+    SaveText(toolFs, u8"Engine.Player.plugins",
+             Format(u8"{}|{}\nangelscript|{}\n", StringView(kBeaconPlugin), package, angelscript).AsView());
     editor::TemplateRegistry registry;
     registry.Refresh(StringView{}, nullptr, toolDir.AsView(), &toolFs); // the host template, which carries the plugin
     editor::ExportPreset preset;
@@ -3906,67 +3909,91 @@ TEST_CASE("export: the editor's Android SDK and JDK stand in for the environment
     editor::ApplyExportToolEnvironment(none, was);
 }
 
-namespace
+// A built player's configure: each script language on where the project enables it and off
+// elsewhere, the plugins' definitions, and a name an earlier configure was given dropped when it is
+// not given now (a project that took C# out, say).
+TEST_CASE("export: a built player is configured with the project's languages and the plugins' definitions, dropping old ones")
 {
-    // C#'s project build as the export sees it: its project file's extension (the build itself is
-    // not run here).
-    class StandInCSharpProjects final : public pipeline::IScriptAssemblyCook
+    const String enabled[] = {String(u8"particles"), String(u8"angelscript")};
+    const String definitions[] = {String(u8"-DGAME_CODE=/game"), String(u8"-DGAME_EXTRA=1")};
+    const auto has = [](const editor::detail::PlayerBuildArguments& built, StringView arg)
     {
-    public:
-        [[nodiscard]] StringView ProjectExtension() const override { return u8"csproj"; }
-        [[nodiscard]] StringView SourceExtension() const override { return u8"cs"; }
-        [[nodiscard]] bool Build(StringView, StringView, Span<const pipeline::ScriptAssemblyFile>, pipeline::CookScriptErrorSink&,
-                                 foundation::script::ScriptAssemblySource&) override
+        bool found = false;
+        for (const String& a : built.arguments)
         {
-            return false;
+            found = found || a.AsView() == arg;
         }
-        [[nodiscard]] String NewProjectTemplate(StringView) const override { return String{}; }
+        return found;
     };
+    editor::detail::PlayerBuildArguments built =
+        editor::detail::PlayerBuildArgumentsFor(Span<const String>(enabled, 2), Span<const String>(definitions, 2), {});
+    CHECK(has(built, u8"-DOPTION_ENABLE_ANGELSCRIPT=ON"));
+    CHECK(has(built, u8"-DOPTION_ENABLE_LUAU=OFF"));
+    CHECK(has(built, u8"-DOPTION_ENABLE_DOTNET=OFF"));
+    CHECK(has(built, u8"-DGAME_CODE=/game"));
+    CHECK(has(built, u8"-DGAME_EXTRA=1"));
+    CHECK(built.given == StringView(u8"GAME_CODE\nGAME_EXTRA\n"));
+
+    // The next configure gives GAME_CODE alone: GAME_EXTRA is dropped from the cache.
+    built = editor::detail::PlayerBuildArgumentsFor(Span<const String>(enabled, 2), Span<const String>(definitions, 1),
+                                                    u8"GAME_CODE\nGAME_EXTRA\n");
+    CHECK(has(built, u8"-UGAME_EXTRA"));
+    CHECK_FALSE(has(built, u8"-UGAME_CODE"));
+    CHECK(built.given == StringView(u8"GAME_CODE\n"));
 }
 
-// A project with C# runs it compiled into its own player: the export's choice is a built player
-// (so a template export is refused and told to export natively), its C# folder the one holding the
-// project file, on the desktop and the web; two C# projects or an Android preset are refused with the reason.
-TEST_CASE("export: a project with C# needs its own player")
+// A plugin's player hook decides whether a project needs a player of its own (a language compiled
+// into it): the export asks it with the plugins enabled on the platform, builds the player when it
+// says so, with its definitions, and refuses with its name when it refuses.
+TEST_CASE("export: a plugin's player hook chooses a player of the project's own, or refuses")
 {
-    pipeline::ScriptAssemblyCookRegistry::Get().Register(String(u8"csharp"), MakeUnique<StandInCSharpProjects>(DefaultAllocator()));
-    const String projectDir = TempDir(u8"scratch_export_csharp_proj");
+    const String projectDir = TempDir(u8"scratch_export_player_hook_proj");
     NukeTree(projectDir.AsView());
-    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"CSharp Export", {}).IsOk());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Player Hook", {}).IsOk());
     UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
     REQUIRE(project);
+    foundation::runtime::EnabledPlugin entry;
+    entry.id = String(u8"particles"); // an official plugin, found in the engine's checkout
+    project->Settings().plugins.PushBack(Move(entry));
     editor::ExportTemplate tmpl;
     tmpl.id = String(u8"test-template");
+    tmpl.plugins.PushBack(editor::TemplatePlugin{String(u8"particles"), String(u8"9.9.9")}); // carried: no build for it
     const StringView host = GetHostPlatformName();
 
-    // No C#: the template's player.
-    String folder;
-    String refusal;
-    CHECK_FALSE(editor::detail::FindScriptProjectFolder(*project, folder, refusal));
-    CHECK_FALSE(editor::detail::ChoosePlayer(*project, tmpl, host).build);
+    // No hook: the template's player.
+    editor::ExportPluginServices services(DefaultAllocator());
+    CHECK_FALSE(editor::detail::ChoosePlayer(*project, tmpl, host, &services).build);
 
-    const String sources = PathJoin(projectDir.AsView(), u8"Sources");
-    REQUIRE(CreateDirectories(PathJoin(sources.AsView(), u8"Game/Actors").AsView()));
-    REQUIRE(CreateDirectories(PathJoin(sources.AsView(), u8"Game/bin").AsView()));
-    foundation::vfs::NativeFileSystem sourceFs(sources.AsView(), foundation::core::DefaultAllocator());
-    SaveText(sourceFs, u8"Game/Game.csproj", u8"<Project />");
-    SaveText(sourceFs, u8"Game/bin/Copy.csproj", u8"<Project />"); // an IDE's build output: not a project
-    SaveText(sourceFs, u8"Game/Actors/Mover.cs", u8"public class Mover {}");
-    REQUIRE(editor::detail::FindScriptProjectFolder(*project, folder, refusal));
-    CHECK(refusal.IsEmpty());
-    CHECK(folder == PathJoin(sources.AsView(), u8"Game"));
-    editor::detail::PlayerChoice choice = editor::detail::ChoosePlayer(*project, tmpl, host);
+    String askedWith;
+    bool refuse = false;
+    REQUIRE(services.AddPlayerHook(u8"compiled", [&](const editor::PlayerHookContext& context)
+                                   {
+                                       askedWith.Clear();
+                                       for (const String& id : context.enabled)
+                                       {
+                                           askedWith.Append(id.AsView());
+                                       }
+                                       editor::PlayerNeed need;
+                                       if (refuse)
+                                       {
+                                           need.refusal = String(u8"not here");
+                                           return need;
+                                       }
+                                       need.build = true;
+                                       need.reason = String(u8"its code is compiled in");
+                                       need.definitions.PushBack(String(u8"-DGAME_CODE=/game"));
+                                       return need;
+                                   }));
+    editor::detail::PlayerChoice choice = editor::detail::ChoosePlayer(*project, tmpl, host, &services);
+    CHECK(askedWith == StringView(u8"particles")); // asked with the plugins enabled there
     CHECK(choice.refusal.IsEmpty());
     CHECK(choice.build);
-    CHECK(choice.reason.AsView().Contains(u8"C#"));
+    CHECK(choice.reason == StringView(u8"its code is compiled in"));
+    REQUIRE(choice.definitions.Size() == 1u);
+    CHECK(choice.definitions[0] == StringView(u8"-DGAME_CODE=/game"));
 
-    // Not on Android; on the web, a built player as on the desktop.
-    CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Android64").refusal.AsView().Contains(u8"Android"));
-    CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Web").build);
-
-    // Two C# projects: a player compiles one in.
-    SaveText(sourceFs, u8"Tools.csproj", u8"<Project />");
-    CHECK(editor::detail::ChoosePlayer(*project, tmpl, host).refusal.AsView().Contains(u8"2 C# projects"));
+    refuse = true;
+    CHECK(editor::detail::ChoosePlayer(*project, tmpl, host, &services).refusal == StringView(u8"compiled: not here"));
 
     project.Reset();
     NukeTree(projectDir.AsView());

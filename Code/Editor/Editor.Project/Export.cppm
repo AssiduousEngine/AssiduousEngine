@@ -124,20 +124,33 @@ export namespace editor
         // does not support, or a plugin in no package the export can find (the project's, the
         // template's, the engine checkout's). `enabled` is the plugins enabled there. Defined in
         // ExportImpl.cpp.
+        // `definitions` configure a built player (`-DNAME=VALUE`), from the plugins' player hooks.
         struct PlayerChoice
         {
             bool build = false;
             foundation::core::String reason;
             foundation::core::String refusal;
             foundation::core::Array<foundation::core::String> enabled;
+            foundation::core::Array<foundation::core::String> definitions;
         };
-        // The folder of the project's C# project (its .csproj, the one a player compiles in), absolute,
-        // into `folder`: true when the project has C#. More than one project sets `refusal`. Defined
-        // in ExportImpl.cpp.
-        [[nodiscard]] bool FindScriptProjectFolder(const EditorProject& project, foundation::core::String& folder,
-                                                   foundation::core::String& refusal);
-        [[nodiscard]] PlayerChoice ChoosePlayer(const EditorProject& project, const ExportTemplate& tmpl,
-                                                foundation::core::StringView platform);
+        // A built player's configure arguments past the engine's own: each script language's build
+        // option, on where the project enables the language (`enabled`), the plugins' player
+        // `definitions`, and -U for each name the tree was given before (`earlier`, the names one to
+        // a line) and is not now. `given` is what to remember for the next one. Defined in
+        // ExportImpl.cpp.
+        struct PlayerBuildArguments
+        {
+            foundation::core::Array<foundation::core::String> arguments;
+            foundation::core::String given;
+        };
+        [[nodiscard]] PlayerBuildArguments PlayerBuildArgumentsFor(foundation::core::Span<const foundation::core::String> enabled,
+                                                                   foundation::core::Span<const foundation::core::String> definitions,
+                                                                   foundation::core::StringView earlier);
+        // `hooks`, when given, are the loaded plugins' player hooks (ExportPluginServices), asked with
+        // the plugins enabled on `platform`.
+        [[nodiscard]] PlayerChoice ChoosePlayer(EditorProject& project, const ExportTemplate& tmpl,
+                                                foundation::core::StringView platform,
+                                                const ExportPluginServices* hooks = nullptr);
 
         // The types of the plugins `plugins` loaded that the project does not enable on `platform`
         // (appended to `hidden`) and their ids, quoted and comma separated (appended to `names`):

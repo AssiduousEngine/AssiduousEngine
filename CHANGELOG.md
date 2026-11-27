@@ -60,6 +60,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - C# is an official plugin as well, `csharp`, on Linux, Windows and the web (not Android). A
   project written before (data version 18 or older) whose scripts are C#, or that has a `.csproj`
   under its Code folder, enables it as it opens; Holdout does.
+- An export refuses a script whose language's plugin the project does not enable on the preset's
+  platform (C# on Android, for one), naming the script and the plugin. A player built for a native
+  export builds only the script languages the project enables there.
 - The engine builds with no script language: switching off AngelScript, Luau and C# is allowed, and
   a game whose logic is native behaviors reads, runs and cooks without one.
 - Navigation is an official plugin, `navigation`: a project enables it in its plugins list, and its

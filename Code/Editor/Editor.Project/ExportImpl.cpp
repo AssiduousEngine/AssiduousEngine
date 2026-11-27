@@ -1192,64 +1192,57 @@ namespace editor
         return {};
     }
 
-    bool detail::FindScriptProjectFolder(const EditorProject& project, String& folder, String& refusal)
+    detail::PlayerBuildArguments detail::PlayerBuildArgumentsFor(Span<const String> enabled, Span<const String> definitions,
+                                                                 StringView earlier)
     {
-        folder.Clear();
-        refusal.Clear();
-        const String sources = project.SourcesRoot();
-        vfs::NativeFileSystem sourceFs(sources.AsView(), editor::EditorRootAllocator());
-        project.AddCodeFolder(sourceFs); // where a project's C# lives
-        // A project file of a language whose classes build together (C#'s .csproj).
-        Array<String> found;
-        const StringView extensions[] = {u8"csproj"};
-        for (const StringView extension : extensions)
+        PlayerBuildArguments out;
+        // The script languages the project enables here, and no other: a language is built only for a
+        // game that runs it (C# would otherwise need .NET's SDK for every native export).
+        for (const ProjectSettings::LanguageBecamePlugin& language : ProjectSettings::kLanguagesBecamePlugins)
         {
-            if (pipeline::ScriptAssemblyCookRegistry::Get().LanguageOfProject(extension).IsEmpty())
+            bool on = false;
+            for (const String& id : enabled)
             {
-                continue;
+                on = on || id == language.id;
             }
-            for (String& file : pipeline::ListSourcesUnder(sourceFs, StringView{}, extension))
+            out.arguments.PushBack(Format(u8"-D{}={}", language.buildOption, on ? StringView(u8"ON") : StringView(u8"OFF")));
+        }
+        // The plugins' definitions, each name remembered, so a name given before and not now (C# taken
+        // out of the project) is dropped from the tree's cache instead of lingering in the player.
+        Array<String> names;
+        for (const String& definition : definitions)
+        {
+            const StringView text = definition.AsView();
+            const usize equals = text.Find(u8"=");
+            names.PushBack(String(text.SubStr(2, (equals == StringView::kNotFound ? text.Size() : equals) - 2)));
+            out.arguments.PushBack(definition);
+            out.given.Append(names.Back().AsView());
+            out.given.Append(u8"\n");
+        }
+        usize at = 0;
+        while (at < earlier.Size())
+        {
+            usize end = earlier.Find(u8"\n", at);
+            end = end == StringView::kNotFound ? earlier.Size() : end;
+            const StringView name = Trim(earlier.SubStr(at, end - at));
+            bool given = name.IsEmpty();
+            for (const String& now : names)
             {
-                found.PushBack(Move(file));
+                given = given || now.AsView() == name;
             }
+            if (!given)
+            {
+                out.arguments.PushBack(Format(u8"-U{}", name));
+            }
+            at = end + 1;
         }
-        if (found.IsEmpty())
-        {
-            return false;
-        }
-        if (found.Size() > 1)
-        {
-            refusal = Format(u8"the project has {} C# projects ({} and {}): a player compiles one in", found.Size(), found[0],
-                             found[1]);
-            return true;
-        }
-        folder = project.SourceFile(PathParent(found[0].AsView()));
-        return true;
+        return out;
     }
 
-    detail::PlayerChoice detail::ChoosePlayer(const EditorProject& project, const ExportTemplate& tmpl, StringView platform)
+    detail::PlayerChoice detail::ChoosePlayer(EditorProject& project, const ExportTemplate& tmpl, StringView platform,
+                                              const ExportPluginServices* hooks)
     {
         PlayerChoice choice;
-        // C# runs compiled into the game's own player.
-        {
-            String folder;
-            String refusal;
-            if (FindScriptProjectFolder(project, folder, refusal))
-            {
-                if (!refusal.IsEmpty())
-                {
-                    choice.refusal = Move(refusal);
-                    return choice;
-                }
-                if (IsAndroidPlatform(platform))
-                {
-                    choice.refusal = String(u8"C# does not run on Android");
-                    return choice;
-                }
-                choice.build = true;
-                choice.reason = String(u8"the project's C# is compiled into its player");
-            }
-        }
         for (const foundation::runtime::EnabledPlugin& entry : project.Settings().plugins)
         {
             foundation::runtime::PluginManifest manifest;
@@ -1300,6 +1293,59 @@ namespace editor
                 choice.reason = Format(u8"template '{}' carries plugin '{}' {}, older than {}", tmpl.id, entry.id,
                                        carried->version, manifest.version);
             }
+        }
+        // A script runs only where its language's plugin is enabled: one in a language the project
+        // does not enable on this platform (C# on Android, which the csharp manifest leaves out) could
+        // not run in the game the export makes.
+        {
+            Array<foundation::content::Instance*> instances;
+            CollectAllInstances(*project.SourceDb().RootGroup(), instances);
+            const StringView scriptType(reinterpret_cast<const utf8char*>(pipeline::ScriptClassAsset::StaticType().name));
+            for (foundation::content::Instance* instance : instances)
+            {
+                if (instance->TypeName() != scriptType)
+                {
+                    continue;
+                }
+                const RefPtr<ISerializable> object = instance->ReadObject();
+                const auto* script = Cast<pipeline::ScriptClassAsset>(object.Get());
+                const StringView language =
+                    script == nullptr || script->language.IsEmpty() ? StringView(u8"angelscript") : script->language.AsView();
+                bool isPlugin = false;
+                for (const ProjectSettings::LanguageBecamePlugin& official : ProjectSettings::kLanguagesBecamePlugins)
+                {
+                    isPlugin = isPlugin || official.id == language;
+                }
+                bool enabledHere = false;
+                for (const String& id : choice.enabled)
+                {
+                    enabledHere = enabledHere || id == language;
+                }
+                if (isPlugin && !enabledHere)
+                {
+                    choice.refusal = Format(u8"script '{}' is written in {}, and the project does not enable plugin '{}' on {}",
+                                            instance->Name(), language, language, platform);
+                    return choice;
+                }
+            }
+        }
+        // What the loaded plugins' player hooks say for the plugins enabled here (a language compiled
+        // into the player, C# for one), which a template's player cannot be.
+        if (hooks != nullptr)
+        {
+            PlayerNeed need = hooks->AskPlayer(PlayerHookContext{&project, platform,
+                                                                 Span<const String>(choice.enabled.Data(), choice.enabled.Size())});
+            if (!need.refusal.IsEmpty())
+            {
+                choice.refusal = Move(need.refusal);
+                return choice;
+            }
+            if (need.build && !choice.build)
+            {
+                choice.build = true;
+                choice.reason = Move(need.reason);
+            }
+            choice.definitions = Move(need.definitions);
         }
         return choice;
     }
@@ -1353,8 +1399,9 @@ namespace editor
         // the editor or CLI from a shell with emsdk_env.sh sourced), with a lower -j (wasm-ld with
         // ASYNCIFY uses a lot of memory); the output is the html, js and wasm trio under the
         // template basename.
-        [[nodiscard]] Status BuildShipPlayer(EditorProject& project, StringView config, bool web,
-                                             const ExportProgress& onProgress, String& outPlayer)
+        [[nodiscard]] Status BuildShipPlayer(EditorProject& project, StringView config, bool web, Span<const String> enabled,
+                                             Span<const String> definitions, const ExportProgress& onProgress,
+                                             String& outPlayer)
         {
             const StringView engineRoot =
                 StringView(reinterpret_cast<const char8_t*>(BUILDSYSTEM_ENGINE_ROOT));
@@ -1422,58 +1469,36 @@ namespace editor
             // Web: the toolchain file selects the compiler (never pin clang++ under it).
             const StringView compilerOrToolchain =
                 web ? toolchainDef.AsView() : defCompiler.AsView();
-            // The game's C#, compiled into the player (OPTION_ENABLE_DOTNET builds the backend), or
-            // none: an empty folder clears what an earlier configure of this tree set.
-            String csharpFolder;
-            String csharpRefusal;
-            (void)detail::FindScriptProjectFolder(project, csharpFolder, csharpRefusal);
-            const String defCSharp = Format(u8"-DENGINE_PROJECT_CSHARP={}", csharpFolder);
-            const StringView defDotNet = csharpFolder.IsEmpty() ? StringView(u8"-DOPTION_ENABLE_DOTNET=OFF")
-                                                                : StringView(u8"-DOPTION_ENABLE_DOTNET=ON");
-            // The web compiles the C# with NativeAOT-LLVM: under the emsdk its bitcode is built with,
-            // against the bindings this editor's build generated (the web build cannot run the tool).
-            String defBindings(u8"-DDOTNET_BINDINGS=");
-            String defDotNetEmsdk(u8"-DDOTNET_EMSDK=");
-            if (web && !csharpFolder.IsEmpty())
+            const StringView fixedArgs[] = {u8"-S", engineRoot, u8"-B", shipDir.AsView(), u8"-G", u8"Ninja", compilerOrToolchain,
+                                            defBuildType.AsView(), defPackages.AsView(), defSuffix.AsView()};
+            Array<StringView> cfgArgs;
+            for (const StringView arg : fixedArgs)
             {
-                const String bindings = PathJoin(PathParent(ExecutablePath().AsView()), u8"DotNet/Engine.g.cs");
-                const Optional<String> fromEnvironment = GetEnvironmentVariable(u8"DOTNET_EMSDK");
-                const Optional<String> home = GetEnvironmentVariable(u8"HOME");
-                const String dotnetEmsdk = fromEnvironment.HasValue() ? fromEnvironment.Value()
-                                           : home.HasValue()          ? PathJoin(home.Value().AsView(), u8"emsdk-3.1.56")
-                                                                      : String{};
-                if (!FileExists(bindings.AsView()))
-                {
-                    LOG_ERROR(u8"Export", u8"C# for the web needs the C# bindings this editor's build generates, at '{}' - not found "
-                                          u8"(an editor built with OPTION_ENABLE_DOTNET has them)",
-                              bindings);
-                    return Status{ErrorCode::NotFound};
-                }
-                if (dotnetEmsdk.IsEmpty() || !FileExists(PathJoin(dotnetEmsdk.AsView(), u8"emsdk_env.sh").AsView()))
-                {
-                    LOG_ERROR(u8"Export", u8"C# for the web needs emsdk 3.1.56 (the one NativeAOT-LLVM builds with), at '{}' or "
-                                          u8"where DOTNET_EMSDK says - not found",
-                              dotnetEmsdk);
-                    return Status{ErrorCode::NotFound};
-                }
-                defBindings += bindings;
-                defDotNetEmsdk += dotnetEmsdk;
+                cfgArgs.PushBack(arg);
             }
-            const StringView cfgArgs[] = {u8"-S",       engineRoot,
-                                          u8"-B",       shipDir.AsView(),
-                                          u8"-G",       u8"Ninja",
-                                          compilerOrToolchain,   defBuildType.AsView(),
-                                          defPackages.AsView(),  defSuffix.AsView(),
-                                          defCSharp.AsView(),    defDotNet,
-                                          defBindings.AsView(),  defDotNetEmsdk.AsView()};
+            // The languages the project enables here and the plugins' player definitions, and what an
+            // earlier configure of this tree was given that this one is not, dropped from its cache.
+            const String givenFile = PathJoin(shipDir.AsView(), u8"plugin-definitions.txt");
+            String earlier;
+            if (Result<Array<byte>> bytes = ReadFile(givenFile.AsView()); bytes.HasValue())
+            {
+                earlier = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+            }
+            const detail::PlayerBuildArguments playerArgs = detail::PlayerBuildArgumentsFor(enabled, definitions, earlier.AsView());
+            for (const String& arg : playerArgs.arguments)
+            {
+                cfgArgs.PushBack(arg.AsView());
+            }
             const ProcessResult configured =
-                RunProcess(cmakePath, Span<const StringView>(cfgArgs, 14));
+                RunProcess(cmakePath, Span<const StringView>(cfgArgs.Data(), cfgArgs.Size()));
             if (!configured.Ok())
             {
                 LOG_ERROR(u8"Export", u8"native ship configure failed ({}):\n{}",
                           configured.exitCode, configured.output);
                 return Status{ErrorCode::Internal};
             }
+            (void)WriteFile(givenFile.AsView(),
+                            Span<const byte>(reinterpret_cast<const byte*>(playerArgs.given.Data()), playerArgs.given.Size()));
 
             if (onProgress)
             {
@@ -2024,7 +2049,7 @@ namespace editor
         detail::PlayerChoice choice;
         if (tmpl != nullptr)
         {
-            choice = detail::ChoosePlayer(project, *tmpl, preset.platform.AsView());
+            choice = detail::ChoosePlayer(project, *tmpl, preset.platform.AsView(), plugins.hooks);
         }
         if (choice.refusal.IsEmpty() && preset.kind == ExportKind::Template && choice.build)
         {
@@ -2348,6 +2373,8 @@ namespace editor
         if (nativeShip)
         {
             const Status shipStatus = BuildShipPlayer(project, preset.config.AsView(), nativeWeb,
+                                                      Span<const String>(choice.enabled.Data(), choice.enabled.Size()),
+                                                      Span<const String>(choice.definitions.Data(), choice.definitions.Size()),
                                                       onProgress, shipPlayerPath);
             if (!shipStatus.IsOk())
             {

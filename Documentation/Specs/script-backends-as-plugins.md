@@ -118,10 +118,15 @@ each of these:
    language.
 5. **The C# player.**
    - The `csharp` plugin answers whether a project needs its own player, through a hook the export
-     asks before it chooses (decision 2).
+     asks before it chooses (decision 2). The hook also gives the player's build its configuration
+     (the project's C# folder; the bindings and the emsdk on the web).
    - Its build owns `dotnet_link_compiled_runtime`.
-   - Its manifest's `platforms` leaves out Android, so the export's existing check refuses C# there.
-     That replaces the special case in `ChoosePlayer`.
+   - Its manifest's `platforms` leaves out Android. A plugin enabled with no platforms of its own is
+     only not enabled where its manifest lacks the platform, so the manifest alone refuses nothing:
+     the export refuses a script whose language's plugin the project does not enable on the
+     preset's platform. That replaces the special case in `ChoosePlayer`.
+   - A player built for a project builds the languages the project enables there, and no other, so a
+     native export of a game without C# does not need .NET's SDK.
 6. **The cook recipe.** A language plugin's version joins its cook recipe, so updating a VM
    recooks its scripts. A cooked AngelScript product already names the facade surface it was built
    against.

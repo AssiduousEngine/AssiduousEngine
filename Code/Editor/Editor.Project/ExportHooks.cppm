@@ -4,10 +4,13 @@
 // Editor::Project - :export_hooks partition.
 //
 // What a plugin's Tooling part adds to an export, through the service its host provides
-// (PluginContext::Find<ExportPluginServices>): hooks that run once a preset's dist is staged, for
-// what a plugin's data cannot say (a platform's own packaging step, a file written from the
-// project's settings). A hook that fails fails the export, with its reason. The service records what
-// each plugin added, so the plugin host's unload takes it out again.
+// (PluginContext::Find<ExportPluginServices>), for what a plugin's data cannot say:
+//   - hooks that run once a preset's dist is staged (a platform's own packaging step, a file written
+//     from the project's settings); a hook that fails fails the export, with its reason;
+//   - player hooks, asked before the export chooses its player: whether the project needs one of its
+//     own (a language compiled into it), why not at all, and what that player's build is configured
+//     with.
+// The service records what each plugin added, so the plugin host's unload takes it out again.
 
 module;
 #include "Core/Prelude.h"
@@ -36,10 +39,33 @@ export namespace editor
     /// fails the export.
     using ExportHook = Function<String(const ExportHookContext&)>;
 
+    /// What a player hook is asked: the project, the platform the export is for and the plugins the
+    /// project enables there.
+    struct PlayerHookContext
+    {
+        const EditorProject* project = nullptr;
+        StringView platform;
+        Span<const String> enabled;
+    };
+
+    /// A player hook's answer: whether the project needs its own player there and why; why it cannot
+    /// be exported there at all (empty when it can); and the CMake definitions that player's build is
+    /// configured with (`-DNAME=VALUE`), which a later build of the same tree drops when they are
+    /// not given again.
+    struct PlayerNeed
+    {
+        bool build = false;
+        String reason;
+        String refusal;
+        Array<String> definitions;
+    };
+
+    using PlayerHook = Function<PlayerNeed(const PlayerHookContext&)>;
+
     class ExportPluginServices final : public foundation::runtime::IRegistrationRecorder
     {
     public:
-        explicit ExportPluginServices(IAllocator& allocator) : m_hooks(allocator) {}
+        explicit ExportPluginServices(IAllocator& allocator) : m_hooks(allocator), m_playerHooks(allocator) {}
         ~ExportPluginServices() override = default;
 
         ExportPluginServices(const ExportPluginServices&) = delete;
@@ -76,6 +102,52 @@ export namespace editor
 
         [[nodiscard]] usize Count() const noexcept { return m_hooks.Size(); }
 
+        /// Adds a player hook every export asks before it chooses its player. `name` says whose it is
+        /// in a refusal. False for an empty hook.
+        bool AddPlayerHook(StringView name, PlayerHook hook)
+        {
+            if (!hook)
+            {
+                return false;
+            }
+            const u64 token = m_nextToken++;
+            m_playerHooks.PushBack(PlayerEntry{token, String(name), Move(hook)});
+            if (m_sink != nullptr)
+            {
+                m_sink->PushBack(token);
+            }
+            return true;
+        }
+
+        [[nodiscard]] usize PlayerHookCount() const noexcept { return m_playerHooks.Size(); }
+
+        /// Every player hook's answer together: the first refusal as "<name>: <refusal>", a player of
+        /// its own when any needs one (the first reason), and every definition, in the order the hooks
+        /// were added.
+        [[nodiscard]] PlayerNeed AskPlayer(const PlayerHookContext& context) const
+        {
+            PlayerNeed combined;
+            for (const PlayerEntry& entry : m_playerHooks)
+            {
+                PlayerNeed need = entry.hook(context);
+                if (!need.refusal.IsEmpty())
+                {
+                    combined.refusal = Format(u8"{}: {}", entry.name, need.refusal);
+                    return combined;
+                }
+                if (need.build && !combined.build)
+                {
+                    combined.build = true;
+                    combined.reason = Move(need.reason);
+                }
+                for (String& definition : need.definitions)
+                {
+                    combined.definitions.PushBack(Move(definition));
+                }
+            }
+            return combined;
+        }
+
         /// Runs every hook over a staged dist; the first failure as "<name>: <reason>", or empty.
         [[nodiscard]] String Run(const ExportHookContext& context) const
         {
@@ -105,6 +177,14 @@ export namespace editor
                     return;
                 }
             }
+            for (usize i = 0; i < m_playerHooks.Size(); ++i)
+            {
+                if (m_playerHooks[i].token == id)
+                {
+                    m_playerHooks.RemoveAt(i);
+                    return;
+                }
+            }
         }
 
     private:
@@ -115,7 +195,15 @@ export namespace editor
             ExportHook hook;
         };
 
+        struct PlayerEntry
+        {
+            u64 token;
+            String name;
+            PlayerHook hook;
+        };
+
         Array<Entry> m_hooks;
+        Array<PlayerEntry> m_playerHooks;
         Array<TypeId>* m_sink = nullptr;
         u64 m_nextToken = 1;
     };
