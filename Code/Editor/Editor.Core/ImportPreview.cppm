@@ -132,6 +132,14 @@ export namespace editor
             if (factory && factory->AssetType() != nullptr)
                 m_factories.PushBack(Move(factory));
         }
+        /// Removes the previews registered for `type` (the plugin that owns it unloading); a
+        /// preview already made keeps what it read.
+        void Remove(const TypeInfo& type)
+        {
+            for (usize i = m_factories.Size(); i-- > 0;)
+                if (m_factories[i]->AssetType() == &type)
+                    m_factories.RemoveAt(i);
+        }
 
         /// The factory for `type`'s nearest registered type along its base chain; null when none.
         [[nodiscard]] IImportPreviewFactory* Find(const TypeInfo& type) const

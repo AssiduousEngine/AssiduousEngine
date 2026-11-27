@@ -168,6 +168,12 @@ TEST_CASE("editor-import-previews: the nearest type's preview, found by the type
     REQUIRE(registry.FindByName(derivedName) != nullptr);
     CHECK(registry.FindByName(derivedName)->AssetType() == &DerivedAsset::StaticType());
     CHECK(registry.FindByName(u8"NoSuchAssetType") == nullptr);
+
+    // A plugin's preview goes as it unloads: its type falls back to the nearest base's again.
+    registry.Remove(DerivedAsset::StaticType());
+    REQUIRE(registry.Find(DerivedAsset::StaticType()) != nullptr);
+    CHECK(registry.Find(DerivedAsset::StaticType())->AssetType() == &BaseAsset::StaticType());
+    CHECK(registry.Size() == 1u);
 }
 
 TEST_CASE("editor-context: the editor's long work runs on the context's pool, its completion in Pump; a cancelled task's never")
