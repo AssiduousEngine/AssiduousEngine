@@ -41,7 +41,7 @@ import angelscript.foundation;
 import luau.foundation;
 #endif
 #if defined(INTEGRATION_HAS_DOTNET)
-import foundation.script.dotnet;
+import csharp.foundation;
 #endif
 
 using namespace foundation::core;
@@ -201,7 +201,7 @@ namespace
             luau::RegisterLuauScriptBackend();
 #endif
 #if defined(INTEGRATION_HAS_DOTNET)
-            foundation::script::dotnet::RegisterDotNetScriptBackend();
+            csharp::RegisterDotNetScriptBackend();
 #endif
             RegisterCoreTypes();
             RegisterBehaviorComponentReflection();
@@ -215,7 +215,7 @@ namespace
             // C# later, so it starts on one that lives as long as the process, as a game's and the
             // editor's do (the measures' managers each count over a shorter-lived one); and after
             // the types are reflected, which it reads when it starts.
-            (void)foundation::script::dotnet::ProcessRuntime(DefaultAllocator());
+            (void)csharp::ProcessRuntime(DefaultAllocator());
 #endif
             return true;
         }();
@@ -590,7 +590,7 @@ namespace
             return context.LoadBehaviorModule(Span<const BehaviorModuleClass>{&bench, 1}, u8"bench").IsOk();
         };
         foundation::script::benchmark::RunScriptBackendBenchmark(
-            [](IAllocator& allocator) { return foundation::script::dotnet::CreateDotNetScriptManager(allocator); }, dialect);
+            [](IAllocator& allocator) { return csharp::CreateDotNetScriptManager(allocator); }, dialect);
     }
 }
 
@@ -608,7 +608,7 @@ TEST_CASE("script scene: the scene measures in C#" * doctest::skip())
     {
         const Array<byte> image = CSharpBench(folders[i]);
         Behaviours in;
-        in.language = foundation::script::dotnet::kCSharpLanguage;
+        in.language = csharp::kCSharpLanguage;
         in.image = Span<const byte>{image.Data(), image.Size()};
         in.column = labels[i];
         RunSceneMeasures(in);
@@ -649,7 +649,7 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
     {
         const Array<byte> image = CSharpBench(BENCH_CSHARP_DEBUG_DIR);
         BenchScene csharp;
-        csharp.AddScripted(MakeClass(foundation::script::dotnet::kCSharpLanguage, u8"Mover", u8"", Span<const byte>{image.Data(), image.Size()}), 3);
+        csharp.AddScripted(MakeClass(csharp::kCSharpLanguage, u8"Mover", u8"", Span<const byte>{image.Data(), image.Size()}), 3);
         csharp.scene.Start();
         csharp.scene.SetSimulationEnabled(true);
         csharp.Frame();
@@ -660,7 +660,7 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
 
         // A component C# holds as a value: set through its handle, valid while the entity has it.
         BenchScene components;
-        components.AddScripted(MakeClass(foundation::script::dotnet::kCSharpLanguage, u8"Pacer", u8"",
+        components.AddScripted(MakeClass(csharp::kCSharpLanguage, u8"Pacer", u8"",
                                          Span<const byte>{image.Data(), image.Size()}),
                                1);
         components.scene.Start();
@@ -677,7 +677,7 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
 
         // Text arguments in C#: on the call's stack when short, in native memory when long.
         BenchScene names;
-        names.AddScripted(MakeClass(foundation::script::dotnet::kCSharpLanguage, u8"Namer", u8"",
+        names.AddScripted(MakeClass(csharp::kCSharpLanguage, u8"Namer", u8"",
                                     Span<const byte>{image.Data(), image.Size()}),
                           1);
         names.scene.Start();

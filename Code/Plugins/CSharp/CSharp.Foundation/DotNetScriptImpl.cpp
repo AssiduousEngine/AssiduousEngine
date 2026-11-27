@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the C# script backend (see DotNetScript.cppm).
+// CSharp.Foundation - the C# script backend (see DotNetScript.cppm).
 
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-module foundation.script.dotnet;
+module csharp.foundation;
 
 import foundation.core;
 import foundation.script;
 
 using namespace foundation::core;
 
-namespace foundation::script::dotnet
+using namespace foundation::script; // the script core it builds on
+
+namespace csharp
 {
     namespace
     {

@@ -11,7 +11,7 @@
 
 import foundation.core;
 import foundation.script;
-import foundation.script.dotnet;
+import csharp.foundation;
 import foundation.script.facades; // Entity
 
 using namespace foundation::core;
@@ -30,7 +30,7 @@ TEST_CASE("dotnet compiled in: the runtime and the game run without .NET")
     RegisterCoreTypes();
     RegisterScriptFacadeReflection();
 
-    dotnet::DotNetRuntime runtime;
+    csharp::DotNetRuntime runtime;
     const Status started = runtime.Start(DefaultAllocator(), u8"/nowhere"); // no .NET is looked for
     INFO(Text(runtime.Failure()));
     REQUIRE(started.IsOk());
@@ -77,8 +77,8 @@ TEST_CASE("dotnet compiled in: the backend runs a behaviour with its assembly im
 {
     RegisterCoreTypes();
     RegisterScriptFacadeReflection();
-    dotnet::RegisterDotNetScriptBackend();
-    RefPtr<IScriptManager> manager = CreateScriptManagerForLanguage(dotnet::kCSharpLanguage, DefaultAllocator());
+    csharp::RegisterDotNetScriptBackend();
+    RefPtr<IScriptManager> manager = CreateScriptManagerForLanguage(csharp::kCSharpLanguage, DefaultAllocator());
     REQUIRE(manager.Get() != nullptr);
     RefPtr<IScriptContext> context = manager->CreateContext();
     REQUIRE(context.Get() != nullptr);

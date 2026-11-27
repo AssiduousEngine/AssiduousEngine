@@ -9,10 +9,10 @@
 #include <string>
 
 import foundation.core;
-import foundation.script.dotnet;
+import csharp.foundation;
 
 using namespace foundation::core;
-using namespace foundation::script::dotnet;
+using namespace csharp;
 
 namespace
 {

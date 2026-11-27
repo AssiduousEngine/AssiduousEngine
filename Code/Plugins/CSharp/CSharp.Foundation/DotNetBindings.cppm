@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the :bindings partition.
+// CSharp.Foundation - the :bindings partition.
 //
 // The C# source of the engine's bound types, generated from reflection, so the C# side always
 // matches the engine it is built with. A value type (a trivially copied struct of fields: Float3,
@@ -13,13 +13,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.dotnet:bindings;
+export module csharp.foundation:bindings;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace foundation::script::dotnet
+export namespace csharp
 {
     /// The registered value types the generator can bind: trivially copied, no identity, no
     /// reference or container, every property a field whose type is a scalar or another such type.

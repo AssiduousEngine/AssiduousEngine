@@ -11,13 +11,13 @@
 import foundation.core;
 import foundation.runtime;
 import script.pipeline;
-import script.dotnet.pipeline;
+import csharp.pipeline;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext& context)
     {
-        pipeline::RegisterDotNetScriptCook(context.Allocator());
+        csharp::RegisterDotNetScriptCook(context.Allocator());
     }
 
     void Unload(foundation::runtime::PluginContext&)

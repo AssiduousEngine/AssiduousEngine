@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the `:runtime` partition.
+// CSharp.Foundation - the `:runtime` partition.
 //
 // The engine's managed runtime (Engine.Runtime.dll, built beside the binaries under DotNet/) as the
 // engine sees it: started once per process on the installed .NET, it loads an application's assembly from
@@ -11,7 +11,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.dotnet:runtime;
+export module csharp.foundation:runtime;
 
 import foundation.core;
 import :host;
@@ -19,7 +19,7 @@ import :bridge;
 
 using namespace foundation::core;
 
-export namespace foundation::script::dotnet
+export namespace csharp
 {
     /// Where the runtime is looked for: DotNet/ beside the running executable.
     [[nodiscard]] String DefaultRuntimeFolder();

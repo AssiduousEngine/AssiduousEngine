@@ -11,14 +11,14 @@
 #include <string>
 
 import foundation.core;
-import foundation.script.dotnet;
+import csharp.foundation;
 import foundation.script.facades; // Entity
 
 using namespace foundation::core;
 
 // A script context as the runtime knows it: what it loads and finds is its own.
 constexpr u64 kOwner = 1;
-using namespace foundation::script::dotnet;
+using namespace csharp;
 
 namespace
 {

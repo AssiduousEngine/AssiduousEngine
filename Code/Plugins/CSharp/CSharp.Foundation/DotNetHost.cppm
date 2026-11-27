@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the .NET host.
+// CSharp.Foundation - the .NET host.
 //
 // The engine hosts .NET (it is never hosted by it): it finds the installed runtime's hostfxr,
 // starts the runtime from a runtimeconfig.json, and asks for pointers to a C# assembly's
@@ -14,13 +14,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.dotnet:host;
+export module csharp.foundation:host;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-namespace foundation::script::dotnet::detail
+namespace csharp::detail
 {
 #if PLATFORM_WINDOWS
     using HostChar = wchar_t; // hostfxr's char_t
@@ -143,7 +143,7 @@ namespace foundation::script::dotnet::detail
     }
 }
 
-export namespace foundation::script::dotnet
+export namespace csharp
 {
     /// The hostfxr library of the .NET install at `root` (its newest host/fxr version); empty when
     /// `root` holds none.

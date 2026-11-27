@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Pipeline::Script.DotNet - the C# cook (see DotNetScriptCook.cppm).
+// CSharp.Pipeline - the C# cook (see DotNetScriptCook.cppm).
 
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-module script.dotnet.pipeline;
+module csharp.pipeline;
 
 import foundation.core;
 import foundation.script;
 import foundation.script.resource;
-import foundation.script.dotnet;
+import csharp.foundation;
 import script.pipeline;
 import pipeline.importer; // FileNameOf, FileStemOf
 
 using namespace foundation::core;
 using namespace foundation::script;
 
-namespace pipeline
+using namespace pipeline; // its bases
+
+namespace csharp
 {
     namespace
     {
@@ -137,7 +139,7 @@ namespace pipeline
         {
             constexpr utf8char kDigits[] = u8"0123456789abcdef";
             const u64 hash = HashBytes(projectPath.Data(), projectPath.Size());
-            String name(foundation::script::dotnet::kCSharpBuildFolderPrefix); // a stack frame's file is read back by it
+            String name(csharp::kCSharpBuildFolderPrefix); // a stack frame's file is read back by it
             for (i32 shift = 60; shift >= 0; shift -= 4)
                 name.PushBack(kDigits[(hash >> shift) & 0xFu]);
             return PathJoin(GetTempDirectory().AsView(), name.AsView());
@@ -161,7 +163,7 @@ namespace pipeline
             [[nodiscard]] bool Build(StringView projectPath, StringView project, Span<const ScriptAssemblyFile> sources,
                                      CookScriptErrorSink& sink, ScriptAssemblySource& out) override
             {
-                const String dotnetRoot = foundation::script::dotnet::FindDotNetRoot();
+                const String dotnetRoot = csharp::FindDotNetRoot();
                 if (dotnetRoot.IsEmpty())
                     return Refuse(sink, projectPath, u8"no .NET SDK found (set DOTNET_ROOT, or put dotnet on PATH)");
                 const String runtime = EngineRuntimeAssemblyPath();
@@ -214,7 +216,7 @@ namespace pipeline
                     symbols.HasValue())
                     out.symbols = symbols.Value();
 
-                foundation::script::dotnet::DotNetRuntime* dotnetRuntime = foundation::script::dotnet::ProcessRuntime(*m_allocator);
+                csharp::DotNetRuntime* dotnetRuntime = csharp::ProcessRuntime(*m_allocator);
                 if (dotnetRuntime == nullptr)
                     return Refuse(sink, projectPath, u8"the managed runtime did not start, so the classes cannot be described");
                 const Result<String> described = dotnetRuntime->DescribeAssembly(Span<const byte>{out.image.Data(), out.image.Size()});
@@ -403,7 +405,7 @@ namespace pipeline
 
     String EngineRuntimeAssemblyPath()
     {
-        return PathJoin(foundation::script::dotnet::DefaultRuntimeFolder().AsView(), u8"Engine.Runtime.dll");
+        return PathJoin(csharp::DefaultRuntimeFolder().AsView(), u8"Engine.Runtime.dll");
     }
 
     Array<DeclaredScriptClass> ListCSharpClasses(StringView source)
@@ -603,7 +605,7 @@ namespace pipeline
 
     void RegisterDotNetScriptCook(IAllocator& allocator)
     {
-        foundation::script::dotnet::RegisterDotNetScriptBackend();
+        csharp::RegisterDotNetScriptBackend();
         ScriptLanguageCookRegistry::Get().Register(String(kLanguage), MakeUnique<CSharpClassCook>(allocator));
         ScriptAssemblyCookRegistry::Get().Register(String(kLanguage), MakeUnique<CSharpAssemblyCook>(allocator, allocator));
     }

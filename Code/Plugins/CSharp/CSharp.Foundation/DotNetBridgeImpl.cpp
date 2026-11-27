@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the bridge's functions (see DotNetBridge.cppm).
+// CSharp.Foundation - the bridge's functions (see DotNetBridge.cppm).
 
 module;
 #include "Core/Prelude.h"
 #include <cstring>
 #include <new> // std::launder: a typed call's String result
 
-module foundation.script.dotnet;
+module csharp.foundation;
 
 import foundation.core;
 import foundation.scene;          // a component handle's scene and entity (ReadComponentRef)
@@ -16,7 +16,7 @@ import foundation.script.facades; // Entity: what a scene component crosses to C
 
 using namespace foundation::core;
 
-namespace foundation::script::dotnet
+namespace csharp
 {
     namespace
     {

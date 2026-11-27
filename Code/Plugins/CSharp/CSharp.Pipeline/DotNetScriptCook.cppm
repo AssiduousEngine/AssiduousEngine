@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Pipeline::Script.DotNet - the `script.dotnet.pipeline` module (tooling).
+// CSharp.Pipeline - the `csharp.pipeline` module (tooling).
 //
 // The C# cook. A C# project (a .csproj, a ScriptAssemblyAsset) builds with `dotnet build`: every
 // .cs under its folder, against the engine's managed runtime, into one assembly with its debug
@@ -12,7 +12,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module script.dotnet.pipeline;
+export module csharp.pipeline;
 
 import foundation.core;
 import foundation.script;
@@ -22,7 +22,9 @@ import script.pipeline;
 using namespace foundation::core;
 using namespace foundation::script;
 
-export namespace pipeline
+using namespace pipeline; // its bases
+
+export namespace csharp
 {
     /// The engine's managed runtime a project builds against (Engine.Runtime.dll), where the
     /// engine looks for it: DotNet/ beside the running executable.

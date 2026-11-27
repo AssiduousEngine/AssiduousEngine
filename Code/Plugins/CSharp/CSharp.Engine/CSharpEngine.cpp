@@ -10,13 +10,13 @@
 import foundation.core;
 import foundation.runtime;
 import foundation.script;
-import foundation.script.dotnet;
+import csharp.foundation;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext&)
     {
-        foundation::script::dotnet::RegisterDotNetScriptBackend();
+        csharp::RegisterDotNetScriptBackend();
     }
 
     void Unload(foundation::runtime::PluginContext&)

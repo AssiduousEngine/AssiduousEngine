@@ -10,7 +10,7 @@
 
 import foundation.core;
 import foundation.runtime;   // PluginHost, the linked plugins
-import foundation.script.dotnet;
+import csharp.foundation;
 import engine.composition;  // EnginePluginServices: what a plugin's domain registers through
 import engine.project;      // kEngineVersionString
 
@@ -68,7 +68,7 @@ int main(int argc, char** argv)
     const Array<const TypeInfo*> types = GlobalTypeRegistry().All();
     Array<String> leftOut;
     const String source =
-        foundation::script::dotnet::GenerateCSharpBindings(Span<const TypeInfo* const>{types.Data(), types.Size()}, &leftOut);
+        csharp::GenerateCSharpBindings(Span<const TypeInfo* const>{types.Data(), types.Size()}, &leftOut);
     const StringView path(reinterpret_cast<const utf8char*>(argv[1]));
     if (!WriteFile(path, Span<const byte>(reinterpret_cast<const byte*>(source.Data()), source.Size())).IsOk())
     {

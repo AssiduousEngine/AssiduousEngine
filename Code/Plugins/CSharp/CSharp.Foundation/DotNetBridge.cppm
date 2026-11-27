@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the :bridge partition.
+// CSharp.Foundation - the :bridge partition.
 //
 // What C# calls the engine through: one table of C functions, handed to C# at initialisation, the
 // same under CoreCLR and NativeAOT (no symbols exported, no DllImport to resolve). It is generic:
@@ -16,13 +16,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.dotnet:bridge;
+export module csharp.foundation:bridge;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace foundation::script::dotnet
+export namespace csharp
 {
     enum class DotNetValueKind : u32
     {

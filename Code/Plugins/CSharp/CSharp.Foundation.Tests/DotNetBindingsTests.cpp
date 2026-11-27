@@ -9,11 +9,11 @@
 #include <string>
 
 import foundation.core;
-import foundation.script.dotnet;
+import csharp.foundation;
 import foundation.script.facades; // Random, which the probe calls
 
 using namespace foundation::core;
-using namespace foundation::script::dotnet;
+using namespace csharp;
 
 namespace
 {

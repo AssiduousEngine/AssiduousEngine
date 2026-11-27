@@ -20,7 +20,7 @@ import foundation.script.resource; // BehaviorClass (the cooked Game class a run
 import angelscript.foundation;
 import luau.foundation;
 #ifdef OPTION_HAS_DOTNET
-import foundation.script.dotnet; // the C# backend (a Game built into an assembly)
+import csharp.foundation; // the C# backend (a Game built into an assembly)
 #endif
 import foundation.net;         // NetSession queries (IsServer/PeerCount)
 import foundation.net.manager; // NetworkManager (the endpoint the instance owns)
@@ -1135,7 +1135,7 @@ TEST_CASE("game-instance: a C# run behavior starts from its assembly")
 {
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
-    foundation::script::dotnet::RegisterDotNetScriptBackend();
+    csharp::RegisterDotNetScriptBackend();
     const Result<Array<byte>> image =
         ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(CSHARP_TESTGAME_DIR)), u8"TestGame.dll").AsView());
     REQUIRE(image.HasValue());

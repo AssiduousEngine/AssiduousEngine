@@ -15,7 +15,7 @@ import foundation.script;
 import foundation.script.resource;
 import foundation.script.facades;
 import script.pipeline;
-import script.dotnet.pipeline;
+import csharp.pipeline;
 
 using namespace foundation::core;
 using namespace foundation::script;
@@ -36,7 +36,7 @@ namespace
 
 TEST_CASE("csharp cook: the classes a file declares, with the kind each names among its bases")
 {
-    const Array<DeclaredScriptClass> found = ListCSharpClasses(u8"using Engine;\n"
+    const Array<DeclaredScriptClass> found = csharp::ListCSharpClasses(u8"using Engine;\n"
                                                                u8"// class Commented\n"
                                                                u8"/* public class Blocked */\n"
                                                                u8"public sealed partial class Player : EntityBehavior, IDamageable\n{\n"
@@ -58,7 +58,7 @@ TEST_CASE("csharp cook: the classes a file declares, with the kind each names am
 TEST_CASE("csharp cook: a build's problems are read at their file, line and column, each once")
 {
     CookScriptErrorSink sink;
-    ReportBuildOutput(u8"/tmp/b/src/Game/Player.cs(12,9): error CS1002: ; expected [/tmp/b/src/Game/Game.csproj]\r\n"
+    csharp::ReportBuildOutput(u8"/tmp/b/src/Game/Player.cs(12,9): error CS1002: ; expected [/tmp/b/src/Game/Game.csproj]\r\n"
                       u8"/tmp/b/src/Game/Helpers.cs(3,5): warning CS0168: The variable 'x' is declared but never used [/tmp/b/src/Game/Game.csproj]\n"
                       u8"Build FAILED.\n"
                       u8"/tmp/b/src/Game/Player.cs(12,9): error CS1002: ; expected [/tmp/b/src/Game/Game.csproj]\n",
@@ -75,7 +75,7 @@ TEST_CASE("csharp cook: a build's problems are read at their file, line and colu
 
     // Windows writes the path with backslashes; it is the same source path.
     CookScriptErrorSink windows;
-    ReportBuildOutput(u8"C:\\Temp\\b\\src\\Code\\Player.cs(4,2): error CS1002: ; expected [C:\\Temp\\b\\src\\Code\\Game.csproj]\r\n",
+    csharp::ReportBuildOutput(u8"C:\\Temp\\b\\src\\Code\\Player.cs(4,2): error CS1002: ; expected [C:\\Temp\\b\\src\\Code\\Game.csproj]\r\n",
                       u8"C:/Temp/b/src", windows);
     REQUIRE(windows.errors.Size() == 1u);
     CHECK(windows.errors[0].module == u8"Code/Player.cs");
@@ -86,7 +86,7 @@ TEST_CASE("csharp cook: the runtime's description reads into classes")
 {
     ScriptAssemblySource assembly;
     CookScriptErrorSink sink;
-    ParseAssemblyDescription(u8"class Mover\n"
+    csharp::ParseAssemblyDescription(u8"class Mover\n"
                              u8"method onUpdate\n"
                              u8"field speed float 2.5\n"
                              u8"field label string two words\\nand a line\n"
@@ -122,7 +122,7 @@ TEST_CASE("csharp cook: a project builds whole, one file's class using another's
     RegisterCoreTypes();
     RegisterScriptFacadeReflection();
     RegisterScriptResource();
-    RegisterDotNetScriptCook(DefaultAllocator());
+    csharp::RegisterDotNetScriptCook(DefaultAllocator());
     IScriptAssemblyCook* cook = ScriptAssemblyCookRegistry::Get().FindByLanguage(u8"csharp");
     REQUIRE(cook != nullptr);
     CHECK(cook->ProjectExtension() == StringView(u8"csproj"));
@@ -130,12 +130,12 @@ TEST_CASE("csharp cook: a project builds whole, one file's class using another's
     CHECK(project.AsView().Contains(u8"<AssemblyName>Game</AssemblyName>"));
     // The project file names no machine's path: the engine's runtime comes from obj/Engine.props,
     // a local file the cook writes for this machine.
-    CHECK_FALSE(project.AsView().Contains(EngineRuntimeAssemblyPath().AsView()));
+    CHECK_FALSE(project.AsView().Contains(csharp::EngineRuntimeAssemblyPath().AsView()));
     CHECK(project.AsView().Contains(u8"<Import Project=\"obj/Engine.props\""));
     const Array<ScriptAssemblyFile> local = cook->LocalFiles();
     REQUIRE(local.Size() == 1u);
     CHECK(local[0].path == StringView(u8"obj/Engine.props"));
-    CHECK(local[0].text.AsView().Contains(EngineRuntimeAssemblyPath().AsView()));
+    CHECK(local[0].text.AsView().Contains(csharp::EngineRuntimeAssemblyPath().AsView()));
 
     ScriptAssemblyFile helpers;
     helpers.path = String(u8"Game/Helpers.cs");

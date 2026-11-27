@@ -13,7 +13,7 @@
 
 import foundation.core;
 import foundation.script;
-import foundation.script.dotnet;
+import csharp.foundation;
 import foundation.script.facades; // Entity
 
 using namespace foundation::core;
@@ -37,10 +37,10 @@ TEST_CASE("dotnet backend: a behaviour runs through the script interfaces")
 {
     RegisterCoreTypes();
     RegisterScriptFacadeReflection();
-    dotnet::RegisterDotNetScriptBackend();
+    csharp::RegisterDotNetScriptBackend();
     REQUIRE(ScriptBackendRegistry::Get().FindByExtension(u8"cs") != nullptr);
 
-    RefPtr<IScriptManager> manager = CreateScriptManagerForLanguage(dotnet::kCSharpLanguage, DefaultAllocator());
+    RefPtr<IScriptManager> manager = CreateScriptManagerForLanguage(csharp::kCSharpLanguage, DefaultAllocator());
     REQUIRE(manager.Get() != nullptr);
     RefPtr<IScriptContext> context = manager->CreateContext();
     REQUIRE(context.Get() != nullptr);
@@ -128,7 +128,7 @@ TEST_CASE("dotnet backend: a C# stack's frames name the project's source paths, 
         u8"   at Holdout.Player.Update(Double dt) in C:\\Temp\\csharp-build-0123456789abcdef\\src\\Code\\Player.cs:line 7\r\n"
         u8"   at Engine.Runtime.Call(UInt64 id)\n"
         u8"   at Tools.Helper() in /home/me/Helper.cs:line 3\n";
-    const Array<ScriptStackFrame> frames = dotnet::ParseCSharpStack(trace);
+    const Array<ScriptStackFrame> frames = csharp::ParseCSharpStack(trace);
     REQUIRE(frames.Size() == 4u);
     CHECK(frames[0].function == StringView(u8"Holdout.Weapon.Fire()"));
     CHECK(frames[0].file == StringView(u8"Code/Scripts/Weapon.cs"));
@@ -138,5 +138,5 @@ TEST_CASE("dotnet backend: a C# stack's frames name the project's source paths, 
     CHECK(frames[2].function == StringView(u8"Engine.Runtime.Call(UInt64 id)"));
     CHECK(frames[2].file.IsEmpty());
     CHECK(frames[3].file == StringView(u8"/home/me/Helper.cs")); // not a build's copy: as written
-    CHECK(dotnet::ParseCSharpStack(u8"InvalidOperationException: no frames").IsEmpty());
+    CHECK(csharp::ParseCSharpStack(u8"InvalidOperationException: no frames").IsEmpty());
 }

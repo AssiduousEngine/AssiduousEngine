@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the `:backend` partition.
+// CSharp.Foundation - the `:backend` partition.
 //
 // C# as a script language beside AngelScript and Luau (language "csharp", files ".cs"). Its classes
 // do not compile from source at run time: a project's C# builds into one assembly at cook, carried
@@ -14,7 +14,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.dotnet:backend;
+export module csharp.foundation:backend;
 
 import foundation.core;
 import foundation.script;
@@ -22,7 +22,9 @@ import :runtime;
 
 using namespace foundation::core;
 
-export namespace foundation::script::dotnet
+using namespace foundation::script; // the script core it builds on
+
+export namespace csharp
 {
     /// The language's id, as a BehaviorClass records it.
     inline constexpr StringView kCSharpLanguage = u8"csharp";

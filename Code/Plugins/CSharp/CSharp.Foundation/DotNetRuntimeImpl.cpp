@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the engine's side of the managed runtime (see DotNetRuntime.cppm).
+// CSharp.Foundation - the engine's side of the managed runtime (see DotNetRuntime.cppm).
 
 module;
 #include "Core/Prelude.h"
 
-module foundation.script.dotnet;
+module csharp.foundation;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-namespace foundation::script::dotnet
+namespace csharp
 {
     namespace
     {

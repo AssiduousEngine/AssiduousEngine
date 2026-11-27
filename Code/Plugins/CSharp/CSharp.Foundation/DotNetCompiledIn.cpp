@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Script.DotNet - the managed runtime's entry points by their C names, for a player the
+// CSharp.Foundation - the managed runtime's entry points by their C names, for a player the
 // runtime and its application are compiled into ahead of time (a native export with C#).
 //
 // Every name has a stand-in here, defined weakly, which a program without the compiled runtime
@@ -15,7 +15,7 @@ module;
 #include <unistd.h> // getentropy
 #endif
 
-module foundation.script.dotnet;
+module csharp.foundation;
 
 import foundation.core;
 
@@ -104,7 +104,7 @@ extern "C" i32 SystemJS_RandomBytes(u8* buffer, i32 length)
 }
 #endif
 
-namespace foundation::script::dotnet
+namespace csharp
 {
     bool DotNetRuntime::StartCompiledIn(IAllocator& allocator)
     {

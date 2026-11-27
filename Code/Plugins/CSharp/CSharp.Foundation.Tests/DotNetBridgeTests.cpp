@@ -9,10 +9,10 @@
 
 import foundation.core;
 import foundation.resource; // Ref<T>: a reference crossing as its guid
-import foundation.script.dotnet;
+import csharp.foundation;
 
 using namespace foundation::core;
-using namespace foundation::script::dotnet;
+using namespace csharp;
 
 namespace
 {
