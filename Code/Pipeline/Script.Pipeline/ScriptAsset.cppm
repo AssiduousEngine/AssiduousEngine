@@ -829,6 +829,21 @@ export namespace pipeline{
             m_cooks.PushBack(Entry{Move(languageId), Move(cook)});
         }
 
+        /// Removes `languageId`'s cook (the plugin that registered it unloading); false when none
+        /// is registered.
+        bool Unregister(StringView languageId)
+        {
+            for (usize i = 0; i < m_cooks.Size(); ++i)
+            {
+                if (m_cooks[i].languageId == languageId)
+                {
+                    m_cooks.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         [[nodiscard]] IScriptAssemblyCook* FindByLanguage(StringView languageId)
         {
             for (Entry& entry : m_cooks)

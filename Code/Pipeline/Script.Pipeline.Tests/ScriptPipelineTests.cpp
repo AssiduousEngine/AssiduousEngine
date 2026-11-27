@@ -284,3 +284,31 @@ TEST_CASE("script pipeline: a language's cook is listed while registered and tak
     CHECK_FALSE(Lists(u8"idletest"));
     CHECK_FALSE(ScriptLanguageCookRegistry::Get().Unregister(u8"idletest"));
 }
+
+namespace
+{
+    // A project build that does nothing: the registry test needs only its presence.
+    struct IdleAssemblyCook final : IScriptAssemblyCook
+    {
+        [[nodiscard]] StringView ProjectExtension() const override { return u8"idleproj"; }
+        [[nodiscard]] StringView SourceExtension() const override { return u8"idle"; }
+        [[nodiscard]] bool Build(StringView, StringView, Span<const ScriptAssemblyFile>, CookScriptErrorSink&,
+                                 foundation::script::ScriptAssemblySource&) override
+        {
+            return false;
+        }
+        [[nodiscard]] String NewProjectTemplate(StringView) const override { return {}; }
+    };
+}
+
+TEST_CASE("script pipeline: a language's project build is found while registered and taken back with its plugin")
+{
+    ScriptAssemblyCookRegistry::Get().Register(String(u8"idletest"), MakeUnique<IdleAssemblyCook>(DefaultAllocator()));
+    CHECK(ScriptAssemblyCookRegistry::Get().FindByLanguage(u8"idletest") != nullptr);
+    CHECK(ScriptAssemblyCookRegistry::Get().LanguageOfProject(u8"idleproj") == StringView(u8"idletest"));
+
+    CHECK(ScriptAssemblyCookRegistry::Get().Unregister(u8"idletest"));
+    CHECK(ScriptAssemblyCookRegistry::Get().FindByLanguage(u8"idletest") == nullptr);
+    CHECK(ScriptAssemblyCookRegistry::Get().LanguageOfProject(u8"idleproj").IsEmpty());
+    CHECK_FALSE(ScriptAssemblyCookRegistry::Get().Unregister(u8"idletest"));
+}
