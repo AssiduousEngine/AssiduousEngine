@@ -21,7 +21,7 @@ target_link_libraries(Tools.Editor PRIVATE
     Foundation::Core
     Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Foundation::Shell.SDL3
     Foundation::Shell Foundation::Graphics Foundation::Graphics.Gpu
-    Engine::Scene Engine::Render Engine::Animation Engine::Particles
+    Engine::Scene Engine::Render Engine::Animation
     Engine::Composition # RegisterAllScriptFacades: the complete engine facade surface the cook
                           # and live validation compile against (run/ui/physics/audio/... facades)
     Editor::Core Editor::App Editor::Navigation
@@ -31,13 +31,13 @@ target_link_libraries(Tools.Editor PRIVATE
     Editor::Terrain # the scene view's terrain brushes
     Editor::Vegetation # the scene view's vegetation brush
     Editor::Generic # the fallback asset page
-    Editor::Image Editor::Heightfield Editor::Texture Editor::Fonts Editor::Geometry Editor::Physics Editor::Materials Editor::Render Editor::Audio Editor::Input Editor::Script Editor::Shaders Editor::GUI Editor::Particles Editor::Animation # the asset pages
+    Editor::Image Editor::Heightfield Editor::Texture Editor::Fonts Editor::Geometry Editor::Physics Editor::Materials Editor::Render Editor::Audio Editor::Input Editor::Script Editor::Shaders Editor::GUI Editor::Animation # the asset pages
     Pipeline::Core Pipeline::Cook
     Pipeline::Registration # the composition root: every builder/importer/type registration
     Foundation::Resource Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Texture.Resource
     Pipeline::Texture Pipeline::Fonts Pipeline::Image Pipeline::Geometry
     Pipeline::Animation Pipeline::Materials Pipeline::Shaders
-    Pipeline::Particles Foundation::Input Foundation::Input.Resource Pipeline::Input Engine::Input Foundation::Physics Foundation::Physics.Resource Pipeline::Physics Engine::Physics Pipeline::Navigation Engine::Navigation Foundation::Navigation.Resource Foundation::Audio Foundation::Audio.Resource Pipeline::Audio Engine::Audio
+    Foundation::Input Foundation::Input.Resource Pipeline::Input Engine::Input Foundation::Physics Foundation::Physics.Resource Pipeline::Physics Engine::Physics Pipeline::Navigation Engine::Navigation Foundation::Navigation.Resource Foundation::Audio Foundation::Audio.Resource Pipeline::Audio Engine::Audio
     # Script backends and cooks (AngelScript, Luau) come transitively from Pipeline::Registration.
     Foundation::Script Foundation::Script.Resource Foundation::Script.Facades Pipeline::Script Engine::Behavior Pipeline::ModelImporter Foundation::Image.Resource
     Foundation::Animation.Resource)

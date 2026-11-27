@@ -11,7 +11,7 @@ target_link_libraries(Engine.Behavior.Tests PRIVATE
     Foundation::Physics Engine::Physics
     Engine::Render Foundation::RHI.Null Foundation::Audio Engine::Audio
     Foundation::Animation Engine::Animation
-    Foundation::Particles Engine::Particles
+    Plugins::Particles.Engine
     Foundation::Net Foundation::Net.Replication
     Foundation::Spline Engine::Spline
     Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} doctest::doctest)

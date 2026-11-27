@@ -1,6 +1,6 @@
 add_executable(Particles.Pipeline.Tests TestsMain.cpp ParticlePipelineTests.cpp)
 target_link_libraries(Particles.Pipeline.Tests PRIVATE
-    Pipeline::Particles Foundation::Particles.Resource Foundation::Particles
+    Plugins::Particles.Pipeline
     Foundation::Content Foundation::Resource Pipeline::Core Foundation::VFS
     Foundation::Texture Foundation::Texture.Resource Foundation::RHI Foundation::RHI.Null Foundation::Xml.Serialization
     doctest::doctest)

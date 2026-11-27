@@ -636,7 +636,8 @@ TEST_CASE("plugins: the NativeSample project reads with its package, its scene's
         // The package is linked into this suite, so the copy's entry names no package path.
         UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(project);
-        REQUIRE(project->Settings().plugins.Size() == 1u);
+        REQUIRE(project->Settings().plugins.Size() == 2u); // the package, and particles
+        REQUIRE(project->Settings().plugins[0].id == String(u8"nativesample"));
         project->Settings().plugins[0].path = String();
         REQUIRE(project->SaveSettings().IsOk());
     }

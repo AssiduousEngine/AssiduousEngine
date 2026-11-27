@@ -218,10 +218,17 @@ it. Each manifest lists its types' data versions.
 
 ## Data
 
-Each move bumps the project data version (13 today) with a migration that adds the plugin to a
-project's `plugins` list when its assets or scenes use the plugin's types, the shape Millbrook's
-`dialogue` entry has. Type names and hashes stay as they are, so existing files read unchanged.
-The four, one and four sample projects named above are migrated by it and committed.
+Each move bumps the project data version (13 before particles) with a migration that adds the
+plugin to the `plugins` list of every project written before the move, the shape Millbrook's
+`dialogue` entry has (decided, user, 2026-11-26): whatever a project did with the system, a script
+adding a component included, keeps working; a project that does not want it removes it. New projects
+start without it. `ProjectSettings::kFormerlyBuiltIn` lists each system with the version it left at
+(particles at 14). Type names and hashes stay as they are, so existing files read unchanged. Every
+sample project is migrated by it and committed.
+
+Each plugin's modules are named as Dialogue's are (`<name>.foundation`, `<name>.engine`,
+`<name>.pipeline`, `<name>.editor`, decided, user, 2026-11-26), renamed in a commit of its own after
+the move.
 
 ## Order of work
 

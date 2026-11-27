@@ -16,7 +16,6 @@ import foundation.core;
 import foundation.script.facades; // RegisterScriptFacadeReflection (the script cooks' surface)
 import foundation.content;
 import foundation.animation;
-import foundation.particles;
 import foundation.scene;
 import foundation.scene.resource;
 import pipeline.core;
@@ -37,7 +36,6 @@ import propertyanimation.pipeline;
 import sequence.pipeline;
 import materials.pipeline;
 import shaders.pipeline;
-import particles.pipeline;
 import foundation.input;
 import foundation.input.resource;
 import input.pipeline;
@@ -120,7 +118,6 @@ namespace pipeline
         RegisterSequenceAssets();
         RegisterMaterialAsset();
         RegisterShaderAsset();
-        RegisterParticleEffectAsset();
         RegisterInputMapAsset();
         RegisterModelManifestAsset();
         // Product/resource types: ReadObject constructs cooked products by type name, so the
@@ -182,7 +179,6 @@ namespace pipeline
         AddBuilder<MaterialAssetBuilder>(registry);
         registry.Register(UniquePtr<IAssetBuilder>(
             registry.Allocator().New<ShaderAssetBuilder>(dataRoot), registry.Allocator()));
-        AddBuilder<ParticleEffectAssetBuilder>(registry);
         AddBuilder<InputMapAssetBuilder>(registry);
         AddBuilder<ModelManifestAssetBuilder>(registry);
         AddBuilder<CollisionShapeAssetBuilder>(registry);
@@ -238,7 +234,6 @@ namespace pipeline
         RegisterInputCreators(registry);
         RegisterTextureCreators(registry);
         RegisterNavigationCreators(registry);
-        RegisterParticleCreators(registry);
         RegisterGeometryCreators(registry);
         RegisterMaterialCreators(registry);
         RegisterShaderCreators(registry);

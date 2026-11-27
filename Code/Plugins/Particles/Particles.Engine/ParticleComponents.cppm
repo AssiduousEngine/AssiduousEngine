@@ -889,4 +889,6 @@ export namespace engine::particles
     // (play/stop/restart/pause/isPlaying/setEffect). Registers, seeds and names them. Called by the
     // composition root (like RegisterRenderScriptFacade).
     void RegisterParticleScriptFacade();
+    // Takes back what RegisterParticleScriptFacade gave the script surface: the plugin unloading.
+    void RemoveParticleScriptFacade();
 }

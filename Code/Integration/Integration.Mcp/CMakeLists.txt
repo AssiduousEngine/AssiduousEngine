@@ -10,6 +10,8 @@ target_link_libraries(Integration.Mcp PRIVATE Foundation::VFS
     Foundation::Mcp.Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU}
     Engine::Behavior Foundation::Run # the C# flow runs its cooked behaviour in a headless scene
     Foundation::Core doctest::doctest)
+# The official plugins, as the MCP host links them: the sample projects enable particles.
+util_link_plugins(Integration.Mcp ROLE mcp PLUGINS ${UTIL_HOST_PLUGINS})
 target_compile_definitions(Integration.Mcp PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Integration.Mcp PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")

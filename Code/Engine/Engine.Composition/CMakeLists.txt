@@ -9,7 +9,7 @@ target_link_libraries(Engine.Composition PUBLIC
     Foundation::Core Foundation::Content Foundation::Scene Foundation::Scene.Resource Foundation::Resource
     Foundation::Script.Facades
     Engine::Domain
-    Engine::Render Engine::Animation Engine::Particles Engine::Physics Engine::Terrain Engine::Vegetation Engine::Spline Engine::Navigation
+    Engine::Render Engine::Animation Engine::Physics Engine::Terrain Engine::Vegetation Engine::Spline Engine::Navigation
     Engine::Audio Engine::Behavior Engine::Input Engine::Run Engine::Sequence
     Foundation::Net.Replication Foundation::Net.Manager Engine::Net
     Foundation::Policy)

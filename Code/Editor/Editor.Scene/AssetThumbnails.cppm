@@ -24,8 +24,8 @@ using namespace foundation::core;
 
 export namespace editor
 {
-    /// Registers the scene-domain thumbnail generators: mesh, material, prefab, scene document and
-    /// particle effect. Call from RegisterSceneEditor; the composition root's tripwire counts them,
+    /// Registers the scene-domain thumbnail generators: mesh, material, prefab, scene document,
+    /// skeleton and model manifest. Call from RegisterSceneEditor; the composition root's tripwire counts them,
     /// and `context` resolves source payloads per job.
     void RegisterSceneThumbnailGenerators(ThumbnailService& service, EditorContext& context);
 }

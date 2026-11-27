@@ -179,5 +179,8 @@ export namespace editor
     };
 
     /// Registers the particle effect page, which asks for its services when it is made.
-    void RegisterParticleEditor(EditorContext& context, const app::AssetPageServicesSource& services);
+    /// Adds the particle effect page's factory; the key it answers removes it again.
+    [[nodiscard]] u64 RegisterParticleEditor(EditorContext& context, const app::AssetPageServicesSource& services);
+    /// The particle effects' thumbnails: an emitter in the job's private scene, prewarmed.
+    [[nodiscard]] UniquePtr<ISceneThumbnailGenerator> MakeParticleThumbnailGenerator();
 }

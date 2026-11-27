@@ -135,7 +135,7 @@ What acts on a whole scene is a property of the scene: `scene.physics.rayCast(fr
 - `scene.audio` - play, stop and pause sources, swap their clips, ease their volume and pitch.
 - `scene.render` - swap meshes and materials, a mesh's own material values, camera targets, the
   light at a point.
-- `scene.particles` - play, stop and swap effects.
+- `scene.particles` - play, stop and swap effects (with the particles plugin enabled).
 - `scene.splines` - a spline's length, its points, a point along it, the point nearest.
 - `scene.behaviors` - the scene's script time, messages to behaviors, a behavior added to an entity.
 - `scene.debugDraw` - lines, arrows, spheres, boxes and text, cleared each frame: draw them every

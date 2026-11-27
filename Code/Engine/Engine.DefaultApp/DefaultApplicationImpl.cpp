@@ -28,7 +28,6 @@ import engine.scene;      // SceneSubsystem (the standard scene driver)
 import engine.composition; // FullSceneComposition (the one source of scene assembly)
 import engine.render;     // RenderSubsystem (the standard renderer)
 import engine.animation; // AnimationSubsystem (drives skeletal animation from the scene)
-import engine.particles; // ParticleSubsystem (scene-driven CPU sim)
 import engine.terrain;   // TerrainSubsystem (chunked geo-mipmap terrain renderer)
 import engine.vegetation; // VegetationSubsystem (per-chunk instanced grass/props over the terrain)
 import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
@@ -240,7 +239,6 @@ namespace engine::runtime
             // Drives skeletal animation from the scene tick (injects the animation managers,
             // ticks players, feeds bone matrices to mesh components). Needs the render managers.
             m_animation = host.Subsystems().AddSubsystem<engine::animation::AnimationSubsystem>();
-            host.Subsystems().AddSubsystem<engine::particles::ParticleSubsystem>();
             // The chunked geo-mipmap terrain renderer: registers itself on Opaque and wires the
             // TerrainComponentManager (already injected by scene composition) as the render provider.
             host.Subsystems().AddSubsystem<engine::terrain::TerrainSubsystem>();

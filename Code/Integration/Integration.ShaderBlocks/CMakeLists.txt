@@ -11,7 +11,7 @@ add_executable(Integration.ShaderBlocks TestsMain.cpp ShaderBlockLayoutTests.cpp
 # VG.Renderer, and the Engine's terrain and particle renderers.
 target_link_libraries(Integration.ShaderBlocks PRIVATE
     Foundation::Render Foundation::Materials Foundation::Shaders Foundation::VFS Foundation::VG.Renderer
-    Engine::Particles Engine::Terrain doctest::doctest)
+    Plugins::Particles.Engine Engine::Terrain doctest::doctest)
 target_compile_definitions(Integration.ShaderBlocks PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Integration.ShaderBlocks PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")

@@ -480,7 +480,7 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
 TEST_CASE("editor-project: the settings describe themselves, and the path mirrors follow the guids")
 {
     const TypeInfo& type = engine::project::ProjectSettings::StaticType();
-    CHECK(type.dataVersion == 13u); // version 12 drops the MSAA count for the quality levels
+    CHECK(type.dataVersion == 14u); // version 14 enables particles, which left the engine
     CHECK(type.minReadDataVersion == 9u); // a version 9 manifest still reads
     u32 assets = 0;
     u32 lists = 0;
@@ -1121,7 +1121,7 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
     {
         const StringView dir = u8"scratch_project_v10_native";
         UniquePtr<EditorProject> project = open(dir, u8"Native/libOldGame.so");
-        REQUIRE(project->Settings().plugins.Size() == 1u);
+        REQUIRE(project->Settings().plugins.Size() == 2u); // the game's package, and particles (below)
         const foundation::runtime::EnabledPlugin& entry = project->Settings().plugins[0];
         CHECK(entry.id == String(u8"oldgame"));
         CHECK(entry.path == String(u8"Plugins/OldGame"));
@@ -1131,20 +1131,20 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
         REQUIRE(saved.HasValue());
         const StringView savedText(reinterpret_cast<const utf8char*>(saved.Value().Data()), saved.Value().Size());
         CHECK_FALSE(savedText.Contains(u8"\"nativeModule\""));
-        CHECK(savedText.Contains(u8"<u32 name=\"version\">13</u32>"));
+        CHECK(savedText.Contains(u8"<u32 name=\"version\">14</u32>"));
     CHECK(savedText.Contains(u8"name=\"runBehaviorId\"")); // the old key reads, the new one is written
     CHECK_FALSE(savedText.Contains(u8"startupScript"));
         project.Reset();
         UniquePtr<EditorProject> again = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(again));
-        CHECK(again->Settings().plugins.Size() == 1u); // migrated once, not again
+        CHECK(again->Settings().plugins.Size() == 2u); // migrated once, not again
         again.Reset();
         (void)RemoveDirectoryRecursive(dir);
     }
     {
         const StringView dir = u8"scratch_project_v10_native_dll";
         UniquePtr<EditorProject> project = open(dir, u8"Native/2 Fast.dll");
-        REQUIRE(project->Settings().plugins.Size() == 1u);
+        REQUIRE(project->Settings().plugins.Size() == 2u);
         CHECK(project->Settings().plugins[0].id == String(u8"game_2_fast"));
         CHECK(project->Settings().plugins[0].path == String(u8"Plugins/2 Fast"));
         project.Reset();
@@ -1153,7 +1153,10 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
     {
         const StringView dir = u8"scratch_project_v10_scripts";
         UniquePtr<EditorProject> project = open(dir, u8"");
-        CHECK(project->Settings().plugins.IsEmpty());
+        // Particles were the engine's when this project was written: it keeps them, as a plugin.
+        REQUIRE(project->Settings().plugins.Size() == 1u);
+        CHECK(project->Settings().plugins[0].id == String(u8"particles"));
+        CHECK(project->Settings().plugins[0].path.IsEmpty());
         project.Reset();
         (void)RemoveDirectoryRecursive(dir);
     }

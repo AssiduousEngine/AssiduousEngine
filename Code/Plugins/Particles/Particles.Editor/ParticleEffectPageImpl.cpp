@@ -907,14 +907,86 @@ namespace editor
         return &pipeline::ParticleEffectAsset::StaticType();
     }
 
+    namespace
+    {
+        // Particle effects: an emitter in the job's private scene, prewarmed by the stage so the
+        // one rendered frame shows a developed burst (everything is empty at t=0). The framing
+        // radius is fixed, since particle extents depend on the simulation and are unknown until
+        // the stage's prewarm has run.
+        class ParticleThumbnailGenerator final : public ISceneThumbnailGenerator
+        {
+        public:
+            [[nodiscard]] Span<const StringView> AssetTypeNames() const override
+            {
+                static constexpr StringView kNames[] = {u8"ParticleEffectAsset"};
+                return Span<const StringView>(kNames, 1);
+            }
+
+            [[nodiscard]] bool NeedsPrivateScene() const override { return true; }
+
+            [[nodiscard]] ThumbnailStageStep Stage(const Guid& id, foundation::scene::Scene& stage,
+                                                   foundation::resource::ResourceManager& resources,
+                                                   ThumbnailFraming& outFraming) override
+            {
+                auto* manager = stage.GetSystem<engine::particles::ParticleEffectComponentManager>();
+                if (manager == nullptr)
+                {
+                    return ThumbnailStageStep::Failed;
+                }
+                if (!m_staged)
+                {
+                    const foundation::scene::EntityHandle emitter = stage.CreateEntity(u8"ThumbEmitter");
+                    engine::particles::ParticleEffectComponent& component = manager->Add(emitter);
+                    component.effectAsset.SetId(id);
+                    component.effectAsset.Bind(resources);
+                    m_emitter = emitter;
+                    m_staged = true;
+                }
+                engine::particles::ParticleEffectComponent* component = manager->Get(m_emitter);
+                if (component == nullptr)
+                {
+                    return ThumbnailStageStep::Failed;
+                }
+                if (component->effectAsset.Get() == nullptr)
+                {
+                    foundation::resource::ResourceHandle* handle = component->effectAsset.GetProxy().Handle();
+                    if (handle == nullptr ||
+                        handle->State() == foundation::resource::ResourceState::Failed)
+                    {
+                        return ThumbnailStageStep::Failed;
+                    }
+                    return ThumbnailStageStep::Pending;
+                }
+                outFraming.radius = 2.5f;
+                outFraming.prewarmSteps = 45; // 0.75s at the fixed step
+                return ThumbnailStageStep::Ready;
+            }
+
+            void Unstage(foundation::scene::Scene&) override
+            {
+                m_staged = false;
+                m_emitter = {};
+            }
+
+        private:
+            foundation::scene::EntityHandle m_emitter{};
+            bool m_staged = false;
+        };
+    }
+
     UniquePtr<EditorPage> ParticleEffectPageFactory::CreatePage(EditorContext& context, foundation::content::Instance& instance)
     {
         auto* page = editor::EditorRootAllocator().New<ParticleEffectEditorPage>(context, m_services->Make(), instance);
         return UniquePtr<EditorPage>(page, editor::EditorRootAllocator());
     }
 
-    void RegisterParticleEditor(EditorContext& context, const app::AssetPageServicesSource& services)
+    u64 RegisterParticleEditor(EditorContext& context, const app::AssetPageServicesSource& services)
     {
-        context.Pages().Register(UniquePtr<IEditorPageFactory>(editor::EditorRootAllocator().New<ParticleEffectPageFactory>(services), editor::EditorRootAllocator()));
+        return context.Pages().Register(UniquePtr<IEditorPageFactory>(editor::EditorRootAllocator().New<ParticleEffectPageFactory>(services), editor::EditorRootAllocator()));
+    }
+
+    UniquePtr<ISceneThumbnailGenerator> MakeParticleThumbnailGenerator()
+    {
+        return MakeUnique<ParticleThumbnailGenerator>(editor::EditorRootAllocator());
     }
 }

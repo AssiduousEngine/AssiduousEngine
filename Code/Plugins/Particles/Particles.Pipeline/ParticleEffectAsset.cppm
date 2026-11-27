@@ -15,6 +15,7 @@ export module particles.pipeline;
 
 import foundation.core;
 import pipeline.core;
+import pipeline.importer; // PipelinePluginServices (the creators added through it)
 import foundation.particles;
 import foundation.particles.resource;
 import foundation.content;
@@ -169,5 +170,6 @@ export namespace pipeline{
     /// gravity) after the effect's others; what the seed and the editor's Add System make.
     foundation::particles::ParticleSystem& AddDefaultParticleSystem(foundation::particles::ParticleEffect& effect);
     /// File > New's particle creator (pipeline.registration composes every domain's).
-    void RegisterParticleCreators(AssetCreatorRegistry& registry);
+    // File > New's particle effect, recorded against the plugin that adds it.
+    void AddParticleCreators(PipelinePluginServices& services);
 }

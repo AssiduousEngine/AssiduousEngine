@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">13</u32>
+		<u32 name="version">14</u32>
 	</array>
 	<string name="name">NativeSample</string>
 	<string name="engineVersion">0.1.0</string>
@@ -23,10 +23,16 @@
 	<i32 name="orientation">0</i32>
 	<array name="guiStyleSheetIds" count="0"/>
 	<string name="guiLoadingDocumentId">00000000-0000-0000-0000-000000000000</string>
-	<array name="plugins" count="1">
+	<array name="plugins" count="2">
 		<object>
 			<string name="id">nativesample</string>
 			<string name="path">Plugins/NativeSample</string>
+			<array name="platforms" count="0"/>
+			<object name="settings"/>
+		</object>
+		<object>
+			<string name="id">particles</string>
+			<string name="path"/>
 			<array name="platforms" count="0"/>
 			<object name="settings"/>
 		</object>

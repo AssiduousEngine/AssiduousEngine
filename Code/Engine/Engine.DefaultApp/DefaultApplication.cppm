@@ -37,7 +37,6 @@ import foundation.scene;                // Scene
 import engine.scene;      // SceneSubsystem (the standard scene driver)
 import engine.render;     // RenderSubsystem (the standard renderer)
 import engine.animation; // AnimationSubsystem (drives skeletal animation from the scene)
-import engine.particles; // ParticleSubsystem (scene-driven CPU sim)
 import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade

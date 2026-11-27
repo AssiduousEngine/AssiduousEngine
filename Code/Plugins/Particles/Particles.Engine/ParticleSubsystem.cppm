@@ -16,7 +16,6 @@ module;
 export module engine.particles:subsystem;
 
 import foundation.core;
-import engine.domain;
 import foundation.rhi;
 import foundation.shaders.system;
 import foundation.runtime;          // Subsystem, Context
@@ -62,6 +61,7 @@ export namespace engine::particles
             {
                 mgr->SetMeshRendererId(m_render->MeshRendererId());
                 m_render->RegisterProvider(scene, *mgr);
+                m_providers.PushBack(mgr);
             }
         }
 
@@ -96,6 +96,26 @@ export namespace engine::particles
                     scenes->UnregisterObserver(this);
                 }
             }
+            // The plugin unloading while the renderer goes on: what it registered there is taken
+            // back (a provider whose scene went is simply not found), and the GPU finishes the
+            // frames that drew with the renderer before it is freed.
+            if (m_render != nullptr)
+            {
+                for (foundation::render::IRenderDataProvider* provider : m_providers)
+                {
+                    m_render->UnregisterProvider(*provider);
+                }
+                if (m_renderer.Get() != nullptr)
+                {
+                    m_render->UnregisterRenderer(*m_renderer);
+                    if (m_render->Device() != nullptr)
+                    {
+                        m_render->Device()->WaitIdle();
+                    }
+                }
+            }
+            m_providers.Clear();
+            m_renderer.Reset();
         }
 
         // Create and register the ParticleRenderer once the render GPU systems exist (idempotent).
@@ -129,13 +149,8 @@ export namespace engine::particles
         engine::render::RenderSubsystem* m_render = nullptr;
         UniquePtr<ParticleRenderer> m_renderer;
         u16 m_billboardRendererId = 0;
+        Array<foundation::render::IRenderDataProvider*> m_providers; // each scene's manager, registered with the renderer
     };
 }
 
-export namespace engine::particles
-{
-    /// This domain's declaration: what it brings to a scene, to reflection and to the script
-    /// surface, and which resource modules come with it. Defined in the implementation unit (one
-    /// instance per process); Engine.Composition lists it once.
-    [[nodiscard]] const engine::DomainModule& ParticleDomain() noexcept;
-}
+

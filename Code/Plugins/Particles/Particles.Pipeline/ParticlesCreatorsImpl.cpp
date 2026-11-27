@@ -42,7 +42,7 @@ namespace pipeline
         return sys;
     }
 
-    void RegisterParticleCreators(AssetCreatorRegistry& registry)
+    void AddParticleCreators(PipelinePluginServices& services)
     {
         {
             // One continuous fountain system, so a new effect shows something at once.
@@ -57,7 +57,7 @@ namespace pipeline
                 return CreateWrittenInstance(context.Target(), context.NameOr(u8"ParticleEffect"),
                                              ParticleEffectAsset::StaticType(), asset);
             };
-            registry.Register(Move(creator));
+            (void)services.AddCreator(Move(creator));
         }
     }
 

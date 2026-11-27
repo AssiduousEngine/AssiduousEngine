@@ -12,7 +12,6 @@ module;
 #include "Core/Reflection/Reflect.h"
 
 module engine.particles;
-import engine.domain;
 import foundation.particles.resource;
 
 import foundation.core;
@@ -84,21 +83,13 @@ namespace engine::particles
         foundation::script::RegisterExtraFacadeName(u8"SceneParticles");
         foundation::script::ExtendScene<&SceneParticlesFacade::ForScene>("particles"); // scene.particles
     }
-}
 
-namespace engine::particles
-{
-    const engine::DomainModule& ParticleDomain() noexcept
+    void RemoveParticleScriptFacade()
     {
-        static const foundation::resource::ResourceModule* const kResources[] = {
-            &foundation::particles::kParticlesResourceModule};
-        static const engine::DomainModule kModule{
-            .id = u8"particles",
-            .installScene = &AddParticleSceneManagers,
-            .registerReflection = &RegisterParticleComponentReflection,
-            .registerScriptFacade = &RegisterParticleScriptFacade,
-            .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{
-                kResources, sizeof(kResources) / sizeof(kResources[0])}};
-        return kModule;
+        foundation::script::RetractScene<&SceneParticlesFacade::ForScene>();
+        foundation::script::RemoveExtraFacadeName(u8"SceneParticles");
+        foundation::script::RemoveExtraScriptRootType(&core::TypeOf<SceneParticlesFacade>());
+        foundation::script::RemoveExtraFacadeName(u8"ParticleEffectComponent");
+        foundation::script::RemoveExtraScriptRootType(&core::TypeOf<ParticleEffectComponent>());
     }
 }

@@ -246,7 +246,15 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
     {
         const Called listed = Call(server, u8"plugin_list", JsonValue::MakeObject());
         REQUIRE_FALSE(listed.error);
-        const JsonValue settings = listed.value.Get(u8"plugins").At(0).Get(u8"settings");
+        JsonValue settings;
+        const JsonValue& plugins = listed.value.Get(u8"plugins");
+        for (usize i = 0; i < static_cast<usize>(plugins.Count()); ++i)
+        {
+            if (plugins.At(i).Get(u8"id").AsString() == String(u8"dialogue"))
+            {
+                settings = plugins.At(i).Get(u8"settings");
+            }
+        }
         CHECK(settings.Get(u8"typingSpeed").AsNumber() == doctest::Approx(40.0));
         CHECK(settings.Get(u8"fadeSeconds").AsNumber() == doctest::Approx(0.5));
         REQUIRE(settings.Get(u8"fadeColor").Count() == 4);

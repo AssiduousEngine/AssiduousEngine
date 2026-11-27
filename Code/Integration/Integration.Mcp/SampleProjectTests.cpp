@@ -12,6 +12,7 @@ import foundation.core;
 import foundation.vfs;
 import foundation.content;
 import foundation.json;
+import foundation.runtime; // the plugins this suite links, which the samples enable
 import foundation.mcp;
 import foundation.scene;
 import foundation.scene.resource;
@@ -187,6 +188,10 @@ namespace
             UniquePtr<editor::EditorProject> project =
                 editor::EditorProject::Open(DefaultAllocator(), scratchDir);
             REQUIRE(static_cast<bool>(project));
+            // The plugins the sample enables, loaded as a tool host loads them: their types read.
+            editor::ToolPlugins plugins(DefaultAllocator(), foundation::runtime::HostRole::Mcp, *project,
+                                        foundation::runtime::LinkedPluginList());
+            CHECK(plugins.Report().refused.IsEmpty());
             const usize read = ReadAllInstances(*project->SourceDb().RootGroup());
             CHECK(read >= expect.read);
         }
@@ -199,11 +204,15 @@ namespace
             pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot());
             pipeline::ImporterRegistry importers{DefaultAllocator()};
             pipeline::RegisterAllImporters(importers);
+            pipeline::AssetCreatorRegistry creators{DefaultAllocator()};
             foundation::mcp::McpServer server;
             server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
             editor::mcp::ProjectSession session;
             editor::mcp::ProjectOwner owner;
-            editor::mcp::RegisterProjectOpenTools(server, session, owner);
+            // Opening loads the plugins the sample enables, their builders with them.
+            editor::mcp::RegisterProjectOpenTools(server, session, owner, &creators, StringView{},
+                                                  editor::mcp::ProjectPlugins{foundation::runtime::LinkedPluginList(),
+                                                                              pipeline::PipelineRegistries{&builders, &importers, &creators}});
             editor::mcp::RegisterProjectInfoTool(server, session);
             editor::mcp::RegisterAssetTools(server, session);
             editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
@@ -223,6 +232,8 @@ namespace
             UniquePtr<editor::EditorProject> project =
                 editor::EditorProject::Open(DefaultAllocator(), scratchDir);
             REQUIRE(static_cast<bool>(project));
+            editor::ToolPlugins plugins(DefaultAllocator(), foundation::runtime::HostRole::Mcp, *project,
+                                        foundation::runtime::LinkedPluginList());
             const usize overrides = CheckOverrides(*project, *project->SourceDb().RootGroup());
             CHECK(overrides >= expect.overrides);
         }

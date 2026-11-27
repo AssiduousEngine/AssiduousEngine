@@ -45,6 +45,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Particles are an official plugin, `particles`: a project enables them in its plugins list. A
+  project written before (data version 13 or older) enables them as it is read, so nothing it did
+  stops working; a new project starts without them. The sample projects enable them.
 - Plugins: a package may hold a `<Name>.Foundation` library beside its parts, for the types every
   part uses (`util_add_plugin_library()`); it is not a part and its manifest does not list it. A
   part now links what it uses instead of the part before it: the Engine and Pipeline parts link

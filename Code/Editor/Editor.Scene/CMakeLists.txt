@@ -11,7 +11,6 @@ target_link_libraries(Editor.Scene
         Foundation::Animation.Resource Pipeline::Animation
         Foundation::PropertyAnimation.Resource
         Pipeline::ModelImporter Pipeline::Scene Foundation::Texture.Resource
-        Foundation::Particles Foundation::Particles.Resource Pipeline::Particles Engine::Particles
         Foundation::Physics Foundation::Physics.Resource Engine::Physics Foundation::Heightfield
         Engine::Navigation Foundation::Navigation.Resource Editor::Navigation
         Engine::Spline Foundation::Spline

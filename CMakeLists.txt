@@ -496,8 +496,6 @@ add_subdirectory(Code/Foundation/PropertyAnimation.Resource) # cooked property-c
 add_subdirectory(Code/Foundation/Sequence) # cutscene timelines: tracks bound by name, holds, the play that runs them
 add_subdirectory(Code/Foundation/Sequence.Resource) # cooked sequence resource, its loader and the nested sequence track
 add_subdirectory(Code/Foundation/Animation.Resource)
-add_subdirectory(Code/Foundation/Particles) # CPU particle runtime (Core only)
-add_subdirectory(Code/Foundation/Particles.Resource)
 add_subdirectory(Code/Foundation/Physics)   # Jolt-backed rigid-body core (world/bodies/queries/events; JPH never public)
 add_subdirectory(Code/Foundation/Physics.Resource)  # cooked collision shapes and physical materials
 add_subdirectory(Code/Foundation/Navigation) # Recast/Detour navmesh core (bake, query, crowd; rc*/dt* never public)
@@ -513,7 +511,6 @@ add_subdirectory(Code/Foundation/Render)    # the renderer: scene-to-render extr
 add_subdirectory(Code/Engine/Engine.Render)
 add_subdirectory(Code/Engine/Engine.Animation) # skeletal-animation scene integration (links RenderSubsystem; after Render)
 add_subdirectory(Code/Engine/Engine.Model) # a cooked model put into a scene as entities (Sandbox, the model viewer)
-add_subdirectory(Code/Engine/Engine.Particles) # particle scene/render integration (a renderer and a provider registered with Render; after Render)
 add_subdirectory(Code/Engine/Engine.Physics) # physics scene integration (components, per-scene Jolt world, interpolation; after Render)
 add_subdirectory(Code/Engine/Engine.Terrain) # terrain scene integration (TerrainComponent)
 add_subdirectory(Code/Engine/Engine.Vegetation) # terrain vegetation: a per-layer component and the provider of per-chunk instanced sets (VegetationSubsystem)
@@ -671,10 +668,11 @@ if(OPTION_PLUGIN_IMGUI)
     util_add_plugin(Code/Plugins/Imgui) # Dear ImGui debug UI (RHI renderer and subsystem) over Runtime, from its Plugin.xml
 endif()
 util_add_plugin(Code/Plugins/Dialogue) # conversations as text, their runner and staging, from its Plugin.xml
+util_add_plugin(Code/Plugins/Particles) # particle effects: the CPU simulation, its renderer and the effect page
 # The plugins the engine's hosts link (the players, the editor and the CLI tools, each the parts its
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
-set(UTIL_HOST_PLUGINS dialogue)
+set(UTIL_HOST_PLUGINS dialogue particles)
 add_subdirectory(Code/Engine/Engine.Player)        # Generic game runner
 
 
@@ -712,7 +710,6 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Editor/Editor.Spline) # interactive spline viewport tool (editor exe only)
     add_subdirectory(Code/Editor/Editor.Terrain) # the terrain's scene-view brushes and their panels, the terrain page
     add_subdirectory(Code/Editor/Editor.Vegetation) # the vegetation's scene-view brushes and their panels, the vegetation mask page
-    add_subdirectory(Code/Editor/Editor.Particles) # the particle effect page
     add_subdirectory(Code/Editor/Editor.Animation) # the animation pages: clip, skeleton, graph
     add_subdirectory(Code/Editor/Editor.PropertyAnimation) # property animation in the scene: its panel under the viewport
     add_subdirectory(Code/Editor/Editor.Sequence) # sequences in the scene: the document, the preview and their panel under the viewport
@@ -730,7 +727,6 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Pipeline/Image.Pipeline)
     add_subdirectory(Code/Pipeline/Input.Pipeline)
     add_subdirectory(Code/Pipeline/Materials.Pipeline)
-    add_subdirectory(Code/Pipeline/Particles.Pipeline)
     add_subdirectory(Code/Pipeline/Scene.Pipeline) # scene and prefab creators (links Engine::Render for the sun)
     add_subdirectory(Code/Pipeline/Shaders.Pipeline)
     add_subdirectory(Code/Pipeline/Texture.Compression) # BC encoder and its policy table
@@ -787,7 +783,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Editor/Editor.Animation.Tests              Editor::Animation)
     util_test_suite(Code/Editor/Editor.Materials.Tests              Editor::Materials)
     util_test_suite(Code/Editor/Editor.Geometry.Tests               Editor::Geometry)
-    util_test_suite(Code/Editor/Editor.Particles.Tests              Editor::Particles)
+    util_test_suite(Code/Plugins/Particles/Particles.Editor.Tests   Plugins::Particles.Editor)
     util_test_suite(Code/Editor/Editor.Render.Tests                 Editor::Render)
     util_test_suite(Code/Editor/Editor.Play.Tests                   Editor::Play)
     util_test_suite(Code/Editor/Editor.Audio.Tests                  Editor::Audio)
@@ -824,7 +820,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Pipeline/Input.Pipeline.Tests                  Pipeline::Input)
     util_test_suite(Code/Pipeline/Materials.Pipeline.Tests              Pipeline::Materials)
     util_test_suite(Code/Pipeline/ModelImporter.Tests                 Pipeline::ModelImporter)
-    util_test_suite(Code/Pipeline/Particles.Pipeline.Tests              Pipeline::Particles)
+    util_test_suite(Code/Plugins/Particles/Particles.Pipeline.Tests Plugins::Particles.Pipeline)
     util_test_suite(Code/Pipeline/Physics.Pipeline.Tests                Pipeline::Physics)
     util_test_suite(Code/Pipeline/Render.Pipeline.Tests                 Pipeline::Render)
     util_test_suite(Code/Pipeline/Navigation.Pipeline.Tests             Pipeline::Navigation)
@@ -851,7 +847,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Physics.Tests                Engine::Physics)
     util_test_suite(Code/Engine/Engine.Project.Tests                Engine::Project)
     util_test_suite(Code/Engine/Engine.Navigation.Tests             Engine::Navigation)
-    util_test_suite(Code/Engine/Engine.Particles.Tests              Engine::Particles)
+    util_test_suite(Code/Plugins/Particles/Particles.Engine.Tests   Plugins::Particles.Engine)
     util_test_suite(Code/Engine/Engine.Terrain.Tests                Engine::Terrain)
     util_test_suite(Code/Engine/Engine.Vegetation.Tests             Engine::Vegetation)
     util_test_suite(Code/Engine/Engine.Input.Tests                  Engine::Input)
@@ -923,8 +919,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Http.Client.Tests               Foundation::Http.Client)
     util_test_suite(Code/Foundation/Http.Tests                      Foundation::Http)
     util_test_suite(Code/Foundation/Zip.Tests                       Foundation::Zip)
-    util_test_suite(Code/Foundation/Particles.Resource.Tests        Foundation::Particles.Resource)
-    util_test_suite(Code/Foundation/Particles.Tests                 Foundation::Particles)
+    util_test_suite(Code/Plugins/Particles/Particles.Foundation.Tests Plugins::Particles.Foundation)
     util_test_suite(Code/Foundation/Physics.Tests                   Foundation::Physics)
     util_test_suite(Code/Foundation/Navigation.Tests                Foundation::Navigation)
     util_test_suite(Code/Foundation/Profiler.Tests                  Foundation::Profiler)

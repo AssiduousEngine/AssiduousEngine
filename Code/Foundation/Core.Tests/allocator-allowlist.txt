@@ -11,8 +11,8 @@ Code/Engine/Engine.Audio/AudioSubsystem.cppm
 Code/Engine/Engine.DefaultApp/DefaultApplicationImpl.cpp
 Code/Engine/Engine.Run/ApplicationRun.cppm
 Code/Engine/Engine.Run/NetworkControllerImpl.cpp
-Code/Engine/Engine.Particles/ParticleComponents.cppm
-Code/Engine/Engine.Particles/ParticleSubsystem.cppm
+Code/Plugins/Particles/Particles.Engine/ParticleComponents.cppm
+Code/Plugins/Particles/Particles.Engine/ParticleSubsystem.cppm
 Code/Engine/Engine.Physics/PhysicsSubsystem.cppm
 Code/Engine/Engine.Player/AndroidMain.cpp
 Code/Engine/Engine.Player/PlayerApplication.h
@@ -49,9 +49,9 @@ Code/Foundation/Materials/Material.cppm
 Code/Foundation/Materials.Resource/MaterialResource.cppm
 Code/Foundation/Mcp.Script/ScriptTools.cppm
 Code/Foundation/Model.Resource/ModelResource.cppm
-Code/Foundation/Particles/ParticleEffect.cppm
-Code/Foundation/Particles/ParticleStreams.cppm
-Code/Foundation/Particles.Resource/ParticleEffectResource.cppm
+Code/Plugins/Particles/Particles.Foundation/ParticleEffect.cppm
+Code/Plugins/Particles/Particles.Foundation/ParticleStreams.cppm
+Code/Plugins/Particles/Particles.Foundation/ParticleEffectResource.cppm
 Code/Foundation/Physics/PhysicsWorldImpl.cpp
 Code/Foundation/Physics.Resource/PhysicsResource.cppm
 Code/Foundation/Profiler.Capture/ProfilerCaptureImpl.cpp

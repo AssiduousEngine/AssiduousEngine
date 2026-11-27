@@ -10,7 +10,7 @@ target_link_libraries(Pipeline.Registration PUBLIC
     Foundation::Scene Foundation::Scene.Resource
     Pipeline::Core Pipeline::Importer Pipeline::VG Foundation::VG.Resource
     Pipeline::Texture Pipeline::Fonts Pipeline::Image Pipeline::Heightfield Pipeline::Terrain Pipeline::Vegetation Pipeline::Geometry
-    Pipeline::Animation Pipeline::PropertyAnimation Pipeline::Sequence Pipeline::Materials Pipeline::Shaders Pipeline::Particles
+    Pipeline::Animation Pipeline::PropertyAnimation Pipeline::Sequence Pipeline::Materials Pipeline::Shaders
     Foundation::Input Foundation::Input.Resource Pipeline::Input
     Pipeline::ModelImporter Foundation::Image.Resource Foundation::Heightfield.Resource Foundation::Terrain.Resource Foundation::Vegetation.Resource
     Foundation::Physics Foundation::Physics.Resource Pipeline::Physics

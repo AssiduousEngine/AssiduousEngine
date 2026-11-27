@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">13</u32>
+		<u32 name="version">14</u32>
 	</array>
 	<string name="name">PaperKid</string>
 	<string name="engineVersion">0.1.0</string>
@@ -29,7 +29,14 @@
 		<string>637252a2-421d-4698-9a7b-f0c3615f4a45</string>
 	</array>
 	<string name="guiLoadingDocumentId">00000000-0000-0000-0000-000000000000</string>
-	<array name="plugins" count="0"/>
+	<array name="plugins" count="1">
+		<object>
+			<string name="id">particles</string>
+			<string name="path"/>
+			<array name="platforms" count="0"/>
+			<object name="settings"/>
+		</object>
+	</array>
 	<array name="qualityLevelIds" count="3">
 		<string>bb676d8b-8418-48a4-92d5-0ff86e6998aa</string>
 		<string>e4ddab8c-5e54-4db8-8c10-eeb135af7926</string>

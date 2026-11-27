@@ -46,10 +46,7 @@ import foundation.vfs;            // DataPath (the shader page's include path)
 import foundation.shaders.system; // kShaderFolder
 import foundation.animation.resource;
 import engine.animation;
-import foundation.particles.resource;
 import foundation.animation;
-import foundation.particles;
-import engine.particles;
 import foundation.resource;
 import foundation.geometry;
 import foundation.geometry.resource;
@@ -80,7 +77,6 @@ import editor.input; // RegisterInputMapEditor
 import editor.script; // RegisterScriptEditor
 import editor.shaders; // RegisterShaderEditor
 import editor.gui; // RegisterGuiEditor
-import editor.particles; // RegisterParticleEditor
 import editor.animation; // RegisterAnimationClipEditor, RegisterSkeletonEditor, RegisterAnimationGraphEditor
 import texture.pipeline;
 import fonts.pipeline;
@@ -93,7 +89,6 @@ import vegetation.pipeline;  // VegetationMaskAsset (New Asset > Terrain > Veget
 import animation.pipeline;
 import materials.pipeline;
 import shaders.pipeline;
-import particles.pipeline;
 import foundation.input;
 import foundation.input.resource;
 import input.pipeline;
@@ -328,7 +323,6 @@ int main(int argc, char** argv)
         editor::RegisterShaderEditor(app.Context(), pageServices,
                                      foundation::vfs::DataPath(g_dataRoot.AsView(), foundation::shaders::kShaderFolder).AsView()); // the include path for the shader page's check
         editor::RegisterGuiEditor(app.Context(), pageServices); // the GUI's documents and sheets
-        editor::RegisterParticleEditor(app.Context(), pageServices);
         editor::RegisterAnimationClipEditor(app.Context(), pageServices);
         editor::RegisterSkeletonEditor(app.Context(), pageServices);
         editor::RegisterAnimationGraphEditor(app.Context(), pageServices);
@@ -336,10 +330,11 @@ int main(int argc, char** argv)
         // A tripwire on the thumbnail generators: each domain's registration above registers its
         // generators too. Bump a count when a domain gains one, so a generator that stops
         // registering fails here rather than showing as icons where pictures were. Five draw from
-        // an image (texture, font, heightfield, audio clip, splat map); eight stage a scene (mesh,
-        // material, prefab, scene, particle effect, skeleton, model manifest, collision shape).
+        // an image (texture, font, heightfield, audio clip, splat map); seven stage a scene (mesh,
+        // material, prefab, scene, skeleton, model manifest, collision shape). A plugin's come with it
+        // when a project enables it (the particle effect's from the particles plugin).
         DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->GeneratorCount() == 5);
-        DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->SceneGeneratorCount() == 8);
+        DIAGNOSTIC_ASSERT(app.Context().Thumbnails() != nullptr && app.Context().Thumbnails()->SceneGeneratorCount() == 7);
         // The script cooks (idempotent by languageId; RegisterAllBuilders below registers them for
         // the cook service too): the script page's check compiles through them.
 #ifdef OPTION_HAS_ANGELSCRIPT

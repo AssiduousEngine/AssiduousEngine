@@ -16,7 +16,6 @@ import foundation.content;
 import foundation.geometry;
 import foundation.materials;
 import engine.render;
-import engine.particles;
 import engine.animation;
 import foundation.animation;
 import modelimporter;
@@ -903,70 +902,6 @@ namespace editor
             EditorContext* m_context;
             bool m_spawned = false;
         };
-
-        // Particle effects: an emitter in the job's private scene, prewarmed by the stage so the
-        // one rendered frame shows a developed burst (everything is empty at t=0). The framing
-        // radius is fixed, since particle extents depend on the simulation and are unknown until
-        // the stage's prewarm has run.
-        class ParticleThumbnailGenerator final : public ISceneThumbnailGenerator
-        {
-        public:
-            [[nodiscard]] Span<const StringView> AssetTypeNames() const override
-            {
-                static constexpr StringView kNames[] = {u8"ParticleEffectAsset"};
-                return Span<const StringView>(kNames, 1);
-            }
-
-            [[nodiscard]] bool NeedsPrivateScene() const override { return true; }
-
-            [[nodiscard]] ThumbnailStageStep Stage(const Guid& id, scene::Scene& stage,
-                                                   resource::ResourceManager& resources,
-                                                   ThumbnailFraming& outFraming) override
-            {
-                auto* manager = stage.GetSystem<engine::particles::ParticleEffectComponentManager>();
-                if (manager == nullptr)
-                {
-                    return ThumbnailStageStep::Failed;
-                }
-                if (!m_staged)
-                {
-                    const scene::EntityHandle emitter = stage.CreateEntity(u8"ThumbEmitter");
-                    engine::particles::ParticleEffectComponent& component = manager->Add(emitter);
-                    component.effectAsset.SetId(id);
-                    component.effectAsset.Bind(resources);
-                    m_emitter = emitter;
-                    m_staged = true;
-                }
-                engine::particles::ParticleEffectComponent* component = manager->Get(m_emitter);
-                if (component == nullptr)
-                {
-                    return ThumbnailStageStep::Failed;
-                }
-                if (component->effectAsset.Get() == nullptr)
-                {
-                    resource::ResourceHandle* handle = component->effectAsset.GetProxy().Handle();
-                    if (handle == nullptr ||
-                        handle->State() == resource::ResourceState::Failed)
-                    {
-                        return ThumbnailStageStep::Failed;
-                    }
-                    return ThumbnailStageStep::Pending;
-                }
-                outFraming.radius = 2.5f;
-                outFraming.prewarmSteps = 45; // 0.75s at the fixed step
-                return ThumbnailStageStep::Ready;
-            }
-
-            void Unstage(scene::Scene&) override
-            {
-                m_staged = false;
-                m_emitter = {};
-            }
-
-        private:
-            scene::EntityHandle m_emitter{};
-            bool m_staged = false;
-        };
     }
 
     void RegisterSceneThumbnailGenerators(ThumbnailService& service, EditorContext& context)
@@ -979,8 +914,6 @@ namespace editor
             MakeUnique<PrefabThumbnailGenerator>(editor::EditorRootAllocator(), context));
         service.RegisterSceneGenerator(
             MakeUnique<SceneThumbnailGenerator>(editor::EditorRootAllocator(), context));
-        service.RegisterSceneGenerator(
-            MakeUnique<ParticleThumbnailGenerator>(editor::EditorRootAllocator()));
         service.RegisterSceneGenerator(
             MakeUnique<SkeletonThumbnailGenerator>(editor::EditorRootAllocator()));
         service.RegisterSceneGenerator(

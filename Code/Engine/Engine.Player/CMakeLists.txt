@@ -31,9 +31,9 @@ if(EMSCRIPTEN)
         Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Web Engine::DefaultApp
         Foundation::Shell.Web Foundation::Shell Foundation::Graphics Foundation::Graphics.Gpu
         Engine::Scene Foundation::Scene.Resource
-        Engine::Render Engine::Animation Engine::Particles
+        Engine::Render Engine::Animation
         Foundation::Resource Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Texture.Resource
-        Foundation::Animation.Resource Foundation::Particles.Resource Foundation::Image.Resource
+        Foundation::Animation.Resource Foundation::Image.Resource
         Foundation::Fonts Foundation::Fonts.Resource
         Foundation::Model.Resource
         Foundation::Script
@@ -116,9 +116,9 @@ else()
         Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Engine::DefaultApp
         Foundation::Shell.SDL3 Foundation::Shell Foundation::Graphics Foundation::Graphics.Gpu
         Engine::Scene Foundation::Scene.Resource
-        Engine::Render Engine::Animation Engine::Particles
+        Engine::Render Engine::Animation
         Foundation::Resource Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Texture.Resource
-        Foundation::Animation.Resource Foundation::Particles.Resource Foundation::Image.Resource
+        Foundation::Animation.Resource Foundation::Image.Resource
         Foundation::Fonts Foundation::Fonts.Resource
         Foundation::Model.Resource
         Foundation::Script

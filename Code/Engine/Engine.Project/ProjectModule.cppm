@@ -381,7 +381,28 @@ export namespace engine::project
                     plugins.PushBack(Move(entry));
                 }
             }
+            // A system that left the engine for an official plugin stays on in a project written
+            // before it left: whatever the project did with it still works. Version 0 is a read
+            // with no version recorded (the type unregistered where it was written), never an old one.
+            for (const FormerlyBuiltIn& former : kFormerlyBuiltIn)
+            {
+                if (reading && ar.Version() >= 9 && ar.Version() < former.leftAt && FindPlugin(former.id) == nullptr)
+                {
+                    foundation::runtime::EnabledPlugin entry;
+                    entry.id = String(former.id);
+                    plugins.PushBack(Move(entry));
+                }
+            }
         }
+
+        /// The engine's systems that became official plugins, each with the project data version
+        /// it left at: a project read at an older version enables it.
+        struct FormerlyBuiltIn
+        {
+            StringView id;
+            u32 leftAt;
+        };
+        static constexpr FormerlyBuiltIn kFormerlyBuiltIn[] = {{u8"particles", 14}};
 
         /// The entry a project before version 11 means by its nativeModule (a library path such as
         /// "Native/libGame.so" or "Native/Game.dll"): the game's package, Plugins/<Game>, its id the
@@ -411,8 +432,8 @@ export namespace engine::project
         }
     };
 
-    /// A setting property's string attribute (foundation::settings::kSettingLabelAttribute, foundation::settings::kSettingAssetTypeAttribute,
-    /// foundation::settings::kSettingEmptyTextAttribute); null when the property has none.
+    /// A setting property's string attribute (foundation.settings' kSettingLabelAttribute,
+    /// kSettingAssetTypeAttribute and the rest); null when the property has none.
     [[nodiscard]] inline const String* SettingAttribute(const PropertyInfo& property,
                                                         const char* key) noexcept
     {
