@@ -11,36 +11,34 @@
 
 import foundation.core;
 import foundation.runtime;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
+import terrain.foundation;
 import pipeline.core;
 import pipeline.importer; // PipelinePluginServices
 import terrain.pipeline;
-import vegetation.pipeline;
 
 namespace
 {
     void Load(foundation::runtime::PluginContext& context)
     {
-        pipeline::RegisterTerrainAsset();
-        foundation::terrain::RegisterTerrainResourceTypes();
-        pipeline::RegisterSplatmapAsset();
-        foundation::terrain::RegisterSplatmapResourceTypes();
-        pipeline::RegisterVegetationMaskAsset();
-        foundation::vegetation::RegisterVegetationMaskResourceTypes();
+        terrain::RegisterTerrainAsset();
+        terrain::RegisterTerrainResourceTypes();
+        terrain::RegisterSplatmapAsset();
+        terrain::RegisterSplatmapResourceTypes();
+        terrain::RegisterVegetationMaskAsset();
+        terrain::RegisterVegetationMaskResourceTypes();
         pipeline::PipelinePluginServices* services = context.Find<pipeline::PipelinePluginServices>();
         if (services == nullptr)
         {
             return;
         }
         foundation::core::IAllocator& allocator = context.Allocator();
-        (void)services->AddBuilder(foundation::core::MakeUnique<pipeline::TerrainAssetBuilder>(allocator));
-        (void)services->AddBuilder(foundation::core::MakeUnique<pipeline::SplatmapAssetBuilder>(allocator));
-        (void)services->AddBuilder(foundation::core::MakeUnique<pipeline::VegetationMaskAssetBuilder>(allocator));
-        (void)services->AddImporter(foundation::core::MakeUnique<pipeline::SplatmapFileImporter>(allocator));
-        (void)services->AddImporter(foundation::core::MakeUnique<pipeline::VegetationMaskFileImporter>(allocator));
-        pipeline::AddTerrainCreators(*services);
-        pipeline::AddVegetationCreators(*services);
+        (void)services->AddBuilder(foundation::core::MakeUnique<terrain::TerrainAssetBuilder>(allocator));
+        (void)services->AddBuilder(foundation::core::MakeUnique<terrain::SplatmapAssetBuilder>(allocator));
+        (void)services->AddBuilder(foundation::core::MakeUnique<terrain::VegetationMaskAssetBuilder>(allocator));
+        (void)services->AddImporter(foundation::core::MakeUnique<terrain::SplatmapFileImporter>(allocator));
+        (void)services->AddImporter(foundation::core::MakeUnique<terrain::VegetationMaskFileImporter>(allocator));
+        terrain::AddTerrainCreators(*services);
+        terrain::AddVegetationCreators(*services);
     }
 }
 

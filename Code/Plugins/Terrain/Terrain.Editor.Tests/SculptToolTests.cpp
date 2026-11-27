@@ -18,18 +18,17 @@ import foundation.resource;
 import foundation.scene;
 import foundation.heightfield;
 import foundation.heightfield.resource; // HeightfieldFactory, kHeightStream (the re-cook test)
-import foundation.terrain.resource;
-import engine.terrain;
+import terrain.foundation;
+import terrain.engine;
 import pipeline.core;
 import heightfield.pipeline; // HeightfieldAsset and its builder (the source envelope the save rewrites)
 import editor.core;
 import editor.viewporttools;
-import editor.terrain;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
 
 namespace
 {
@@ -76,14 +75,14 @@ namespace
 
         Fixture()
         {
-            engine::terrain::AddTerrainSceneManagers(scene);
-            auto* mgr = scene.GetSystem<engine::terrain::TerrainComponentManager>();
+            terrain::AddTerrainSceneManagers(scene);
+            auto* mgr = scene.GetSystem<terrain::TerrainComponentManager>();
             grid = MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
             res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
             res->heightfield = grid.Get();
             res->heightfield.SetId(Guid{7, 99}); // the source asset guid the tool saves back to
             const scene::EntityHandle e = scene.CreateEntity(u8"terrain");
-            engine::terrain::TerrainComponent& c = mgr->Add(e);
+            terrain::TerrainComponent& c = mgr->Add(e);
             c.terrain = res.Get();
             scene.Start();
         }
@@ -95,7 +94,7 @@ TEST_CASE("terrain sculpt: a press-drag-release stroke raises the shared heightf
     Fixture fx;
     editor::EditorCommandStack commands;
     FakeAssetEditSink sink;
-    editor::TerrainSculptTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSculptTool tool(fx.scene, commands, &sink);
 
     CHECK(tool.IsAvailable());
     const hf::Height before = fx.grid->GetSample(32, 32);
@@ -134,7 +133,7 @@ TEST_CASE("terrain sculpt: one command per stroke undoes/redoes the whole region
     Fixture fx;
     editor::EditorCommandStack commands;
     FakeAssetEditSink sink;
-    editor::TerrainSculptTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSculptTool tool(fx.scene, commands, &sink);
 
     editor::ViewportToolInput press = CenterRay(0.2f);
     press.leftPressed = true;
@@ -160,17 +159,17 @@ TEST_CASE("terrain sculpt: unavailable with no terrain, and refuses edits while 
 {
     // With no terrain in the scene the tool is unavailable.
     scene::Scene empty{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(empty);
+    terrain::AddTerrainSceneManagers(empty);
     empty.Start();
     editor::EditorCommandStack commandsA;
-    editor::TerrainSculptTool bare(empty, commandsA, nullptr);
+    terrain::TerrainSculptTool bare(empty, commandsA, nullptr);
     CHECK_FALSE(bare.IsAvailable());
 
     // With a terrain but editingLocked (Simulate), a press does nothing, since the collider is
     // shared.
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSculptTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSculptTool tool(fx.scene, commands, nullptr);
     editor::ViewportToolInput locked = CenterRay(0.1f);
     locked.leftPressed = true;
     locked.leftDown = true;
@@ -221,7 +220,7 @@ TEST_CASE("terrain sculpt: a save persists to the source asset and survives a re
     fx.res->heightfield.SetId(id);
     FakeAssetEditSink sink;
     editor::EditorCommandStack commands;
-    editor::TerrainSculptTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSculptTool tool(fx.scene, commands, &sink);
 
     editor::ViewportToolInput press = CenterRay(0.1f);
     press.leftPressed = true;
@@ -324,7 +323,7 @@ TEST_CASE("terrain sculpt: a save after a hole cut keeps the holes (one persist 
     REQUIRE(fx.grid->SetHoles(Span<const u8>(plane.Data(), plane.Size())));
     FakeAssetEditSink sink;
     editor::EditorCommandStack commands;
-    editor::TerrainSculptTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSculptTool tool(fx.scene, commands, &sink);
     editor::ViewportToolInput press = CenterRay(0.1f);
     press.leftPressed = true;
     press.leftDown = true;
@@ -355,7 +354,7 @@ TEST_CASE("terrain sculpt: the wheel resizes the brush only with Shift (the bare
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSculptTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSculptTool tool(fx.scene, commands, nullptr);
     const f32 before = tool.Radius();
     editor::ViewportToolInput wheel = []() {
         editor::ViewportToolInput in;

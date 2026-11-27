@@ -6,23 +6,23 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.terrain;
+module terrain.editor;
 
 import foundation.core;
 import foundation.content;              // ContentDatabase, Instance
 import foundation.heightfield;          // Heightfield
 import foundation.heightfield.resource; // HeightfieldSource, kHeightStream, kHoleStream
-import foundation.terrain.resource;     // SplatWeights, SplatWeightsSource, kSplatStream, kSplatIndexStream
+import terrain.foundation;     // SplatWeights, SplatWeightsSource, kSplatStream, kSplatIndexStream
 import heightfield.pipeline;            // HeightfieldAsset
 import terrain.pipeline;                // SplatmapAsset
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
 namespace content = foundation::content;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
 
-namespace editor
+namespace terrain
 {
     AssetEditPersist PersistHeightfield(RefPtr<hf::Heightfield> grid, const Guid& id)
     {
@@ -71,7 +71,7 @@ namespace editor
                 return Status{ErrorCode::NotFound};
             }
             RefPtr<ISerializable> object = inst->ReadObject();
-            auto* asset = Cast<pipeline::SplatmapAsset>(object.Get());
+            auto* asset = Cast<terrain::SplatmapAsset>(object.Get());
             if (asset == nullptr)
             {
                 return Status{ErrorCode::InvalidArgument}; // not a splatmap asset

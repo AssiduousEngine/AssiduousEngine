@@ -23,10 +23,9 @@ import foundation.rhi.testsupport;
 import foundation.shaders.system;
 import foundation.render;
 import foundation.heightfield;
-import foundation.terrain;
+import terrain.foundation;
 import foundation.texture.resource; // texture::Texture (Adopt) for in-memory albedo fixtures
-import foundation.terrain.resource; // SplatWeights, PaintTopK, TerrainPaletteData (top-K model)
-import engine.terrain;
+import terrain.engine;
 
 using namespace foundation::core;
 using namespace foundation::render;
@@ -34,7 +33,7 @@ namespace rhi = foundation::rhi;
 namespace testsupport = foundation::rhi::testsupport;
 namespace shaders = foundation::shaders;
 namespace hf = foundation::heightfield;
-namespace tmodel = foundation::terrain;
+namespace tmodel = ::terrain;
 namespace texture = foundation::texture;
 
 namespace
@@ -121,7 +120,7 @@ namespace
         }
         {
             shaders::ShaderSystem& shaderSystem = *host.System();
-            engine::terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
+            terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
             REQUIRE(renderer.Initialize().IsOk());
             renderer.SetSkirtsEnabled(cfg.skirts);
             RendererRegistry registry;
@@ -134,14 +133,14 @@ namespace
             tmodel::TerrainQuadtree tree;
             tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                        tmodel::ChunksPerSide(terrain.Size()));
-            engine::terrain::TerrainHeightTextureCache heightCache;
+            terrain::TerrainHeightTextureCache heightCache;
             rhi::TextureViewHandle heightView = heightCache.GetOrCreate(device, terrain, 1);
             REQUIRE(heightView.IsValid());
             // Holed chunks' own index buffers (none for a solid field).
-            engine::terrain::TerrainHoledMeshCache holedCache;
-            const Span<const engine::terrain::HoledChunkMesh> holed = holedCache.GetOrBuild(
+            terrain::TerrainHoledMeshCache holedCache;
+            const Span<const terrain::HoledChunkMesh> holed = holedCache.GetOrBuild(
                 device, terrain, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, 1);
-            engine::terrain::TerrainHoleTextureCache holeTextures;
+            terrain::TerrainHoleTextureCache holeTextures;
             rhi::TextureViewHandle holeView =
                 (cfg.holeMask && terrain.HasHoles()) ? holeTextures.GetOrCreate(device, terrain, 1)
                                                       : rhi::TextureViewHandle{};
@@ -160,7 +159,7 @@ namespace
                 sun.intensity = 1.0f;
                 scene.AddLight(sun);
             }
-            engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+            terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
             REQUIRE(rd != nullptr);
             rd->category = RenderCategories::Opaque;
             rd->rendererId = renderer.RendererId();
@@ -505,7 +504,7 @@ namespace
         }
         {
             shaders::ShaderSystem& shaderSystem = *host.System();
-            engine::terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
+            terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
             REQUIRE(renderer.Initialize().IsOk());
             RendererRegistry registry;
             registry.Register(&renderer);
@@ -527,7 +526,7 @@ namespace
             tmodel::TerrainQuadtree tree;
             tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                        tmodel::ChunksPerSide(ridge->Size()));
-            engine::terrain::TerrainHeightTextureCache heightCache;
+            terrain::TerrainHeightTextureCache heightCache;
             rhi::TextureViewHandle heightView = heightCache.GetOrCreate(device, *ridge, 1);
             REQUIRE(heightView.IsValid());
 
@@ -549,7 +548,7 @@ namespace
             scene.SetDirectionalShadow(ds);
             scene.SetShadowSettings(SceneShadowSettings{800.0f, 0.5f, 20.0f}); // reach, split, fade
 
-            engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+            terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
             REQUIRE(rd != nullptr);
             rd->category = RenderCategories::Opaque;
             rd->rendererId = renderer.RendererId();
@@ -855,8 +854,8 @@ TEST_CASE("terrain probe: SIX palette layers render distinct stripes (R5 - the 4
         }
         Probe p;
         {
-            engine::terrain::TerrainSplatTextureCache splatCache;
-            engine::terrain::TerrainPaletteTextureCache paletteCache;
+            terrain::TerrainSplatTextureCache splatCache;
+            terrain::TerrainPaletteTextureCache paletteCache;
             RefPtr<tmodel::SplatWeights> sw = MakeStripeWeights(kBands);
             RefPtr<tmodel::TerrainPaletteData> palette =
                 MakePaletteData(Span<const Float3>{kColors, kBands});
@@ -868,9 +867,9 @@ TEST_CASE("terrain probe: SIX palette layers render distinct stripes (R5 - the 4
 
             ProbeCfg cfg;
             cfg.terrain = MakeFlat();
-            const engine::terrain::SplatTextureViews views =
+            const terrain::SplatTextureViews views =
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
-            const engine::terrain::PaletteGpu gpu =
+            const terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, kBands});
             REQUIRE(views.weightView.IsValid());
             REQUIRE(gpu.arrayView.IsValid());
@@ -963,8 +962,8 @@ TEST_CASE("terrain probe: painting the CPU weights re-uploads and changes the bl
             return;
         }
         {
-            engine::terrain::TerrainSplatTextureCache cache;
-            engine::terrain::TerrainPaletteTextureCache paletteCache;
+            terrain::TerrainSplatTextureCache cache;
+            terrain::TerrainPaletteTextureCache paletteCache;
             RefPtr<tmodel::SplatWeights> sw =
                 MakeRef<tmodel::SplatWeights>(DefaultAllocator(), 8, 8); // all-zero = pure base
 
@@ -973,7 +972,7 @@ TEST_CASE("terrain probe: painting the CPU weights re-uploads and changes the bl
             RefPtr<tmodel::TerrainPaletteData> palette =
                 MakePaletteData(Span<const Float3>{&blue, 1});
             const f32 scale = 1000.0f;
-            const engine::terrain::PaletteGpu gpu =
+            const terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{&scale, 1});
             REQUIRE(gpu.arrayView.IsValid());
 
@@ -987,7 +986,7 @@ TEST_CASE("terrain probe: painting the CPU weights re-uploads and changes the bl
             cfg.paletteCount = 1;
 
             // Before: all-zero weights show the base (red) across the terrain.
-            engine::terrain::SplatTextureViews views =
+            terrain::SplatTextureViews views =
                 cache.GetOrCreate(*dev, *sw, sw->Version());
             cfg.weightView = views.weightView;
             cfg.indexView = views.indexView;
@@ -1152,8 +1151,8 @@ TEST_CASE("terrain probe: ARRAY normal + ORM blend through top-K, and the R2 rot
         }
         Probe p;
         {
-            engine::terrain::TerrainSplatTextureCache splatCache;
-            engine::terrain::TerrainPaletteTextureCache paletteCache;
+            terrain::TerrainSplatTextureCache splatCache;
+            terrain::TerrainPaletteTextureCache paletteCache;
             RefPtr<tmodel::SplatWeights> sw = MakeStripeWeights(1); // one-hot layer 0 everywhere
             const Float3 gray{0.66f, 0.66f, 0.66f};
             RefPtr<tmodel::TerrainPaletteData> palette =
@@ -1174,12 +1173,12 @@ TEST_CASE("terrain probe: ARRAY normal + ORM blend through top-K, and the R2 rot
             REQUIRE(palette->HasOrm());
 
             const f32 scale = 1000.0f;
-            const engine::terrain::PaletteGpu gpu =
+            const terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{&scale, 1});
             REQUIRE(gpu.arrayView.IsValid());
             REQUIRE(gpu.normalArrayView.IsValid());
             REQUIRE(gpu.ormArrayView.IsValid());
-            const engine::terrain::SplatTextureViews views =
+            const terrain::SplatTextureViews views =
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
             REQUIRE(views.weightView.IsValid());
 
@@ -1278,8 +1277,8 @@ TEST_CASE("terrain probe: height-blend biases the top-K toward the tallest layer
         }
         Probe p;
         {
-            engine::terrain::TerrainSplatTextureCache splatCache;
-            engine::terrain::TerrainPaletteTextureCache paletteCache;
+            terrain::TerrainSplatTextureCache splatCache;
+            terrain::TerrainPaletteTextureCache paletteCache;
             RefPtr<tmodel::SplatWeights> sw = MakeTwoLayerWeights(w0, w1);
             const Float3 colors[2] = {Float3{0.9f, 0.05f, 0.05f}, Float3{0.05f, 0.05f, 0.9f}};
             RefPtr<tmodel::TerrainPaletteData> palette =
@@ -1299,9 +1298,9 @@ TEST_CASE("terrain probe: height-blend biases the top-K toward the tallest layer
 
             ProbeCfg cfg;
             cfg.terrain = MakeFlat();
-            const engine::terrain::SplatTextureViews views =
+            const terrain::SplatTextureViews views =
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
-            const engine::terrain::PaletteGpu gpu =
+            const terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, 2});
             REQUIRE(views.weightView.IsValid());
             REQUIRE(gpu.arrayView.IsValid());
@@ -1396,8 +1395,8 @@ TEST_CASE("terrain probe: a coverage mask cuts a layer to reveal the base (Vk + 
         }
         Probe p;
         {
-            engine::terrain::TerrainSplatTextureCache splatCache;
-            engine::terrain::TerrainPaletteTextureCache paletteCache;
+            terrain::TerrainSplatTextureCache splatCache;
+            terrain::TerrainPaletteTextureCache paletteCache;
             RefPtr<tmodel::SplatWeights> sw = MakeStripeWeights(1); // layer 0 one-hot everywhere
             const Float3 blue[1] = {Float3{0.05f, 0.05f, 0.9f}};
             RefPtr<tmodel::TerrainPaletteData> palette = MakePaletteData(Span<const Float3>{blue, 1});
@@ -1425,9 +1424,9 @@ TEST_CASE("terrain probe: a coverage mask cuts a layer to reveal the base (Vk + 
 
             ProbeCfg cfg;
             cfg.terrain = MakeFlat();
-            const engine::terrain::SplatTextureViews views =
+            const terrain::SplatTextureViews views =
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
-            const engine::terrain::PaletteGpu gpu =
+            const terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, 1});
             REQUIRE(views.weightView.IsValid());
             REQUIRE(gpu.arrayView.IsValid());
@@ -1584,16 +1583,16 @@ TEST_CASE("terrain probe: no base albedo -> the RAMP is the implicit base (never
     }
     Probe p;
     {
-        engine::terrain::TerrainSplatTextureCache splatCache;
-        engine::terrain::TerrainPaletteTextureCache paletteCache;
+        terrain::TerrainSplatTextureCache splatCache;
+        terrain::TerrainPaletteTextureCache paletteCache;
         RefPtr<tmodel::SplatWeights> sw =
             MakeRef<tmodel::SplatWeights>(DefaultAllocator(), 16, 16); // all-zero: nothing painted
         const Float3 blue{0.12f, 0.12f, 0.86f};
         RefPtr<tmodel::TerrainPaletteData> palette = MakePaletteData(Span<const Float3>{&blue, 1});
         const f32 scale = 1000.0f;
-        const engine::terrain::PaletteGpu gpu =
+        const terrain::PaletteGpu gpu =
             paletteCache.GetOrCreate(*device, *palette, Span<const f32>{&scale, 1});
-        const engine::terrain::SplatTextureViews views =
+        const terrain::SplatTextureViews views =
             splatCache.GetOrCreate(*device, *sw, sw->Version());
         ProbeCfg cfg;
         cfg.terrain = MakeFlat();
@@ -1633,8 +1632,8 @@ TEST_CASE("terrain probe: a masked layer reveals the PAINTED layer beneath, not 
         }
         Probe p;
         {
-            engine::terrain::TerrainSplatTextureCache splatCache;
-            engine::terrain::TerrainPaletteTextureCache paletteCache;
+            terrain::TerrainSplatTextureCache splatCache;
+            terrain::TerrainPaletteTextureCache paletteCache;
             RefPtr<tmodel::SplatWeights> sw = MakeTwoLayerWeights(128, 128); // ground and grass about 0.5 each
             const Float3 colors[2] = {Float3{0.9f, 0.05f, 0.05f},  // layer 0 ground = red
                                       Float3{0.05f, 0.9f, 0.05f}}; // layer 1 grass = green
@@ -1658,9 +1657,9 @@ TEST_CASE("terrain probe: a masked layer reveals the PAINTED layer beneath, not 
 
             ProbeCfg cfg;
             cfg.terrain = MakeFlat();
-            const engine::terrain::SplatTextureViews views =
+            const terrain::SplatTextureViews views =
                 splatCache.GetOrCreate(*dev, *sw, sw->Version());
-            const engine::terrain::PaletteGpu gpu =
+            const terrain::PaletteGpu gpu =
                 paletteCache.GetOrCreate(*dev, *palette, Span<const f32>{scales, 2});
             REQUIRE(views.weightView.IsValid());
             REQUIRE(gpu.arrayView.IsValid());

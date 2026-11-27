@@ -11,7 +11,7 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.vegetation;
+module terrain.editor;
 
 import foundation.core;
 import foundation.scene;
@@ -19,22 +19,23 @@ import foundation.render;              // debug::DebugDraw
 import foundation.shell;               // IKeyboard (plane hotkeys)
 import foundation.content;             // ContentDatabase, Instance (the save closure)
 import foundation.resource;            // Ref<>
-import foundation.vegetation.resource; // VegetationMask, PaintMask, EraseMask, SmoothMask, the source
-import vegetation.pipeline;            // VegetationMaskAsset (the source envelope the save rewrites)
-import engine.vegetation;              // TerrainVegetationComponent and its manager: the mask, regrow notices
+import terrain.foundation; // VegetationMask, PaintMask, EraseMask, SmoothMask, the source
+import terrain.pipeline;            // VegetationMaskAsset (the source envelope the save rewrites)
+import terrain.engine;              // TerrainVegetationComponent and its manager: the mask, regrow notices
 import editor.core;
 import editor.viewporttools;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace scene = foundation::scene;
     namespace render = foundation::render;
     namespace content = foundation::content;
-    namespace veg = foundation::vegetation;
-    using engine::vegetation::TerrainVegetationComponent;
-    using engine::vegetation::TerrainVegetationComponentManager;
+    namespace veg = ::terrain;
+    using terrain::TerrainVegetationComponent;
+    using terrain::TerrainVegetationComponentManager;
 
     namespace
     {
@@ -341,7 +342,7 @@ namespace editor
                             return Status{ErrorCode::NotFound};
                         }
                         RefPtr<ISerializable> object = inst->ReadObject();
-                        auto* asset = Cast<pipeline::VegetationMaskAsset>(object.Get());
+                        auto* asset = Cast<terrain::VegetationMaskAsset>(object.Get());
                         if (asset == nullptr)
                         {
                             return Status{ErrorCode::InvalidArgument}; // not a mask asset

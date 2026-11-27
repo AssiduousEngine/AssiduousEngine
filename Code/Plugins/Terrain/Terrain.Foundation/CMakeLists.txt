@@ -16,7 +16,6 @@ target_sources(${PLUGIN_LIBRARY}
             Splatmap.cppm
             TerrainResource.cppm
             VegetationMask.cppm
-            VegetationResourceModule.cppm
             ScatterLayer.cppm
             Scatter.cppm
-            VegetationModule.cppm)
+            TerrainFoundationModule.cppm)

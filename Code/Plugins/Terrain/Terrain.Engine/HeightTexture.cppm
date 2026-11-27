@@ -12,7 +12,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.terrain:heighttexture;
+export module terrain.engine:heighttexture;
 
 import foundation.core;
 import foundation.rhi;
@@ -21,7 +21,7 @@ import foundation.heightfield;
 
 using namespace foundation::core;
 
-export namespace engine::terrain
+export namespace terrain
 {
     namespace rhi = foundation::rhi;
     namespace render = foundation::render;

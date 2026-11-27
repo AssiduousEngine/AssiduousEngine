@@ -13,7 +13,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.terrain:subsystem;
+export module terrain.engine:subsystem;
 
 import foundation.core;
 import foundation.rhi;
@@ -31,7 +31,7 @@ namespace rhi = foundation::rhi;
 namespace shaders = foundation::shaders;
 namespace scene = foundation::scene;
 
-export namespace engine::terrain
+export namespace terrain
 {
     namespace scene = foundation::scene;
 

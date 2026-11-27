@@ -16,16 +16,16 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.terrain:renderdata;
+export module terrain.engine:renderdata;
 
 import foundation.core;
 import foundation.render;
 import foundation.rhi;
-import foundation.terrain;
+import terrain.foundation;
 
 using namespace foundation::core;
 
-export namespace engine::terrain
+export namespace terrain
 {
     namespace render = foundation::render;
     namespace rhi = foundation::rhi;
@@ -40,9 +40,9 @@ export namespace engine::terrain
     struct HoledChunkMesh
     {
         u32 chunkIndex = 0;
-        rhi::BufferHandle indexBuffers[foundation::terrain::kMaxChunkLod + 1] = {};
-        u32 indexCounts[foundation::terrain::kMaxChunkLod + 1] = {};
-        u32 surfaceIndexCounts[foundation::terrain::kMaxChunkLod + 1] = {};
+        rhi::BufferHandle indexBuffers[terrain::kMaxChunkLod + 1] = {};
+        u32 indexCounts[terrain::kMaxChunkLod + 1] = {};
+        u32 surfaceIndexCounts[terrain::kMaxChunkLod + 1] = {};
     };
 
     struct TerrainRenderData : render::RenderData
@@ -51,8 +51,8 @@ export namespace engine::terrain
         // ExtractedScene's frame arena at extraction (AddArray). Never pointers into manager
         // storage: the snapshot is read at record time, after arbitrary scene mutations, and a
         // mid-frame cache rebuild would free what a borrowed pointer refers to.
-        const foundation::terrain::TerrainChunk* chunks = nullptr;
-        const foundation::terrain::TerrainQuadtree::Node* nodes = nullptr;
+        const terrain::TerrainChunk* chunks = nullptr;
+        const terrain::TerrainQuadtree::Node* nodes = nullptr;
         u32 chunkCount = 0;
         u32 nodeCount = 0;
 

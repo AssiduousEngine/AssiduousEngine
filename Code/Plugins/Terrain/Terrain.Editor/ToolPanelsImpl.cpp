@@ -11,14 +11,14 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.terrain;
+module terrain.editor;
 
 import foundation.core;
 import foundation.gui;
 import foundation.scene;    // Scene, ComponentManagerBase, EntityHandle
 import foundation.content;  // Instance::Name (a layer's tooltip)
-import engine.terrain;      // TerrainComponent, TerrainComponentManager
-import foundation.terrain;  // TerrainResource and its layers' albedo
+import terrain.engine;      // TerrainComponent, TerrainComponentManager
+import terrain.foundation;  // TerrainResource and its layers' albedo
 import editor.core;          // EditorContext, ThumbnailService
 import editor.app;          // the tool panel registry and its kit
 import editor.viewporttools; // IViewportTool, ViewportToolHostContext
@@ -29,8 +29,9 @@ import :splatmap_thumbnail;
 import :tool_panels;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace gui = foundation::gui;
     namespace scene = foundation::scene;
@@ -50,13 +51,13 @@ namespace editor
         LayerSet ResolveLayers(scene::Scene& sc)
         {
             LayerSet out;
-            auto* mgr = static_cast<engine::terrain::TerrainComponentManager*>(
-                sc.FindManagerByComponentType(TypeOf<engine::terrain::TerrainComponent>()));
+            auto* mgr = static_cast<terrain::TerrainComponentManager*>(
+                sc.FindManagerByComponentType(TypeOf<terrain::TerrainComponent>()));
             if (mgr == nullptr)
                 return out;
-            mgr->ForEach([&](engine::terrain::TerrainComponent& c, scene::EntityHandle)
+            mgr->ForEach([&](terrain::TerrainComponent& c, scene::EntityHandle)
                          {
-                             foundation::terrain::TerrainResource* res = c.terrain.Get();
+                             terrain::TerrainResource* res = c.terrain.Get();
                              if (out.count > 0 || res == nullptr)
                                  return; // the first terrain with layers
                              for (u32 i = 0; i < res->PaletteCount(); ++i)

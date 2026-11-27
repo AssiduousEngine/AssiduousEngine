@@ -18,14 +18,14 @@ module;
 #include <cstddef> // offsetof
 #include <initializer_list>
 
-export module engine.terrain:renderer;
+export module terrain.engine:renderer;
 
 import foundation.core;
 import foundation.rhi;
 import foundation.shaders;
 import foundation.shaders.system;
 import foundation.render; // Renderer, RenderRecordContext, ResolvedDraw, DrawItem, DynamicUniformRing
-import foundation.terrain; // chunk grid mesh + ExtractVisibleChunkDraws (cull + LOD)
+import terrain.foundation; // chunk grid mesh + ExtractVisibleChunkDraws (cull + LOD)
 import :renderdata;
 
 using namespace foundation::core;
@@ -33,10 +33,10 @@ namespace core = foundation::core;
 namespace rhi = foundation::rhi;
 namespace shaders = foundation::shaders;
 
-export namespace engine::terrain
+export namespace terrain
 {
     namespace render = foundation::render;
-    namespace tmodel = foundation::terrain;
+    namespace tmodel = ::terrain;
 
     /// The terrain shaders' cascade count (TERRAIN_CASCADE_COUNT in terrain.ps.hlsl); matches
     /// render::kShadowCascadesCount.

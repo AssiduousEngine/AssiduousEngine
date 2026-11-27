@@ -11,7 +11,7 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.terrain;
+module terrain.editor;
 
 import foundation.core;
 import foundation.scene;
@@ -19,28 +19,28 @@ import foundation.render;            // debug::DebugDraw
 import foundation.shell;            // IKeyboard (layer hotkeys)
 import foundation.resource;         // Ref<>
 import foundation.heightfield;      // Heightfield (ray-pick for the UV mapping)
-import foundation.terrain.resource; // SplatWeights, PaintTopK/EraseTopK
-import engine.terrain;              // TerrainComponent, TerrainComponentManager
+import terrain.foundation; // SplatWeights, PaintTopK/EraseTopK
+import terrain.engine;              // TerrainComponent, TerrainComponentManager
 import editor.core;
 import editor.viewporttools;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace scene = foundation::scene;
-    namespace terrain = foundation::terrain;
     namespace hf = foundation::heightfield;
     namespace render = foundation::render;
     namespace content = foundation::content;
 
     namespace
     {
-        [[nodiscard]] engine::terrain::TerrainComponentManager* SplatTerrainManager(scene::Scene& scene)
+        [[nodiscard]] terrain::TerrainComponentManager* SplatTerrainManager(scene::Scene& scene)
         {
             scene::ComponentManagerBase* base =
-                scene.FindManagerByComponentType(TypeOf<engine::terrain::TerrainComponent>());
-            return static_cast<engine::terrain::TerrainComponentManager*>(base);
+                scene.FindManagerByComponentType(TypeOf<terrain::TerrainComponent>());
+            return static_cast<terrain::TerrainComponentManager*>(base);
         }
 
         // The region-delta stroke command over both top-K rasters (indices and weights). It
@@ -138,14 +138,14 @@ namespace editor
 
     bool TerrainSplatTool::IsAvailable() const
     {
-        engine::terrain::TerrainComponentManager* mgr = SplatTerrainManager(*m_scene);
+        terrain::TerrainComponentManager* mgr = SplatTerrainManager(*m_scene);
         if (mgr == nullptr)
         {
             return false;
         }
         bool any = false;
         mgr->ForEach(
-            [&](engine::terrain::TerrainComponent& c, scene::EntityHandle)
+            [&](terrain::TerrainComponent& c, scene::EntityHandle)
             {
                 if (any)
                 {
@@ -165,14 +165,14 @@ namespace editor
     TerrainSplatTool::Pick TerrainSplatTool::ResolvePick(const ViewportToolInput& input) const
     {
         Pick best;
-        engine::terrain::TerrainComponentManager* mgr = SplatTerrainManager(*m_scene);
+        terrain::TerrainComponentManager* mgr = SplatTerrainManager(*m_scene);
         if (mgr == nullptr)
         {
             return best;
         }
         f32 bestDist = kFloatMax;
         mgr->ForEach(
-            [&](engine::terrain::TerrainComponent& c, scene::EntityHandle owner)
+            [&](terrain::TerrainComponent& c, scene::EntityHandle owner)
             {
                 terrain::TerrainResource* res = c.terrain.Get();
                 if (res == nullptr)

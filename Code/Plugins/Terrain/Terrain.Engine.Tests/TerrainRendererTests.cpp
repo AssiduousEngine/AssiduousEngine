@@ -19,15 +19,15 @@ import foundation.shaders;
 import foundation.shaders.system;
 import foundation.render;
 import foundation.heightfield;
-import foundation.terrain;
-import engine.terrain;
+import terrain.foundation;
+import terrain.engine;
 
 using namespace foundation::core;
 using namespace foundation::render;
 namespace rhi = foundation::rhi;
 namespace shaders = foundation::shaders;
 namespace hf = foundation::heightfield;
-namespace tmodel = foundation::terrain;
+namespace tmodel = ::terrain;
 
 namespace
 {
@@ -125,7 +125,7 @@ namespace
     }
 
     // Populate one whole-terrain render item from a heightfield (what the manager's extract does).
-    void FillTerrainRenderData(engine::terrain::TerrainRenderData& rd, const hf::Heightfield& h,
+    void FillTerrainRenderData(terrain::TerrainRenderData& rd, const hf::Heightfield& h,
                                Span<const tmodel::TerrainChunk> chunks,
                                const tmodel::TerrainQuadtree& tree, rhi::TextureViewHandle heightView,
                                u16 rendererId)
@@ -164,7 +164,7 @@ TEST_CASE("terrain renderer: visible chunks draw (extract -> Resolve -> per-LOD 
     shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
     WireEngineShaders(shaderSystem);
 
-    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
 
     RendererRegistry registry;
@@ -179,12 +179,12 @@ TEST_CASE("terrain renderer: visible chunks draw (extract -> Resolve -> per-LOD 
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
 
-    engine::terrain::TerrainHeightTextureCache heightCache;
+    terrain::TerrainHeightTextureCache heightCache;
     rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
     REQUIRE(heightView.IsValid());
 
     ExtractedScene scene{DefaultAllocator()};
-    engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+    terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
     REQUIRE(rd != nullptr);
     FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                           tree, heightView, renderer.RendererId());
@@ -259,7 +259,7 @@ TEST_CASE("terrain renderer: in a multisampled view its prepass and colour pipel
     {
         shaders::ShaderSystem shaderSystem(*compiler, device);
         WireEngineShaders(shaderSystem);
-        engine::terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
+        terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
         REQUIRE(renderer.Initialize().IsOk());
         RendererRegistry registry;
         registry.Register(&renderer);
@@ -277,11 +277,11 @@ TEST_CASE("terrain renderer: in a multisampled view its prepass and colour pipel
         tmodel::TerrainQuadtree tree;
         tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                    tmodel::ChunksPerSide(h->Size()));
-        engine::terrain::TerrainHeightTextureCache heightCache;
+        terrain::TerrainHeightTextureCache heightCache;
         rhi::TextureViewHandle heightView = heightCache.GetOrCreate(device, *h, 1);
         REQUIRE(heightView.IsValid());
         ExtractedScene scene{DefaultAllocator()};
-        engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+        terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
         FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tree,
                               heightView, renderer.RendererId());
 
@@ -334,7 +334,7 @@ TEST_CASE("terrain renderer: a frame that outgrows the view ring draws everythin
     }
     shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
     WireEngineShaders(shaderSystem);
-    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
     RendererRegistry registry;
     registry.Register(&renderer);
@@ -346,7 +346,7 @@ TEST_CASE("terrain renderer: a frame that outgrows the view ring draws everythin
     REQUIRE(chunks.Size() == 4u);
     tmodel::TerrainQuadtree tree;
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tmodel::ChunksPerSide(h->Size()));
-    engine::terrain::TerrainHeightTextureCache heightCache;
+    terrain::TerrainHeightTextureCache heightCache;
     rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
     REQUIRE(heightView.IsValid());
 
@@ -354,7 +354,7 @@ TEST_CASE("terrain renderer: a frame that outgrows the view ring draws everythin
     ExtractedScene scene{DefaultAllocator()};
     for (u32 i = 0; i < kTerrains; ++i)
     {
-        engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+        terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
         REQUIRE(rd != nullptr);
         FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tree,
                               heightView, renderer.RendererId());
@@ -390,7 +390,7 @@ TEST_CASE("terrain renderer: a chunk cut everywhere draws nothing; a holed chunk
     }
     shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
     WireEngineShaders(shaderSystem);
-    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
     RendererRegistry registry;
     registry.Register(&renderer);
@@ -414,11 +414,11 @@ TEST_CASE("terrain renderer: a chunk cut everywhere draws nothing; a holed chunk
     tmodel::TerrainQuadtree tree;
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
-    engine::terrain::TerrainHeightTextureCache heightCache;
+    terrain::TerrainHeightTextureCache heightCache;
     rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
     REQUIRE(heightView.IsValid());
-    engine::terrain::TerrainHoledMeshCache holedCache;
-    const Span<const engine::terrain::HoledChunkMesh> holed = holedCache.GetOrBuild(
+    terrain::TerrainHoledMeshCache holedCache;
+    const Span<const terrain::HoledChunkMesh> holed = holedCache.GetOrBuild(
         harness.device, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, 1);
     // Chunks 1 and 2 share cut edge samples with chunk 0, so they are holed too: 3 records, none
     // for the all-cut chunk.
@@ -426,7 +426,7 @@ TEST_CASE("terrain renderer: a chunk cut everywhere draws nothing; a holed chunk
     CHECK(holedCache.MeshCount(h->uid) == 3u);
 
     ExtractedScene scene{DefaultAllocator()};
-    engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+    terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
     REQUIRE(rd != nullptr);
     FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                           tree, heightView, renderer.RendererId());
@@ -458,7 +458,7 @@ TEST_CASE("terrain renderer: nothing drawn when the terrain is off-screen")
     shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
     WireEngineShaders(shaderSystem);
 
-    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
     RendererRegistry registry;
     registry.Register(&renderer);
@@ -470,12 +470,12 @@ TEST_CASE("terrain renderer: nothing drawn when the terrain is off-screen")
     tmodel::TerrainQuadtree tree;
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
-    engine::terrain::TerrainHeightTextureCache heightCache;
+    terrain::TerrainHeightTextureCache heightCache;
     rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
     REQUIRE(heightView.IsValid());
 
     ExtractedScene scene{DefaultAllocator()};
-    engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+    terrain::TerrainRenderData* rd = scene.Add<terrain::TerrainRenderData>();
     FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                           tree, heightView, renderer.RendererId());
 
@@ -508,7 +508,7 @@ TEST_CASE("terrain renderer: null-view depth passes cast at the COARSEST chunk L
     }
     shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
     WireEngineShaders(shaderSystem);
-    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
 
     RefPtr<hf::Heightfield> h = MakeRampX();
@@ -517,11 +517,11 @@ TEST_CASE("terrain renderer: null-view depth passes cast at the COARSEST chunk L
     tmodel::TerrainQuadtree tree;
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
-    engine::terrain::TerrainHeightTextureCache heightCache;
+    terrain::TerrainHeightTextureCache heightCache;
     rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
     REQUIRE(heightView.IsValid());
 
-    engine::terrain::TerrainRenderData rd{};
+    terrain::TerrainRenderData rd{};
     FillTerrainRenderData(rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                           tree, heightView, renderer.RendererId());
     DrawItem item{0, &rd};
@@ -591,7 +591,7 @@ TEST_CASE("terrain renderer: foreign renderer items in the span are skipped, nev
     }
     shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
     WireEngineShaders(shaderSystem);
-    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
     REQUIRE(renderer.Initialize().IsOk());
 
     RefPtr<hf::Heightfield> h = MakeRampX();
@@ -600,11 +600,11 @@ TEST_CASE("terrain renderer: foreign renderer items in the span are skipped, nev
     tmodel::TerrainQuadtree tree;
     tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                tmodel::ChunksPerSide(h->Size()));
-    engine::terrain::TerrainHeightTextureCache heightCache;
+    terrain::TerrainHeightTextureCache heightCache;
     rhi::TextureViewHandle heightView = heightCache.GetOrCreate(harness.device, *h, 1);
     REQUIRE(heightView.IsValid());
 
-    engine::terrain::TerrainRenderData rd{};
+    terrain::TerrainRenderData rd{};
     FillTerrainRenderData(rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
                           tree, heightView, renderer.RendererId());
 

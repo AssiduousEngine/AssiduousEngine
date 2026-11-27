@@ -14,7 +14,7 @@ module;
 #include "Core/Prelude.h"
 #include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
-export module engine.terrain:components;
+export module terrain.engine:components;
 
 import foundation.core;
 import foundation.profiler;
@@ -23,8 +23,7 @@ import foundation.scene;
 import foundation.resource;
 import foundation.render;           // IRenderDataProvider, ExtractedScene, RenderCategories
 import foundation.heightfield;      // Heightfield (the shared grid)
-import foundation.terrain;          // chunk model (BuildChunks, TerrainQuadtree, thresholds)
-import foundation.terrain.resource; // TerrainResource
+import terrain.foundation;          // chunk model (BuildChunks, TerrainQuadtree, thresholds)
 import foundation.texture.resource; // texture::Texture::View() (splatmap and layer albedos)
 import :heighttexture;              // TerrainHeightTextureCache
 import :splattexture;               // TerrainSplatTextureCache (RGBA8 splat, paint re-upload)
@@ -33,16 +32,16 @@ import :holedmesh;                  // TerrainHoledMeshCache
 
 using namespace foundation::core;
 
-export namespace engine::terrain
+export namespace terrain
 {
     namespace render = foundation::render;
     namespace rhi = foundation::rhi;
     namespace scene = foundation::scene;
     namespace heightfield = foundation::heightfield;
-    namespace tmodel = foundation::terrain;
+    namespace tmodel = ::terrain;
     namespace texture = foundation::texture;
 
-    using foundation::terrain::TerrainResource;
+    using terrain::TerrainResource;
 
     struct TerrainComponent
     {
@@ -229,7 +228,7 @@ export namespace engine::terrain
                     // derives the weight and index texture pair, cached by uid and version. A
                     // paint's version bump re-uploads, and the set-3 bind cache rebuilds on the new
                     // view ids (the live repaint path).
-                    if (foundation::terrain::SplatWeights* sw = res->weights.Get())
+                    if (terrain::SplatWeights* sw = res->weights.Get())
                     {
                         const SplatTextureViews views =
                             m_splatTextures.GetOrCreate(*m_device, *sw, sw->Version());

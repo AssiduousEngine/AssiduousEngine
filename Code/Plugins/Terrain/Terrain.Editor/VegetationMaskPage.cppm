@@ -20,18 +20,19 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.vegetation:mask_page;
+export module terrain.editor:vegetation_mask_page;
 
 import foundation.core;
 import foundation.content;
 import foundation.gui;
-import vegetation.pipeline; // VegetationMaskAsset
+import terrain.pipeline; // VegetationMaskAsset
 import editor.core;
 import editor.app;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     class VegetationMaskPage final : public app::AssetObjectPage
     {

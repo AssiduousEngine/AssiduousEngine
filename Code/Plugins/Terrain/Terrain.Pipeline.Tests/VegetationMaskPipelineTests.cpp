@@ -17,14 +17,14 @@ import foundation.resource;
 import pipeline.core;
 import foundation.image;
 import foundation.image.io;
-import foundation.vegetation.resource;
-import vegetation.pipeline;
+import terrain.foundation;
+import terrain.pipeline;
 
 using namespace foundation::core;
 using namespace pipeline;
 using namespace foundation::vfs;
 using namespace foundation::resource;
-using namespace foundation::vegetation;
+using namespace terrain;
 namespace image = foundation::image;
 
 namespace

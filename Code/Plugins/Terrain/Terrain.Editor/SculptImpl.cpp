@@ -10,7 +10,7 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.terrain;
+module terrain.editor;
 
 import foundation.core;
 import foundation.scene;
@@ -18,14 +18,15 @@ import foundation.render;              // debug::DebugDraw
 import foundation.shell;              // IKeyboard (mode hotkeys)
 import foundation.resource;           // Ref<>
 import foundation.heightfield;        // Sculpt* brushes, HeightfieldRegion
-import foundation.terrain.resource;   // TerrainResource
-import engine.terrain;                // TerrainComponent, TerrainComponentManager
+import terrain.foundation;   // TerrainResource
+import terrain.engine;                // TerrainComponent, TerrainComponentManager
 import editor.core;
 import editor.viewporttools;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace scene = foundation::scene;
     namespace hf = foundation::heightfield;
@@ -35,11 +36,11 @@ namespace editor
     namespace
     {
         // The scene's terrain component manager (serialization id "terrain"), or null.
-        [[nodiscard]] engine::terrain::TerrainComponentManager* TerrainManager(scene::Scene& scene)
+        [[nodiscard]] terrain::TerrainComponentManager* TerrainManager(scene::Scene& scene)
         {
             scene::ComponentManagerBase* base =
-                scene.FindManagerByComponentType(TypeOf<engine::terrain::TerrainComponent>());
-            return static_cast<engine::terrain::TerrainComponentManager*>(base);
+                scene.FindManagerByComponentType(TypeOf<terrain::TerrainComponent>());
+            return static_cast<terrain::TerrainComponentManager*>(base);
         }
 
         // The region-delta stroke command: replays the touched grid rectangle between its before
@@ -120,16 +121,16 @@ namespace editor
 
     bool TerrainSculptTool::IsAvailable() const
     {
-        engine::terrain::TerrainComponentManager* mgr = TerrainManager(*m_scene);
+        terrain::TerrainComponentManager* mgr = TerrainManager(*m_scene);
         if (mgr == nullptr)
         {
             return false;
         }
         bool any = false;
         mgr->ForEach(
-            [&](engine::terrain::TerrainComponent& c, scene::EntityHandle)
+            [&](terrain::TerrainComponent& c, scene::EntityHandle)
             {
-                foundation::terrain::TerrainResource* res = c.terrain.Get();
+                terrain::TerrainResource* res = c.terrain.Get();
                 if (res == nullptr)
                 {
                     return;
@@ -147,16 +148,16 @@ namespace editor
     TerrainSculptTool::Pick TerrainSculptTool::ResolvePick(const ViewportToolInput& input) const
     {
         Pick best;
-        engine::terrain::TerrainComponentManager* mgr = TerrainManager(*m_scene);
+        terrain::TerrainComponentManager* mgr = TerrainManager(*m_scene);
         if (mgr == nullptr)
         {
             return best;
         }
         f32 bestDist = kFloatMax;
         mgr->ForEach(
-            [&](engine::terrain::TerrainComponent& c, scene::EntityHandle owner)
+            [&](terrain::TerrainComponent& c, scene::EntityHandle owner)
             {
-                foundation::terrain::TerrainResource* res = c.terrain.Get();
+                terrain::TerrainResource* res = c.terrain.Get();
                 if (res == nullptr)
                 {
                     return;

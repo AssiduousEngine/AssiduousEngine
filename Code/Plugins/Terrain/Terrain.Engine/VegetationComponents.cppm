@@ -27,7 +27,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.vegetation:components;
+export module terrain.engine:vegetationcomponents;
 
 import foundation.core;
 import foundation.scene;
@@ -35,27 +35,24 @@ import foundation.resource;
 import foundation.geometry;         // StaticMesh (bounds)
 import foundation.materials;        // Material
 import foundation.heightfield;      // Heightfield, HeightfieldRegion
-import foundation.terrain;          // TerrainChunk, BuildChunks
-import foundation.terrain.resource; // SplatWeights
-import foundation.vegetation.resource; // VegetationMask (the painted density planes)
-import foundation.vegetation;          // ScatterLayer (scatter params), ScatterChunk, fade
+import terrain.foundation;          // TerrainChunk, BuildChunks
 import foundation.render;           // IRenderDataProvider, ExtractedScene, MultiMeshRenderData
 
 using namespace foundation::core;
 
-export namespace engine::vegetation
+export namespace terrain
 {
     namespace render = foundation::render;
     namespace scene = foundation::scene;
     namespace heightfield = foundation::heightfield;
-    namespace tmodel = foundation::terrain;
-    namespace veg = foundation::vegetation;
+    namespace tmodel = ::terrain;
+    namespace veg = ::terrain;
 
-    using foundation::vegetation::VegetationPlacement;
-    using foundation::vegetation::kSplatBaseLayer;
+    using terrain::VegetationPlacement;
+    using terrain::kSplatBaseLayer;
 
     // What every layer has, procedural or prop: the mesh, how each instance stands, how it
-    // fades, what it costs. Mirrors foundation::vegetation::ScatterLayer, flattened (the inspector
+    // fades, what it costs. Mirrors terrain::ScatterLayer, flattened (the inspector
     // edits leaf fields); FillScatterLayer() is the bridge to the pure scatter's rules.
     struct VegetationLayerBase
     {
@@ -207,7 +204,7 @@ export namespace engine::vegetation
         Array<PropVegetationLayer> propLayers;             // placed by the Paint Props brush
         // The painted mask (density planes over the footprint); nil = no Mask placement grows.
         // A procedural layer with Mask / SplatTimesMask placement names its plane.
-        foundation::resource::Ref<foundation::vegetation::VegetationMask> mask;
+        foundation::resource::Ref<terrain::VegetationMask> mask;
         bool visible = true;
     };
 

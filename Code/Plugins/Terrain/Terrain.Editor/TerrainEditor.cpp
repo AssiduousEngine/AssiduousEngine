@@ -13,8 +13,7 @@ import foundation.core;
 import foundation.runtime;
 import editor.core;
 import editor.app;
-import editor.terrain;
-import editor.vegetation;
+import terrain.editor;
 
 namespace
 {
@@ -30,11 +29,11 @@ namespace
         {
             return;
         }
-        editor::RegisterTerrainSceneTools(*editor); // sculpt, paint layers, cut holes; their panels; splatmap thumbnails
-        editor::RegisterVegetationViewportTools();  // paint vegetation, paint props
-        editor::RegisterVegetationToolPanels();
-        g_terrainPage = editor::RegisterTerrainEditor(*editor, *services);
-        g_maskPage = editor::RegisterVegetationMaskEditor(*editor, *services);
+        terrain::RegisterTerrainSceneTools(*editor); // sculpt, paint layers, cut holes; their panels; splatmap thumbnails
+        terrain::RegisterVegetationViewportTools();  // paint vegetation, paint props
+        terrain::RegisterVegetationToolPanels();
+        g_terrainPage = terrain::RegisterTerrainEditor(*editor, *services);
+        g_maskPage = terrain::RegisterVegetationMaskEditor(*editor, *services);
         g_loaded = true;
     }
 
@@ -45,11 +44,11 @@ namespace
         {
             return;
         }
-        editor::UnregisterVegetationMaskEditor(*editor, g_maskPage);
-        editor::UnregisterTerrainEditor(*editor, g_terrainPage);
-        editor::UnregisterVegetationToolPanels();
-        editor::UnregisterVegetationViewportTools();
-        editor::UnregisterTerrainSceneTools(*editor);
+        terrain::UnregisterVegetationMaskEditor(*editor, g_maskPage);
+        terrain::UnregisterTerrainEditor(*editor, g_terrainPage);
+        terrain::UnregisterVegetationToolPanels();
+        terrain::UnregisterVegetationViewportTools();
+        terrain::UnregisterTerrainSceneTools(*editor);
         g_loaded = false;
     }
 }

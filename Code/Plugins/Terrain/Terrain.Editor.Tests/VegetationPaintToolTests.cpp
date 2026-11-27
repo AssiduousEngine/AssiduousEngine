@@ -17,25 +17,21 @@ import foundation.resource;
 import foundation.scene;
 import foundation.geometry;
 import foundation.heightfield;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
-import foundation.vegetation;
+import terrain.foundation;
 import foundation.render;
 import foundation.gui;
-import engine.terrain;
-import engine.vegetation;
+import terrain.engine;
 import pipeline.core;
-import vegetation.pipeline;
+import terrain.pipeline;
 import editor.core;
 import editor.app;
 import editor.viewporttools;
-import editor.vegetation;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
-namespace veg = foundation::vegetation;
+namespace veg = ::terrain;
 namespace render = foundation::render;
 
 namespace
@@ -78,24 +74,24 @@ namespace
         RefPtr<veg::VegetationMask> mask;
         RefPtr<foundation::geometry::StaticMesh> mesh;
         scene::EntityHandle terrain{};
-        engine::vegetation::TerrainVegetationComponentManager* vegetation = nullptr;
+        terrain::TerrainVegetationComponentManager* vegetation = nullptr;
 
         explicit Fixture(bool withMask = true)
         {
-            engine::terrain::AddTerrainSceneManagers(scene);
-            engine::vegetation::AddVegetationSceneManagers(scene);
-            vegetation = scene.GetSystem<engine::vegetation::TerrainVegetationComponentManager>();
+            terrain::AddTerrainSceneManagers(scene);
+            terrain::AddVegetationSceneManagers(scene);
+            vegetation = scene.GetSystem<terrain::TerrainVegetationComponentManager>();
             vegetation->SetBuildBudget(100);
             grid = MakeRef<hf::Heightfield>(DefaultAllocator(), 129, Float2{128.0f, 128.0f}, 0.0f,
                                             10.0f); // 2 x 2 chunks
             res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
             res->heightfield = grid.Get();
             terrain = scene.CreateEntity(u8"terrain");
-            scene.GetSystem<engine::terrain::TerrainComponentManager>()->Add(terrain).terrain =
+            scene.GetSystem<terrain::TerrainComponentManager>()->Add(terrain).terrain =
                 res.Get();
             mesh = foundation::geometry::Primitives::Cube(DefaultAllocator(), 0.5f);
-            engine::vegetation::TerrainVegetationComponent& c = vegetation->Add(terrain);
-            engine::vegetation::ProceduralVegetationLayer flowers;
+            terrain::TerrainVegetationComponent& c = vegetation->Add(terrain);
+            terrain::ProceduralVegetationLayer flowers;
             flowers.name = String(u8"Flowers");
             flowers.mesh = mesh.Get();
             flowers.placement = veg::VegetationPlacement::Mask;
@@ -120,7 +116,7 @@ namespace
         }
     };
 
-    void Stroke(editor::VegetationPaintTool& tool, f32 x0, f32 z0, f32 x1, f32 z1, i32 steps = 8)
+    void Stroke(terrain::VegetationPaintTool& tool, f32 x0, f32 z0, f32 x1, f32 z1, i32 steps = 8)
     {
         editor::ViewportToolInput press = RayAt(x0, z0);
         press.leftPressed = true;
@@ -143,7 +139,7 @@ TEST_CASE("vegetation paint: a stroke raises the selected plane along the drag; 
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationPaintTool tool(fx.scene, commands, nullptr);
+    terrain::VegetationPaintTool tool(fx.scene, commands, nullptr);
     CHECK(tool.IsAvailable());
     CHECK(tool.Id() == u8"vegetation.paint");
     tool.SetPlane(1);
@@ -202,7 +198,7 @@ TEST_CASE("vegetation paint: unavailable with no mask, and refuses edits while e
 {
     Fixture bare(/*withMask*/ false);
     editor::EditorCommandStack commands;
-    editor::VegetationPaintTool none(bare.scene, commands, nullptr);
+    terrain::VegetationPaintTool none(bare.scene, commands, nullptr);
     CHECK(!none.IsAvailable());
     CHECK(none.UnavailableReason().Size() > 0); // the toolbar's refusal notice says what is missing
     editor::ViewportToolInput press = RayAt(0.0f, 0.0f);
@@ -212,7 +208,7 @@ TEST_CASE("vegetation paint: unavailable with no mask, and refuses edits while e
     CHECK(!commands.CanUndo());
 
     Fixture fx;
-    editor::VegetationPaintTool tool(fx.scene, commands, nullptr);
+    terrain::VegetationPaintTool tool(fx.scene, commands, nullptr);
     editor::ViewportToolInput locked = RayAt(0.0f, 0.0f);
     locked.leftPressed = true;
     locked.leftDown = true;
@@ -234,7 +230,7 @@ TEST_CASE("vegetation paint: a stroke regrows only the chunks it touched")
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationPaintTool tool(fx.scene, commands, nullptr);
+    terrain::VegetationPaintTool tool(fx.scene, commands, nullptr);
     tool.SetPlane(0);
     tool.SetRadius(4.0f);
     // Warm up: every chunk scatters once (all empty, since the mask is blank).
@@ -269,12 +265,12 @@ TEST_CASE("vegetation paint: a save converts an imported mask to embedded and su
     Guid id;
     {
         content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
-        pipeline::RegisterVegetationMaskAsset();
+        terrain::RegisterVegetationMaskAsset();
         veg::RegisterVegetationMaskResourceTypes();
-        auto* inst = db.RootGroup()->CreateInstance(u8"mask", pipeline::VegetationMaskAsset::StaticType());
+        auto* inst = db.RootGroup()->CreateInstance(u8"mask", terrain::VegetationMaskAsset::StaticType());
         REQUIRE(inst != nullptr);
         id = inst->Id();
-        pipeline::VegetationMaskAsset src;
+        terrain::VegetationMaskAsset src;
         src.width = 8;
         src.height = 8;
         src.planeCount = 4;
@@ -286,7 +282,7 @@ TEST_CASE("vegetation paint: a save converts an imported mask to embedded and su
     fx.vegetation->Get(fx.terrain)->mask.SetId(id);
     FakeAssetEditSink sink;
     editor::EditorCommandStack commands;
-    editor::VegetationPaintTool tool(fx.scene, commands, &sink);
+    terrain::VegetationPaintTool tool(fx.scene, commands, &sink);
     tool.SetPlane(1);
     Stroke(tool, -10.0f, 0.0f, 10.0f, 0.0f);
     REQUIRE(sink.lastPersist);
@@ -308,7 +304,7 @@ TEST_CASE("vegetation paint: a save converts an imported mask to embedded and su
         content::Instance* inst = db.GetInstance(id);
         REQUIRE(inst != nullptr);
         RefPtr<ISerializable> object = inst->ReadObject();
-        auto* asset = Cast<pipeline::VegetationMaskAsset>(object.Get());
+        auto* asset = Cast<terrain::VegetationMaskAsset>(object.Get());
         REQUIRE(asset != nullptr);
         CHECK(asset->fileName.View().IsEmpty()); // embedded now (the sidecar is authoritative)
         CHECK(asset->width == 32);
@@ -319,7 +315,7 @@ TEST_CASE("vegetation paint: a save converts an imported mask to embedded and su
         content::Instance* cookedInst = cookedDb.RootGroup()->CreateInstanceWithId(
             id, u8"mask", veg::VegetationMaskSource::StaticType());
         REQUIRE(cookedInst != nullptr);
-        pipeline::VegetationMaskAssetBuilder builder;
+        terrain::VegetationMaskAssetBuilder builder;
         NativeFileSystem srcMount(u8".", DefaultAllocator());
         pipeline::AssetBuildContext ctx{editor::EditorRootAllocator()};
         ctx.sources = &srcMount;
@@ -350,15 +346,15 @@ TEST_CASE("vegetation paint: a save converts an imported mask to embedded and su
 
 TEST_CASE("vegetation tool panel: the provider registers for the brush id and builds its panel")
 {
-    editor::RegisterVegetationToolPanels(); // idempotent (the first registration per tool id wins)
-    editor::RegisterVegetationViewportTools();
+    terrain::RegisterVegetationToolPanels(); // idempotent (the first registration per tool id wins)
+    terrain::RegisterVegetationViewportTools();
     editor::ViewportToolPanelRegistry& reg = editor::ViewportToolPanelRegistry::Get();
     editor::IViewportToolPanelProvider* provider = reg.FindByToolId(u8"vegetation.paint");
     REQUIRE(provider != nullptr);
 
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationPaintTool tool(fx.scene, commands, nullptr);
+    terrain::VegetationPaintTool tool(fx.scene, commands, nullptr);
     tool.SetPlane(1);
     editor::ViewportToolHostContext ctx;
     ctx.scene = &fx.scene;
@@ -386,7 +382,7 @@ TEST_CASE("vegetation paint: the wheel resizes the brush only with Shift (the ba
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationPaintTool tool(fx.scene, commands, nullptr);
+    terrain::VegetationPaintTool tool(fx.scene, commands, nullptr);
     const f32 before = tool.Radius();
     editor::ViewportToolInput wheel = RayAt(0.0f, 0.0f);
     wheel.wheelDelta = 1.0f;

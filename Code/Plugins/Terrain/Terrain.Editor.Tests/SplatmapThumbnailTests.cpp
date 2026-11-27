@@ -10,7 +10,7 @@
 
 import foundation.core;
 import foundation.image;
-import editor.terrain;
+import terrain.editor;
 import editor.core;
 
 using namespace foundation::core;
@@ -57,7 +57,7 @@ TEST_CASE("splatmap thumbnail gives each dominant slot a distinct hue")
         }
     }
 
-    editor::SplatmapThumbnailGenerator generator;
+    terrain::SplatmapThumbnailGenerator generator;
     image::Image tile;
     REQUIRE(generator.Generate(Span<const byte>(payload.Data(), payload.Size()), tile).IsOk());
     REQUIRE(tile.Width() == editor::kThumbnailServiceThumbnailSize);

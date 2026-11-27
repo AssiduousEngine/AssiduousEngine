@@ -9,15 +9,16 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module vegetation.pipeline;
+module terrain.pipeline;
 
 import foundation.core;
 import foundation.content;
 import pipeline.core;
 
 using namespace foundation::core;
+using namespace pipeline; // its bases
 
-namespace pipeline
+namespace terrain
 {
     void AddVegetationCreators(PipelinePluginServices& services)
     {

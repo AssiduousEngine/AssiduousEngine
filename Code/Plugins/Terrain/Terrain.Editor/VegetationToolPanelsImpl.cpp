@@ -11,31 +11,31 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.vegetation;
+module terrain.editor;
 
 import foundation.core;
 import foundation.gui;
 import foundation.scene;               // Scene, ComponentManagerBase, EntityHandle
-import foundation.vegetation.resource; // VegetationMask (the plane count)
-import foundation.vegetation;          // VegetationPlacement (which layers read a plane)
-import engine.vegetation;              // TerrainVegetationComponent, TerrainVegetationComponentManager
+import terrain.foundation; // VegetationMask (the plane count)
+import terrain.engine;              // TerrainVegetationComponent, TerrainVegetationComponentManager
 import editor.core;
 import editor.app;                     // the tool panel registry and its kit
 import editor.viewporttools;           // IViewportTool, ViewportToolHostContext
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace gui = foundation::gui;
     namespace scene = foundation::scene;
 
     namespace
     {
-        engine::vegetation::TerrainVegetationComponentManager* ManagerOf(scene::Scene& sc)
+        terrain::TerrainVegetationComponentManager* ManagerOf(scene::Scene& sc)
         {
-            return static_cast<engine::vegetation::TerrainVegetationComponentManager*>(
-                sc.FindManagerByComponentType(TypeOf<engine::vegetation::TerrainVegetationComponent>()));
+            return static_cast<terrain::TerrainVegetationComponentManager*>(
+                sc.FindManagerByComponentType(TypeOf<terrain::TerrainVegetationComponent>()));
         }
 
         // The plane count of the scene's first resolved vegetation mask (0 when none resolves).
@@ -43,7 +43,7 @@ namespace editor
         {
             u32 planes = 0;
             if (auto* mgr = ManagerOf(sc))
-                mgr->ForEach([&](engine::vegetation::TerrainVegetationComponent& c, scene::EntityHandle)
+                mgr->ForEach([&](terrain::TerrainVegetationComponent& c, scene::EntityHandle)
                              {
                                  if (planes == 0 && c.mask.Get() != nullptr && !c.mask.Get()->IsEmpty())
                                      planes = c.mask.Get()->PlaneCount();
@@ -59,12 +59,12 @@ namespace editor
             for (u32 plane = 0; plane < planeCount; ++plane)
                 readers.PushBack(String{});
             if (auto* mgr = ManagerOf(sc))
-                mgr->ForEach([&](engine::vegetation::TerrainVegetationComponent& c, scene::EntityHandle)
+                mgr->ForEach([&](terrain::TerrainVegetationComponent& c, scene::EntityHandle)
                              {
                                  for (usize i = 0; i < c.proceduralLayers.Size(); ++i)
                                  {
-                                     const engine::vegetation::ProceduralVegetationLayer& layer = c.proceduralLayers[i];
-                                     using foundation::vegetation::VegetationPlacement;
+                                     const terrain::ProceduralVegetationLayer& layer = c.proceduralLayers[i];
+                                     using terrain::VegetationPlacement;
                                      const bool reads = layer.placement == VegetationPlacement::Mask ||
                                                         layer.placement == VegetationPlacement::SplatTimesMask;
                                      if (!reads || layer.maskPlane >= planeCount)
@@ -89,7 +89,7 @@ namespace editor
             LayerNames out;
             bool taken = false;
             if (auto* mgr = ManagerOf(sc))
-                mgr->ForEach([&](engine::vegetation::TerrainVegetationComponent& c, scene::EntityHandle)
+                mgr->ForEach([&](terrain::TerrainVegetationComponent& c, scene::EntityHandle)
                              {
                                  if (taken || c.propLayers.IsEmpty())
                                      return;

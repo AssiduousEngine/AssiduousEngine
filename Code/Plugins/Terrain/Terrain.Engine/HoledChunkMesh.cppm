@@ -10,20 +10,20 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.terrain:holedmesh;
+export module terrain.engine:holedmesh;
 
 import foundation.core;
 import foundation.rhi;
 import foundation.render;
 import foundation.heightfield;
-import foundation.terrain;
+import terrain.foundation;
 import :renderdata; // HoledChunkMesh
 
 using namespace foundation::core;
 
-export namespace engine::terrain
+export namespace terrain
 {
-    namespace tmodel = foundation::terrain;
+    namespace tmodel = ::terrain;
 
     class TerrainHoledMeshCache
     {

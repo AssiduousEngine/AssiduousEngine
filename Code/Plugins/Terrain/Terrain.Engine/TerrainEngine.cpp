@@ -15,60 +15,58 @@ import foundation.core;
 import foundation.runtime;
 import foundation.resource;
 import foundation.scene;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
+import terrain.foundation;
 import engine.domain;      // DomainModule
 import engine.composition; // EnginePluginServices
 import engine.render;      // RenderSubsystem: the renderers need one
-import engine.terrain;
-import engine.vegetation;
+import terrain.engine;
 
 namespace
 {
-    const foundation::resource::ResourceModule* const kTerrainResources[] = {&foundation::terrain::kTerrainResourceModule};
+    const foundation::resource::ResourceModule* const kTerrainResources[] = {&terrain::kTerrainResourceModule};
     const engine::DomainModule kTerrainDomain{
         .id = u8"terrain",
-        .registerReflection = &engine::terrain::RegisterTerrainComponentReflection,
+        .registerReflection = &terrain::RegisterTerrainComponentReflection,
         .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{kTerrainResources, 1}};
-    const foundation::resource::ResourceModule* const kVegetationResources[] = {&foundation::vegetation::kVegetationResourceModule};
+    const foundation::resource::ResourceModule* const kVegetationResources[] = {&terrain::kVegetationResourceModule};
     const engine::DomainModule kVegetationDomain{
         .id = u8"vegetation",
-        .registerReflection = &engine::vegetation::RegisterVegetationComponentReflection,
+        .registerReflection = &terrain::RegisterVegetationComponentReflection,
         .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{kVegetationResources, 1}};
 
     void Load(foundation::runtime::PluginContext& context)
     {
-        foundation::terrain::RegisterTerrainResourceTypes();
-        foundation::terrain::RegisterSplatmapResourceTypes();
-        foundation::vegetation::RegisterVegetationMaskResourceTypes();
+        terrain::RegisterTerrainResourceTypes();
+        terrain::RegisterSplatmapResourceTypes();
+        terrain::RegisterVegetationMaskResourceTypes();
         if (engine::EnginePluginServices* services = context.Find<engine::EnginePluginServices>())
         {
             foundation::scene::SceneModuleContributions::Contribution terrain;
             terrain.id = u8"terrain";
-            terrain.install = &engine::terrain::AddTerrainSceneManagers;
-            terrain.registerReflection = &engine::terrain::RegisterTerrainComponentReflection;
-            terrain.systemType = foundation::core::TypeOf<engine::terrain::TerrainComponentManager>().id;
+            terrain.install = &terrain::AddTerrainSceneManagers;
+            terrain.registerReflection = &terrain::RegisterTerrainComponentReflection;
+            terrain.systemType = foundation::core::TypeOf<terrain::TerrainComponentManager>().id;
             services->AddSceneManager(terrain);
             foundation::scene::SceneModuleContributions::Contribution vegetation;
             vegetation.id = u8"vegetation";
-            vegetation.install = &engine::vegetation::AddVegetationSceneManagers;
-            vegetation.registerReflection = &engine::vegetation::RegisterVegetationComponentReflection;
-            vegetation.systemType = foundation::core::TypeOf<engine::vegetation::TerrainVegetationComponentManager>().id;
+            vegetation.install = &terrain::AddVegetationSceneManagers;
+            vegetation.registerReflection = &terrain::RegisterVegetationComponentReflection;
+            vegetation.systemType = foundation::core::TypeOf<terrain::TerrainVegetationComponentManager>().id;
             services->AddSceneManager(vegetation);
             (void)services->AddDomain(kTerrainDomain);
             (void)services->AddDomain(kVegetationDomain);
         }
         if (context.Subsystems().GetSubsystem<engine::render::RenderSubsystem>() != nullptr)
         {
-            context.Subsystems().AddSubsystem<engine::terrain::TerrainSubsystem>();
-            context.Subsystems().AddSubsystem<engine::vegetation::VegetationSubsystem>();
+            context.Subsystems().AddSubsystem<terrain::TerrainSubsystem>();
+            context.Subsystems().AddSubsystem<terrain::VegetationSubsystem>();
         }
     }
 
     void Unload(foundation::runtime::PluginContext& context)
     {
-        context.Subsystems().RemoveSubsystem<engine::vegetation::VegetationSubsystem>();
-        context.Subsystems().RemoveSubsystem<engine::terrain::TerrainSubsystem>();
+        context.Subsystems().RemoveSubsystem<terrain::VegetationSubsystem>();
+        context.Subsystems().RemoveSubsystem<terrain::TerrainSubsystem>();
     }
 }
 

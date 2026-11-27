@@ -17,18 +17,17 @@ import foundation.vfs;      // NativeFileSystem (the save round-trip test)
 import foundation.resource;
 import foundation.scene;
 import foundation.heightfield;
-import foundation.terrain.resource;
-import engine.terrain;
+import terrain.foundation;
+import terrain.engine;
 import pipeline.core;
 import terrain.pipeline;    // SplatmapAsset and its builder (the source envelope the save rewrites)
 import editor.core;
 import editor.viewporttools;
-import editor.terrain;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
 
 namespace
 {
@@ -74,8 +73,8 @@ namespace
 
         Fixture()
         {
-            engine::terrain::AddTerrainSceneManagers(scene);
-            auto* mgr = scene.GetSystem<engine::terrain::TerrainComponentManager>();
+            terrain::AddTerrainSceneManagers(scene);
+            auto* mgr = scene.GetSystem<terrain::TerrainComponentManager>();
             grid = MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
             weights = MakeRef<terrain::SplatWeights>(DefaultAllocator(), 32, 32);
             res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
@@ -83,7 +82,7 @@ namespace
             res->weights = weights.Get();
             res->weights.SetId(Guid{5, 55}); // the source asset guid the tool saves back to
             const scene::EntityHandle e = scene.CreateEntity(u8"terrain");
-            engine::terrain::TerrainComponent& c = mgr->Add(e);
+            terrain::TerrainComponent& c = mgr->Add(e);
             c.terrain = res.Get();
             scene.Start();
         }
@@ -95,7 +94,7 @@ TEST_CASE("terrain splat: a stroke stamps the selected palette layer along the d
     Fixture fx;
     editor::EditorCommandStack commands;
     FakeAssetEditSink sink;
-    editor::TerrainSplatTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSplatTool tool(fx.scene, commands, &sink);
     tool.SetPaletteIndex(1); // paint palette layer 1 over the (implicit) base
 
     CHECK(tool.IsAvailable());
@@ -135,7 +134,7 @@ TEST_CASE("terrain splat: stamps are distance-spaced - holding still adds nothin
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
     tool.SetPaletteIndex(2);
     tool.SetStrength(0.5f); // below 1: one stamp gives half coverage, and building up needs movement
 
@@ -174,7 +173,7 @@ TEST_CASE("terrain splat: airbrush mode builds up while holding still (time-cade
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
     tool.SetPaletteIndex(4);
     tool.SetStrength(0.5f);
     tool.SetAirbrush(true);
@@ -221,7 +220,7 @@ TEST_CASE("terrain splat: spacing controls stamp density along the stroke")
     {
         Fixture fx;
         editor::EditorCommandStack commands;
-        editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+        terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
         tool.SetPaletteIndex(6);
         tool.SetStrength(0.3f);
         tool.SetSpacing(spacing);
@@ -251,7 +250,7 @@ TEST_CASE("terrain splat: one command per stroke undoes/redoes BOTH rasters")
     Fixture fx;
     editor::EditorCommandStack commands;
     FakeAssetEditSink sink;
-    editor::TerrainSplatTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSplatTool tool(fx.scene, commands, &sink);
     tool.SetPaletteIndex(2);
 
     editor::ViewportToolInput press = CenterRay(1.0f);
@@ -288,7 +287,7 @@ TEST_CASE("terrain splat: the eraser fades paint back to the base")
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
     tool.SetPaletteIndex(3);
     tool.SetStrength(1.0f);
 
@@ -346,7 +345,7 @@ TEST_CASE("terrain splat: smooth mode feathers a hard seam and rides the stroke 
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
 
     // Author a hard paint-vs-base edge down the raster middle (left half one-hot layer 1).
     for (i32 y = 0; y < 32; ++y)
@@ -398,8 +397,8 @@ TEST_CASE("terrain splat: unavailable with no weights, and refuses edits while e
 {
     // A terrain with a heightfield but no weights raster: the paint tool is unavailable.
     scene::Scene bare{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(bare);
-    auto* mgr = bare.GetSystem<engine::terrain::TerrainComponentManager>();
+    terrain::AddTerrainSceneManagers(bare);
+    auto* mgr = bare.GetSystem<terrain::TerrainComponentManager>();
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
     auto res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
@@ -408,13 +407,13 @@ TEST_CASE("terrain splat: unavailable with no weights, and refuses edits while e
     mgr->Add(e).terrain = res.Get();
     bare.Start();
     editor::EditorCommandStack commandsA;
-    editor::TerrainSplatTool bareTool(bare, commandsA, nullptr);
+    terrain::TerrainSplatTool bareTool(bare, commandsA, nullptr);
     CHECK_FALSE(bareTool.IsAvailable());
 
     // With weights but editingLocked (Simulate), a press does nothing.
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
     tool.SetPaletteIndex(1);
     editor::ViewportToolInput locked = CenterRay(0.5f);
     locked.leftPressed = true;
@@ -447,13 +446,13 @@ TEST_CASE("terrain splat: a save converts an imported splatmap to embedded and s
     {
         content::ContentDatabase db(foundation::core::DefaultAllocator(), mount, foundation::core::BinarySerializerFactory(),
                                     u8".rasset");
-        pipeline::RegisterSplatmapAsset();
+        terrain::RegisterSplatmapAsset();
         terrain::RegisterSplatmapResourceTypes();
         auto* inst =
-            db.RootGroup()->CreateInstance(u8"splat", pipeline::SplatmapAsset::StaticType());
+            db.RootGroup()->CreateInstance(u8"splat", terrain::SplatmapAsset::StaticType());
         REQUIRE(inst != nullptr);
         id = inst->Id();
-        pipeline::SplatmapAsset src;
+        terrain::SplatmapAsset src;
         src.width = 8; // stale: the import decoded at native size without updating the envelope
         src.height = 8;
         src.fileName = foundation::vfs::SourcePath(u8"weights.png"); // as if imported
@@ -465,7 +464,7 @@ TEST_CASE("terrain splat: a save converts an imported splatmap to embedded and s
     fx.res->weights.SetId(id);
     FakeAssetEditSink sink;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, &sink);
+    terrain::TerrainSplatTool tool(fx.scene, commands, &sink);
     tool.SetPaletteIndex(1);
 
     editor::ViewportToolInput press = CenterRay(0.5f);
@@ -497,7 +496,7 @@ TEST_CASE("terrain splat: a save converts an imported splatmap to embedded and s
         content::Instance* inst = db.GetInstance(id);
         REQUIRE(inst != nullptr);
         RefPtr<ISerializable> object = inst->ReadObject();
-        auto* asset = Cast<pipeline::SplatmapAsset>(object.Get());
+        auto* asset = Cast<terrain::SplatmapAsset>(object.Get());
         REQUIRE(asset != nullptr);               // the envelope is still a SplatmapAsset
         CHECK(asset->fileName.View().IsEmpty()); // converted to embedded (the sidecars are authoritative)
         CHECK(asset->width == 32);               // dimensions synced to the painted raster
@@ -510,7 +509,7 @@ TEST_CASE("terrain splat: a save converts an imported splatmap to embedded and s
             id, u8"splat", terrain::SplatWeightsSource::StaticType());
         REQUIRE(cookedInst != nullptr);
 
-        pipeline::SplatmapAssetBuilder builder;
+        terrain::SplatmapAssetBuilder builder;
         NativeFileSystem srcMount(u8".", DefaultAllocator());
         pipeline::AssetBuildContext ctx{editor::EditorRootAllocator()};
         ctx.sources = &srcMount;
@@ -547,7 +546,7 @@ TEST_CASE("terrain splat: the wheel resizes the brush only with Shift (the bare 
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainSplatTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainSplatTool tool(fx.scene, commands, nullptr);
     const f32 before = tool.Radius();
     editor::ViewportToolInput wheel = RayAt(0.0f, 0.0f);
     wheel.wheelDelta = 1.0f;

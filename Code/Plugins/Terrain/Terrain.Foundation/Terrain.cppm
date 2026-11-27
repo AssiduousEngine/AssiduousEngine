@@ -11,16 +11,17 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.terrain;
+export module terrain.foundation:chunks;
 
 import foundation.core;
 import foundation.heightfield;
 import foundation.lod; // the shared LOD selection math (coverage and threshold walk), one formula
 
 using namespace foundation::core;
+namespace heightfield = foundation::heightfield;
 namespace lod = foundation::lod;
 
-export namespace foundation::terrain
+export namespace terrain
 {
     /// One splat layer's pure parameters (the material and texture refs live in foundation.terrain.
     /// resource). tileScale is how many times the layer texture repeats across the whole terrain.

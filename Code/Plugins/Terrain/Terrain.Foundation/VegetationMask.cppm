@@ -17,7 +17,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module foundation.vegetation.resource:mask;
+export module terrain.foundation:vegetationmask;
 
 import foundation.core;
 import foundation.resource;
@@ -26,7 +26,7 @@ import foundation.content;
 using namespace foundation::core;
 using namespace foundation::resource;
 
-export namespace foundation::vegetation
+export namespace terrain
 {
     /// The largest plane count a mask carries (a PNG import yields one plane per channel).
     inline constexpr u32 kMaxMaskPlanes = 16;
@@ -464,7 +464,7 @@ export namespace foundation::vegetation
     RTTI_DEFINE_OBJECT_VERSIONED(VegetationMaskSource, "rtti::vegetation", 1)
 }
 
-export namespace foundation::vegetation
+export namespace terrain
 {
     /// The vegetation resource module: the engine composition composes this library's
     /// factories from it.

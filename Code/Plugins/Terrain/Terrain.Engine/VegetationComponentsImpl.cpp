@@ -10,7 +10,7 @@ module;
 #include "Core/Reflection/Reflect.h"
 #include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
-module engine.vegetation;
+module terrain.engine;
 
 import foundation.core;
 import foundation.profiler;
@@ -18,27 +18,23 @@ import foundation.scene;
 import foundation.geometry;
 import foundation.materials;
 import foundation.heightfield;
-import foundation.terrain;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
-import foundation.vegetation;
+import terrain.foundation;
 import foundation.render;
 import engine.render;  // PackEntity (the instanced-mesh emitter's helper)
-import engine.terrain; // TerrainComponentManager (the terrain the layers grow on)
 
 using namespace foundation::core;
 
-namespace engine::vegetation
+namespace terrain
 {
     namespace
     {
         // The terrain a vegetation entity grows on: its own TerrainComponent, else the nearest
         // ancestor's. Returns null (and leaves `terrainEntity` unassigned) when there is none.
-        engine::terrain::TerrainComponent* FindTerrainFor(scene::Scene& scene,
+        terrain::TerrainComponent* FindTerrainFor(scene::Scene& scene,
                                                           scene::EntityHandle owner,
                                                           scene::EntityHandle& terrainEntity)
         {
-            auto* terrains = scene.GetSystem<engine::terrain::TerrainComponentManager>();
+            auto* terrains = scene.GetSystem<terrain::TerrainComponentManager>();
             if (terrains == nullptr)
             {
                 return nullptr;
@@ -46,7 +42,7 @@ namespace engine::vegetation
             scene::EntityHandle e = owner;
             for (u32 depth = 0; depth < 64 && e.IsAssigned(); ++depth)
             {
-                if (engine::terrain::TerrainComponent* tc = terrains->Get(e))
+                if (terrain::TerrainComponent* tc = terrains->Get(e))
                 {
                     terrainEntity = e;
                     return tc;
@@ -668,9 +664,9 @@ namespace engine::vegetation
                 // Hidden or inactive: the layers keep their caches (mark them seen), draw nothing.
                 const bool active = c.visible && m_scene->IsEffectivelyActive(owner);
                 scene::EntityHandle terrainEntity{};
-                engine::terrain::TerrainComponent* tc =
+                terrain::TerrainComponent* tc =
                     active ? FindTerrainFor(*m_scene, owner, terrainEntity) : nullptr;
-                foundation::terrain::TerrainResource* res =
+                terrain::TerrainResource* res =
                     tc != nullptr ? tc->terrain.Get() : nullptr;
                 heightfield::Heightfield* hf = res != nullptr ? res->heightfield.Get() : nullptr;
                 if (hf == nullptr || hf->IsEmpty())
@@ -763,8 +759,8 @@ namespace engine::vegetation
                     return;
                 }
                 scene::EntityHandle terrainEntity{};
-                engine::terrain::TerrainComponent* tc = FindTerrainFor(scene, owner, terrainEntity);
-                foundation::terrain::TerrainResource* res = tc != nullptr ? tc->terrain.Get() : nullptr;
+                terrain::TerrainComponent* tc = FindTerrainFor(scene, owner, terrainEntity);
+                terrain::TerrainResource* res = tc != nullptr ? tc->terrain.Get() : nullptr;
                 heightfield::Heightfield* hf = res != nullptr ? res->heightfield.Get() : nullptr;
                 if (tc == nullptr)
                 {

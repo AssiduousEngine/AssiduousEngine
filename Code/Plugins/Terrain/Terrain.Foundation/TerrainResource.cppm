@@ -16,7 +16,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module foundation.terrain.resource;
+export module terrain.foundation:resource;
 
 import foundation.core;
 import foundation.resource;
@@ -27,9 +27,11 @@ import foundation.texture.resource;
 export import :splatmap; // SplatWeights (top-K rasters), brush cores, cooked source and factory
 
 using namespace foundation::core;
+namespace heightfield = foundation::heightfield;
+namespace texture = foundation::texture;
 using namespace foundation::resource;
 
-export namespace foundation::terrain
+export namespace terrain
 {
     /// The cooked terrain (serialized): the referenced resources by guid, per-layer tiling and
     /// cast-shadows. The factory resolves the guids; nothing here is bulk data.
@@ -369,7 +371,7 @@ export namespace foundation::terrain
     RTTI_DEFINE_OBJECT_VERSIONED(TerrainSource, "rtti::terrain", 5)
 }
 
-export namespace foundation::terrain
+export namespace terrain
 {
     /// Both halves of this library's type registration (the terrain bundle and the splatmap).
     inline void RegisterTerrainResourceModuleTypes()

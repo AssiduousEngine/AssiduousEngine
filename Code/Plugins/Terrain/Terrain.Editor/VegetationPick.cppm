@@ -11,26 +11,26 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.vegetation:pick;
+export module terrain.editor:vegetation_pick;
 
 import foundation.core;
 import foundation.scene;
 import foundation.heightfield;         // Heightfield
-import foundation.vegetation.resource; // VegetationMask
-import engine.vegetation;              // TerrainVegetationComponent, TerrainVegetationComponentManager
+import terrain.foundation; // VegetationMask
+import terrain.engine;              // TerrainVegetationComponent, TerrainVegetationComponentManager
 
 using namespace foundation::core;
 
-export namespace editor
+export namespace terrain
 {
     struct VegetationPick
     {
-        engine::vegetation::TerrainVegetationComponent* component = nullptr;
-        engine::vegetation::TerrainVegetationComponentManager* manager = nullptr;
+        terrain::TerrainVegetationComponent* component = nullptr;
+        terrain::TerrainVegetationComponentManager* manager = nullptr;
         foundation::scene::EntityHandle owner{};         // the component's entity
         foundation::scene::EntityHandle terrainEntity{}; // the TerrainComponent's entity
         foundation::heightfield::Heightfield* heightfield = nullptr;
-        foundation::vegetation::VegetationMask* mask = nullptr; // the component's mask, when resolved
+        terrain::VegetationMask* mask = nullptr; // the component's mask, when resolved
         Guid maskId;                                             // its source asset guid (may be nil)
         i32 gridSize = 0;    // heightfield samples per side (maps footprint regions to the grid)
         f32 uvX = 0.0f;      // hit in the 0..1 footprint UV

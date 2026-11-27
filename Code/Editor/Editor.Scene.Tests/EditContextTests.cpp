@@ -17,8 +17,8 @@ import foundation.scene;
 import foundation.scene.resource;
 import engine.render;
 import foundation.geometry;   // StaticMesh (the Ref the path test points)
-import foundation.vegetation; // VegetationPlacement (a reflected enum inside a list element)
-import engine.vegetation;     // TerrainVegetationComponent: the Array<struct> the path test edits
+import terrain.foundation; // VegetationPlacement (a reflected enum inside a list element)
+import terrain.engine;     // TerrainVegetationComponent: the Array<struct> the path test edits
 import editor.core;
 import editor.scene;
 import foundation.content;
@@ -920,12 +920,12 @@ TEST_CASE("scene-edit: revert component to prefab baseline is undoable")
 
 TEST_CASE("scene-edit: a property path edits a struct element inside a reflected list - set, undo, merge, refs")
 {
-    using engine::vegetation::TerrainVegetationComponent;
-    using engine::vegetation::ProceduralVegetationLayer;
-    engine::vegetation::RegisterVegetationComponentReflection();
+    using terrain::TerrainVegetationComponent;
+    using terrain::ProceduralVegetationLayer;
+    terrain::RegisterVegetationComponentReflection();
     scene::Scene scene(DefaultAllocator(), u8"t");
-    engine::vegetation::AddVegetationSceneManagers(scene);
-    auto* mgr = scene.GetSystem<engine::vegetation::TerrainVegetationComponentManager>();
+    terrain::AddVegetationSceneManagers(scene);
+    auto* mgr = scene.GetSystem<terrain::TerrainVegetationComponentManager>();
     REQUIRE(mgr != nullptr);
     EditorCommandStack commands;
     SceneEditContext edit(scene, commands);
@@ -994,10 +994,10 @@ TEST_CASE("scene-edit: a property path edits a struct element inside a reflected
     // A raw (enum) write and a String write through the path.
     edit.SetComponentPropertyRaw(
         id, type, ComponentPropertyPath{"proceduralLayers", 0}, "placement",
-        static_cast<i64>(foundation::vegetation::VegetationPlacement::Uniform));
-    CHECK(layer(0).placement == foundation::vegetation::VegetationPlacement::Uniform);
+        static_cast<i64>(terrain::VegetationPlacement::Uniform));
+    CHECK(layer(0).placement == terrain::VegetationPlacement::Uniform);
     commands.Undo();
-    CHECK(layer(0).placement == foundation::vegetation::VegetationPlacement::Mask); // the default
+    CHECK(layer(0).placement == terrain::VegetationPlacement::Mask); // the default
     edit.SetComponentProperty(id, type, ComponentPropertyPath{"proceduralLayers", 0}, "name",
                               Variant::From<String>(String(u8"Lawn")));
     CHECK(layer(0).name == String(u8"Lawn"));

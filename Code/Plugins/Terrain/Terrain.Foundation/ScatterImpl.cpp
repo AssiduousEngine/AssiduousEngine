@@ -6,17 +6,14 @@
 module;
 #include "Core/Prelude.h"
 
-module foundation.vegetation;
+module terrain.foundation;
 
 import foundation.core;
 import foundation.heightfield;
-import foundation.terrain;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
 
 using namespace foundation::core;
 
-namespace foundation::vegetation
+namespace terrain
 {
     namespace
     {

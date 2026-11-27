@@ -13,14 +13,15 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:tool_panels;
+export module terrain.editor:tool_panels;
 
 import foundation.core;
 import editor.core;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     /// Registers the terrain brushes' panels in the viewport-tool-panel registry
     /// (editor.app:tool_panel).

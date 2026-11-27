@@ -16,7 +16,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.vegetation:scatter;
+export module terrain.editor:vegetation_scatter;
 
 import foundation.core;
 import foundation.scene;     // EntityHandle
@@ -25,8 +25,9 @@ import editor.core;          // EditorCommandStack
 import editor.viewporttools; // IViewportTool, ViewportToolInput
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     class VegetationScatterTool final : public IViewportTool
     {

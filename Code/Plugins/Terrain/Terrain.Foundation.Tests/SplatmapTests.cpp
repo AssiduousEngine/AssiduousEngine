@@ -9,10 +9,10 @@
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 import foundation.core;
-import foundation.terrain.resource;
+import terrain.foundation;
 
 using namespace foundation::core;
-using namespace foundation::terrain;
+using namespace terrain;
 
 namespace
 {

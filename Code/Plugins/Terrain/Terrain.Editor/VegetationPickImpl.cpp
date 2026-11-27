@@ -6,24 +6,23 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.vegetation;
+module terrain.editor;
 
 import foundation.core;
 import foundation.scene;
 import foundation.heightfield;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
-import engine.terrain;
-import engine.vegetation;
+import terrain.foundation;
+import terrain.engine;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace scene = foundation::scene;
     namespace hf = foundation::heightfield;
-    using engine::vegetation::TerrainVegetationComponent;
-    using engine::vegetation::TerrainVegetationComponentManager;
+    using terrain::TerrainVegetationComponent;
+    using terrain::TerrainVegetationComponentManager;
 
     namespace
     {
@@ -39,7 +38,7 @@ namespace editor
         [[nodiscard]] hf::Heightfield* HeightfieldFor(scene::Scene& scene, scene::EntityHandle owner,
                                                       scene::EntityHandle& terrainEntity)
         {
-            auto* terrains = scene.GetSystem<engine::terrain::TerrainComponentManager>();
+            auto* terrains = scene.GetSystem<terrain::TerrainComponentManager>();
             if (terrains == nullptr)
             {
                 return nullptr;
@@ -47,9 +46,9 @@ namespace editor
             scene::EntityHandle e = owner;
             for (u32 depth = 0; depth < 64 && e.IsAssigned(); ++depth)
             {
-                if (engine::terrain::TerrainComponent* tc = terrains->Get(e))
+                if (terrain::TerrainComponent* tc = terrains->Get(e))
                 {
-                    foundation::terrain::TerrainResource* res = tc->terrain.Get();
+                    terrain::TerrainResource* res = tc->terrain.Get();
                     hf::Heightfield* grid = res != nullptr ? res->heightfield.Get() : nullptr;
                     if (grid != nullptr && !grid->IsEmpty())
                     {
@@ -102,7 +101,7 @@ namespace editor
         mgr->ForEach(
             [&](TerrainVegetationComponent& c, scene::EntityHandle owner)
             {
-                foundation::vegetation::VegetationMask* mask = c.mask.Get();
+                terrain::VegetationMask* mask = c.mask.Get();
                 if (requireMask && (mask == nullptr || mask->IsEmpty()))
                 {
                     return;

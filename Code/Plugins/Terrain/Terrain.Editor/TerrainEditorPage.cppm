@@ -26,7 +26,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:page;
+export module terrain.editor:page;
 
 import foundation.core;
 import foundation.content;
@@ -37,17 +37,16 @@ import foundation.resource;
 import foundation.scene;
 import foundation.gui;
 import foundation.gui.toolkit;
-import foundation.terrain.resource; // TerrainResource (the preview's product and the facts)
+import terrain.foundation; // TerrainResource (the preview's product and the facts)
 import terrain.pipeline;            // TerrainAsset
 import editor.core;
 import editor.app;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
-    namespace terrain = foundation::terrain;
-
     /// One fact about a cooked terrain, as a read-only row shows it: a name and its value.
     struct TerrainFact
     {
@@ -86,7 +85,7 @@ export namespace editor
         bool CreateSplatWeights(i32 size);
 
         // === For tests ===
-        [[nodiscard]] const pipeline::TerrainAsset* Asset() const { return ObjectAs<pipeline::TerrainAsset>(); }
+        [[nodiscard]] const terrain::TerrainAsset* Asset() const { return ObjectAs<terrain::TerrainAsset>(); }
         [[nodiscard]] foundation::gui::ToolMenuButton* SplatButton() const noexcept { return m_splat.Get(); }
 
     protected:
@@ -118,7 +117,7 @@ export namespace editor
     {
     public:
         explicit TerrainEditorPageFactory(const app::AssetPageServicesSource& services) : m_services(&services) {}
-        [[nodiscard]] const TypeInfo* PrimaryType() const override { return &pipeline::TerrainAsset::StaticType(); }
+        [[nodiscard]] const TypeInfo* PrimaryType() const override { return &terrain::TerrainAsset::StaticType(); }
         [[nodiscard]] UniquePtr<EditorPage> CreatePage(EditorContext& context, foundation::content::Instance& instance) override;
 
     private:

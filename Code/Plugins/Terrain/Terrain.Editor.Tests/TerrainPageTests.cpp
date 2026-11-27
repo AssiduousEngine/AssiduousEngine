@@ -20,10 +20,11 @@ import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
-import editor.terrain;
+import terrain.editor;
 
 using namespace foundation::core;
 using namespace editor;
+using namespace terrain; // the plugin's own
 namespace gui = foundation::gui;
 
 namespace
@@ -72,7 +73,7 @@ namespace
 
         Bed()
         {
-            pipeline::RegisterTerrainAsset();
+            terrain::RegisterTerrainAsset();
             pipeline::RegisterHeightfieldAsset();
             (void)RemoveDirectoryRecursive(dir.AsView());
             REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
@@ -80,11 +81,11 @@ namespace
             REQUIRE(static_cast<bool>(project));
             context.SetProject(project.Get());
             foundation::content::Group* top = project->SourceDb().RootGroup();
-            hills = top->CreateInstance(u8"Hills", pipeline::TerrainAsset::StaticType());
-            bare = top->CreateInstance(u8"Bare", pipeline::TerrainAsset::StaticType());
+            hills = top->CreateInstance(u8"Hills", terrain::TerrainAsset::StaticType());
+            bare = top->CreateInstance(u8"Bare", terrain::TerrainAsset::StaticType());
             REQUIRE(hills != nullptr);
             REQUIRE(bare != nullptr);
-            pipeline::TerrainAsset terrain;
+            terrain::TerrainAsset terrain;
             REQUIRE(bare->WriteObject(terrain).IsOk());
             terrain.heightfieldId = heights;
             terrain.paletteAlbedoIds.PushBack(grass);
@@ -121,7 +122,7 @@ TEST_CASE("terrain page: the terrain's rows, its base layer's, and its paint lay
     REQUIRE_FALSE(page->LoadFailed());
     CHECK(Value(page->TerrainRows(), u8"heightfield") == Text(bed.heights));
     CHECK(page->TerrainRows().FindInfo(u8"heightfield")->ReferenceType == &pipeline::HeightfieldAsset::StaticType());
-    CHECK(page->TerrainRows().FindInfo(u8"weights")->ReferenceType == &pipeline::SplatmapAsset::StaticType());
+    CHECK(page->TerrainRows().FindInfo(u8"weights")->ReferenceType == &terrain::SplatmapAsset::StaticType());
     CHECK(page->TerrainRows().GetValue(u8"castShadows", 0).AsBool());
     CHECK(page->BaseRows().FindInfo(u8"albedo")->ReferenceType == &foundation::texture::Texture::StaticType());
 
@@ -152,7 +153,7 @@ TEST_CASE("terrain page: the terrain's rows, its base layer's, and its paint lay
 
     // Opening the page changes nothing; the first edit pads every layer array to the length of
     // the albedos.
-    const pipeline::TerrainAsset* asset = page->Asset();
+    const terrain::TerrainAsset* asset = page->Asset();
     REQUIRE(asset != nullptr);
     CHECK(asset->paletteNormalIds.Size() == 1u);
     CHECK_FALSE(page->IsDirty());
@@ -173,7 +174,7 @@ TEST_CASE("terrain page: a map picked, a tiling and a switch, each one undo step
     page->EditRow(page->LayerRows(), u8"layers.0.tile", gui::Variant(24.0));
     page->EditRow(page->TerrainRows(), u8"castShadows", gui::Variant(false));
     page->EditRow(page->BaseRows(), u8"albedo", gui::Variant(Text(bed.grass)));
-    const pipeline::TerrainAsset* asset = page->Asset();
+    const terrain::TerrainAsset* asset = page->Asset();
     REQUIRE(asset != nullptr);
     CHECK(asset->paletteNormalIds[1] == bed.moss);
     CHECK(asset->paletteTileScales[0] == doctest::Approx(24.0f));
@@ -197,7 +198,7 @@ TEST_CASE("terrain page: a layer added at the end and one removed keep every arr
 {
     Bed bed;
     UniquePtr<TerrainEditorPage> page = bed.Open(*bed.hills);
-    const pipeline::TerrainAsset* asset = page->Asset();
+    const terrain::TerrainAsset* asset = page->Asset();
     REQUIRE(asset != nullptr);
 
     REQUIRE(page->LayerRows().EditList(u8"layers", ListEditOf(gui::ListEdit::Op::Insert, 2)));
@@ -230,7 +231,7 @@ TEST_CASE("terrain page: New Splat Weights makes them beside the terrain and giv
     REQUIRE(page->SplatButton() != nullptr);
     CHECK(page->SplatButton()->IsEnabled());
     REQUIRE(page->CreateSplatWeights(512));
-    const pipeline::TerrainAsset* asset = page->Asset();
+    const terrain::TerrainAsset* asset = page->Asset();
     REQUIRE(asset != nullptr);
     REQUIRE_FALSE(asset->weightsId.IsNil());
     foundation::content::Instance* made = bed.project->SourceDb().GetInstance(asset->weightsId);
@@ -238,7 +239,7 @@ TEST_CASE("terrain page: New Splat Weights makes them beside the terrain and giv
     CHECK(made->Name() == StringView(u8"Hills_splat"));
     CHECK(&made->OwningGroup() == &bed.hills->OwningGroup());
     RefPtr<ISerializable> object = made->ReadObject();
-    auto* splat = Cast<pipeline::SplatmapAsset>(object.Get());
+    auto* splat = Cast<terrain::SplatmapAsset>(object.Get());
     REQUIRE(splat != nullptr);
     CHECK(splat->width == 512);
     CHECK(Value(page->TerrainRows(), u8"weights") == Text(asset->weightsId));
@@ -258,8 +259,8 @@ TEST_CASE("terrain page: New Splat Weights makes them beside the terrain and giv
     REQUIRE(again != nullptr);
     CHECK(again->Name() == StringView(u8"Hills_splat.2"));
     RefPtr<ISerializable> kept = bed.project->SourceDb().GetInstance(first)->ReadObject();
-    REQUIRE(Cast<pipeline::SplatmapAsset>(kept.Get()) != nullptr);
-    CHECK(Cast<pipeline::SplatmapAsset>(kept.Get())->width == 512);
+    REQUIRE(Cast<terrain::SplatmapAsset>(kept.Get()) != nullptr);
+    CHECK(Cast<terrain::SplatmapAsset>(kept.Get())->width == 512);
 }
 
 TEST_CASE("terrain page: New Splat Weights never writes over another asset holding their name")
@@ -267,9 +268,9 @@ TEST_CASE("terrain page: New Splat Weights never writes over another asset holdi
     Bed bed;
     // A terrain named like the splat weights would be: the weights must not land in it.
     foundation::content::Instance* holder =
-        bed.hills->OwningGroup().CreateInstance(u8"Bare_splat", pipeline::TerrainAsset::StaticType());
+        bed.hills->OwningGroup().CreateInstance(u8"Bare_splat", terrain::TerrainAsset::StaticType());
     REQUIRE(holder != nullptr);
-    pipeline::TerrainAsset holderAsset;
+    terrain::TerrainAsset holderAsset;
     holderAsset.heightfieldId = bed.heights;
     REQUIRE(holder->WriteObject(holderAsset).IsOk());
 
@@ -280,7 +281,7 @@ TEST_CASE("terrain page: New Splat Weights never writes over another asset holdi
     CHECK(made != holder);
     CHECK(made->Name() == StringView(u8"Bare_splat.2"));
     RefPtr<ISerializable> object = holder->ReadObject();
-    const auto* still = Cast<pipeline::TerrainAsset>(object.Get());
+    const auto* still = Cast<terrain::TerrainAsset>(object.Get());
     REQUIRE(still != nullptr); // still a terrain, its heightfield kept
     CHECK(still->heightfieldId == bed.heights);
 }

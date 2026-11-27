@@ -17,16 +17,16 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.terrain:splattexture;
+export module terrain.engine:splattexture;
 
 import foundation.core;
 import foundation.rhi;
 import foundation.render;
-import foundation.terrain.resource; // SplatWeights (the CPU top-K rasters)
+import terrain.foundation; // SplatWeights (the CPU top-K rasters)
 
 using namespace foundation::core;
 
-export namespace engine::terrain
+export namespace terrain
 {
     namespace rhi = foundation::rhi;
     namespace render = foundation::render;
@@ -51,7 +51,7 @@ export namespace engine::terrain
         /// uploads and caches on a miss; a stale version for the same resource rebuilds in place
         /// (the paint re-upload path). Null views on a device failure or an empty raster.
         [[nodiscard]] SplatTextureViews GetOrCreate(rhi::Device& device,
-                                                    const foundation::terrain::SplatWeights& sw,
+                                                    const terrain::SplatWeights& sw,
                                                     u64 version)
         {
             if (sw.IsEmpty())
@@ -154,7 +154,7 @@ export namespace engine::terrain
         }
 
         [[nodiscard]] static bool Build(rhi::Device& device,
-                                        const foundation::terrain::SplatWeights& sw, Entry& out)
+                                        const terrain::SplatWeights& sw, Entry& out)
         {
             const u32 w = static_cast<u32>(sw.Width());
             const u32 h = static_cast<u32>(sw.Height());
@@ -227,7 +227,7 @@ export namespace engine::terrain
         TerrainPaletteTextureCache& operator=(const TerrainPaletteTextureCache&) = delete;
 
         [[nodiscard]] PaletteGpu
-        GetOrCreate(rhi::Device& device, const foundation::terrain::TerrainPaletteData& data,
+        GetOrCreate(rhi::Device& device, const terrain::TerrainPaletteData& data,
                     Span<const f32> paletteTileScales)
         {
             if (!data.IsValid())
@@ -354,7 +354,7 @@ export namespace engine::terrain
                 if (queue->CreateTransferBatch(batch).IsOk() && batch != nullptr)
                 {
                     const usize sliceBytes =
-                        foundation::terrain::TerrainPaletteData::SliceBytes(sliceSize, mipCount);
+                        terrain::TerrainPaletteData::SliceBytes(sliceSize, mipCount);
                     for (u32 slice = 0; slice < sliceCount; ++slice)
                     {
                         const u8* sliceBase = texels.Data() + sliceBytes * slice;
@@ -380,7 +380,7 @@ export namespace engine::terrain
         }
 
         [[nodiscard]] static bool Build(rhi::Device& device,
-                                        const foundation::terrain::TerrainPaletteData& data,
+                                        const terrain::TerrainPaletteData& data,
                                         Span<const f32> paletteTileScales, Entry& out)
         {
             // Albedo is sRGB, so the palette matches the base's brightness; normal and ORM are

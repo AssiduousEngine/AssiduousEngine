@@ -561,7 +561,7 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
   becomes a prop layer, the rest procedural; the retired enumerator's value is not reused). The
   manager keys its caches and chunk seeds by SLOT (the list index, the prop list flagged in the
   top bit, `kPropSlotBit`), so the two lists never collide on a persistent-buffer key.
-- **Scatter.** `foundation.vegetation::ScatterChunk` is a pure function of (seed, chunk,
+- **Scatter.** `terrain::ScatterChunk` (`terrain.foundation`) is a pure function of (seed, chunk,
   heightfield, splat, layer): the seed hashes the owner entity's persistent id, the layer index
   and the chunk index, so the same inputs give byte-identical terrain-local instances on any machine. The
   output ORDER is a uniformly random sequence, so distance fade is a draw-count PREFIX
@@ -671,12 +671,12 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
   `instances` (terrain-local matrices on the layer, serialized with it) through the same
   per-chunk sets: each instance maps to one chunk by its XZ, and a content hash of the array
   re-buckets the layer on any change (a stroke, an undo). The Paint Props brush (Editor/
-  Editor.Vegetation, tool id `vegetation.scatter`) stamps `foundation.vegetation::ScatterStamp`
+  the terrain plugin's Terrain.Editor, tool id `vegetation.scatter`) stamps `terrain::ScatterStamp`
   (density x disc area candidates under the layer's slope / height / scale / alignment rules,
   a spacing rule against existing props, and a collision query: the scene's physics world's
   `ShapeOverlap` with the terrain's own body excluded when a world exists) or erases the props
   under the disc, one command per stroke; stamps seed from the stroke so a scripted stroke is
-  deterministic. Both vegetation brushes share one footprint pick (`editor.vegetation:pick`).
+  deterministic. Both vegetation brushes share one footprint pick (`terrain.editor:vegetation_pick`).
 - **Deferred.** Impostors and GPU-driven scatter, per-view fade prefixes (P3).
 
 ## 10. Materials & shaders

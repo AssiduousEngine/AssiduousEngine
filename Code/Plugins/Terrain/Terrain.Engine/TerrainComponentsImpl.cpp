@@ -9,16 +9,16 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module engine.terrain;
+module terrain.engine;
 import foundation.heightfield;
 
 import foundation.core;
 import foundation.scene;
-import foundation.terrain.resource;
+import terrain.foundation;
 
 using namespace foundation::core;
 
-namespace engine::terrain
+namespace terrain
 {
     void TerrainComponentManager::CollectStaticGeometry(scene::Scene& scene, const AABB& bounds, f32 detail,
                                                         Array<Float3>& outTriangles)
@@ -26,7 +26,7 @@ namespace engine::terrain
         ForEach(
             [&](TerrainComponent& c, scene::EntityHandle entity)
             {
-                foundation::terrain::TerrainResource* terrain = c.terrain.Get();
+                terrain::TerrainResource* terrain = c.terrain.Get();
                 foundation::heightfield::Heightfield* field =
                     (terrain != nullptr) ? terrain->heightfield.Get() : nullptr;
                 if (field == nullptr || field->Size() < 2 || !scene.IsEffectivelyActive(entity))
@@ -104,7 +104,7 @@ namespace engine::terrain
     }
 }
 
-namespace engine::terrain
+namespace terrain
 {
     REFLECT_VALUE(TerrainComponent, "rtti::engine::terrain")
     {

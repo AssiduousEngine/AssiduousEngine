@@ -8,10 +8,10 @@
 #include "Core/Prelude.h"
 
 import foundation.core;
-import foundation.vegetation.resource;
+import terrain.foundation;
 
 using namespace foundation::core;
-using namespace foundation::vegetation;
+using namespace terrain;
 
 TEST_CASE("vegetation mask: a fresh mask is empty everywhere, planes and texels bounds-checked")
 {

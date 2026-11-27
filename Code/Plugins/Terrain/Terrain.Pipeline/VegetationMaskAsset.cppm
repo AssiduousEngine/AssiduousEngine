@@ -15,7 +15,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module vegetation.pipeline;
+export module terrain.pipeline:vegetationmaskasset;
 
 import foundation.core;
 import foundation.vfs;
@@ -23,15 +23,16 @@ import pipeline.core;
 import pipeline.importer; // IFileImporter + ImportContext + CopyIntoSources
 import foundation.image;
 import foundation.image.io; // LoadImageFromMemory (RGBA8 decode)
-import foundation.vegetation.resource;
+import terrain.foundation;
 import foundation.content;
 
 using namespace foundation::core;
-using foundation::vegetation::kVegetationMaskStream;
-using foundation::vegetation::VegetationMask;
-using foundation::vegetation::VegetationMaskSource;
+using namespace pipeline; // its bases
+using terrain::kVegetationMaskStream;
+using terrain::VegetationMask;
+using terrain::VegetationMaskSource;
 
-export namespace pipeline
+export namespace terrain
 {
     namespace content = foundation::content;
 
@@ -124,7 +125,7 @@ export namespace pipeline
                 const u32 planes =
                     ma.planeCount == 0
                         ? 1u
-                        : Min(ma.planeCount, foundation::vegetation::kMaxMaskPlanes);
+                        : Min(ma.planeCount, terrain::kMaxMaskPlanes);
                 const usize expected = static_cast<usize>(w) * static_cast<usize>(h) * planes;
                 Array<u8> densities;
                 if (ctx.source != nullptr)

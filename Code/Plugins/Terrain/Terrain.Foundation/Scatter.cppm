@@ -17,21 +17,20 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.vegetation:scatter;
+export module terrain.foundation:scatter;
 
 import foundation.core;
 import foundation.heightfield;      // Heightfield, HeightfieldRegion
-import foundation.terrain;          // TerrainChunk, kChunkQuads, ChunksPerSide
-import foundation.terrain.resource;    // SplatWeights
-import foundation.vegetation.resource; // VegetationMask
-import :layer;
+import :chunks;         // TerrainChunk, kChunkQuads, ChunksPerSide
+import :resource;       // SplatWeights
+import :vegetationmask; // VegetationMask
+import :vegetationlayer;
 
 using namespace foundation::core;
 
-export namespace foundation::vegetation
+export namespace terrain
 {
     namespace heightfield = foundation::heightfield;
-    namespace terrain = foundation::terrain;
 
     // The candidate ceiling per chunk: a CPU bound per rebuild (density x area can be asked for
     // anything) that never shapes the picture. The cap on what a chunk holds is the layer's

@@ -29,5 +29,4 @@ target_sources(${PLUGIN_PART}
             TerrainSubsystem.cppm
             TerrainModule.cppm
             VegetationComponents.cppm
-            VegetationSubsystem.cppm
-            VegetationModule.cppm)
+            VegetationSubsystem.cppm)

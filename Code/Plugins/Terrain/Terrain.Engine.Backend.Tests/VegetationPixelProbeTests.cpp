@@ -26,12 +26,9 @@ import foundation.geometry;
 import foundation.materials;
 import foundation.materials.pipelinecache;
 import foundation.heightfield;
-import foundation.terrain;
-import foundation.terrain.resource;
-import foundation.vegetation;
+import terrain.foundation;
 import foundation.resource; // Ref (a layer's materials)
-import engine.terrain;
-import engine.vegetation;
+import terrain.engine;
 
 using namespace foundation::core;
 using namespace foundation::render;
@@ -42,8 +39,8 @@ namespace scene = foundation::scene;
 namespace geometry = foundation::geometry;
 namespace materials = foundation::materials;
 namespace hf = foundation::heightfield;
-namespace tmodel = foundation::terrain;
-namespace veg = foundation::vegetation;
+namespace tmodel = ::terrain;
+namespace veg = ::terrain;
 
 namespace
 {
@@ -141,9 +138,9 @@ namespace
 
             // The scene: a flat terrain with the half splat and one grass layer under it.
             scene::Scene world{DefaultAllocator()};
-            engine::terrain::AddTerrainSceneManagers(world);
-            engine::vegetation::AddVegetationSceneManagers(world);
-            auto* mgr = world.GetSystem<engine::vegetation::TerrainVegetationComponentManager>();
+            terrain::AddTerrainSceneManagers(world);
+            terrain::AddVegetationSceneManagers(world);
+            auto* mgr = world.GetSystem<terrain::TerrainVegetationComponentManager>();
             REQUIRE(mgr != nullptr);
             mgr->SetBuildBudget(100);
             RefPtr<hf::Heightfield> grid = MakeFlat();
@@ -152,13 +149,13 @@ namespace
             resource->heightfield = grid.Get();
             resource->weights = splat.Get();
             const scene::EntityHandle terrain = world.CreateEntity(u8"terrain");
-            world.GetSystem<engine::terrain::TerrainComponentManager>()->Add(terrain).terrain =
+            world.GetSystem<terrain::TerrainComponentManager>()->Add(terrain).terrain =
                 resource.Get();
             RefPtr<geometry::StaticMesh> tuft = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
             RefPtr<materials::Material> green =
                 materials::CreatePBR(u8"grass", Float4{0.1f, 0.9f, 0.1f, 1.0f}, 0.0f, 0.9f);
-            engine::vegetation::TerrainVegetationComponent& vegetation = mgr->Add(terrain);
-            engine::vegetation::ProceduralVegetationLayer layer;
+            terrain::TerrainVegetationComponent& vegetation = mgr->Add(terrain);
+            terrain::ProceduralVegetationLayer layer;
             layer.name = String(u8"Grass");
             layer.mesh = tuft.Get();
             layer.materials.PushBack(foundation::resource::Ref<materials::Material>(green));

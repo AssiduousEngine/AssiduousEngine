@@ -10,19 +10,17 @@ import foundation.core;
 import foundation.scene;
 import foundation.scene.resource; // SerializeScene
 import foundation.resource;
-import foundation.terrain;
-import foundation.terrain.resource;
+import terrain.foundation;
 import foundation.heightfield;
 import foundation.rhi;
 import foundation.rhi.null;
 import foundation.render;
-import engine.terrain;
+import terrain.engine;
 
 using namespace foundation::core;
-using namespace engine::terrain;
+using namespace terrain;
 namespace scene = foundation::scene;
-namespace terrain = foundation::terrain;
-namespace tmodel = foundation::terrain;
+namespace tmodel = ::terrain;
 namespace rhi = foundation::rhi;
 namespace hf = foundation::heightfield;
 
@@ -187,18 +185,18 @@ TEST_CASE("engine.terrain: ClearGpu frees the height textures while the device i
     foundation::rhi::null::NullDevice device{DefaultAllocator()};
 
     scene::Scene sceneObj{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(sceneObj);
-    auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
+    terrain::AddTerrainSceneManagers(sceneObj);
+    auto* mgr = sceneObj.GetSystem<terrain::TerrainComponentManager>();
     REQUIRE(mgr != nullptr);
     mgr->SetRenderContext(&device, 7);
 
     // An in-memory terrain: resource and heightfield assigned directly.
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
-    auto res = MakeRef<foundation::terrain::TerrainResource>(DefaultAllocator());
+    auto res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
     res->heightfield = grid.Get();
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"terrain");
-    engine::terrain::TerrainComponent& c = mgr->Add(e);
+    terrain::TerrainComponent& c = mgr->Add(e);
     c.terrain = res.Get();
     sceneObj.Start();
 
@@ -219,23 +217,23 @@ TEST_CASE("engine.terrain: a cut heightfield extracts its holed chunks' meshes; 
 {
     foundation::rhi::null::NullDevice device{DefaultAllocator()};
     scene::Scene sceneObj{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(sceneObj);
-    auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
+    terrain::AddTerrainSceneManagers(sceneObj);
+    auto* mgr = sceneObj.GetSystem<terrain::TerrainComponentManager>();
     REQUIRE(mgr != nullptr);
     mgr->SetRenderContext(&device, 7);
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 129, Float2{128.0f, 128.0f}, 0.0f, 10.0f);
-    auto res = MakeRef<foundation::terrain::TerrainResource>(DefaultAllocator());
+    auto res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
     res->heightfield = grid.Get();
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"terrain");
-    engine::terrain::TerrainComponent& c = mgr->Add(e);
+    terrain::TerrainComponent& c = mgr->Add(e);
     c.terrain = res.Get();
     sceneObj.Start();
 
     foundation::render::ExtractedScene snapshot{DefaultAllocator()};
     mgr->ExtractRenderData(snapshot);
     CHECK(mgr->HoledMeshCount(grid->uid) == 0u); // no holes: no meshes, nothing allocated
-    auto* rd = static_cast<const engine::terrain::TerrainRenderData*>(snapshot.Items()[0]);
+    auto* rd = static_cast<const terrain::TerrainRenderData*>(snapshot.Items()[0]);
     CHECK(rd->holedMeshCount == 0u);
 
     grid->SetHole(100, 100, true); // inside chunk 3 only
@@ -244,7 +242,7 @@ TEST_CASE("engine.terrain: a cut heightfield extracts its holed chunks' meshes; 
     mgr->ExtractRenderData(second);
     CHECK(mgr->HoledMeshCount(grid->uid) == 1u);
     CHECK(mgr->HoleTextureCount() == 1u); // the R8 mask the HOLES shaders sample
-    rd = static_cast<const engine::terrain::TerrainRenderData*>(second.Items()[0]);
+    rd = static_cast<const terrain::TerrainRenderData*>(second.Items()[0]);
     CHECK(rd->holeView.IsValid());
     REQUIRE(rd->holedMeshCount == 1u);
     CHECK(rd->holedMeshes[0].chunkIndex == 3u);
@@ -278,8 +276,8 @@ TEST_CASE("engine.terrain: the extracted snapshot outlives the scene it came fro
     {
         rhi::null::NullDevice device{DefaultAllocator()};
         scene::Scene sceneObj{DefaultAllocator()};
-        engine::terrain::AddTerrainSceneManagers(sceneObj);
-        auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
+        terrain::AddTerrainSceneManagers(sceneObj);
+        auto* mgr = sceneObj.GetSystem<terrain::TerrainComponentManager>();
         REQUIRE(mgr != nullptr);
         mgr->SetRenderContext(&device, 7);
 
@@ -298,7 +296,7 @@ TEST_CASE("engine.terrain: the extracted snapshot outlives the scene it came fro
 
     REQUIRE(snapshot.Size() == 1u);
     const auto* rd =
-        static_cast<const engine::terrain::TerrainRenderData*>(snapshot.Items()[0]);
+        static_cast<const terrain::TerrainRenderData*>(snapshot.Items()[0]);
     REQUIRE(rd->chunks != nullptr);
     REQUIRE(rd->nodes != nullptr);
     REQUIRE(rd->nodeCount > 0u);
@@ -323,12 +321,12 @@ TEST_CASE("engine.terrain: the extracted snapshot outlives the scene it came fro
 TEST_CASE("engine.terrain: the surface is static geometry, holes open, faces up")
 {
     scene::Scene sceneObj{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(sceneObj);
-    auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
+    terrain::AddTerrainSceneManagers(sceneObj);
+    auto* mgr = sceneObj.GetSystem<terrain::TerrainComponentManager>();
     REQUIRE(mgr != nullptr);
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 17, Float2{16.0f, 16.0f}, 0.0f, 10.0f);
-    auto res = MakeRef<foundation::terrain::TerrainResource>(DefaultAllocator());
+    auto res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
     res->heightfield = grid.Get();
     const scene::EntityHandle e = sceneObj.CreateEntity(u8"terrain");
     mgr->Add(e).terrain = res.Get();

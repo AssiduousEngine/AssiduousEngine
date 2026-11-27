@@ -19,14 +19,13 @@ import foundation.shaders;
 import foundation.vfs;
 import foundation.vg.renderer;
 import particles.engine;
-import engine.terrain;
+import terrain.engine;
 
 using namespace foundation::core;
 namespace materials = foundation::materials;
 namespace render = foundation::render;
 namespace shaders = foundation::shaders;
 namespace vg = foundation::vg;
-namespace terrain = engine::terrain;
 
 namespace
 {

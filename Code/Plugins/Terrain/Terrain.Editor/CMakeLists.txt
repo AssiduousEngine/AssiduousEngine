@@ -21,4 +21,4 @@ target_sources(${PLUGIN_PART}
         AssetEdits.cppm Sculpt.cppm SplatTool.cppm HoleTool.cppm SplatmapThumbnailGenerator.cppm ToolPanels.cppm
         TerrainEditorPage.cppm EditorTerrainModule.cppm
         VegetationPick.cppm VegetationPaintTool.cppm VegetationScatterTool.cppm
-        VegetationMaskPage.cppm VegetationEditorModule.cppm)
+        VegetationMaskPage.cppm)

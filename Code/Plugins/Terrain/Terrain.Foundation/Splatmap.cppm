@@ -22,7 +22,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module foundation.terrain.resource:splatmap;
+export module terrain.foundation:splatmap;
 
 import foundation.core;
 import foundation.resource;
@@ -31,7 +31,7 @@ import foundation.content;
 using namespace foundation::core;
 using namespace foundation::resource;
 
-export namespace foundation::terrain
+export namespace terrain
 {
     /// Layers blended per texel (the K in top-K). The palette itself is unbounded (8-bit index,
     /// up to 256 layers, which is WebGPU's minimum maxTextureArrayLayers; do not widen the index

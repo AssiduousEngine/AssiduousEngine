@@ -17,20 +17,21 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.vegetation:paint;
+export module terrain.editor:vegetation_paint;
 
 import foundation.core;
 import foundation.scene;               // EntityHandle
 import foundation.render;              // debug::DebugDraw (the Draw override signature)
-import foundation.vegetation.resource; // VegetationMask (RefPtr kept alive across a stroke), MaskRegion
+import terrain.foundation; // VegetationMask (RefPtr kept alive across a stroke), MaskRegion
 import editor.core;                    // EditorCommandStack, IAssetEditSink
 import editor.viewporttools;           // IViewportTool, IViewportToolProvider, ViewportToolInput
-import :pick;                          // VegetationPick (the shared terrain pick)
-import :scatter;                       // VegetationScatterTool (the provider creates both brushes)
+import :vegetation_pick;                          // VegetationPick (the shared terrain pick)
+import :vegetation_scatter;                       // VegetationScatterTool (the provider creates both brushes)
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     /// The vegetation mask brush. One per scene page (created by the vegetation provider);
     /// borrows the scene, command stack and asset-edit sink from the host context.
@@ -113,7 +114,7 @@ export namespace editor
 
         struct Pick
         {
-            foundation::vegetation::VegetationMask* mask = nullptr;
+            terrain::VegetationMask* mask = nullptr;
             Guid maskId;  // TerrainVegetationComponent.mask.id (the source asset guid; may be nil)
             void* manager = nullptr; // the scene's TerrainVegetationComponentManager (regrow notices)
             i32 gridSize = 0;        // the terrain heightfield's samples per side (maps the footprint to the grid)
@@ -154,12 +155,12 @@ export namespace editor
         bool m_stroking = false;
         f32 m_lastStampU = 0.0f;
         f32 m_lastStampV = 0.0f;
-        RefPtr<foundation::vegetation::VegetationMask> m_strokeMask;
+        RefPtr<terrain::VegetationMask> m_strokeMask;
         Guid m_strokeMaskId;
         void* m_strokeManager = nullptr;
         i32 m_strokeGridSize = 0;
         Array<u8> m_beforePlane;
-        foundation::vegetation::MaskRegion m_region;
+        terrain::MaskRegion m_region;
         String m_status;
     };
 

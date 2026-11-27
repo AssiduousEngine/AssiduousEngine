@@ -14,27 +14,23 @@ import foundation.core;
 import foundation.scene;
 import foundation.geometry;
 import foundation.heightfield;
-import foundation.terrain;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
+import terrain.foundation;
 import foundation.resource;
 import foundation.materials;
-import foundation.vegetation;
 import foundation.render;
-import engine.terrain;
-import engine.vegetation;
+import terrain.engine;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace hf = foundation::heightfield;
-namespace tmodel = foundation::terrain;
-namespace veg = foundation::vegetation;
+namespace tmodel = ::terrain;
+namespace veg = ::terrain;
 namespace render = foundation::render;
 namespace geometry = foundation::geometry;
-using engine::vegetation::TerrainVegetationComponent;
-using engine::vegetation::TerrainVegetationComponentManager;
-using engine::vegetation::ProceduralVegetationLayer;
-using engine::vegetation::PropVegetationLayer;
+using terrain::TerrainVegetationComponent;
+using terrain::TerrainVegetationComponentManager;
+using terrain::ProceduralVegetationLayer;
+using terrain::PropVegetationLayer;
 
 namespace
 {
@@ -89,8 +85,8 @@ namespace
 
         explicit Fixture(bool withSplat = true)
         {
-            engine::terrain::AddTerrainSceneManagers(scene);
-            engine::vegetation::AddVegetationSceneManagers(scene);
+            terrain::AddTerrainSceneManagers(scene);
+            terrain::AddVegetationSceneManagers(scene);
             mgr = scene.GetSystem<TerrainVegetationComponentManager>();
             REQUIRE(mgr != nullptr);
 
@@ -103,7 +99,7 @@ namespace
                 resource->weights = splat.Get();
             }
             terrain = scene.CreateEntity(u8"terrain");
-            scene.GetSystem<engine::terrain::TerrainComponentManager>()->Add(terrain).terrain =
+            scene.GetSystem<terrain::TerrainComponentManager>()->Add(terrain).terrain =
                 resource.Get();
 
             mesh = geometry::Primitives::Cube(DefaultAllocator(), 0.5f);
@@ -175,8 +171,8 @@ namespace
 
 TEST_CASE("engine.vegetation: the component reflects (two lists of reflected layers) and round-trips its wire")
 {
-    engine::vegetation::RegisterVegetationComponentReflection();
-    engine::vegetation::RegisterVegetationComponentReflection(); // idempotent
+    terrain::RegisterVegetationComponentReflection();
+    terrain::RegisterVegetationComponentReflection(); // idempotent
     const TypeInfo& type = TypeOf<TerrainVegetationComponent>();
     const PropertyInfo* grownList = FindProperty(type, "proceduralLayers");
     REQUIRE(grownList != nullptr);
@@ -348,7 +344,7 @@ TEST_CASE("engine.vegetation: the legacy reader splits a data-version-1 one-list
     // (Cube: Scattered with two instances; Grass: Mask on plane 0), `mask`, `visible`. The reader
     // (ReadsDataVersionsFrom(1)) accepts it, the body branches on ar.Version() == 1 and splits by
     // placement; a re-save writes the current version.
-    engine::vegetation::RegisterVegetationComponentReflection();
+    terrain::RegisterVegetationComponentReflection();
     const TypeInfo& type = TypeOf<TerrainVegetationComponent>();
     MemoryStream stream;
     {
@@ -480,7 +476,7 @@ namespace
 
 TEST_CASE("engine.vegetation: a data-version-2 layer's one material reads as its list's one entry")
 {
-    engine::vegetation::RegisterVegetationComponentReflection();
+    terrain::RegisterVegetationComponentReflection();
     const TypeInfo& type = TypeOf<TerrainVegetationComponent>();
     MemoryStream stream;
     {
@@ -824,8 +820,8 @@ TEST_CASE("engine.vegetation: two layers are two families of sets; a removed slo
 TEST_CASE("engine.vegetation: no component, a hidden component, one off any terrain, or a layer without a mesh extracts nothing")
 {
     scene::Scene bare{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(bare);
-    engine::vegetation::AddVegetationSceneManagers(bare);
+    terrain::AddTerrainSceneManagers(bare);
+    terrain::AddVegetationSceneManagers(bare);
     auto* mgr = bare.GetSystem<TerrainVegetationComponentManager>();
     REQUIRE(mgr != nullptr);
     bare.Start();
@@ -1218,7 +1214,7 @@ namespace
 
 TEST_CASE("engine.vegetation: a data-version-3 layer reads as scenery only; version 4 round-trips its collision")
 {
-    engine::vegetation::RegisterVegetationComponentReflection();
+    terrain::RegisterVegetationComponentReflection();
     const TypeInfo& type = TypeOf<TerrainVegetationComponent>();
     MemoryStream stream;
     {

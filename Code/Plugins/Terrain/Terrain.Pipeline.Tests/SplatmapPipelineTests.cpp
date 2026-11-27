@@ -17,7 +17,7 @@ import foundation.resource;
 import pipeline.core;
 import foundation.image;
 import foundation.image.io;
-import foundation.terrain.resource;
+import terrain.foundation;
 import texture.pipeline;
 import terrain.pipeline;
 
@@ -25,7 +25,7 @@ using namespace foundation::core;
 using namespace pipeline;
 using namespace foundation::vfs;
 using namespace foundation::resource;
-using namespace foundation::terrain;
+using namespace terrain;
 namespace image = foundation::image;
 
 namespace
@@ -258,7 +258,7 @@ TEST_CASE("terrain.pipeline: the palette cook decodes albedos through the SOURCE
     // products, not TextureAsset envelopes) and ctx.sourceDb is the source db. The palette cook
     // must decode through the source db: resolving the albedo against the cooked db casts to
     // the wrong type and silently whites out every slice.
-    pipeline::RegisterTerrainAsset();
+    terrain::RegisterTerrainAsset();
     pipeline::RegisterTextureAsset();
     RegisterTerrainResourceTypes();
     FileDelete(u8"scratch_palette_src/albedo.png");
@@ -305,12 +305,12 @@ TEST_CASE("terrain.pipeline: the palette cook decodes albedos through the SOURCE
             cookedDb.RootGroup()->CreateInstance(u8"terrain", TerrainSource::StaticType());
         terrainId = product->Id();
 
-        pipeline::TerrainAsset ta;
+        terrain::TerrainAsset ta;
         ta.paletteAlbedoIds.PushBack(albedoInst->Id());
         ta.paletteTileScales.PushBack(4.0f);
         ta.paletteTextureSize = 64;
 
-        pipeline::TerrainAssetBuilder builder;
+        terrain::TerrainAssetBuilder builder;
         NativeFileSystem srcMount(u8"scratch_palette_src", DefaultAllocator());
         pipeline::AssetBuildContext ctx{DefaultAllocator()};
         ctx.sources = &srcMount;

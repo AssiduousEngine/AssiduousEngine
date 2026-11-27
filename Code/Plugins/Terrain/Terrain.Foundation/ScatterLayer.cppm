@@ -10,13 +10,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.vegetation:layer;
+export module terrain.foundation:vegetationlayer;
 
 import foundation.core;
 
 using namespace foundation::core;
 
-export namespace foundation::vegetation
+export namespace terrain
 {
     // The placement source: what decides whether a candidate point grows.
     enum class VegetationPlacement : u8

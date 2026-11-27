@@ -4,7 +4,7 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.terrain;
+module terrain.editor;
 
 import foundation.core;
 import foundation.scene;
@@ -12,14 +12,15 @@ import foundation.render;
 import foundation.shell;
 import foundation.resource;
 import foundation.heightfield;
-import foundation.terrain.resource;
-import engine.terrain;
+import terrain.foundation;
+import terrain.engine;
 import editor.core;
 import editor.viewporttools;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace scene = foundation::scene;
     namespace hf = foundation::heightfield;
@@ -28,11 +29,11 @@ namespace editor
 
     namespace
     {
-        [[nodiscard]] engine::terrain::TerrainComponentManager* HoleTerrainManager(scene::Scene& scene)
+        [[nodiscard]] terrain::TerrainComponentManager* HoleTerrainManager(scene::Scene& scene)
         {
             scene::ComponentManagerBase* base =
-                scene.FindManagerByComponentType(TypeOf<engine::terrain::TerrainComponent>());
-            return static_cast<engine::terrain::TerrainComponentManager*>(base);
+                scene.FindManagerByComponentType(TypeOf<terrain::TerrainComponent>());
+            return static_cast<terrain::TerrainComponentManager*>(base);
         }
 
         // The region-delta stroke command over the hole plane. It replays the touched rect
@@ -106,16 +107,16 @@ namespace editor
 
     bool TerrainHoleTool::IsAvailable() const
     {
-        engine::terrain::TerrainComponentManager* mgr = HoleTerrainManager(*m_scene);
+        terrain::TerrainComponentManager* mgr = HoleTerrainManager(*m_scene);
         if (mgr == nullptr)
         {
             return false;
         }
         bool any = false;
         mgr->ForEach(
-            [&](engine::terrain::TerrainComponent& c, scene::EntityHandle)
+            [&](terrain::TerrainComponent& c, scene::EntityHandle)
             {
-                foundation::terrain::TerrainResource* res = c.terrain.Get();
+                terrain::TerrainResource* res = c.terrain.Get();
                 hf::Heightfield* grid = (res != nullptr) ? res->heightfield.Get() : nullptr;
                 if (grid != nullptr && !grid->IsEmpty())
                 {
@@ -128,16 +129,16 @@ namespace editor
     TerrainHoleTool::Pick TerrainHoleTool::ResolvePick(const ViewportToolInput& input) const
     {
         Pick best;
-        engine::terrain::TerrainComponentManager* mgr = HoleTerrainManager(*m_scene);
+        terrain::TerrainComponentManager* mgr = HoleTerrainManager(*m_scene);
         if (mgr == nullptr)
         {
             return best;
         }
         f32 bestDist = kFloatMax;
         mgr->ForEach(
-            [&](engine::terrain::TerrainComponent& c, scene::EntityHandle owner)
+            [&](terrain::TerrainComponent& c, scene::EntityHandle owner)
             {
-                foundation::terrain::TerrainResource* res = c.terrain.Get();
+                terrain::TerrainResource* res = c.terrain.Get();
                 hf::Heightfield* grid = (res != nullptr) ? res->heightfield.Get() : nullptr;
                 if (grid == nullptr || grid->IsEmpty())
                 {

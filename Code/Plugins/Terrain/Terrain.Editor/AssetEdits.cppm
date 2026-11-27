@@ -14,16 +14,17 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:asset_edits;
+export module terrain.editor:asset_edits;
 
 import foundation.core;
 import foundation.heightfield;      // Heightfield
-import foundation.terrain.resource; // SplatWeights
+import terrain.foundation; // SplatWeights
 import editor.core;                 // AssetEditPersist
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     /// Writes `grid` to the source HeightfieldAsset `id`: its envelope synced to the grid, with its
     /// file name cleared so the sidecars are what it cooks from (a re-import sets it again), then
@@ -32,5 +33,5 @@ export namespace editor
 
     /// Writes `weights` to the source SplatmapAsset `id`: its envelope synced to the weights, with
     /// its file name cleared, then its weights and its layer indices.
-    [[nodiscard]] AssetEditPersist PersistSplatWeights(RefPtr<foundation::terrain::SplatWeights> weights, const Guid& id);
+    [[nodiscard]] AssetEditPersist PersistSplatWeights(RefPtr<terrain::SplatWeights> weights, const Guid& id);
 }

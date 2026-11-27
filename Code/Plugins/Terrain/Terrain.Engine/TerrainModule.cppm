@@ -8,7 +8,7 @@
 // Engine.Render has no terrain code. Physics is a separate ShapeKind::Heightfield collider over the
 // same shared heightfield.
 
-export module engine.terrain;
+export module terrain.engine;
 
 export import :heighttexture; // the GPU height-texture cache
 export import :splattexture;  // the GPU splat-texture cache (RGBA8, paint re-upload)
@@ -17,3 +17,5 @@ export import :holedmesh;     // TerrainHoledMeshCache (holed chunks' own index 
 export import :components;    // TerrainComponent and manager (IRenderDataProvider)
 export import :renderer;      // TerrainRenderer (dedicated Opaque Renderer)
 export import :subsystem;     // TerrainSubsystem (registers renderer and provider)
+export import :vegetationcomponents; // TerrainVegetationComponent and manager (IRenderDataProvider)
+export import :vegetationsubsystem;  // VegetationSubsystem (registers the provider per scene)

@@ -16,18 +16,19 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:splat;
+export module terrain.editor:splat;
 
 import foundation.core;
 import foundation.scene;            // EntityHandle
 import foundation.render;           // debug::DebugDraw (the Draw override signature)
-import foundation.terrain.resource; // SplatWeights (RefPtr kept alive across a stroke), SplatRegion
+import terrain.foundation; // SplatWeights (RefPtr kept alive across a stroke), SplatRegion
 import editor.core;                 // EditorCommandStack, IAssetEditSink
 import editor.viewporttools;        // IViewportTool, ViewportToolInput
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     /// The terrain splat (layer-weight) brush. One per scene page (created by the terrain provider);
     /// borrows the scene, command stack and asset-edit sink from the host context.
@@ -112,7 +113,7 @@ export namespace editor
 
         struct Pick
         {
-            foundation::terrain::SplatWeights* weights = nullptr;
+            terrain::SplatWeights* weights = nullptr;
             Guid weightsId;       // TerrainResource.weights.id (the source asset guid; may be nil)
             f32 uvX = 0.0f;       // hit in the splatmap's 0..1 footprint UV
             f32 uvY = 0.0f;
@@ -161,11 +162,11 @@ export namespace editor
         bool m_stroking = false;
         f32 m_lastStampU = 0.0f; // UV of the last deposited stamp, where the spacing walk starts
         f32 m_lastStampV = 0.0f;
-        RefPtr<foundation::terrain::SplatWeights> m_strokeWeights;
+        RefPtr<terrain::SplatWeights> m_strokeWeights;
         Guid m_strokeWeightsId;
         Array<u8> m_beforeWeights;
         Array<u8> m_beforeIndices;
-        foundation::terrain::SplatRegion m_region;
+        terrain::SplatRegion m_region;
 
         String m_status;
     };

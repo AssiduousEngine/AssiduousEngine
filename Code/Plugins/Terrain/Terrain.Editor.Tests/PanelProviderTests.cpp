@@ -11,34 +11,33 @@ import foundation.core;
 import foundation.gui;
 import foundation.scene;
 import foundation.heightfield;
-import foundation.terrain.resource;
-import engine.terrain;
+import terrain.foundation;
+import terrain.engine;
 import editor.core;
 import editor.viewporttools;
 import editor.app;
-import editor.terrain;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
-namespace terrain = foundation::terrain;
 namespace hf = foundation::heightfield;
 
 TEST_CASE("terrain tool panels: the plugin unloading takes its panels back, and loading again restores them")
 {
     editor::ViewportToolPanelRegistry& reg = editor::ViewportToolPanelRegistry::Get();
-    editor::RegisterTerrainToolPanels();
+    terrain::RegisterTerrainToolPanels();
     REQUIRE(reg.FindByToolId(u8"terrain.sculpt") != nullptr);
-    editor::UnregisterTerrainToolPanels();
+    terrain::UnregisterTerrainToolPanels();
     CHECK(reg.FindByToolId(u8"terrain.sculpt") == nullptr);
     CHECK(reg.FindByToolId(u8"terrain.splat") == nullptr);
     CHECK(reg.FindByToolId(u8"terrain.hole") == nullptr);
-    editor::RegisterTerrainToolPanels();
+    terrain::RegisterTerrainToolPanels();
     CHECK(reg.FindByToolId(u8"terrain.sculpt") != nullptr);
 }
 
 TEST_CASE("terrain tool panels: a panel of the kit for each brush; it shows the tool and sets it, the keys' changes too")
 {
-    editor::RegisterTerrainToolPanels(); // idempotent (the first registration per tool id wins)
+    terrain::RegisterTerrainToolPanels(); // idempotent (the first registration per tool id wins)
 
     editor::ViewportToolPanelRegistry& reg = editor::ViewportToolPanelRegistry::Get();
     editor::IViewportToolPanelProvider* sculptP = reg.FindByToolId(u8"terrain.sculpt");
@@ -53,8 +52,8 @@ TEST_CASE("terrain tool panels: a panel of the kit for each brush; it shows the 
     // weights, so the splat panel's base and unbounded swatch list run with more layers than the
     // four slots per texel (top-K model).
     scene::Scene sceneObj{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(sceneObj);
-    auto* mgr = sceneObj.GetSystem<engine::terrain::TerrainComponentManager>();
+    terrain::AddTerrainSceneManagers(sceneObj);
+    auto* mgr = sceneObj.GetSystem<terrain::TerrainComponentManager>();
     RefPtr<hf::Heightfield> grid =
         MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
     RefPtr<terrain::SplatWeights> weights =
@@ -70,8 +69,8 @@ TEST_CASE("terrain tool panels: a panel of the kit for each brush; it shows the 
     sceneObj.Start();
 
     editor::EditorCommandStack commands;
-    editor::TerrainSculptTool sculpt(sceneObj, commands, nullptr);
-    editor::TerrainSplatTool splat(sceneObj, commands, nullptr);
+    terrain::TerrainSculptTool sculpt(sceneObj, commands, nullptr);
+    terrain::TerrainSplatTool splat(sceneObj, commands, nullptr);
     splat.SetPaletteIndex(5); // an index past the first four layers
     CHECK(splat.PaletteIndex() == 5u);
 
@@ -81,7 +80,7 @@ TEST_CASE("terrain tool panels: a panel of the kit for each brush; it shows the 
 
     RefPtr<foundation::gui::Node> sculptNode = sculptP->CreatePanel(sculpt, ctx);
     RefPtr<foundation::gui::Node> splatNode = splatP->CreatePanel(splat, ctx);
-    editor::TerrainHoleTool hole(sceneObj, commands, nullptr);
+    terrain::TerrainHoleTool hole(sceneObj, commands, nullptr);
     RefPtr<foundation::gui::Node> holeNode = holeP->CreatePanel(hole, ctx);
     auto* sculptPanel = Cast<editor::app::ToolPanelBody>(sculptNode.Get());
     auto* splatPanel = Cast<editor::app::ToolPanelBody>(splatNode.Get());
@@ -95,14 +94,14 @@ TEST_CASE("terrain tool panels: a panel of the kit for each brush; it shows the 
     REQUIRE(sculptPanel->ChoiceCount(0) == 4u);
     CHECK(sculptPanel->ChoiceAt(0, 0)->GetText() == StringView(u8"Raise"));
     CHECK(sculptPanel->ChoiceAt(0, 0)->IsChecked());
-    sculpt.SetMode(editor::TerrainSculptTool::Mode::Flatten); // as the 4 key does
+    sculpt.SetMode(terrain::TerrainSculptTool::Mode::Flatten); // as the 4 key does
     sculpt.SetRadius(20.0f);                                  // as Shift + wheel does
     sculptPanel->Sync();
     CHECK(sculptPanel->ChoiceAt(0, 3)->IsChecked());
     CHECK_FALSE(sculptPanel->ChoiceAt(0, 0)->IsChecked());
     CHECK(sculptPanel->NumberAt(0)->GetValue() == doctest::Approx(20.0));
     sculptPanel->ChoiceAt(0, 1)->HandleActivate(); // Lower, as a click would
-    CHECK(sculpt.GetMode() == editor::TerrainSculptTool::Mode::Lower);
+    CHECK(sculpt.GetMode() == terrain::TerrainSculptTool::Mode::Lower);
 
     // Paint Layers: the six layers numbered from 1 (like their keys), each named in its tooltip,
     // with index five checked; the mode is a row of words.
@@ -134,5 +133,5 @@ TEST_CASE("terrain tool panels: a panel of the kit for each brush; it shows the 
     // Cut Holes: Cut or Fill.
     REQUIRE(holePanel->ChoiceCount(0) == 2u);
     holePanel->ChoiceAt(0, 1)->HandleActivate();
-    CHECK(hole.GetMode() == editor::TerrainHoleTool::Mode::Fill);
+    CHECK(hole.GetMode() == terrain::TerrainHoleTool::Mode::Fill);
 }

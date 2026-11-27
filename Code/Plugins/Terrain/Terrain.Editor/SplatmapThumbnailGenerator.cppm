@@ -13,7 +13,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:splatmap_thumbnail;
+export module terrain.editor:splatmap_thumbnail;
 
 import foundation.core;
 import foundation.content;
@@ -24,10 +24,11 @@ import editor.core;
 import terrain.pipeline;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 namespace content = foundation::content;
 namespace image = foundation::image;
 
-export namespace editor
+export namespace terrain
 {
     class SplatmapThumbnailGenerator final : public editor::IThumbnailGenerator
     {
@@ -43,7 +44,7 @@ export namespace editor
                                      editor::ThumbnailPrepared& out) override
         {
             RefPtr<ISerializable> object = instance.ReadObject();
-            auto* asset = Cast<pipeline::SplatmapAsset>(object.Get());
+            auto* asset = Cast<terrain::SplatmapAsset>(object.Get());
             if (asset == nullptr)
             {
                 return Status{ErrorCode::InvalidArgument};

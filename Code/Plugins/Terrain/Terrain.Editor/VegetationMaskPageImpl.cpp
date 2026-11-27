@@ -7,23 +7,24 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-module editor.vegetation;
+module terrain.editor;
 
 import foundation.core;
 import foundation.content;
 import foundation.image;
 import foundation.image.io;
-import foundation.vegetation.resource; // kVegetationMaskStream, kMaxMaskPlanes
-import vegetation.pipeline;
+import terrain.foundation; // kVegetationMaskStream, kMaxMaskPlanes
+import terrain.pipeline;
 import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 namespace image = foundation::image;
 
-namespace editor
+namespace terrain
 {
     namespace gui = foundation::gui;
 
@@ -41,7 +42,7 @@ namespace editor
     }
 
     VegetationMaskPage::VegetationMaskPage(EditorContext& context, app::AssetPageServices services, foundation::content::Instance& instance)
-        : app::AssetObjectPage(context, Move(services), instance, pipeline::VegetationMaskAsset::StaticType(), kPath), m_densities(context.Allocator())
+        : app::AssetObjectPage(context, Move(services), instance, terrain::VegetationMaskAsset::StaticType(), kPath), m_densities(context.Allocator())
     {
         ReadPlanes();
         VegetationMaskPage* self = this;
@@ -56,7 +57,7 @@ namespace editor
                                        {
                                            info.HasRange = true;
                                            info.Min = 1.0;
-                                           info.Max = static_cast<f64>(foundation::vegetation::kMaxMaskPlanes);
+                                           info.Max = static_cast<f64>(terrain::kMaxMaskPlanes);
                                        }
                                    });
         if (gui::IPropertySourceClient* client = Properties().GetClient())
@@ -98,7 +99,7 @@ namespace editor
         m_planeCount = 0;
         m_painted = false;
         m_imported = false;
-        const pipeline::VegetationMaskAsset* asset = ObjectAs<pipeline::VegetationMaskAsset>();
+        const terrain::VegetationMaskAsset* asset = ObjectAs<terrain::VegetationMaskAsset>();
         if (asset == nullptr || Context().Project() == nullptr)
             return;
         if (!asset->fileName.IsEmpty())
@@ -128,11 +129,11 @@ namespace editor
         // and nothing grows yet.
         m_width = Max(asset->width, 1);
         m_height = Max(asset->height, 1);
-        m_planeCount = Clamp<u32>(asset->planeCount, 1u, foundation::vegetation::kMaxMaskPlanes);
+        m_planeCount = Clamp<u32>(asset->planeCount, 1u, terrain::kMaxMaskPlanes);
         const usize planeBytes = static_cast<usize>(m_width) * static_cast<usize>(m_height);
         m_densities.Resize(planeBytes * m_planeCount, u8{0});
         foundation::content::Instance* instance = Context().Project()->SourceDb().GetInstance(InstanceId());
-        UniquePtr<IStream> stream = instance != nullptr ? instance->ReadData(foundation::vegetation::kVegetationMaskStream) : UniquePtr<IStream>{};
+        UniquePtr<IStream> stream = instance != nullptr ? instance->ReadData(terrain::kVegetationMaskStream) : UniquePtr<IStream>{};
         const i64 size = stream ? stream->Size() : 0;
         if (size <= 0 || static_cast<usize>(size) % planeBytes != 0)
             return;
@@ -170,7 +171,7 @@ namespace editor
             return;
         if (m_imported && m_densities.IsEmpty())
         {
-            const pipeline::VegetationMaskAsset* asset = ObjectAs<pipeline::VegetationMaskAsset>();
+            const terrain::VegetationMaskAsset* asset = ObjectAs<terrain::VegetationMaskAsset>();
             m_preview->ShowNone(Format(u8"{} is missing or is not an 8-bit RGBA image.", asset != nullptr ? asset->fileName.View() : StringView{}).AsView());
             return;
         }
@@ -244,7 +245,7 @@ namespace editor
 
     const TypeInfo* VegetationMaskPageFactory::PrimaryType() const
     {
-        return &pipeline::VegetationMaskAsset::StaticType();
+        return &terrain::VegetationMaskAsset::StaticType();
     }
 
     UniquePtr<EditorPage> VegetationMaskPageFactory::CreatePage(EditorContext& context, foundation::content::Instance& instance)
@@ -256,13 +257,13 @@ namespace editor
     u64 RegisterVegetationMaskEditor(EditorContext& context, const app::AssetPageServicesSource& services)
     {
         const u64 key = context.Pages().Register(UniquePtr<IEditorPageFactory>(editor::EditorRootAllocator().New<VegetationMaskPageFactory>(services), editor::EditorRootAllocator()));
-        app::RegisterImageFilePreview(context, pipeline::VegetationMaskAsset::StaticType());
+        app::RegisterImageFilePreview(context, terrain::VegetationMaskAsset::StaticType());
         return key;
     }
 
     void UnregisterVegetationMaskEditor(EditorContext& context, u64 key)
     {
         context.RemovePageFactory(key);
-        context.ImportPreviews().Remove(pipeline::VegetationMaskAsset::StaticType());
+        context.ImportPreviews().Remove(terrain::VegetationMaskAsset::StaticType());
     }
 }

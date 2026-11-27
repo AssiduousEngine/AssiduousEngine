@@ -6,7 +6,7 @@
 module;
 #include "Core/Prelude.h"
 
-module editor.vegetation;
+module terrain.editor;
 
 import foundation.core;
 import foundation.scene;
@@ -15,22 +15,23 @@ import foundation.shell;      // IKeyboard (layer hotkeys)
 import foundation.geometry;   // StaticMesh (its bounds give the spacing reach)
 import foundation.heightfield;
 import foundation.physics;    // PhysicsWorld::ShapeOverlap (collision rejection)
-import foundation.vegetation; // ScatterStamp, EraseInstancesInDisc
+import terrain.foundation; // ScatterStamp, EraseInstancesInDisc
 import engine.physics;        // PhysicsSceneSystem (the scene's world), UnpackEntity
-import engine.vegetation;     // TerrainVegetationComponent, TerrainVegetationComponentManager
+import terrain.engine;     // TerrainVegetationComponent, TerrainVegetationComponentManager
 import editor.core;
 import editor.viewporttools;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace scene = foundation::scene;
     namespace render = foundation::render;
-    namespace veg = foundation::vegetation;
-    using engine::vegetation::TerrainVegetationComponent;
-    using engine::vegetation::TerrainVegetationComponentManager;
-    using engine::vegetation::PropVegetationLayer;
+    namespace veg = ::terrain;
+    using terrain::TerrainVegetationComponent;
+    using terrain::TerrainVegetationComponentManager;
+    using terrain::PropVegetationLayer;
 
     namespace
     {

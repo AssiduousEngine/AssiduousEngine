@@ -15,17 +15,18 @@ import foundation.content;
 import foundation.image;
 import foundation.image.io;
 import foundation.vfs;
-import foundation.vegetation.resource;
+import terrain.foundation;
 import pipeline.core;
-import vegetation.pipeline;
+import terrain.pipeline;
 import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
-import editor.vegetation;
+import terrain.editor;
 
 using namespace foundation::core;
 using namespace editor;
+using namespace terrain; // the plugin's own
 namespace gui = foundation::gui;
 namespace image = foundation::image;
 
@@ -56,21 +57,21 @@ namespace
 
         Bed()
         {
-            pipeline::RegisterVegetationMaskAsset();
+            terrain::RegisterVegetationMaskAsset();
             (void)RemoveDirectoryRecursive(dir.AsView());
             REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
             project = EditorProject::Open(DefaultAllocator(), dir.AsView());
             REQUIRE(static_cast<bool>(project));
             context.SetProject(project.Get());
             foundation::content::Group* top = project->SourceDb().RootGroup();
-            grass = top->CreateInstance(u8"Grass", pipeline::VegetationMaskAsset::StaticType());
-            fresh = top->CreateInstance(u8"Fresh", pipeline::VegetationMaskAsset::StaticType());
-            field = top->CreateInstance(u8"Field", pipeline::VegetationMaskAsset::StaticType());
+            grass = top->CreateInstance(u8"Grass", terrain::VegetationMaskAsset::StaticType());
+            fresh = top->CreateInstance(u8"Fresh", terrain::VegetationMaskAsset::StaticType());
+            field = top->CreateInstance(u8"Field", terrain::VegetationMaskAsset::StaticType());
             REQUIRE(grass != nullptr);
             REQUIRE(fresh != nullptr);
             REQUIRE(field != nullptr);
 
-            pipeline::VegetationMaskAsset mask;
+            terrain::VegetationMaskAsset mask;
             mask.width = 4;
             mask.height = 2;
             mask.planeCount = 2;
@@ -80,7 +81,7 @@ namespace
             for (usize i = 0; i < 8; ++i)
                 densities[8 + i] = static_cast<byte>(i * 30); // plane 2: a ramp; plane 1: nothing
             densities[0] = static_cast<byte>(255);
-            REQUIRE(grass->WriteData(foundation::vegetation::kVegetationMaskStream, Span<const byte>(densities, 16)).IsOk());
+            REQUIRE(grass->WriteData(terrain::kVegetationMaskStream, Span<const byte>(densities, 16)).IsOk());
 
             image::Image picture(2, 1, image::PixelFormat::RGBA8);
             Span<u8> rgba = picture.PixelDataMut();
@@ -89,7 +90,7 @@ namespace
                 rgba[i] = texels[i];
             (void)CreateDirectory(project->SourcesRoot().AsView()); // may already exist
             REQUIRE(image::io::SaveImage(picture, PathJoin(project->SourcesRoot().AsView(), u8"field.png").AsView(), image::io::ImageFileFormat::PNG).IsOk());
-            pipeline::VegetationMaskAsset imported;
+            terrain::VegetationMaskAsset imported;
             imported.fileName = foundation::vfs::SourcePath(u8"field.png");
             REQUIRE(field->WriteObject(imported).IsOk());
         }

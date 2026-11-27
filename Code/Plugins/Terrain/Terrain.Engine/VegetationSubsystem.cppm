@@ -12,7 +12,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.vegetation:subsystem;
+export module terrain.engine:vegetationsubsystem;
 
 import foundation.core;
 import foundation.runtime; // Subsystem, Context
@@ -20,11 +20,11 @@ import foundation.scene;   // Scene, ISceneObserver
 import engine.scene;       // SceneSubsystem
 import foundation.render;  // IRenderDataProvider (what it registered, taken back on unload)
 import engine.render;      // RenderSubsystem and its register-provider hook
-import :components;
+import :vegetationcomponents;
 
 using namespace foundation::core;
 
-export namespace engine::vegetation
+export namespace terrain
 {
     namespace scene = foundation::scene;
 

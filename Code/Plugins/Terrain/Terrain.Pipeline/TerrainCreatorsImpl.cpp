@@ -15,8 +15,9 @@ import foundation.content;
 import pipeline.core;
 
 using namespace foundation::core;
+using namespace pipeline; // its bases
 
-namespace pipeline
+namespace terrain
 {
     void AddTerrainCreators(PipelinePluginServices& services)
     {

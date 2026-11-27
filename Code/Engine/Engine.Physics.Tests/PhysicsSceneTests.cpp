@@ -1316,7 +1316,6 @@ TEST_CASE("physics.scene: a CharacterComponent walking into a trigger raises Tri
 
 import foundation.runtime;
 import engine.scene;
-import foundation.scene.resource;
 
 TEST_CASE("physics.scene: the editor simulate cycle (capture/start/stop/restore) terminates")
 {

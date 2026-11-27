@@ -15,18 +15,17 @@ import foundation.resource;
 import foundation.scene;
 import foundation.heightfield;
 import foundation.heightfield.resource;
-import foundation.terrain.resource;
-import engine.terrain;
+import terrain.foundation;
+import terrain.engine;
 import pipeline.core;
 import heightfield.pipeline;
 import editor.core;
 import editor.viewporttools;
-import editor.terrain;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
 
 namespace
 {
@@ -65,8 +64,8 @@ namespace
         RefPtr<terrain::TerrainResource> res;
         Fixture()
         {
-            engine::terrain::AddTerrainSceneManagers(scene);
-            auto* mgr = scene.GetSystem<engine::terrain::TerrainComponentManager>();
+            terrain::AddTerrainSceneManagers(scene);
+            auto* mgr = scene.GetSystem<terrain::TerrainComponentManager>();
             grid = MakeRef<hf::Heightfield>(DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 10.0f);
             for (i32 z = 0; z < 65; ++z)
             {
@@ -79,7 +78,7 @@ namespace
             res->heightfield = grid.Get();
             res->heightfield.SetId(Guid{7, 99});
             const scene::EntityHandle e = scene.CreateEntity(u8"terrain");
-            engine::terrain::TerrainComponent& c = mgr->Add(e);
+            terrain::TerrainComponent& c = mgr->Add(e);
             c.terrain = res.Get();
             scene.Start();
         }
@@ -104,7 +103,7 @@ namespace
     }
 
     // Press, drag one frame and release, at (x, z).
-    void Stroke(editor::TerrainHoleTool& tool, f32 x, f32 z)
+    void Stroke(terrain::TerrainHoleTool& tool, f32 x, f32 z)
     {
         editor::ViewportToolInput press = RayAt(x, z);
         press.leftPressed = true;
@@ -121,7 +120,7 @@ TEST_CASE("terrain holes: a stroke cuts a hard-edged disc, bumps the version, an
     Fixture fx;
     editor::EditorCommandStack commands;
     FakeAssetEditSink sink;
-    editor::TerrainHoleTool tool(fx.scene, commands, &sink);
+    terrain::TerrainHoleTool tool(fx.scene, commands, &sink);
     CHECK(tool.IsAvailable());
     CHECK(tool.Id() == StringView(u8"terrain.hole"));
     tool.SetRadius(3.0f);
@@ -156,33 +155,33 @@ TEST_CASE("terrain holes: Fill restores a cut from inside it; a fill over solid 
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainHoleTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainHoleTool tool(fx.scene, commands, nullptr);
     tool.SetRadius(3.0f);
     Stroke(tool, 0.0f, 0.0f);
     REQUIRE(fx.grid->HasHoles());
     // The brush picks the hole plane (QueryRayIgnoringHoles), so a fill lands inside the cut
     // with the same radius, without having to aim at the rim.
-    tool.SetMode(editor::TerrainHoleTool::Mode::Fill);
+    tool.SetMode(terrain::TerrainHoleTool::Mode::Fill);
     CHECK(Mentions(tool.StatusText(), u8"FILL"));
     Stroke(tool, 0.0f, 0.0f);
     CHECK_FALSE(fx.grid->HasHoles());
     CHECK(commands.CanUndo());
     // A fill over solid ground changes nothing and pushes nothing.
     editor::EditorCommandStack quiet;
-    editor::TerrainHoleTool still(fx.scene, quiet, nullptr);
-    still.SetMode(editor::TerrainHoleTool::Mode::Fill);
+    terrain::TerrainHoleTool still(fx.scene, quiet, nullptr);
+    still.SetMode(terrain::TerrainHoleTool::Mode::Fill);
     Stroke(still, 10.0f, 10.0f);
     CHECK_FALSE(quiet.CanUndo());
     // A ray straight into a cut still finds the plane, so the brush works over a hole, and a
     // cut over a cut changes nothing: the input is consumed but no command is pushed.
     editor::EditorCommandStack blind;
-    editor::TerrainHoleTool cutter(fx.scene, blind, nullptr);
+    terrain::TerrainHoleTool cutter(fx.scene, blind, nullptr);
     cutter.SetRadius(3.0f);
     Stroke(cutter, 0.0f, 0.0f);
     REQUIRE(fx.grid->HasHoles());
     const u32 cutCount = fx.grid->HoleCount();
     editor::EditorCommandStack again;
-    editor::TerrainHoleTool over(fx.scene, again, nullptr);
+    terrain::TerrainHoleTool over(fx.scene, again, nullptr);
     over.SetRadius(1.0f);
     editor::ViewportToolInput press = RayAt(0.0f, 0.0f);
     press.leftPressed = true;
@@ -198,16 +197,16 @@ TEST_CASE("terrain holes: Fill restores a cut from inside it; a fill over solid 
 TEST_CASE("terrain holes: unavailable with no terrain, and refuses edits while editingLocked")
 {
     scene::Scene empty{DefaultAllocator()};
-    engine::terrain::AddTerrainSceneManagers(empty);
+    terrain::AddTerrainSceneManagers(empty);
     empty.Start();
     editor::EditorCommandStack commandsA;
-    editor::TerrainHoleTool bare(empty, commandsA, nullptr);
+    terrain::TerrainHoleTool bare(empty, commandsA, nullptr);
     CHECK_FALSE(bare.IsAvailable());
     CHECK_FALSE(bare.UnavailableReason().IsEmpty());
 
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainHoleTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainHoleTool tool(fx.scene, commands, nullptr);
     editor::ViewportToolInput locked = RayAt(0.0f, 0.0f);
     locked.leftPressed = true;
     locked.leftDown = true;
@@ -248,7 +247,7 @@ TEST_CASE("terrain holes: a save writes both sidecars to the source asset; the c
     fx.res->heightfield.SetId(id);
     FakeAssetEditSink sink;
     editor::EditorCommandStack commands;
-    editor::TerrainHoleTool tool(fx.scene, commands, &sink);
+    terrain::TerrainHoleTool tool(fx.scene, commands, &sink);
     tool.SetRadius(3.0f);
     Stroke(tool, 0.0f, 0.0f);
     REQUIRE(sink.lastPersist);
@@ -298,7 +297,7 @@ TEST_CASE("terrain holes: the wheel resizes the brush only with Shift (the bare 
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::TerrainHoleTool tool(fx.scene, commands, nullptr);
+    terrain::TerrainHoleTool tool(fx.scene, commands, nullptr);
     const f32 before = tool.Radius();
     editor::ViewportToolInput wheel = RayAt(0.0f, 0.0f);
     wheel.wheelDelta = 1.0f;

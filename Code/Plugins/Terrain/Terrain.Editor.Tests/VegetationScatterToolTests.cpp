@@ -13,22 +13,19 @@ import foundation.core;
 import foundation.scene;
 import foundation.geometry;
 import foundation.heightfield;
-import foundation.terrain.resource;
-import foundation.vegetation;
+import terrain.foundation;
 import foundation.gui;
 import foundation.render; // ExtractedScene (the props draw as sets)
-import engine.terrain;
-import engine.vegetation;
+import terrain.engine;
 import editor.core;
 import editor.app;
 import editor.viewporttools;
-import editor.vegetation;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
-namespace veg = foundation::vegetation;
+namespace veg = ::terrain;
 
 namespace
 {
@@ -51,13 +48,13 @@ namespace
         RefPtr<terrain::TerrainResource> res;
         RefPtr<foundation::geometry::StaticMesh> mesh;
         scene::EntityHandle terrain{};
-        engine::vegetation::TerrainVegetationComponentManager* vegetation = nullptr;
+        terrain::TerrainVegetationComponentManager* vegetation = nullptr;
 
         explicit Fixture(bool withScatteredLayer = true, f32 rise = 0.0f)
         {
-            engine::terrain::AddTerrainSceneManagers(scene);
-            engine::vegetation::AddVegetationSceneManagers(scene);
-            vegetation = scene.GetSystem<engine::vegetation::TerrainVegetationComponentManager>();
+            terrain::AddTerrainSceneManagers(scene);
+            terrain::AddVegetationSceneManagers(scene);
+            vegetation = scene.GetSystem<terrain::TerrainVegetationComponentManager>();
             vegetation->SetBuildBudget(100);
             grid = MakeRef<hf::Heightfield>(DefaultAllocator(), 129, Float2{128.0f, 128.0f}, 0.0f,
                                             64.0f);
@@ -72,18 +69,18 @@ namespace
             res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
             res->heightfield = grid.Get();
             terrain = scene.CreateEntity(u8"terrain");
-            scene.GetSystem<engine::terrain::TerrainComponentManager>()->Add(terrain).terrain =
+            scene.GetSystem<terrain::TerrainComponentManager>()->Add(terrain).terrain =
                 res.Get();
             mesh = foundation::geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
-            engine::vegetation::TerrainVegetationComponent& c = vegetation->Add(terrain);
-            engine::vegetation::ProceduralVegetationLayer grass;
+            terrain::TerrainVegetationComponent& c = vegetation->Add(terrain);
+            terrain::ProceduralVegetationLayer grass;
             grass.name = String(u8"Grass");
             grass.mesh = mesh.Get();
             grass.placement = veg::VegetationPlacement::Uniform;
             c.proceduralLayers.PushBack(grass);
             if (withScatteredLayer)
             {
-                engine::vegetation::PropVegetationLayer rocks;
+                terrain::PropVegetationLayer rocks;
                 rocks.name = String(u8"Rocks");
                 rocks.mesh = mesh.Get();
                 rocks.scaleRange = Float2{1.0f, 1.0f};
@@ -96,7 +93,7 @@ namespace
         Array<Float4x4>& Rocks() { return vegetation->Get(terrain)->propLayers[0].instances; }
     };
 
-    void Stroke(editor::VegetationScatterTool& tool, f32 x0, f32 z0, f32 x1, f32 z1, i32 steps = 8)
+    void Stroke(terrain::VegetationScatterTool& tool, f32 x0, f32 z0, f32 x1, f32 z1, i32 steps = 8)
     {
         editor::ViewportToolInput press = RayAt(x0, z0);
         press.leftPressed = true;
@@ -125,7 +122,7 @@ TEST_CASE("vegetation scatter: a scripted stroke places a deterministic count in
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool tool(fx.scene, commands);
+    terrain::VegetationScatterTool tool(fx.scene, commands);
     CHECK(tool.IsAvailable());
     CHECK(tool.Id() == u8"vegetation.scatter");
     tool.SetLayer(0);
@@ -156,7 +153,7 @@ TEST_CASE("vegetation scatter: a scripted stroke places a deterministic count in
     // The same scripted stroke on a fresh fixture places the same instances.
     Fixture again;
     editor::EditorCommandStack commands2;
-    editor::VegetationScatterTool tool2(again.scene, commands2);
+    terrain::VegetationScatterTool tool2(again.scene, commands2);
     tool2.SetLayer(0);
     tool2.SetRadius(6.0f);
     tool2.SetDensity(0.5f);
@@ -207,7 +204,7 @@ TEST_CASE("vegetation scatter: the layer's slope rule and the collision query re
     Fixture steep(/*withScatteredLayer*/ true, /*rise*/ 64.0f);
     steep.vegetation->Get(steep.terrain)->propLayers[0].maxSlopeDegrees = 10.0f;
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool tool(steep.scene, commands);
+    terrain::VegetationScatterTool tool(steep.scene, commands);
     tool.SetLayer(0);
     tool.SetRadius(6.0f);
     tool.SetDensity(1.0f);
@@ -218,7 +215,7 @@ TEST_CASE("vegetation scatter: the layer's slope rule and the collision query re
     // The collision query (the physics world's overlap in the editor): nothing right of x = 0.
     Fixture flat;
     editor::EditorCommandStack commands2;
-    editor::VegetationScatterTool blocked(flat.scene, commands2);
+    terrain::VegetationScatterTool blocked(flat.scene, commands2);
     blocked.SetLayer(0);
     blocked.SetRadius(6.0f);
     blocked.SetDensity(1.0f);
@@ -235,7 +232,7 @@ TEST_CASE("vegetation scatter: the layer's slope rule and the collision query re
     // 1.7 m.
     Fixture spaced;
     editor::EditorCommandStack commands3;
-    editor::VegetationScatterTool sparse(spaced.scene, commands3);
+    terrain::VegetationScatterTool sparse(spaced.scene, commands3);
     sparse.SetLayer(0);
     sparse.SetRadius(8.0f);
     sparse.SetDensity(4.0f);
@@ -259,12 +256,12 @@ TEST_CASE("vegetation scatter: unavailable without a prop layer; refuses a missi
 {
     Fixture bare(/*withScatteredLayer*/ false);
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool none(bare.scene, commands);
+    terrain::VegetationScatterTool none(bare.scene, commands);
     CHECK(!none.IsAvailable());
     CHECK(none.UnavailableReason().Size() > 0); // the toolbar's refusal notice says what is missing
 
     Fixture fx;
-    editor::VegetationScatterTool tool(fx.scene, commands);
+    terrain::VegetationScatterTool tool(fx.scene, commands);
     tool.SetLayer(5); // no such prop layer, so nothing can be painted
     Stroke(tool, 0.0f, 0.0f, 5.0f, 0.0f, 2);
     CHECK(!commands.CanUndo());
@@ -288,13 +285,13 @@ TEST_CASE("vegetation scatter: unavailable without a prop layer; refuses a missi
 
 TEST_CASE("vegetation scatter panel: the provider registers for the brush id and builds its panel")
 {
-    editor::RegisterVegetationToolPanels();
+    terrain::RegisterVegetationToolPanels();
     editor::IViewportToolPanelProvider* provider =
         editor::ViewportToolPanelRegistry::Get().FindByToolId(u8"vegetation.scatter");
     REQUIRE(provider != nullptr);
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool tool(fx.scene, commands);
+    terrain::VegetationScatterTool tool(fx.scene, commands);
     tool.SetLayer(0);
     editor::ViewportToolHostContext ctx;
     ctx.scene = &fx.scene;
@@ -317,7 +314,7 @@ TEST_CASE("vegetation scatter: a layer whose mesh does not resolve is named in t
     Fixture fx;
     fx.vegetation->Get(fx.terrain)->propLayers[0].mesh = nullptr; // the reference resolves to nothing
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool tool(fx.scene, commands);
+    terrain::VegetationScatterTool tool(fx.scene, commands);
     tool.SetLayer(0);
     (void)tool.Update(RayAt(0.0f, 0.0f)); // a hover resolves the layer's mesh state
     const StringView status = tool.StatusText();
@@ -344,7 +341,7 @@ TEST_CASE("vegetation scatter: the eraser reaches the props left standing over a
     // alone passes through and the brush would never activate there.
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool tool(fx.scene, commands);
+    terrain::VegetationScatterTool tool(fx.scene, commands);
     tool.SetLayer(0);
     tool.SetRadius(6.0f);
     tool.SetDensity(0.5f);
@@ -383,7 +380,7 @@ TEST_CASE("vegetation scatter: the wheel resizes the brush only with Shift (the 
 {
     Fixture fx;
     editor::EditorCommandStack commands;
-    editor::VegetationScatterTool tool(fx.scene, commands);
+    terrain::VegetationScatterTool tool(fx.scene, commands);
     const f32 before = tool.Radius();
     editor::ViewportToolInput wheel = RayAt(0.0f, 0.0f);
     wheel.wheelDelta = 1.0f;

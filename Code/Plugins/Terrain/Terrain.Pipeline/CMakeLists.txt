@@ -17,4 +17,5 @@ target_sources(${PLUGIN_PART}
     PUBLIC
         FILE_SET terrain_pipeline_modules TYPE CXX_MODULES FILES
             TerrainAsset.cppm
-            VegetationMaskAsset.cppm)
+            VegetationMaskAsset.cppm
+            TerrainPipelineModule.cppm)

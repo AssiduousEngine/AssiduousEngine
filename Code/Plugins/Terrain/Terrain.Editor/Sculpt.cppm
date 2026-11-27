@@ -16,7 +16,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:sculpt;
+export module terrain.editor:sculpt;
 
 import foundation.core;
 import foundation.scene;       // EntityHandle
@@ -26,8 +26,9 @@ import editor.core;            // EditorCommandStack, IAssetEditSink
 import editor.viewporttools;   // IViewportTool, IViewportToolProvider, ViewportToolInput
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     /// The terrain sculpt brush. One per scene page (created by the provider); borrows the scene,
     /// command stack and asset-edit sink from the host context.

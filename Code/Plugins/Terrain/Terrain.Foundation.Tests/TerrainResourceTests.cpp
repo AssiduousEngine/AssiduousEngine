@@ -15,12 +15,12 @@ import foundation.content;
 import foundation.resource;
 import foundation.heightfield;
 import foundation.heightfield.resource;
-import foundation.terrain.resource;
+import terrain.foundation;
 
 using namespace foundation::core;
 using namespace foundation::vfs;
 using namespace foundation::resource;
-using namespace foundation::terrain;
+using namespace terrain;
 namespace hf = foundation::heightfield;
 
 namespace

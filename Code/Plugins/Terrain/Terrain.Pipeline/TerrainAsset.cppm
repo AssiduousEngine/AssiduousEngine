@@ -16,7 +16,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-export module terrain.pipeline;
+export module terrain.pipeline:terrainasset;
 
 import foundation.core;
 import foundation.vfs;
@@ -24,17 +24,18 @@ import pipeline.core;
 import pipeline.importer; // IFileImporter + ImportContext + CopyIntoSources (splatmap PNG import)
 import foundation.image;
 import foundation.image.io; // LoadImageFromMemory (RGBA8 decode - reuses the image decoder)
-import foundation.terrain.resource;
+import terrain.foundation;
 import foundation.content;
 import texture.pipeline; // TextureAsset (decoding palette albedos for the array cook)
 
 using namespace foundation::core;
+using namespace pipeline; // its bases
 namespace content = foundation::content;
 
-export namespace pipeline
+export namespace terrain
 {
-    using foundation::terrain::TerrainResource;
-    using foundation::terrain::TerrainSource;
+    using terrain::TerrainResource;
+    using terrain::TerrainSource;
 
     // Source asset: references a heightfield, the splat weights, the base layer and the paint
     // palette (by asset guid, which equal their cooked product guids), plus tiling and
@@ -439,11 +440,11 @@ export namespace pipeline
                 // propagates like writeOrClear's delete path (a non-writable mount fails the cook
                 // consistently, not just on the map-removal shape); a missing sidecar is Ok.
                 const StringView streams[] = {
-                    foundation::terrain::kPaletteStream,
-                    foundation::terrain::kPaletteNormalStream,
-                    foundation::terrain::kPaletteOrmStream,
-                    foundation::terrain::kPaletteHeightStream,
-                    foundation::terrain::kPaletteMaskStream,
+                    terrain::kPaletteStream,
+                    terrain::kPaletteNormalStream,
+                    terrain::kPaletteOrmStream,
+                    terrain::kPaletteHeightStream,
+                    terrain::kPaletteMaskStream,
                 };
                 for (const StringView stream : streams)
                 {
@@ -468,7 +469,7 @@ export namespace pipeline
                 ++mipCount;
             }
             const usize sliceBytes =
-                foundation::terrain::TerrainPaletteData::SliceBytes(sliceSize, mipCount);
+                terrain::TerrainPaletteData::SliceBytes(sliceSize, mipCount);
             const u32 sliceCount = static_cast<u32>(ta.paletteAlbedoIds.Size());
 
             // Per-map default slices: white albedo, flat normal, default ORM, mid height (0.5 is
@@ -502,31 +503,31 @@ export namespace pipeline
             };
 
             // Albedo is always present when the palette is non-empty; the rest are on demand.
-            if (Status s = writeArray(foundation::terrain::kPaletteStream, ta.paletteAlbedoIds, kWhite,
+            if (Status s = writeArray(terrain::kPaletteStream, ta.paletteAlbedoIds, kWhite,
                                       /*srgb*/ true);
                 !s.IsOk())
             {
                 return s;
             }
-            if (Status s = writeOrClear(foundation::terrain::kPaletteNormalStream, ta.paletteNormalIds,
+            if (Status s = writeOrClear(terrain::kPaletteNormalStream, ta.paletteNormalIds,
                                         kFlatNormal, /*srgb*/ false);
                 !s.IsOk())
             {
                 return s;
             }
-            if (Status s = writeOrClear(foundation::terrain::kPaletteOrmStream, ta.paletteOrmIds,
+            if (Status s = writeOrClear(terrain::kPaletteOrmStream, ta.paletteOrmIds,
                                         kDefaultOrm, /*srgb*/ false);
                 !s.IsOk())
             {
                 return s;
             }
-            if (Status s = writeOrClear(foundation::terrain::kPaletteHeightStream,
+            if (Status s = writeOrClear(terrain::kPaletteHeightStream,
                                         ta.paletteHeightIds, kMidHeight, /*srgb*/ false);
                 !s.IsOk())
             {
                 return s;
             }
-            if (Status s = writeOrClear(foundation::terrain::kPaletteMaskStream, ta.paletteMaskIds,
+            if (Status s = writeOrClear(terrain::kPaletteMaskStream, ta.paletteMaskIds,
                                         kOpaqueMask, /*srgb*/ false);
                 !s.IsOk())
             {
@@ -544,8 +545,8 @@ export namespace pipeline
         RegisterSerializable<TerrainAsset>();
     }
 
-    using foundation::terrain::SplatWeights;
-    using foundation::terrain::SplatWeightsSource;
+    using terrain::SplatWeights;
+    using terrain::SplatWeightsSource;
 
     // Source asset: the editable top-K splat weights of a given size. It is created and then
     // painted (the TerrainPage seeds one, the Splat Paint tool writes it): the two rasters live in
@@ -594,8 +595,8 @@ export namespace pipeline
             const SplatmapAsset& sa = static_cast<const SplatmapAsset&>(asset);
             if (sa.fileName.IsEmpty())
             {
-                out.sourceStreams.PushBack(String(foundation::terrain::kSplatStream));
-                out.sourceStreams.PushBack(String(foundation::terrain::kSplatIndexStream));
+                out.sourceStreams.PushBack(String(terrain::kSplatStream));
+                out.sourceStreams.PushBack(String(terrain::kSplatIndexStream));
             }
         }
 
@@ -632,7 +633,7 @@ export namespace pipeline
                 {
                     return Status{ErrorCode::NotSupported}; // HDR or other: weights are RGBA8
                 }
-                sw = foundation::terrain::SplatWeightsFromFixedLayerRaster(
+                sw = terrain::SplatWeightsFromFixedLayerRaster(
                     img.PixelData(), static_cast<i32>(img.Width()),
                     static_cast<i32>(img.Height()), *ctx.allocator);
             }
@@ -644,13 +645,13 @@ export namespace pipeline
                 const i32 w = sa.width > 0 ? sa.width : 1;
                 const i32 h = sa.height > 0 ? sa.height : 1;
                 const usize expected = static_cast<usize>(w) * static_cast<usize>(h) *
-                                       foundation::terrain::kSplatSlotCount;
+                                       terrain::kSplatSlotCount;
                 Array<u8> weights;
                 Array<u8> indices;
                 if (ctx.source != nullptr)
                 {
-                    weights = ReadStream(*ctx.source, foundation::terrain::kSplatStream);
-                    indices = ReadStream(*ctx.source, foundation::terrain::kSplatIndexStream);
+                    weights = ReadStream(*ctx.source, terrain::kSplatStream);
+                    indices = ReadStream(*ctx.source, terrain::kSplatIndexStream);
                 }
                 if (weights.Size() == expected && indices.Size() == expected)
                 {
@@ -680,12 +681,12 @@ export namespace pipeline
                 return wrote;
             }
             const Status wroteWeights = ctx.output->WriteData(
-                foundation::terrain::kSplatStream, SplatWeightsSource::WeightBlob(*sw));
+                terrain::kSplatStream, SplatWeightsSource::WeightBlob(*sw));
             if (!wroteWeights.IsOk())
             {
                 return wroteWeights;
             }
-            return ctx.output->WriteData(foundation::terrain::kSplatIndexStream,
+            return ctx.output->WriteData(terrain::kSplatIndexStream,
                                          SplatWeightsSource::IndexBlob(*sw));
         }
 

@@ -10,7 +10,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-module editor.terrain;
+module terrain.editor;
 
 import foundation.core;
 import foundation.content;
@@ -20,9 +20,8 @@ import foundation.scene;
 import engine.scene;
 import foundation.render;
 import engine.render;
-import engine.terrain;              // TerrainComponentManager
-import foundation.terrain;          // ChunksPerSide, SplatWeights, RemapOnPaletteRemove
-import foundation.terrain.resource; // TerrainResource
+import terrain.engine;              // TerrainComponentManager
+import terrain.foundation;          // ChunksPerSide, SplatWeights, RemapOnPaletteRemove
 import foundation.heightfield;      // Heightfield (the facts, the framing)
 import foundation.texture.resource; // Texture (the maps' references)
 import foundation.resource;
@@ -36,8 +35,9 @@ import editor.app;
 import editor.preview;
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-namespace editor
+namespace terrain
 {
     namespace gui = foundation::gui;
     namespace scene = foundation::scene;
@@ -69,14 +69,14 @@ namespace editor
             StringView path;
             StringView shown;
             StringView about;
-            Array<Guid> pipeline::TerrainAsset::*ids;
+            Array<Guid> terrain::TerrainAsset::*ids;
         };
         constexpr LayerMap kLayerMaps[] = {
-            {u8"albedo", u8"Albedo", u8"Its colour", &pipeline::TerrainAsset::paletteAlbedoIds},
-            {u8"normal", u8"Normal", u8"Its normal map (none: flat)", &pipeline::TerrainAsset::paletteNormalIds},
-            {u8"orm", u8"ORM", u8"Its occlusion, roughness and metalness (none: 1, 1, 0)", &pipeline::TerrainAsset::paletteOrmIds},
-            {u8"height", u8"Height", u8"Its height map, which the height blend reads where layers meet (none: flat)", &pipeline::TerrainAsset::paletteHeightIds},
-            {u8"mask", u8"Coverage", u8"A mask of where it may show over what it is painted on (none: everywhere)", &pipeline::TerrainAsset::paletteMaskIds},
+            {u8"albedo", u8"Albedo", u8"Its colour", &terrain::TerrainAsset::paletteAlbedoIds},
+            {u8"normal", u8"Normal", u8"Its normal map (none: flat)", &terrain::TerrainAsset::paletteNormalIds},
+            {u8"orm", u8"ORM", u8"Its occlusion, roughness and metalness (none: 1, 1, 0)", &terrain::TerrainAsset::paletteOrmIds},
+            {u8"height", u8"Height", u8"Its height map, which the height blend reads where layers meet (none: flat)", &terrain::TerrainAsset::paletteHeightIds},
+            {u8"mask", u8"Coverage", u8"A mask of where it may show over what it is painted on (none: everywhere)", &terrain::TerrainAsset::paletteMaskIds},
         };
 
         // The base layer's maps, and the terrain's own references.
@@ -85,20 +85,20 @@ namespace editor
             StringView path;
             StringView shown;
             StringView about;
-            Guid pipeline::TerrainAsset::*id;
+            Guid terrain::TerrainAsset::*id;
         };
         constexpr BaseMap kBaseMaps[] = {
-            {u8"albedo", u8"Albedo", u8"Its colour (none: white)", &pipeline::TerrainAsset::baseAlbedoId},
-            {u8"normal", u8"Normal", u8"Its normal map (none: flat)", &pipeline::TerrainAsset::baseNormalId},
-            {u8"orm", u8"ORM", u8"Its occlusion, roughness and metalness (none: 1, 1, 0)", &pipeline::TerrainAsset::baseOrmId},
-            {u8"height", u8"Height", u8"Its height map, which the height blend reads (none: flat)", &pipeline::TerrainAsset::baseHeightId},
+            {u8"albedo", u8"Albedo", u8"Its colour (none: white)", &terrain::TerrainAsset::baseAlbedoId},
+            {u8"normal", u8"Normal", u8"Its normal map (none: flat)", &terrain::TerrainAsset::baseNormalId},
+            {u8"orm", u8"ORM", u8"Its occlusion, roughness and metalness (none: 1, 1, 0)", &terrain::TerrainAsset::baseOrmId},
+            {u8"height", u8"Height", u8"Its height map, which the height blend reads (none: flat)", &terrain::TerrainAsset::baseHeightId},
         };
 
         constexpr f32 kNewLayerTile = 32.0f;
 
         // Pads every layer array to the length of the albedos, so a layer's maps line up whatever
         // the asset stored (an older terrain has fewer maps).
-        void Square(pipeline::TerrainAsset& asset)
+        void Square(terrain::TerrainAsset& asset)
         {
             const usize layers = asset.paletteAlbedoIds.Size();
             for (const LayerMap& map : kLayerMaps)
@@ -170,7 +170,7 @@ namespace editor
     }
 
     TerrainEditorPage::TerrainEditorPage(EditorContext& context, app::AssetPageServices services, foundation::content::Instance& instance)
-        : app::AssetObjectPage(context, Move(services), instance, pipeline::TerrainAsset::StaticType(), kPath)
+        : app::AssetObjectPage(context, Move(services), instance, terrain::TerrainAsset::StaticType(), kPath)
     {
         // The layers live in parallel arrays that no one edits by hand, so the page builds its own
         // rows.
@@ -204,7 +204,7 @@ namespace editor
                      pipeline::HeightfieldAsset::StaticType());
         AddReference(*m_terrainRows, u8"weights", u8"Splat weights",
                      u8"Where each paint layer shows, as the Paint Layers tool paints it (none: the base layer everywhere)",
-                     pipeline::SplatmapAsset::StaticType());
+                     terrain::SplatmapAsset::StaticType());
         gui::PropertyInfo& shadows = m_terrainRows->Add(u8"castShadows", gui::PropertyKind::Bool, gui::Variant(true));
         shadows.DisplayName = String(u8"Casts shadows");
         gui::PropertyInfo& blend = m_terrainRows->Add(u8"heightBlend", gui::PropertyKind::Float, gui::Variant(0.25));
@@ -278,7 +278,7 @@ namespace editor
 
     void TerrainEditorPage::ShowRows()
     {
-        const pipeline::TerrainAsset* asset = Asset();
+        const terrain::TerrainAsset* asset = Asset();
         if (asset == nullptr)
             return;
         m_terrainRows->SetValue(u8"heightfield", 0, GuidText(asset->heightfieldId));
@@ -359,23 +359,23 @@ namespace editor
             if (path == u8"heightfield" || path == u8"weights")
             {
                 const Guid id = GuidOf(value);
-                Guid pipeline::TerrainAsset::*field = path == u8"heightfield" ? &pipeline::TerrainAsset::heightfieldId : &pipeline::TerrainAsset::weightsId;
-                EditWhole(u8"edit_terrain", [field, id](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).*field = id; });
+                Guid terrain::TerrainAsset::*field = path == u8"heightfield" ? &terrain::TerrainAsset::heightfieldId : &terrain::TerrainAsset::weightsId;
+                EditWhole(u8"edit_terrain", [field, id](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).*field = id; });
             }
             else if (path == u8"castShadows")
             {
                 const bool casts = value.AsBool();
-                EditWhole(u8"edit_terrain", [casts](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).castShadows = casts; });
+                EditWhole(u8"edit_terrain", [casts](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).castShadows = casts; });
             }
             else if (path == u8"heightBlend")
             {
                 const f32 blend = static_cast<f32>(Clamp(value.AsFloat(), 0.0, 1.0));
-                EditWhole(u8"edit_terrain", [blend](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).heightBlendContrast = blend; });
+                EditWhole(u8"edit_terrain", [blend](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).heightBlendContrast = blend; });
             }
             else if (path == u8"textureSize")
             {
                 const i32 size = static_cast<i32>(Clamp<i64>(value.AsInt(), 64, 4096));
-                EditWhole(u8"edit_terrain", [size](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).paletteTextureSize = size; });
+                EditWhole(u8"edit_terrain", [size](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).paletteTextureSize = size; });
             }
             return;
         }
@@ -384,15 +384,15 @@ namespace editor
             if (path == u8"tile")
             {
                 const f32 tile = static_cast<f32>(Max(0.1, value.AsFloat()));
-                EditWhole(u8"edit_terrain", [tile](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).baseTileScale = tile; });
+                EditWhole(u8"edit_terrain", [tile](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).baseTileScale = tile; });
                 return;
             }
             for (const BaseMap& map : kBaseMaps)
                 if (path == map.path)
                 {
                     const Guid id = GuidOf(value);
-                    Guid pipeline::TerrainAsset::*field = map.id;
-                    EditWhole(u8"edit_terrain", [field, id](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).*field = id; });
+                    Guid terrain::TerrainAsset::*field = map.id;
+                    EditWhole(u8"edit_terrain", [field, id](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).*field = id; });
                 }
             return;
         }
@@ -406,7 +406,7 @@ namespace editor
             const f32 tile = static_cast<f32>(Max(0.1, value.AsFloat()));
             EditWhole(u8"edit_terrain", [index, tile](ISerializable& object)
                       {
-                          auto& asset = static_cast<pipeline::TerrainAsset&>(object);
+                          auto& asset = static_cast<terrain::TerrainAsset&>(object);
                           Square(asset);
                           asset.paletteTileScales[index] = tile;
                       });
@@ -416,10 +416,10 @@ namespace editor
             if (field == map.path)
             {
                 const Guid id = GuidOf(value);
-                Array<Guid> pipeline::TerrainAsset::*ids = map.ids;
+                Array<Guid> terrain::TerrainAsset::*ids = map.ids;
                 EditWhole(u8"edit_terrain", [ids, index, id](ISerializable& object)
                           {
-                              auto& asset = static_cast<pipeline::TerrainAsset&>(object);
+                              auto& asset = static_cast<terrain::TerrainAsset&>(object);
                               Square(asset);
                               (asset.*ids)[index] = id;
                           });
@@ -428,7 +428,7 @@ namespace editor
 
     void TerrainEditorPage::EditLayers(const gui::ListEdit& edit)
     {
-        const pipeline::TerrainAsset* asset = Asset();
+        const terrain::TerrainAsset* asset = Asset();
         if (asset == nullptr)
             return;
         if (edit.Kind == gui::ListEdit::Op::Insert)
@@ -437,7 +437,7 @@ namespace editor
             // weights.
             EditWhole(u8"edit_terrain", [](ISerializable& object)
                       {
-                          auto& terrainAsset = static_cast<pipeline::TerrainAsset&>(object);
+                          auto& terrainAsset = static_cast<terrain::TerrainAsset&>(object);
                           Square(terrainAsset);
                           for (const LayerMap& map : kLayerMaps)
                               (terrainAsset.*map.ids).PushBack(Guid{});
@@ -452,7 +452,7 @@ namespace editor
             RemapWeightsOnRemove(static_cast<u32>(index));
             EditWhole(u8"edit_terrain", [index](ISerializable& object)
                       {
-                          auto& terrainAsset = static_cast<pipeline::TerrainAsset&>(object);
+                          auto& terrainAsset = static_cast<terrain::TerrainAsset&>(object);
                           Square(terrainAsset);
                           for (const LayerMap& map : kLayerMaps)
                               (terrainAsset.*map.ids).RemoveAt(index);
@@ -478,7 +478,7 @@ namespace editor
     {
         // Created here, not by a stroke: the paint tool edits only weights that exist, so a stroke
         // never creates an asset and its undo covers only the stroke.
-        const pipeline::TerrainAsset* asset = Asset();
+        const terrain::TerrainAsset* asset = Asset();
         if (asset == nullptr || !asset->weightsId.IsNil() || Context().Project() == nullptr)
             return false;
         // Beside the terrain, in its group.
@@ -489,18 +489,18 @@ namespace editor
         // A free name: CreateInstance hands back whatever holds a taken one, and the starter written
         // below would overwrite it (weights left by an undo, or another asset of that name).
         const String name = group->UniqueInstanceName(Format(u8"{}_splat", Title()).AsView());
-        foundation::content::Instance* made = group->CreateInstance(name.AsView(), pipeline::SplatmapAsset::StaticType());
+        foundation::content::Instance* made = group->CreateInstance(name.AsView(), terrain::SplatmapAsset::StaticType());
         if (made == nullptr)
         {
             Context().Notify(NoticeKind::Error, Format(u8"No splat weights made: '{}' could not be created.", name).AsView());
             return false;
         }
-        pipeline::SplatmapAsset splat;
+        terrain::SplatmapAsset splat;
         splat.width = size > 0 ? size : 1024;
         splat.height = splat.width;
         (void)made->WriteObject(splat); // all zero, so the base layer shows everywhere, as its cook makes it
         const Guid id = made->Id();
-        EditWhole(u8"edit_terrain", [id](ISerializable& object) { static_cast<pipeline::TerrainAsset&>(object).weightsId = id; });
+        EditWhole(u8"edit_terrain", [id](ISerializable& object) { static_cast<terrain::TerrainAsset&>(object).weightsId = id; });
         Context().RequestCook(false);
         Context().Notify(NoticeKind::Success, Format(u8"Made splat weights '{}'.", name).AsView());
         return true;
@@ -514,7 +514,7 @@ namespace editor
         if (scenePtr == nullptr)
             return;
         m_entity = scenePtr->CreateEntity(u8"PreviewTerrain");
-        if (auto* terrains = scenePtr->GetSystem<engine::terrain::TerrainComponentManager>())
+        if (auto* terrains = scenePtr->GetSystem<terrain::TerrainComponentManager>())
             terrains->Add(m_entity); // assigned its terrain once the product resolves
         const scene::EntityHandle sun = scenePtr->CreateEntity(u8"Sun");
         Transform t;
@@ -531,8 +531,8 @@ namespace editor
     void TerrainEditorPage::PointPreviewAt(terrain::TerrainResource* product)
     {
         scene::Scene* scenePtr = m_pane && m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
-        auto* terrains = scenePtr != nullptr ? scenePtr->GetSystem<engine::terrain::TerrainComponentManager>() : nullptr;
-        engine::terrain::TerrainComponent* component = terrains != nullptr ? terrains->Get(m_entity) : nullptr;
+        auto* terrains = scenePtr != nullptr ? scenePtr->GetSystem<terrain::TerrainComponentManager>() : nullptr;
+        terrain::TerrainComponent* component = terrains != nullptr ? terrains->Get(m_entity) : nullptr;
         if (component == nullptr)
             return;
         component->terrain.SetId(Guid{});
@@ -608,13 +608,13 @@ namespace editor
     u64 RegisterTerrainEditor(EditorContext& context, const app::AssetPageServicesSource& services)
     {
         const u64 key = context.Pages().Register(UniquePtr<IEditorPageFactory>(editor::EditorRootAllocator().New<TerrainEditorPageFactory>(services), editor::EditorRootAllocator()));
-        app::RegisterImageFilePreview(context, pipeline::SplatmapAsset::StaticType());
+        app::RegisterImageFilePreview(context, terrain::SplatmapAsset::StaticType());
         return key;
     }
 
     void UnregisterTerrainEditor(EditorContext& context, u64 key)
     {
         context.RemovePageFactory(key);
-        context.ImportPreviews().Remove(pipeline::SplatmapAsset::StaticType());
+        context.ImportPreviews().Remove(terrain::SplatmapAsset::StaticType());
     }
 }

@@ -10,15 +10,12 @@
 
 import foundation.core;
 import foundation.heightfield;
-import foundation.terrain;
-import foundation.terrain.resource;
-import foundation.vegetation.resource;
-import foundation.vegetation;
+import terrain.foundation;
 
 using namespace foundation::core;
 namespace hf = foundation::heightfield;
-namespace tmodel = foundation::terrain;
-namespace veg = foundation::vegetation;
+namespace tmodel = ::terrain;
+namespace veg = ::terrain;
 
 namespace
 {

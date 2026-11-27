@@ -19,8 +19,8 @@ import engine.render;
 import engine.physics;
 import foundation.physics;
 import engine.navigation;
-import engine.terrain;
-import foundation.terrain.resource;
+import terrain.engine;
+import terrain.foundation;
 import foundation.heightfield;
 import foundation.navigation;
 import foundation.navigation.resource;
@@ -119,7 +119,7 @@ namespace
 
     // An in-memory terrain over a 65x65 heightfield (the smallest legal grid): heights come
     // from `heightAt(gx, gz)` in world Y, quantized onto [minY, maxY].
-    RefPtr<foundation::terrain::TerrainResource> MakeTerrain(f32 minY, f32 maxY, f32 worldSide,
+    RefPtr<terrain::TerrainResource> MakeTerrain(f32 minY, f32 maxY, f32 worldSide,
                                                              f32 (*heightAt)(i32, i32))
     {
         constexpr i32 kSide = 65;
@@ -133,24 +133,24 @@ namespace
                 field->SetSample(gx, gz, field->WorldYToSample(heightAt(gx, gz)));
             }
         }
-        RefPtr<foundation::terrain::TerrainResource> terrain =
-            MakeRef<foundation::terrain::TerrainResource>(DefaultAllocator());
+        RefPtr<terrain::TerrainResource> terrain =
+            MakeRef<terrain::TerrainResource>(DefaultAllocator());
         terrain->heightfield = field;
         return terrain;
     }
 
     // Scene, zone and one terrain entity; returns the baked navmesh blob (empty when the bake
     // failed).
-    Array<byte> BakeTerrainZone(RefPtr<foundation::terrain::TerrainResource> terrain,
+    Array<byte> BakeTerrainZone(RefPtr<terrain::TerrainResource> terrain,
                                 Float3 zoneExtents, usize& outTriangles)
     {
         scene::Scene sceneObj(DefaultAllocator(), u8"bake_terrain");
         engine::navigation::AddNavigationSceneManagers(sceneObj);
-        auto* terrains = sceneObj.AddSystem<engine::terrain::TerrainComponentManager>();
+        auto* terrains = sceneObj.AddSystem<terrain::TerrainComponentManager>();
 
         scene::EntityHandle terrainEntity = sceneObj.CreateEntity(u8"terrain");
-        engine::terrain::TerrainComponent& tc = terrains->Add(terrainEntity);
-        tc.terrain = foundation::resource::Ref<foundation::terrain::TerrainResource>(terrain);
+        terrain::TerrainComponent& tc = terrains->Add(terrainEntity);
+        tc.terrain = foundation::resource::Ref<terrain::TerrainResource>(terrain);
 
         scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
         engine::navigation::NavMeshZoneComponent& z =
@@ -330,7 +330,7 @@ TEST_CASE("editor.navigation: a terrain hole is no walkable surface - a strip ac
     // The terrain holes rule: a stride block with a cut sample is left out of the bake, so the
     // navmesh opens there. A strip of cut samples across the whole zone leaves the agent no way
     // from one side to the other.
-    RefPtr<foundation::terrain::TerrainResource> terrain =
+    RefPtr<terrain::TerrainResource> terrain =
         MakeTerrain(0.0f, 10.0f, 32.0f, [](i32, i32) { return 2.0f; });
     usize solidTriangles = 0;
     Array<byte> solid = BakeTerrainZone(terrain, Float3{14, 8, 14}, solidTriangles);

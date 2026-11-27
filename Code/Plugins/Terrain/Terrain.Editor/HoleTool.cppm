@@ -12,7 +12,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.terrain:hole;
+export module terrain.editor:hole;
 
 import foundation.core;
 import foundation.scene;
@@ -22,8 +22,9 @@ import editor.core;            // EditorCommandStack, IAssetEditSink
 import editor.viewporttools;   // IViewportTool, ViewportToolInput
 
 using namespace foundation::core;
+using namespace editor; // its bases
 
-export namespace editor
+export namespace terrain
 {
     /// The terrain hole brush: Cut removes the surface under the disc, Fill restores it.
     class TerrainHoleTool final : public IViewportTool

@@ -31,7 +31,6 @@ namespace samples
     namespace graphics = foundation::graphics;
     namespace scene = foundation::scene;
     namespace hf = foundation::heightfield;
-    namespace terrain = foundation::terrain;
     namespace geometry = foundation::geometry;
     namespace materials = foundation::materials;
     using namespace foundation::core; // RefPtr, MakeRef, DefaultAllocator, math helpers
@@ -183,9 +182,9 @@ namespace samples
             m_terrainResource->weights = m_splat;
 
             m_terrain = m_scene->CreateEntity(u8"terrain");
-            if (auto* mgr = m_scene->GetSystem<engine::terrain::TerrainComponentManager>())
+            if (auto* mgr = m_scene->GetSystem<terrain::TerrainComponentManager>())
             {
-                engine::terrain::TerrainComponent& tc = mgr->Add(m_terrain);
+                terrain::TerrainComponent& tc = mgr->Add(m_terrain);
                 tc.terrain = m_terrainResource;
                 tc.lodBias = m_lodBias;
             }
@@ -194,10 +193,10 @@ namespace samples
             // layer 0, so grass grows on the painted half and not on the other, thinning to
             // nothing at fadeEnd.
             if (auto* vegetation =
-                    m_scene->GetSystem<engine::vegetation::TerrainVegetationComponentManager>())
+                    m_scene->GetSystem<terrain::TerrainVegetationComponentManager>())
             {
-                engine::vegetation::TerrainVegetationComponent& c = vegetation->Add(m_terrain);
-                engine::vegetation::ProceduralVegetationLayer layer;
+                terrain::TerrainVegetationComponent& c = vegetation->Add(m_terrain);
+                terrain::ProceduralVegetationLayer layer;
                 layer.name = core::String(u8"Grass");
                 layer.mesh = geometry::Primitives::Cone(AppRoot(), 0.24f, 1.4f); // a tuft
                 core::RefPtr<materials::Material> grass = materials::CreatePBR(
@@ -218,7 +217,7 @@ namespace samples
                     grass->SetDefaultFloat(u8"Wind.Height", 0.7f);
                 }
                 layer.materials.PushBack(foundation::resource::Ref<materials::Material>(grass));
-                layer.placement = foundation::vegetation::VegetationPlacement::Splat;
+                layer.placement = terrain::VegetationPlacement::Splat;
                 layer.splatLayer = 0;
                 layer.density = m_grassDensity;
                 layer.scaleRange = core::Float2{0.7f, 1.4f};
@@ -330,7 +329,7 @@ namespace samples
                 if (ImGui::SliderFloat("LOD bias", &m_lodBias, -2.0f, 4.0f, "%.2f"))
                 {
                     if (auto* mgr =
-                            m_scene->GetSystem<engine::terrain::TerrainComponentManager>())
+                            m_scene->GetSystem<terrain::TerrainComponentManager>())
                     {
                         if (auto* tc = mgr->Get(m_terrain))
                         {
@@ -367,7 +366,7 @@ namespace samples
                 ImGui::Separator();
                 ImGui::TextDisabled("Grass (splat layer 0: the x < 0 half)");
                 if (auto* vegetation =
-                        m_scene->GetSystem<engine::vegetation::TerrainVegetationComponentManager>())
+                        m_scene->GetSystem<terrain::TerrainVegetationComponentManager>())
                 {
                     auto* c = vegetation->Get(m_terrain);
                     if (auto* layer = (c != nullptr && !c->proceduralLayers.IsEmpty()) ? &c->proceduralLayers[0] : nullptr)

@@ -11,14 +11,13 @@
 
 import foundation.core;
 import foundation.heightfield;
-import foundation.terrain.resource;
+import terrain.foundation;
 import pipeline.core;
 import terrain.pipeline;
-import editor.terrain;
+import terrain.editor;
 
 using namespace foundation::core;
 namespace hf = foundation::heightfield;
-namespace terrain = foundation::terrain;
 
 TEST_CASE("TerrainFacts says the grid, world size, chunks, layers and shadows of a cooked terrain")
 {
@@ -29,10 +28,10 @@ TEST_CASE("TerrainFacts says the grid, world size, chunks, layers and shadows of
     res->palette.PushBack(terrain::TerrainResource::Layer{});
     res->palette.PushBack(terrain::TerrainResource::Layer{});
 
-    const Array<editor::TerrainFact> facts = editor::TerrainFacts(*res);
+    const Array<terrain::TerrainFact> facts = terrain::TerrainFacts(*res);
     const auto value = [&](StringView name)
     {
-        for (const editor::TerrainFact& fact : facts)
+        for (const terrain::TerrainFact& fact : facts)
             if (fact.name.AsView() == name)
                 return fact.value;
         return String(u8"?");
@@ -48,7 +47,7 @@ TEST_CASE("TerrainFacts says when there is no heightfield")
 {
     RefPtr<terrain::TerrainResource> res = MakeRef<terrain::TerrainResource>(DefaultAllocator());
     res->castShadows = false;
-    const Array<editor::TerrainFact> facts = editor::TerrainFacts(*res);
+    const Array<terrain::TerrainFact> facts = terrain::TerrainFacts(*res);
     REQUIRE_FALSE(facts.IsEmpty());
     CHECK(facts[0].value == String(u8"No heightfield"));
     CHECK(facts.Back().value == String(u8"No"));
@@ -56,8 +55,8 @@ TEST_CASE("TerrainFacts says when there is no heightfield")
 
 TEST_CASE("TerrainAsset v2 blob snapshot round-trips its authored fields (the undo path)")
 {
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.heightfieldId = Guid{11, 22};
     a.weightsId = Guid{33, 44};
     a.baseAlbedoId = Guid{55, 66};
@@ -74,7 +73,7 @@ TEST_CASE("TerrainAsset v2 blob snapshot round-trips its authored fields (the un
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
@@ -82,10 +81,10 @@ TEST_CASE("TerrainAsset v2 blob snapshot round-trips its authored fields (the un
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }
@@ -104,8 +103,8 @@ TEST_CASE("TerrainAsset v2 blob snapshot round-trips its authored fields (the un
 
 TEST_CASE("TerrainAsset v3 snapshot round-trips the per-layer normal + ORM ids (the undo path)")
 {
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.baseAlbedoId = Guid{55, 66};
     a.baseNormalId = Guid{101, 102};
     a.baseOrmId = Guid{103, 104};
@@ -123,7 +122,7 @@ TEST_CASE("TerrainAsset v3 snapshot round-trips the per-layer normal + ORM ids (
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
@@ -131,10 +130,10 @@ TEST_CASE("TerrainAsset v3 snapshot round-trips the per-layer normal + ORM ids (
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }
@@ -153,8 +152,8 @@ TEST_CASE("TerrainAsset snapshot with no maps round-trips empty normal/ORM array
 {
     // With no maps authored, the arrays stay empty across a snapshot, so the page's picker path
     // that grows them lazily (SetPaletteMap) is the only thing that ever sizes them.
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.baseAlbedoId = Guid{55, 66};
     a.paletteAlbedoIds.PushBack(Guid{77, 88});
     a.paletteTileScales.PushBack(16.0f);
@@ -162,17 +161,17 @@ TEST_CASE("TerrainAsset snapshot with no maps round-trips empty normal/ORM array
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }
@@ -184,8 +183,8 @@ TEST_CASE("TerrainAsset snapshot with no maps round-trips empty normal/ORM array
 
 TEST_CASE("TerrainAsset v4 snapshot round-trips per-layer height ids + contrast (the undo path)")
 {
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.baseAlbedoId = Guid{55, 66};
     a.baseHeightId = Guid{131, 132};
     a.heightBlendContrast = 0.4f;
@@ -201,7 +200,7 @@ TEST_CASE("TerrainAsset v4 snapshot round-trips per-layer height ids + contrast 
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
@@ -209,10 +208,10 @@ TEST_CASE("TerrainAsset v4 snapshot round-trips per-layer height ids + contrast 
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }
@@ -226,8 +225,8 @@ TEST_CASE("TerrainAsset v4 snapshot round-trips per-layer height ids + contrast 
 
 TEST_CASE("TerrainAsset snapshot with no height maps keeps the arrays empty + the default contrast")
 {
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.baseAlbedoId = Guid{55, 66};
     a.paletteAlbedoIds.PushBack(Guid{77, 88});
     a.paletteTileScales.PushBack(16.0f);
@@ -235,17 +234,17 @@ TEST_CASE("TerrainAsset snapshot with no height maps keeps the arrays empty + th
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }
@@ -256,8 +255,8 @@ TEST_CASE("TerrainAsset snapshot with no height maps keeps the arrays empty + th
 
 TEST_CASE("TerrainAsset v5 snapshot round-trips the per-layer coverage mask ids (the undo path)")
 {
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.baseAlbedoId = Guid{55, 66};
     a.paletteAlbedoIds.PushBack(Guid{77, 88});
     a.paletteAlbedoIds.PushBack(Guid{99, 111});
@@ -270,17 +269,17 @@ TEST_CASE("TerrainAsset v5 snapshot round-trips the per-layer coverage mask ids 
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }
@@ -292,8 +291,8 @@ TEST_CASE("TerrainAsset v5 snapshot round-trips the per-layer coverage mask ids 
 
 TEST_CASE("TerrainAsset snapshot with no coverage masks keeps the array empty (never populated)")
 {
-    pipeline::RegisterTerrainAsset();
-    pipeline::TerrainAsset a;
+    terrain::RegisterTerrainAsset();
+    terrain::TerrainAsset a;
     a.baseAlbedoId = Guid{55, 66};
     a.paletteAlbedoIds.PushBack(Guid{77, 88});
     a.paletteTileScales.PushBack(16.0f);
@@ -301,17 +300,17 @@ TEST_CASE("TerrainAsset snapshot with no coverage masks keeps the array empty (n
     MemoryStream out;
     {
         BinarySerializer wr(out, SerializeMode::Write);
-        BeginVersionedPayload(wr, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(wr, terrain::TerrainAsset::StaticType());
         a.Serialize(wr);
         REQUIRE(wr.IsOk());
     }
     MemoryStream in;
     (void)in.Write(out.Bytes().Data(), out.Bytes().Size());
     (void)in.Seek(0, SeekOrigin::Begin);
-    pipeline::TerrainAsset b;
+    terrain::TerrainAsset b;
     {
         BinarySerializer rd(in, SerializeMode::Read);
-        BeginVersionedPayload(rd, pipeline::TerrainAsset::StaticType());
+        BeginVersionedPayload(rd, terrain::TerrainAsset::StaticType());
         b.Serialize(rd);
         REQUIRE(rd.IsOk());
     }

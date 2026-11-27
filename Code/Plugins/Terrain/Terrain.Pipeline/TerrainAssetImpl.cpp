@@ -17,8 +17,9 @@ import foundation.core;
 import pipeline.core;
 
 using namespace foundation::core;
+using namespace pipeline; // its bases
 
-namespace pipeline
+namespace terrain
 {
     REFLECT_MEMBERS(TerrainAsset, "rtti::pipeline::terrain")
     {

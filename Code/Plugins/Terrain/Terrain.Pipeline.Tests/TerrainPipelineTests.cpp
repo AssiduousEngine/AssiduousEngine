@@ -15,14 +15,14 @@ import foundation.resource;
 import pipeline.core;
 import foundation.heightfield;
 import foundation.heightfield.resource;
-import foundation.terrain.resource;
+import terrain.foundation;
 import terrain.pipeline;
 
 using namespace foundation::core;
 using namespace pipeline;
 using namespace foundation::vfs;
 using namespace foundation::resource;
-using namespace foundation::terrain;
+using namespace terrain;
 namespace hf = foundation::heightfield;
 
 namespace

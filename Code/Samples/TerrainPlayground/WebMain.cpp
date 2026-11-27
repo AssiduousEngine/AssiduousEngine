@@ -32,10 +32,8 @@ import foundation.materials; // CreatePBR
 import foundation.shaders;        // ShaderEffect, ShaderFlags (the grass's Wind group)
 import foundation.shaders.system; // ShaderSystem::EffectForFlag
 import foundation.heightfield;
-import foundation.terrain.resource;
-import engine.terrain;
-import foundation.vegetation; // VegetationPlacement
-import engine.vegetation;     // VegetationLayerComponent (the grass layer over the dome)
+import terrain.foundation;
+import terrain.engine;
 import foundation.resource;   // Ref (the grass layer's materials)
 
 #include "Runtime.Client/AppMain.h"
