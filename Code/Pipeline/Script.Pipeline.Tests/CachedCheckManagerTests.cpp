@@ -55,7 +55,7 @@ namespace
         return cook.Check(StringView(source), u8"Gamma.script", sink, className, Span<const TypeId>{});
     }
 
-    void CheckSharedEngine(const Language& language)
+    [[maybe_unused]] void CheckSharedEngine(const Language& language) // per enabled language
     {
         IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(StringView(language.id));
         REQUIRE(cook != nullptr);

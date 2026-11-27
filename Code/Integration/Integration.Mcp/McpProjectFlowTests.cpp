@@ -44,14 +44,16 @@ namespace
     // Register the first available backend and return its language id. pipeline.registration
     // also registers the enabled backends; this makes explicit the language the script_api
     // assertion expects.
-    [[nodiscard]] StringView RegisterSomeBackend()
+    [[nodiscard, maybe_unused]] StringView RegisterSomeBackend()
     {
 #if defined(OPTION_HAS_ANGELSCRIPT)
         foundation::script::angelscript::RegisterAngelScriptBackend();
         return StringView(u8"angelscript");
-#else
+#elif defined(OPTION_HAS_LUAU)
         foundation::script::RegisterLuauScriptBackend();
         return StringView(u8"luau");
+#else
+        return StringView{}; // no language built: the tests that need one are left out
 #endif
     }
 
@@ -389,6 +391,7 @@ TEST_CASE("integration.mcp: an agent imports + cooks a Luau source via MCP tools
 #endif // OPTION_HAS_LUAU
 #endif // OPTION_HAS_ANGELSCRIPT || OPTION_HAS_LUAU
 
+#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
 TEST_CASE("integration.mcp: script_api reports the COMPLETE engine surface, headless, no device")
 {
     // The composition root that describes the surface: every subsystem facade, as metadata only,
@@ -489,6 +492,8 @@ namespace
 #endif
 
 #if defined(OPTION_HAS_ANGELSCRIPT)
+#endif // a language to report on
+
 TEST_CASE("integration.mcp: script_api lists the AngelScript properties a script can use, inherited "
           "ones too, and not an asset reference it cannot")
 {

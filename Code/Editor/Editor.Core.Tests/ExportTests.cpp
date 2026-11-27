@@ -32,14 +32,11 @@ import foundation.settings;
 import foundation.shaders; // CookedShaderPack (the web export test reads the staged pack)
 import foundation.shaders.resource; // ShaderSource: a custom shader's product in the dist
 import shaders.pipeline;            // ShaderAsset and its compiling cook
-// Only the export-driver tests use a script asset; the template, preset and manifest tests are
-// backend-neutral and build with no script backend at all. The script imports (and the tests that
-// need them) are guarded, so the file always compiles.
-#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
+// The script core is the engine's, with or without a language; only the tests that cook a script
+// need a backend, and they and its imports are guarded, so the file always compiles.
 import foundation.script;          // the backend registries and BehaviorClassFactory namespace
-import script.pipeline;            // ScriptClassAsset, ScriptClassAssetBuilder
+import script.pipeline;            // ScriptClassAsset, ScriptClassAssetBuilder, the assembly cooks
 import foundation.script.resource; // RegisterScriptResource, BehaviorClass, BehaviorClassFactory
-#endif
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // the AngelScript backend (the cook compile-checks against it)
 import script.angelscript.pipeline;   // RegisterAngelScriptScriptCook

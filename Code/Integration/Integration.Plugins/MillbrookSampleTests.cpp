@@ -31,6 +31,7 @@ namespace json = foundation::json;
 namespace runtime = foundation::runtime;
 using foundation::json::JsonValue;
 
+#if defined(INTEGRATION_HAS_ANGELSCRIPT) // its scripts are AngelScript
 namespace
 {
     struct Called
@@ -158,4 +159,5 @@ TEST_CASE("plugins: the Millbrook sample reads with the dialogue plugin, its con
     }
     (void)RemoveDirectoryRecursive(dir);
 }
+#endif
 

@@ -535,15 +535,12 @@ add_subdirectory(Code/Foundation/Script)
 # --- Script backends: independently switchable via OPTION_ENABLE_* (declared up top) -----------
 # Both OPTION_ENABLE_ANGELSCRIPT/LUAU flags are defined in the option block above. Only AngelScript
 # needs reconciling here: its vendored lib is conditional (it may not build on a target), so a
-# requested but absent AngelScript is switched off. Luau is vendored unconditionally. Then enforce
-# at least one backend and publish the OPTION_HAS_<backend> presence defines (C++ guards usage
-# with #ifdef).
+# requested but absent AngelScript is switched off. Luau is vendored unconditionally. Then publish
+# the OPTION_HAS_<backend> presence defines (C++ guards usage with #ifdef). No backend is required:
+# a game whose logic is native behaviors runs with none.
 if(OPTION_ENABLE_ANGELSCRIPT AND NOT TARGET ThirdParty::AngelScript)
     message(STATUS "AngelScript backend requested but its vendored lib did not build - disabling OPTION_ENABLE_ANGELSCRIPT.")
     set(OPTION_ENABLE_ANGELSCRIPT OFF)
-endif()
-if(NOT OPTION_ENABLE_ANGELSCRIPT AND NOT OPTION_ENABLE_LUAU)
-    message(FATAL_ERROR "All script backends are disabled; enable at least one of OPTION_ENABLE_ANGELSCRIPT / OPTION_ENABLE_LUAU.")
 endif()
 # Presence macros, defined only when enabled, so C++ guards read `#ifdef OPTION_HAS_ANGELSCRIPT`.
 # C# builds on the desktop and the web (the web only compiled into a program: see cmake/DotNet.cmake);
@@ -971,7 +968,10 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Json.Tests                     Foundation::Json)
     util_test_suite(Code/Foundation/Mcp.Tests                      Foundation::Mcp)
     util_test_suite(Code/Foundation/Mcp.Reflection.Tests           Foundation::Mcp.Reflection)
-    util_test_suite(Code/Foundation/Mcp.Script.Tests               Foundation::Mcp.Script)
+    # script_api and script_declarations describe a language's bound API: they need one built.
+    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+        util_test_suite(Code/Foundation/Mcp.Script.Tests           Foundation::Mcp.Script)
+    endif()
     util_test_suite(Code/Foundation/Mcp.Http.Tests                 Foundation::Mcp.Http)
 
     # Integration: flow suites that cross collections. The Integration. prefix lets a fast loop run

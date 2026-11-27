@@ -104,6 +104,7 @@ namespace
     }
 }
 
+#if defined(OPTION_HAS_LUAU) // the flow imports and cooks a Luau script
 TEST_CASE("integration.mcp: the full agent flow - create, import, cook, author, validate, "
           "health, host state")
 {
@@ -189,6 +190,7 @@ TEST_CASE("integration.mcp: the full agent flow - create, import, cook, author, 
 
     FileDelete(u8"Mover.luau");
 }
+#endif
 
 TEST_CASE("integration.mcp: RegisterEngineTools registers exactly kEngineToolCount tools - the "
           "surface every host serves, and only that")
@@ -449,7 +451,7 @@ TEST_CASE("integration.mcp: the write tools ride a host's operations - not finis
     REQUIRE(refused.state == LineState::Answered);
     CHECK(json::Parse(refused.response.AsView()).value.Get(u8"result").Get(u8"isError").AsBool());
     CHECK(slow.importEntries == 0);
-    const String import = ToolCallLine(u8"asset_import", u8"{\"source\":\"Mover.luau\"}").ToString();
+    const String import = ToolCallLine(u8"asset_import", u8"{\"source\":\"Mover.svg\"}").ToString();
     CHECK(server.HandleLine(import.AsView()).state == LineState::NotFinished);
     CHECK(server.HandleLine(import.AsView()).state == LineState::NotFinished);
     LineOutcome imported = server.HandleLine(import.AsView());
@@ -501,7 +503,7 @@ TEST_CASE("integration.mcp: the write tools ride a host's operations - not finis
         CHECK(text.AsView().StartsWith(u8"the Model importer has no option 'wings'; its options are: "));
         CHECK(text.AsView().ContainsIgnoreCase(u8"Generate collision"));
         const String none = ToolCallLine(u8"asset_import",
-                                         u8"{\"source\":\"Mover.luau\",\"options\":{\"x\":true}}")
+                                         u8"{\"source\":\"Mover.svg\",\"options\":{\"x\":true}}")
                                 .ToString();
         answer = server.HandleLine(none.AsView());
         REQUIRE(answer.state == LineState::Answered);

@@ -24,6 +24,8 @@ using namespace foundation::mcp;
 namespace json = foundation::json;
 using foundation::json::JsonValue;
 
+// The starters and their checks need a language built.
+#if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
 namespace
 {
     JsonValue SvCall(McpServer& s, JsonValue arguments)
@@ -228,6 +230,7 @@ TEST_CASE("integration.mcp: script_create - starter-seeded asset, unique names, 
         CHECK(second.Get(u8"guid").AsString() != created.Get(u8"guid").AsString());
     }
 }
+#endif
 
 #ifdef OPTION_HAS_ANGELSCRIPT
 // A plugin whose Engine part gives scripts a type of its own (`Lantern`), enabled on Win64 only.

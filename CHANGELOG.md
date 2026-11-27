@@ -48,6 +48,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- The engine builds with no script language: switching off AngelScript, Luau and C# is allowed, and
+  a game whose logic is native behaviors reads, runs and cooks without one.
 - Navigation is an official plugin, `navigation`: a project enables it in its plugins list, and its
   zones, agents, Bake Navigation and the `navigation_bake` MCP tool come with it. A project written
   before (data version 15 or older) enables it as it is read; a new project starts without it. The

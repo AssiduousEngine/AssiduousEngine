@@ -16,12 +16,15 @@ util_copy_sdl3_dll(GUISandbox)
 set(_sandbox_test_env "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp")
 
 # The image tests: each page drawn offscreen on each backend
-# and compared with its reference in Data/Tests/GUI/Images; skipped (77) without a device.
+# and compared with its reference in Data/Tests/GUI/Images; skipped (77) without a device. The
+# references are drawn with the pages' scripts running, so they need AngelScript.
+if(OPTION_ENABLE_ANGELSCRIPT)
 foreach(backend vulkan webgpu)
     add_test(NAME GUI.Images.${backend}
              COMMAND GUISandbox --${backend} --image-tests --image-out ${CMAKE_BINARY_DIR}/gui-images)
     set_tests_properties(GUI.Images.${backend} PROPERTIES SKIP_RETURN_CODE 77 ENVIRONMENT "${_sandbox_test_env}")
 endforeach()
+endif()
 
 # The sweep: every page's widgets clicked and right-clicked, every page walked by keys and the
 # pad, the game menu opened, on each backend. It fails when anything warns or errs while it runs.

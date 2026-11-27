@@ -334,7 +334,7 @@ namespace
                                  u8"end\n";
 
     // The scene runs a few frames: the behavior starts the conversation and answers each notice.
-    void Talk(DialogueRun& r)
+    [[maybe_unused]] void Talk(DialogueRun& r) // per enabled language
     {
         r.Start();
         for (int i = 0; i < 8; ++i)

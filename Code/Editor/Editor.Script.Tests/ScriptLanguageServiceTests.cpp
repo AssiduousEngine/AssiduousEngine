@@ -50,7 +50,7 @@ namespace
         return out;
     }
 
-    void CheckBoundApi(StringView language)
+    [[maybe_unused]] void CheckBoundApi(StringView language) // per enabled language
     {
         ScriptApiSurface surface;
         surface.SetLanguage(language);
