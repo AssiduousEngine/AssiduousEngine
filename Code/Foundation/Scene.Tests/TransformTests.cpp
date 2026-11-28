@@ -277,3 +277,100 @@ TEST_CASE("transforms: reparent under a clean parent recomputes the child's worl
     CHECK(world.m[3][0] == doctest::Approx(10.0f)); // parent's offset composed in
     CHECK(world.m[3][1] == doctest::Approx(5.0f));  // the authored local, relative to it
 }
+
+namespace
+{
+    // How many times `entity` is in `moved`.
+    usize Count(Span<const EntityHandle> moved, EntityHandle entity)
+    {
+        usize count = 0;
+        for (const EntityHandle listed : moved)
+            count += listed == entity ? 1u : 0u;
+        return count;
+    }
+}
+
+TEST_CASE("moved list: an entity moved in two updates before one read is listed once, with its subtree")
+{
+    Scene scene{DefaultAllocator()};
+    const EntityHandle parent = scene.CreateEntity();
+    const EntityHandle child = scene.CreateEntity();
+    const EntityHandle still = scene.CreateEntity();
+    scene.SetParent(child, parent);
+    scene.UpdateTransforms(); // settled before the list exists: nothing to report
+    const Scene::MovedListId list = scene.AddMovedList();
+    CHECK(list.IsValid());
+    CHECK(scene.Moved(list).IsEmpty());
+
+    scene.SetLocalPosition(parent, Float3{1, 0, 0});
+    scene.UpdateTransforms();
+    scene.SetLocalPosition(parent, Float3{2, 0, 0});
+    scene.UpdateTransforms();
+    CHECK(Count(scene.Moved(list), parent) == 1u);
+    CHECK(Count(scene.Moved(list), child) == 1u); // moved with its parent
+    CHECK(Count(scene.Moved(list), still) == 0u);
+    CHECK(scene.Moved(list).Size() == 2u);
+
+    scene.ClearMoved(list);
+    CHECK(scene.Moved(list).IsEmpty());
+    scene.UpdateTransforms(); // nothing moved
+    CHECK(scene.Moved(list).IsEmpty());
+    scene.SetLocalPosition(child, Float3{0, 1, 0});
+    scene.UpdateTransforms();
+    REQUIRE(scene.Moved(list).Size() == 1u); // listed again once cleared
+    CHECK(scene.Moved(list)[0] == child);
+}
+
+TEST_CASE("moved list: an update from outside the frame loses nothing a consumer reads once a frame")
+{
+    Scene scene{DefaultAllocator()};
+    const EntityHandle first = scene.CreateEntity();
+    const EntityHandle second = scene.CreateEntity();
+    const Scene::MovedListId list = scene.AddMovedList();
+    scene.SetLocalPosition(first, Float3{1, 0, 0});
+    scene.UpdateTransforms(); // a tool's update between two frames
+    scene.SetLocalPosition(second, Float3{1, 0, 0});
+    scene.UpdateTransforms(); // the frame's: the per-frame list now holds only `second`
+    CHECK(scene.TransformsUpdatedThisFrame().Size() == 1u);
+    CHECK(Count(scene.Moved(list), first) == 1u);
+    CHECK(Count(scene.Moved(list), second) == 1u);
+}
+
+TEST_CASE("moved list: a destroyed entity's entry reads as invalid, and its slot's next entity is listed afresh")
+{
+    Scene scene{DefaultAllocator()};
+    const EntityHandle gone = scene.CreateEntity();
+    const Scene::MovedListId list = scene.AddMovedList();
+    scene.SetLocalPosition(gone, Float3{1, 0, 0});
+    scene.UpdateTransforms();
+    scene.DestroyEntity(gone);
+    const EntityHandle next = scene.CreateEntity(); // takes the freed slot
+    REQUIRE(next.index == gone.index);
+    scene.SetLocalPosition(next, Float3{2, 0, 0});
+    scene.UpdateTransforms();
+    REQUIRE(scene.Moved(list).Size() == 2u);
+    CHECK_FALSE(scene.IsValid(scene.Moved(list)[0])); // the destroyed one, never read as `next`
+    CHECK(scene.Moved(list)[1] == next);
+}
+
+TEST_CASE("moved list: lists are independent, a removed one is reused, and an unknown id reads empty")
+{
+    Scene scene{DefaultAllocator()};
+    const EntityHandle entity = scene.CreateEntity();
+    const Scene::MovedListId a = scene.AddMovedList();
+    const Scene::MovedListId b = scene.AddMovedList();
+    CHECK(a != b);
+    scene.SetLocalPosition(entity, Float3{1, 0, 0});
+    scene.UpdateTransforms();
+    scene.ClearMoved(a);
+    CHECK(scene.Moved(a).IsEmpty());
+    CHECK(scene.Moved(b).Size() == 1u); // b's reader has not read yet
+
+    scene.RemoveMovedList(a);
+    CHECK(scene.Moved(a).IsEmpty());
+    const Scene::MovedListId again = scene.AddMovedList();
+    CHECK(again == a); // the slot reused, starting empty
+    CHECK(scene.Moved(again).IsEmpty());
+    CHECK(scene.Moved(Scene::MovedListId{}).IsEmpty());
+    scene.ClearMoved(Scene::MovedListId{}); // harmless
+}

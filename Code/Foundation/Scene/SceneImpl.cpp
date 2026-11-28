@@ -628,6 +628,80 @@ namespace foundation::scene
         return {m_transformsUpdatedThisFrame.Data(), m_transformsUpdatedThisFrame.Size()};
     }
 
+    Scene::MovedListId Scene::AddMovedList()
+    {
+        u32 slot = 0;
+        while (slot < m_movedLists.Size() && m_movedLists[slot].inUse)
+        {
+            ++slot;
+        }
+        if (slot == m_movedLists.Size())
+        {
+            m_movedLists.PushBack(MovedList{});
+        }
+        m_movedLists[slot].inUse = true;
+        ++m_movedListCount;
+        return MovedListId{slot};
+    }
+
+    void Scene::RemoveMovedList(MovedListId list)
+    {
+        if (!list.IsValid() || list.value >= m_movedLists.Size() || !m_movedLists[list.value].inUse)
+        {
+            return;
+        }
+        m_movedLists[list.value] = MovedList{};
+        --m_movedListCount;
+    }
+
+    Span<const EntityHandle> Scene::Moved(MovedListId list) const noexcept
+    {
+        if (!list.IsValid() || list.value >= m_movedLists.Size() || !m_movedLists[list.value].inUse)
+        {
+            return {};
+        }
+        const Array<EntityHandle>& moved = m_movedLists[list.value].moved;
+        return {moved.Data(), moved.Size()};
+    }
+
+    void Scene::ClearMoved(MovedListId list)
+    {
+        if (!list.IsValid() || list.value >= m_movedLists.Size() || !m_movedLists[list.value].inUse)
+        {
+            return;
+        }
+        MovedList& moved = m_movedLists[list.value];
+        for (const EntityHandle entity : moved.moved)
+        {
+            if (entity.index < moved.listed.Size())
+            {
+                moved.listed[entity.index] = false;
+            }
+        }
+        moved.moved.Clear();
+    }
+
+    void Scene::NoteMoved(u32 index)
+    {
+        const EntityHandle entity{index, m_entities[index].generation};
+        for (MovedList& list : m_movedLists)
+        {
+            if (!list.inUse)
+            {
+                continue;
+            }
+            if (index >= list.listed.Size())
+            {
+                list.listed.Resize(m_entities.Size(), false);
+            }
+            if (!list.listed[index])
+            {
+                list.listed[index] = true;
+                list.moved.PushBack(entity);
+            }
+        }
+    }
+
     // ---- SceneModuleContributions (declared in :composition) --------------------------------------
     SceneModuleContributions& SceneModuleContributions::Global() noexcept
     {
@@ -988,6 +1062,15 @@ namespace foundation::scene
         ++m_revision;
 
         m_transforms[index] = TransformData{};
+        // The slot's next entity is a different one: it is listed afresh when it moves. The handle
+        // already listed stays, and reads as invalid.
+        for (MovedList& list : m_movedLists)
+        {
+            if (index < list.listed.Size())
+            {
+                list.listed[index] = false;
+            }
+        }
     }
 
     void Scene::MarkDirty(EntityHandle entity)
@@ -1051,6 +1134,10 @@ namespace foundation::scene
             d.updatedThisFrame = true;
         }
         m_transformsUpdatedThisFrame.PushBack(index);
+        if (m_movedListCount > 0)
+        {
+            NoteMoved(index);
+        }
 
         const Float4x4 myWorld = m_transforms[index].worldMatrix;
         EntityHandle child = m_transforms[index].firstChild;

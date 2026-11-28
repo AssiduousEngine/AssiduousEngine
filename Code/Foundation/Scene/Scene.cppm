@@ -405,6 +405,29 @@ export namespace foundation::scene
         // reads on IsValid(handle). Rewritten each UpdateTransforms.
         [[nodiscard]] Span<const u32> TransformsUpdatedThisFrame() const noexcept;
 
+        // ---- moved lists ----
+        //
+        // A consumer that mirrors entities' world matrices (a retained render scene, a spatial
+        // index) registers a list once, and every world-matrix recompute from then on appends the
+        // entity to it, once until the consumer clears it: whatever calls UpdateTransforms, and
+        // however many updates pass before it reads. A scene with no list pays nothing for them.
+
+        // A registered list; the invalid id names none.
+        struct MovedListId
+        {
+            static constexpr u32 kInvalid = ~0u;
+            u32 value = kInvalid;
+            [[nodiscard]] bool IsValid() const noexcept { return value != kInvalid; }
+            bool operator==(const MovedListId&) const noexcept = default;
+        };
+
+        [[nodiscard]] MovedListId AddMovedList();
+        void RemoveMovedList(MovedListId list);
+        // The entities moved since the list was last cleared, each once, as handles of the entity
+        // that moved: one destroyed since reads as invalid (IsValid), never as the slot's next one.
+        [[nodiscard]] Span<const EntityHandle> Moved(MovedListId list) const noexcept;
+        void ClearMoved(MovedListId list);
+
         // ---- per-scene systems ----
 
         // Constructs and adds a system of type T (one per type); the Scene owns it. Returns a
@@ -785,6 +808,17 @@ export namespace foundation::scene
         Array<u32> m_freeList;               // free slot indices for reuse
         HashMap<Guid, EntityHandle> m_idMap; // persistent Guid -> live handle
         Array<u32> m_transformsUpdatedThisFrame;
+        // A consumer's moved list: the entities in order, and per entity index whether it is listed.
+        struct MovedList
+        {
+            Array<EntityHandle> moved;
+            Array<bool> listed;
+            bool inUse = false;
+        };
+        Array<MovedList> m_movedLists; // by MovedListId; a removed one is reused
+        u32 m_movedListCount = 0;      // the lists in use, so a scene with none skips them
+        // Appends `index`'s entity to every moved list that does not hold it yet.
+        void NoteMoved(u32 index);
         EntityHandle m_firstRoot = EntityHandle::Invalid();
         EntityHandle m_lastRoot = EntityHandle::Invalid();
         // Mints entity ids. Seeded from the OS's entropy, so two edits of one scene (two branches,

@@ -1,10 +1,10 @@
 # Scene storage
 
-> APPROVED 2026-11-27 (after a review against master that day), not started; nothing here
-> measured. One decision is made: `Get` is const and `Edit` writes, for every component manager
-> (decision 5). Read on `master` at `b594bd2d4`; line numbers will drift. No profiler scope exists
-> around the scene's own work, so no cost below is a number: step 0 establishes which parts are
-> worth building.
+> APPROVED 2026-11-27 (after a review against master that day). Step 0 is done (its results
+> below, with the scopes they came from); D is being built; A, B, C and E stay open, with step 0's
+> numbers as their case. Decisions made: which parts to build (decision 1) and `Get` const with
+> `Edit` for every component manager (decision 5). Read on `master` at `b594bd2d4`; line numbers
+> will drift.
 
 ## Goal
 
@@ -189,10 +189,13 @@ whatever calls `UpdateTransforms()` and however many updates pass before the con
 ```
 MovedListId AddMovedList();                 // a consumer registers once
 void        RemoveMovedList(MovedListId);
-Span<const u32> Moved(MovedListId) const;   // entity indices, each once
+Span<const EntityHandle> Moved(MovedListId) const; // the entities, each once
 void        ClearMoved(MovedListId);
 ```
 
+- **Handles, not indices.** Each entry is the handle of the entity that moved, so one destroyed
+  since reads as invalid through `IsValid`, never as the entity that took its slot; a destroy
+  unlists its slot, so that next entity is listed afresh when it moves.
 - A scene with no registered list pays nothing beyond today.
 - A handful of consumers is expected (the mesh scene, a spatial index, replication). Each costs
   a bit test and perhaps an append per recomputed entity.
@@ -307,8 +310,9 @@ run concurrently in any of our script hosts.
 
 ## To decide
 
-1. **Which parts to build.** Step 0 (above) recommends D alone, for the user to confirm. The
-   recommendation before it was step 0, then A and B if their scopes show a cost
+1. **Which parts to build.** DECIDED 2026-11-27: D is built now. A, B, C and E stay in this spec,
+   open, with step 0's numbers as their case, to be taken up when a profile calls for one. The
+   recommendation before step 0 was step 0, then A and B if their scopes show a cost
    (they are small and contained), D when the retained render scene starts (its `Get` and
    `Edit` sweep is the one part here that touches every domain), C after measuring
    again with A and B in, E only for a named system that step 0 shows is slow and independent.
