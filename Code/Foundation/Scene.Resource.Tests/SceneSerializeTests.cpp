@@ -399,6 +399,36 @@ REFLECT_VALUE(CastTable, "demo")
     builder.Property<&CastTable::rows>("rows");
 }
 
+TEST_CASE("marking: a component read into place (a load, an undo's paste) is marked")
+{
+    TurretManager written;
+    written.Add(EntityHandle{0, 1}).range = 12.0f;
+    MemoryStream buffer;
+    {
+        BinarySerializer ar(buffer, SerializeMode::Write);
+        written.WriteComponent(ar, EntityHandle{0, 1});
+    }
+    TurretManager read;
+    (void)read.Add(EntityHandle{0, 1});
+    read.SetMarking(true);
+    read.ClearMarked();
+    (void)buffer.Seek(0, SeekOrigin::Begin);
+    {
+        BinarySerializer ar(buffer, SerializeMode::Read);
+        read.ReadComponent(ar, EntityHandle{0, 1}); // over the one it has
+    }
+    CHECK(read.Get(EntityHandle{0, 1})->range == doctest::Approx(12.0f));
+    REQUIRE(read.Marked().Size() == 1u);
+    CHECK(read.Marked()[0] == (EntityHandle{0, 1}));
+    MemoryStream again;
+    {
+        BinarySerializer ar(again, SerializeMode::Write);
+        read.ClearMarked();
+        read.WriteComponent(ar, EntityHandle{0, 1}); // a save reads: nothing marked
+    }
+    CHECK(read.Marked().IsEmpty());
+}
+
 TEST_CASE("scene-serialize: component records carry the reflected type's data version")
 {
     RttiRegisterValue_Turret(); // patches TypeOf<Turret> (name and dataVersion 3)

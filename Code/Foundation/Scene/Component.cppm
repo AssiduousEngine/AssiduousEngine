@@ -21,6 +21,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Debug/Assert.h"
+#include "Core/Log/Log.h"
 
 export module foundation.scene:component;
 
@@ -80,6 +81,19 @@ export namespace foundation::scene
 
         // Destroying an entity destroys its component in this manager.
         void OnEntityDestroyed(EntityHandle entity) override { RemoveComponent(entity); }
+
+        // --- marking: which components were written, for one consumer that mirrors them ---
+        // Off by default: a manager nobody reads marks from keeps no list. On, every write the
+        // manager hands out (Edit, ForEachEdit, EditComponentInstance, Add, ReadComponent) lists the
+        // component once until ClearMarked; a writer that holds no typed manager (a script's
+        // property set) calls Mark.
+        virtual void SetMarking(bool /*on*/) {}
+        [[nodiscard]] virtual bool IsMarking() const noexcept { return false; }
+        virtual void Mark(EntityHandle /*entity*/) {}
+        // The entities whose component was written since the last ClearMarked, each once; one
+        // removed since is left out.
+        [[nodiscard]] virtual Span<const EntityHandle> Marked() { return {}; }
+        virtual void ClearMarked() {}
     };
 
     // Typed, sparse-set component pool. T is plain value data.
@@ -97,17 +111,23 @@ export namespace foundation::scene
             // step): it was never taken off, so it keeps its values and is not destroyed.
             if (!m_leaving.IsEmpty() && Unmark(entity))
             {
-                return m_dense[RawIndex(entity)];
+                const u32 kept = RawIndex(entity);
+                MarkIndex(kept); // no hook tells of it, and its caller may write it
+                return m_dense[kept];
             }
             DIAGNOSTIC_ASSERT(!HasComponent(entity));
             const u32 dense = static_cast<u32>(m_dense.Size());
             ++m_storageRevision;
             m_dense.PushBack(T{});
             m_owners.PushBack(entity);
+            m_markBits.PushBack(false);
             m_sparse.InsertOrAssign(entity.index, dense);
             m_pendingInit.PushBack(entity);
             OnComponentCreated(m_dense[dense], entity);
-            return m_dense[dense];
+            // Marked after the hook: the hook runs on the default value, and the caller fills the
+            // component in after this returns, so its consumer reads it at its next sync.
+            MarkIndex(RawIndex(entity));
+            return m_dense[RawIndex(entity)];
         }
 
         [[nodiscard]] bool HasComponent(EntityHandle entity) const override
@@ -149,8 +169,18 @@ export namespace foundation::scene
             const u32 i = DenseIndex(entity);
             return (i != kInvalid) ? &m_dense[i] : nullptr;
         }
-        // `entity`'s component to write, or null when absent or the handle is stale.
-        [[nodiscard]] T* Edit(EntityHandle entity) { return Find(entity); }
+        // `entity`'s component to write, or null when absent or the handle is stale. Marks it, when
+        // marking is on.
+        [[nodiscard]] T* Edit(EntityHandle entity)
+        {
+            const u32 i = DenseIndex(entity);
+            if (i == kInvalid)
+            {
+                return nullptr;
+            }
+            MarkIndex(i);
+            return &m_dense[i];
+        }
 
         void RemoveComponent(EntityHandle entity) override
         {
@@ -170,13 +200,15 @@ export namespace foundation::scene
             T removed = Move(m_dense[i]);
             const u32 last = static_cast<u32>(m_dense.Size()) - 1u;
             if (i != last)
-            { // swap the last element into the hole
+            { // swap the last element into the hole, its mark with it
                 m_dense[i] = Move(m_dense[last]);
                 m_owners[i] = m_owners[last];
+                m_markBits[i] = m_markBits[last];
                 m_sparse.InsertOrAssign(m_owners[i].index, i);
             }
             m_dense.PopBack();
             m_owners.PopBack();
+            m_markBits.PopBack(); // a listed entry for the removed one is dropped at the next Marked()
             m_sparse.Remove(entity.index);
             OnComponentDestroyed(removed, entity);
         }
@@ -236,8 +268,76 @@ export namespace foundation::scene
         template <typename Fn>
         void ForEachEdit(Fn&& fn)
         {
-            VisitEach(*this, fn);
+            if (!m_marking)
+            {
+                VisitEach(*this, fn);
+                return;
+            }
+            auto marking = [&](T& component, EntityHandle owner)
+            {
+                MarkIndex(static_cast<u32>(&component - m_dense.Data()));
+                fn(component, owner);
+            };
+            VisitEach(*this, marking);
         }
+
+        void SetMarking(bool on) override
+        {
+            if (!on)
+            {
+                ClearMarked();
+            }
+            m_marking = on;
+        }
+        [[nodiscard]] bool IsMarking() const noexcept override { return m_marking; }
+        void Mark(EntityHandle entity) override
+        {
+            const u32 i = DenseIndex(entity);
+            if (i != kInvalid)
+            {
+                MarkIndex(i);
+            }
+        }
+        [[nodiscard]] Span<const EntityHandle> Marked() override
+        {
+            // Entries whose component left since (removed, or its slot now another's) are dropped
+            // here, so a removal costs no search.
+            usize kept = 0;
+            for (usize k = 0; k < m_marked.Size(); ++k)
+            {
+                const u32 i = DenseIndex(m_marked[k]);
+                if (i != kInvalid && m_markBits[i])
+                {
+                    m_markBits[i] = false; // seen: a second entry for it is a duplicate
+                    m_marked[kept++] = m_marked[k];
+                }
+            }
+            m_marked.Resize(kept);
+            for (const EntityHandle entity : m_marked)
+            {
+                m_markBits[DenseIndex(entity)] = true;
+            }
+#if BUILD_DEBUG
+            CheckUnmarked();
+#endif
+            return {m_marked.Data(), m_marked.Size()};
+        }
+        void ClearMarked() override
+        {
+            for (const EntityHandle entity : m_marked)
+            {
+                const u32 i = RawIndex(entity);
+                if (i != kInvalid)
+                {
+                    m_markBits[i] = false;
+                }
+            }
+            m_marked.Clear();
+        }
+        // In Debug builds, Marked() runs `stillMatches` over a slice of the unmarked components and
+        // logs one that no longer matches what the consumer holds: a write that went round Edit.
+        // It reports, never repairs, since a repair would hide the missing mark.
+        void SetMarkCheck(Function<bool(const T&, EntityHandle)> stillMatches) { m_markCheck = Move(stillMatches); }
 
         // Visits every component to write, as ForEachEdit does, with its writes not marked: for a
         // system rebuilding runtime state derived from the component every frame (an extraction's
@@ -303,6 +403,34 @@ export namespace foundation::scene
     private:
         static constexpr u32 kInvalid = 0xFFFFFFFFu;
 
+        // Lists the component at dense index `i` as written, once, when marking is on.
+        void MarkIndex(u32 i)
+        {
+            if (m_marking && !m_markBits[i])
+            {
+                m_markBits[i] = true;
+                m_marked.PushBack(m_owners[i]);
+            }
+        }
+        void CheckUnmarked()
+        {
+            if (!m_markCheck || m_dense.IsEmpty())
+            {
+                return;
+            }
+            constexpr usize kSlice = 64; // a pass over the pool every few frames, not all at once
+            for (usize n = 0; n < kSlice && n < m_dense.Size(); ++n)
+            {
+                m_checkCursor = m_checkCursor < m_dense.Size() ? m_checkCursor : 0;
+                const usize i = m_checkCursor++;
+                if (!m_markBits[i] && !m_markCheck(m_dense[i], m_owners[i]))
+                {
+                    LOG_ERROR(u8"Scene", u8"{} on entity {} changed without a mark: a write went round Edit",
+                              StringView(reinterpret_cast<const utf8char*>(TypeOf<T>().name)), m_owners[i].index);
+                }
+            }
+        }
+
         // Dense index for a live, generation-matching component not leaving, or kInvalid.
         [[nodiscard]] u32 DenseIndex(EntityHandle entity) const
         {
@@ -353,6 +481,11 @@ export namespace foundation::scene
         HashMap<u32, u32> m_sparse;        // entity.index -> dense index
         Array<EntityHandle> m_pendingInit; // entities awaiting OnComponentInitialized
         Array<EntityHandle> m_leaving;     // components marked leaving (MarkLeaving), removed by RemoveLeaving
+        Array<bool> m_markBits;            // per dense slot: listed in m_marked (moves with its component)
+        Array<EntityHandle> m_marked;      // written since ClearMarked, for the consumer
+        bool m_marking = false;
+        Function<bool(const T&, EntityHandle)> m_markCheck; // the consumer's Debug check (SetMarkCheck)
+        usize m_checkCursor = 0;
     };
 
     namespace detail

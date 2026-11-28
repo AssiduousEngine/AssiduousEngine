@@ -403,3 +403,120 @@ TEST_CASE("component forms: Get reads, Edit writes, and each iteration says whic
     CHECK(mgr.GetComponentInstance(E(1)).Pointer() == mgr.EditComponentInstance(E(1)).Pointer());
     CHECK(mgr.EditComponentInstance(E(9)).IsEmpty());
 }
+
+namespace
+{
+    bool Listed(Span<const EntityHandle> marked, EntityHandle entity)
+    {
+        for (const EntityHandle listed : marked)
+            if (listed == entity)
+                return true;
+        return false;
+    }
+}
+
+TEST_CASE("marking: off by default, and then every write form lists the component once")
+{
+    HealthManager mgr;
+    (void)mgr.Add(E(0));
+    (void)mgr.Add(E(1));
+    (void)mgr.Add(E(2));
+    mgr.Edit(E(0))->value = 3.0f;
+    CHECK(mgr.Marked().IsEmpty()); // off: no list kept
+    CHECK_FALSE(mgr.IsMarking());
+
+    mgr.SetMarking(true);
+    CHECK(mgr.Marked().IsEmpty());
+    (void)mgr.Get(E(0));
+    mgr.ForEach([](const Health&, EntityHandle) {});
+    for (Health& h : mgr.DenseUnmarked())
+        h.value += 0.0f;
+    mgr.ForEachUnmarked([](Health&, EntityHandle) {});
+    (void)mgr.GetComponentInstance(E(1));
+    CHECK(mgr.Marked().IsEmpty()); // reads and the unmarked forms do not mark
+
+    mgr.Edit(E(0))->value = 4.0f;
+    mgr.Edit(E(0))->value = 5.0f;
+    REQUIRE(mgr.Marked().Size() == 1u); // marked twice, listed once
+    CHECK(mgr.Marked()[0] == E(0));
+    (void)mgr.EditComponentInstance(E(1));
+    CHECK(Listed(mgr.Marked(), E(1)));
+    mgr.ClearMarked();
+    CHECK(mgr.Marked().IsEmpty());
+
+    mgr.ForEachEdit([](Health&, EntityHandle) {});
+    CHECK(mgr.Marked().Size() == 3u);
+    mgr.ClearMarked();
+
+    mgr.Mark(E(2)); // a writer with no typed access (a script's property set)
+    CHECK(Listed(mgr.Marked(), E(2)));
+    mgr.ClearMarked();
+
+    (void)mgr.Add(E(3)); // added: its caller fills it in after the hook
+    CHECK(Listed(mgr.Marked(), E(3)));
+    mgr.ClearMarked();
+    REQUIRE(mgr.MarkLeaving(E(3)));
+    (void)mgr.Add(E(3)); // given back in the same step: no hook tells of it
+    CHECK(Listed(mgr.Marked(), E(3)));
+
+    mgr.SetMarking(false);
+    CHECK(mgr.Marked().IsEmpty()); // turned off: the list goes
+    mgr.Edit(E(0))->value = 1.0f;
+    CHECK(mgr.Marked().IsEmpty());
+}
+
+TEST_CASE("marking: a removed component leaves the list, and the one swapped into its slot keeps its own mark")
+{
+    HealthManager mgr;
+    mgr.SetMarking(true);
+    (void)mgr.Add(E(0));
+    (void)mgr.Add(E(1));
+    (void)mgr.Add(E(2));
+    mgr.ClearMarked();
+    mgr.Edit(E(0))->value = 1.0f; // marked, then removed: E(2) swaps into its slot
+    mgr.Remove(E(0));
+    CHECK(mgr.Marked().IsEmpty());
+    CHECK(mgr.Get(E(2)) != nullptr);
+
+    mgr.Edit(E(2))->value = 2.0f; // the last one marked, then another removed before it
+    mgr.Remove(E(1));
+    REQUIRE(mgr.Marked().Size() == 1u);
+    CHECK(mgr.Marked()[0] == E(2));
+    mgr.Edit(E(2))->value = 3.0f; // still listed: no second entry
+    CHECK(mgr.Marked().Size() == 1u);
+
+    mgr.ClearMarked();
+    mgr.Edit(E(2))->value = 4.0f;
+    mgr.Remove(E(2));
+    (void)mgr.Add(E(2)); // back, and marked as added: listed once
+    CHECK(mgr.Marked().Size() == 1u);
+}
+
+TEST_CASE("marking: in Debug, a component written round Edit is caught by the consumer's check")
+{
+    HealthManager mgr;
+    mgr.SetMarking(true);
+    (void)mgr.Add(E(0));
+    (void)mgr.Add(E(1));
+    mgr.ClearMarked();
+    // What the consumer holds: every component's value as last synced.
+    f32 held[2] = {100.0f, 100.0f};
+    int mismatches = 0;
+    mgr.SetMarkCheck(
+        [&](const Health& h, EntityHandle e)
+        {
+            const bool same = h.value == held[e.index];
+            mismatches += same ? 0 : 1;
+            return same;
+        });
+    (void)mgr.Marked();
+    CHECK(mismatches == 0);
+    mgr.Edit(E(0))->value = 7.0f;                 // marked: not the check's business
+    mgr.DenseUnmarked()[1].value = 8.0f;          // the bypass
+    (void)mgr.Marked();
+#if BUILD_DEBUG
+    CHECK(mismatches == 1); // E(1) reported (and logged), E(0) passed by as marked
+#else
+    CHECK(mismatches == 0); // the check runs in Debug builds only
+#endif
+}
