@@ -594,3 +594,21 @@ TEST_CASE("scene: each fixed step says which of its frame's steps it is and the 
     CHECK(recorder->seen[2].framesSinceLastStep == 2);
     CHECK(CurrentFixedStep() == nullptr); // only while a step runs
 }
+
+TEST_CASE("scene: an entity parented under one by that one's own destroy hook goes with it, never left naming the freed slot")
+{
+    Scene scene(DefaultAllocator(), u8"own hook");
+    Reparenter* hooks = scene.AddSystem<Reparenter>();
+    const EntityHandle parent = scene.CreateEntity(u8"parent");
+    const EntityHandle outsider = scene.CreateEntity(u8"outsider");
+    hooks->trigger = parent; // the parent's own hook moves the outsider in
+    hooks->into = outsider;
+    hooks->parent = parent;
+    scene.DestroyEntity(parent);
+    CHECK_FALSE(scene.IsValid(parent));
+    CHECK_FALSE(scene.IsValid(outsider)); // a child by then: it went with the parent
+    CHECK(scene.EntityCount() == 0u);
+    const EntityHandle reused = scene.CreateEntity(u8"reused"); // takes a freed slot
+    CHECK_FALSE(scene.GetFirstChild(reused).IsAssigned());
+    CHECK_FALSE(scene.GetParent(reused).IsAssigned());
+}

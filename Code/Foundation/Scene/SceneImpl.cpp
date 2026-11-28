@@ -961,26 +961,16 @@ namespace foundation::scene
         }
         const u32 index = entity.index;
 
-        // Destroy the subtree first. The first child is read again after each one goes: each
-        // unlinks itself, and a hook may have moved a sibling (reparented it here or away), so a
-        // next sibling read before the destroy could name an entity that is no longer there.
-        for (EntityHandle child = m_transforms[index].firstChild; child.IsAssigned();
-             child = m_transforms[index].firstChild)
-        {
-            if (!IsValid(child))
-            {
-                m_transforms[index].firstChild = EntityHandle::Invalid(); // a link to the dead: cut
-                m_transforms[index].lastChild = EntityHandle::Invalid();
-                break;
-            }
-            DestroyEntityImmediate(child);
-        }
-
+        DestroyChildren(index);
         RemoveFromParent(entity);
         for (SceneSystem* s : m_sortedSystems)
         {
             s->OnEntityDestroyed(entity);
         } // managers free components
+        // Its own hooks ran while it was still valid, so one may have parented an entity under it.
+        // That child goes with it, as one moved in during a child's destroy does; left linked, it
+        // would name the freed slot as its parent and sit in no child list and among no roots.
+        DestroyChildren(index);
 
         EntitySlot& slot = m_entities[index];
         m_idMap.Remove(slot.persistentId);
@@ -1026,6 +1016,24 @@ namespace foundation::scene
         const Float4x4 localMat =
             parent.IsAssigned() ? childWorld * Inverse(ComposeWorldMatrix(parent)) : childWorld;
         SetLocalTransform(child, Transform::FromMatrix(localMat));
+    }
+
+    void Scene::DestroyChildren(u32 index)
+    {
+        // The first child is read again after each one goes: each unlinks itself, and a hook may
+        // have moved a sibling (reparented it here or away), so a next sibling read before the
+        // destroy could name an entity that is no longer there.
+        for (EntityHandle child = m_transforms[index].firstChild; child.IsAssigned();
+             child = m_transforms[index].firstChild)
+        {
+            if (!IsValid(child))
+            {
+                m_transforms[index].firstChild = EntityHandle::Invalid(); // a link to the dead: cut
+                m_transforms[index].lastChild = EntityHandle::Invalid();
+                break;
+            }
+            DestroyEntityImmediate(child);
+        }
     }
 
     void Scene::UpdateTransformRecursive(u32 index, const Float4x4& parentWorld)

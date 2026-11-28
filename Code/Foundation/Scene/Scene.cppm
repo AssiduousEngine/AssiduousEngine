@@ -744,6 +744,8 @@ export namespace foundation::scene
         // current parent (the keep-world half of a reparent). Row-vector: local = world * parent⁻¹.
         void ApplyWorldAsLocal(EntityHandle child, const Float4x4& childWorld);
 
+        // Destroys every child of the entity at `index`, following the list as hooks change it.
+        void DestroyChildren(u32 index);
         void UpdateTransformRecursive(u32 index, const Float4x4& parentWorld);
 
         // O(1) append to a (head, tail) sibling list; the tail pointer avoids an O(n) walk.
