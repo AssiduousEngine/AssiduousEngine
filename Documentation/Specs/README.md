@@ -9,6 +9,7 @@ for every one.
 | Spec | Size | State |
 |---|---|---|
 | [online.md](online.md) | L | APPROVED 2026-11-22, not started: online services (achievements, stats, leaderboards, cloud saves, presence) behind a backend plugin, Steam's first, O0 to O7 |
+| [scene-storage.md](scene-storage.md) | L | APPROVED 2026-11-27, not started: the scene's storage and stepping (paged component index, a list of dirty transform tops, entity data in columns, change lists a consumer clears with `Get` const and `Edit`, concurrent systems in AsyncUpdate), measured first, steps 0 to 5 |
 | [terrain-improvements.md](terrain-improvements.md) | L | PROPOSED 2026-11-14: detiling, steep faces, distance scale, geomorphing, ground rules, authoring, T0 to T6 |
 | [2d-games.md](2d-games.md) | L | PROPOSED: 2D inside the 3D world, L0 to L7 |
 | [whiteboxing.md](whiteboxing.md) | M | PROPOSED and reviewed 2026-09-23: parametric blockout pieces, P0 to P3 |
