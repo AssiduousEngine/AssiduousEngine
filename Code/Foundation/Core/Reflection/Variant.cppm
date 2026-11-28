@@ -79,6 +79,13 @@ namespace foundation::core::detail
 
 export namespace foundation::core
 {
+    // Why a re-resolving handle is resolved: to read what it reaches, or because it was written.
+    enum class ResolveFor : u8
+    {
+        Read,
+        Write,
+    };
+
     // Reflection mutation generation: bumped whenever a reflected container is structurally mutated
     // (create, emplace, remove, move). The reflection wrappers bump it centrally so registrants cannot
     // forget. A Variant borrow captures the current value and revalidates on every dereference; any
@@ -225,7 +232,7 @@ export namespace foundation::core
         // to Ctx. Weak: a dead entity resolves to null, so the deref is a clean no-op.
         template <typename Ctx>
         [[nodiscard]] static Variant Resolving(const TypeInfo* type,
-                                               void* (*resolver)(const Variant&), const Ctx& ctx)
+                                               void* (*resolver)(const Variant&, ResolveFor), const Ctx& ctx)
         {
             static_assert(std::is_trivially_copyable_v<Ctx>,
                           "resolve context must be trivially copyable");
@@ -248,7 +255,7 @@ export namespace foundation::core
         // memory. The owner empties the anchor when it goes; the anchor itself lives on while
         // handles do.
         template <typename Ctx>
-        [[nodiscard]] static Variant Resolving(const TypeInfo* type, void* (*resolver)(const Variant&),
+        [[nodiscard]] static Variant Resolving(const TypeInfo* type, void* (*resolver)(const Variant&, ResolveFor),
                                                const Ctx& ctx, const RefCounted* anchor)
         {
             Variant v = Resolving(type, resolver, ctx);
@@ -272,8 +279,19 @@ export namespace foundation::core
         // The value's current address, or null (dead). Valid in resolve mode; null otherwise.
         [[nodiscard]] void* Resolve() const
         {
-            void* base = m_resolver != nullptr ? m_resolver(*this) : nullptr;
+            void* base = m_resolver != nullptr ? m_resolver(*this, ResolveFor::Read) : nullptr;
             return base != nullptr ? static_cast<u8*>(base) + m_memberOffset : nullptr;
+        }
+        // Tells a re-resolving handle's owner that what it reaches was just written (a script's
+        // property set through it, or a non-const method called on it), so an owner that keeps
+        // track of writes (a scene's component manager with marking on) sees it. A member reached
+        // through the handle tells the same owner. Nothing for any other value.
+        void NoteWritten() const
+        {
+            if (m_resolver != nullptr)
+            {
+                (void)m_resolver(*this, ResolveFor::Write);
+            }
         }
 
         // True if this is a handle over a member of something else, edited in place: a borrow, or
@@ -655,7 +673,7 @@ export namespace foundation::core
         // state a borrow cannot safely hold). Context lives in m_storage's inline bytes; no owned
         // value (m_vtable == nullptr), no heap, weak toward the value (m_anchor may retain what the
         // context points into). See Resolving() / ToInstance.
-        void* (*m_resolver)(const Variant&) = nullptr;
+        void* (*m_resolver)(const Variant&, ResolveFor) = nullptr;
         // Resolve mode only: where the value lies in what the resolver finds (ResolvingMember; 0 is
         // the resolved value itself).
         usize m_memberOffset = 0;

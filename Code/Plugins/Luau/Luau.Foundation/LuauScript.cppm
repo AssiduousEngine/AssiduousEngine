@@ -75,7 +75,7 @@ namespace luau
         {
             void* address;
         };
-        void* ResolveInPlace(const Variant& view)
+        void* ResolveInPlace(const Variant& view, ResolveFor)
         {
             InPlaceAt at;
             std::memcpy(&at, view.ResolveContext(), sizeof(at));
@@ -1707,6 +1707,7 @@ namespace luau
                 return false;
             }
             void* self = nullptr;
+            const Variant* writtenSelf = nullptr; // a handle self a non-const method may change
             if (!method.isStatic)
             {
                 if (void* payload = lua_touserdatatagged(state, 1, kValueTag))
@@ -1725,6 +1726,7 @@ namespace luau
                         return false;
                     }
                     self = ToInstance(*boxed).Pointer();
+                    writtenSelf = method.isConst ? nullptr : boxed; // told after the call
                 }
                 if (self == nullptr)
                 {
@@ -1746,6 +1748,10 @@ namespace luau
             {
                 ScriptCallScope scope(context);
                 method.call(self, arguments.slots, returned != nullptr ? result : nullptr);
+            }
+            if (writtenSelf != nullptr)
+            {
+                writtenSelf->NoteWritten(); // a method that may change its self (not const)
             }
             g_typedCalls.fetch_add(1, MemoryOrder::Relaxed);
             results = returned != nullptr && PushTyped(state, *returned, result) ? 1 : 0;
@@ -1813,6 +1819,10 @@ namespace luau
                         ? InvokeStatic(method, Span<Variant>{args.Data(), args.Size()})
                         : InvokeMethod(method, ToInstance(*boxedSelf),
                                        Span<Variant>{args.Data(), args.Size()});
+                if (!method.isStatic && !method.isConst)
+                {
+                    boxedSelf->NoteWritten(); // a method that may change its self
+                }
                 failed = !result.HasValue();
                 if (!failed && !result.Value().IsEmpty())
                 {
@@ -2283,6 +2293,7 @@ namespace luau
                     lua_pushlstring(state, reinterpret_cast<const char*>(message.CStr()), message.Size());
                     return true;
                 }
+                boxed->NoteWritten(); // its owner (a component manager that marks) sees the write
                 return false;
             }();
             if (failed)

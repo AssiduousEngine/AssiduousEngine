@@ -229,7 +229,7 @@ namespace foundation::script::conformance
             static Slot slots[2];
             return slots;
         }
-        static void* Resolve(const Variant& value)
+        static void* Resolve(const Variant& value, ResolveFor)
         {
             const auto* ctx = static_cast<const HandleCtx*>(value.ResolveContext());
             const Slot& slot = Slots()[ctx->slot];

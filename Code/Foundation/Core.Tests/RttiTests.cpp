@@ -1141,7 +1141,7 @@ TEST_CASE("rtti: an anchored resolve-mode handle keeps its table alive, and copi
     {
         AnchorTable* table;
     };
-    auto resolver = [](const Variant& v) -> void*
+    auto resolver = [](const Variant& v, ResolveFor) -> void*
     {
         AnchorTable* t = static_cast<const Ctx*>(v.ResolveContext())->table;
         return t->open ? &t->value : nullptr;
@@ -1184,7 +1184,7 @@ TEST_CASE("rtti: Variant RESOLVE mode re-computes the live address every deref (
         int* base;
         int* slot;
     };
-    auto resolver = [](const Variant& v) -> void*
+    auto resolver = [](const Variant& v, ResolveFor) -> void*
     {
         const Ctx* c = static_cast<const Ctx*>(v.ResolveContext());
         return (*c->slot >= 0) ? &c->base[*c->slot] : nullptr;

@@ -423,7 +423,7 @@ namespace angelscript
     {
         void* address;
     };
-    inline void* ResolveInPlace(const core::Variant& view)
+    inline void* ResolveInPlace(const core::Variant& view, core::ResolveFor)
     {
         InPlaceAt at;
         std::memcpy(&at, view.ResolveContext(), sizeof(at));
@@ -3835,6 +3835,7 @@ namespace angelscript
                 WriteValueBytes(*binding->property->type, at, value);
             }
         }
+        self.NoteWritten(); // its owner (a component manager that marks) sees the write
     }
 
     // Resolve a polymorphic container's add-by-name to a concrete derived type: match the name
@@ -4122,6 +4123,7 @@ namespace angelscript
     {
         void* self = nullptr;
         void* writeBack = nullptr;
+        const core::Variant* handle = nullptr; // the box's handle, told when written through
         bool gone = false; // a handle whose object is gone: the script's error is raised
     };
 
@@ -4135,9 +4137,11 @@ namespace angelscript
             out.writeBack = out.self != at ? at : nullptr;
             return out.self != nullptr;
         }
-        const core::Instance instance = core::ToInstance(static_cast<BoxedVariant*>(gen->GetObject())->value);
+        core::Variant& handle = static_cast<BoxedVariant*>(gen->GetObject())->value;
+        const core::Instance instance = core::ToInstance(handle);
         out.gone = RefuseGone(instance);
         out.self = instance.Pointer();
+        out.handle = &handle;
         return true;
     }
 
@@ -4212,6 +4216,10 @@ namespace angelscript
         {
             std::memcpy(self.writeBack, self.self, binding.type->size);
         }
+        if (self.handle != nullptr && !method.isConst)
+        {
+            self.handle->NoteWritten(); // a method that may change its self
+        }
         if (returned != nullptr)
         {
             SetTypedReturn(gen, *returned, result);
@@ -4268,6 +4276,10 @@ namespace angelscript
                 return false;
             }
             property.write(self.self, value);
+            if (self.handle != nullptr)
+            {
+                self.handle->NoteWritten();
+            }
         }
         else
         {
@@ -4332,6 +4344,10 @@ namespace angelscript
                 return;
             }
             result = core::InvokeMethod(method, instance, argSpan);
+            if (!method.isConst)
+            {
+                self.NoteWritten(); // a method that may change its self
+            }
         }
         if (!result.HasValue())
         {

@@ -39,7 +39,7 @@ namespace foundation::gui
             u32 generation;
         };
 
-        void* ResolveElement(const core::Variant& handle)
+        void* ResolveElement(const core::Variant& handle, core::ResolveFor)
         {
             const auto* ctx = static_cast<const ElementHandleCtx*>(handle.ResolveContext());
             return ctx->table->Resolve(ctx->slot, ctx->generation);

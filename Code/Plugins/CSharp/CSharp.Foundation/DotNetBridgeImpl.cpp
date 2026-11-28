@@ -92,6 +92,18 @@ namespace csharp
             return Instance(self->data, self->type);
         }
 
+        // Tells the owner of a self just written (a component, through its handle or its entity's
+        // bytes; a member reached through one) that it was: a component manager that marks sees it.
+        void NoteSelfWritten(const DotNetValue* self)
+        {
+            if (self == nullptr || self->data == nullptr)
+                return;
+            if (self->kind == DotNetValueKind::Handle)
+                static_cast<const Variant*>(self->data)->NoteWritten();
+            else if (IsSceneComponent(self->type))
+                ComponentFromBytes(*self->type, self->data).NoteWritten();
+        }
+
         // A member reached through nothing: no object, or a component its entity no longer has
         // (Core's calls take the instance as given, so the caller refuses).
         i32 Gone(const char* member)
@@ -286,8 +298,14 @@ namespace csharp
             t_error.Clear();
             if (method == nullptr)
                 return Fail(ErrorCode::InvalidArgument, u8"no method");
+            // A method that may change its self (not const) is a write to it.
+            const bool writes = !method->isStatic && !method->isConst;
             if (count == method->paramCount && TryInvokeTyped(*method, self, args, count, result))
+            {
+                if (writes)
+                    NoteSelfWritten(self);
                 return 0;
+            }
             if (count != method->paramCount)
                 return Fail(ErrorCode::InvalidArgument,
                             Format(u8"{} takes {} arguments, not {}", StringView(reinterpret_cast<const utf8char*>(method->name)),
@@ -304,6 +322,8 @@ namespace csharp
             if (!method->isStatic && instance.Pointer() == nullptr)
                 return Gone(method->name);
             Result<Variant> returned = method->invoke(instance, Span<Variant>{values.Data(), values.Size()});
+            if (writes)
+                NoteSelfWritten(self);
             if (!returned.HasValue())
                 return Fail(returned.Error(), Format(u8"{} failed", StringView(reinterpret_cast<const utf8char*>(method->name))).AsView());
             if (result == nullptr)
@@ -335,6 +355,7 @@ namespace csharp
             const Status set = SetProperty(*property, instance, ToVariant(*value));
             if (!set.IsOk())
                 return Fail(set.Code(), Format(u8"{} was not set", StringView(reinterpret_cast<const utf8char*>(property->name))).AsView());
+            NoteSelfWritten(self);
             return 0;
         }
 

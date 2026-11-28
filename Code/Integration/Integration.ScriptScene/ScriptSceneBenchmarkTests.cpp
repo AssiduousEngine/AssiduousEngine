@@ -665,10 +665,14 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
                                1);
         components.scene.Start();
         components.scene.SetSimulationEnabled(true);
+        components.follows->SetMarking(true); // C#'s property set through the handle marks it
+        components.follows->ClearMarked();
         components.Frame();
         const scene::EntityHandle paced = components.scene.GetFirstRoot();
         REQUIRE(components.follows->Get(paced) != nullptr);
         CHECK(components.follows->Get(paced)->speed == doctest::Approx(4.0f));
+        REQUIRE(components.follows->Marked().Size() == 1u);
+        CHECK(components.follows->Marked()[0] == paced);
         CHECK(components.scene.GetEntityName(paced) == StringView(u8"has it"));
         CHECK(components.scene.RemoveComponent(*components.follows, paced));
         components.Frame();

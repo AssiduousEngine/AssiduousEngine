@@ -5,7 +5,7 @@
 # --no-skip from an optimised build.
 
 add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp SequenceScriptTests.cpp
-    BehaviorConformanceTests.cpp)
+    BehaviorConformanceTests.cpp MarkingScriptTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
     Engine::Behavior Engine::Spline Engine::Physics Engine::Animation Engine::Sequence Foundation::Sequence Foundation::Sequence.Resource
     Foundation::PropertyAnimation Foundation::Content Foundation::VFS Foundation::Resource Foundation::Run

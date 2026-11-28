@@ -1600,7 +1600,7 @@ export namespace engine::render
         };
 
 
-        [[nodiscard]] inline void* ResolveEnvironmentSettings(const Variant& value)
+        [[nodiscard]] inline void* ResolveEnvironmentSettings(const Variant& value, ResolveFor)
         {
             scene::Scene* scene = scene::AnchoredScene(value); // null once the scene is gone
             if (scene == nullptr)
@@ -1610,7 +1610,7 @@ export namespace engine::render
             EnvironmentSystem* system = scene->GetSystem<EnvironmentSystem>();
             return system != nullptr ? &system->Effective() : nullptr; // the values in effect
         }
-        [[nodiscard]] inline void* ResolvePostProcessSettings(const Variant& value)
+        [[nodiscard]] inline void* ResolvePostProcessSettings(const Variant& value, ResolveFor)
         {
             scene::Scene* scene = scene::AnchoredScene(value); // null once the scene is gone
             if (scene == nullptr)

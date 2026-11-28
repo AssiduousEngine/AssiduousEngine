@@ -859,16 +859,22 @@ namespace foundation::scene
         // The resolver a resolve-mode Variant calls each deref: the current component address, or
         // null (the scene gone, the component absent or the entity stale; the manager's generation
         // check handles staleness).
-        void* ResolveComponent(const Variant& value)
+        void* ResolveComponent(const Variant& value, ResolveFor intent)
         {
             const auto* ctx = static_cast<const ComponentRefCtx*>(value.ResolveContext());
             if (AnchoredScene(value) == nullptr)
             {
                 return nullptr; // its scene (and the manager with it) is gone: a handle kept over a level load
             }
-            return (ctx->manager != nullptr)
-                       ? ctx->manager->GetComponentInstance(ctx->entity).Pointer()
-                       : nullptr;
+            if (ctx->manager == nullptr)
+            {
+                return nullptr;
+            }
+            // A write through the handle (a script's property set) takes the write form, so a
+            // manager that marks sees it.
+            return (intent == ResolveFor::Write ? ctx->manager->EditComponentInstance(ctx->entity)
+                                                : ctx->manager->GetComponentInstance(ctx->entity))
+                .Pointer();
         }
     }
 
