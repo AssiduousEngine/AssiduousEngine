@@ -228,8 +228,14 @@ void ClearMarked();
 - **Paths that write without a typed manager** call `Mark` themselves, once each, for every
   component type:
   - a script's component handle already carries its scene, entity and manager
-    (`SceneImpl.cpp:775`); the property set through it marks. Where each script host sets a
-    property was not read; step 0 reads all of them.
+    (`SceneImpl.cpp:775`), and resolves the component on every read and write alike, so the
+    mark is not taken at the resolve (that would mark on reads). All three hosts write a property
+    through `core::SetProperty` at one site each (C# `DotNetBridgeImpl.cpp:335`, Luau
+    `LuauScript.cppm:2254`, AngelScript `AngelScriptScriptImpl.cpp:3829`); each follows the value
+    up to its component handle (a nested field such as `body.velocity.x` included) and marks.
+  - a script calling a **non-`const` method** on a component (applying a force) changes it
+    without a property set. Reflected methods record `isConst` (`MethodInfo`), so a non-`const`
+    method invoked through a component handle marks too, at each host's one invoke site.
   - the inspector and other tools write through `GetComponentInstance(entity)` (49 lines call
     it, by `grep`). It splits the same way: a read form that hands out a const instance, and
     `EditComponentInstance`, which marks.
@@ -354,7 +360,8 @@ run concurrently in any of our script hosts.
    - `Get` const and `Edit`, with marking off everywhere: the sweep of call sites and nothing
      else, so the commit changes no behaviour and the existing suites are its test. Scripts'
      component API and syntax do not change. A changelog line for native game code.
-   - Marking. Tests: `Edit`, `ForEachEdit`, a script's property set, `EditComponentInstance`
+   - Marking. Tests: `Edit`, `ForEachEdit`, a script's property set (a nested field too), a
+     script's non-`const` method call (a `const` one does not mark), `EditComponentInstance`
      and `ReadComponent` each mark; `Get`, `ForEach` and `DenseUnmarked` do not; a component
      marked twice is listed once; a removed component is not in `Marked()`; a manager with
      marking off keeps no list; `Add` marks, and a component taken off and given back in one
