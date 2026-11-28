@@ -16,7 +16,8 @@
 // move fast, Esc to exit.
 //
 // Measuring, for numbers that compare across builds: `--spheres N` starts with N spheres, `--bob`
-// starts them moving, `--unique` gives each its own material (no batching), and the base app's
+// starts them moving (`--bob-count N` moves only the first N, the rest at rest), `--unique` gives
+// each its own material (no batching), and the base app's
 // `--measure N` (with `--measure-out <file>`) averages N frames from the profiler and exits.
 // Measure in a RelWithDebInfo build; Debug says nothing about speed.
 
@@ -328,8 +329,11 @@ namespace
             {
                 auto* meshScene = m_scene;
                 constexpr core::f32 amplitude = 1.0f, speed = 2.0f;
-                for (scene::EntityHandle e : m_spheres)
+                const core::usize moving = m_bobCount > 0 ? core::Min(static_cast<core::usize>(m_bobCount), m_spheres.Size())
+                                                          : m_spheres.Size();
+                for (core::usize i = 0; i < moving; ++i)
                 {
+                    const scene::EntityHandle e = m_spheres[i];
                     core::Transform t = meshScene->GetLocalTransform(e);
                     // Phase from world X/Z (stable as the grid grows). Bob around the base height so the
                     // spheres stay above the floor (full, separated shadows) instead of dipping through it.
@@ -778,6 +782,7 @@ namespace
         core::i32 m_gridSize = 0;
         bool m_uniqueMaterials = false;
         bool m_bob = false;
+        core::i32 m_bobCount = 0; // how many spheres the bob moves, the first ones; 0 is all
         bool m_multiMesh = false; // M: draw the whole grid as one InstancedMeshComponent
         scene::EntityHandle m_multiMeshEntity{}; // the single set entity (when m_multiMesh)
         core::Array<core::Float4x4>
@@ -810,6 +815,11 @@ namespace
                 else if (arg == core::StringView(u8"--bob"))
                 {
                     m_startBob = true;
+                }
+                else if (arg == core::StringView(u8"--bob-count") && hasValue)
+                {
+                    m_startBob = true;
+                    m_bobCount = static_cast<core::i32>(NumberArgument(argv[++i]));
                 }
                 else if (arg == core::StringView(u8"--unique"))
                 {
