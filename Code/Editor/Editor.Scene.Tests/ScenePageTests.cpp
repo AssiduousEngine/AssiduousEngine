@@ -257,7 +257,7 @@ TEST_CASE("scene page: the sequence panel beside the animation panel, cast from 
     {
         auto* components = page->ScenePtr()->GetSystem<engine::sequence::SequenceComponentManager>();
         REQUIRE(components != nullptr);
-        engine::sequence::SequenceComponent* component = components->Get(page->ScenePtr()->FindEntity(bed.crate));
+        engine::sequence::SequenceComponent* component = components->Edit(page->ScenePtr()->FindEntity(bed.crate));
         REQUIRE(component != nullptr);
         component->cast.PushBack(engine::sequence::SequenceCastEntry{String(u8"Hero"), scene::EntityRef{}, true});
     }
@@ -1474,7 +1474,7 @@ TEST_CASE("inspector: a bone name picks from the skeleton of the animator above,
     REQUIRE(legs != nullptr);
     clips->Add(scene.FindEntity(rider)).skeleton.SetDirect(skeleton);
     legs->Add(scene.FindEntity(leg)).midBone = String(u8"Knee");
-    const auto live = [&]() -> engine::animation::TwoBoneIkComponent& { return *legs->Get(scene.FindEntity(leg)); };
+    const auto live = [&]() -> engine::animation::TwoBoneIkComponent& { return *legs->Edit(scene.FindEntity(leg)); };
 
     edit.EntitySelection().Set(leg);
     page->OnUpdate(bed.host, 1.0f / 60.0f);
@@ -1579,10 +1579,10 @@ TEST_CASE("inspector: a component's extras under its header: a rigid body's noti
     // value edit, not a rebuild).
     auto* bodies = page->ScenePtr()->GetSystem<engine::physics::RigidBodyComponentManager>();
     REQUIRE(bodies != nullptr);
-    bodies->Get(page->ScenePtr()->FindEntity(bed.crate))->shape = foundation::physics::ShapeKind::Cooked;
+    bodies->Edit(page->ScenePtr()->FindEntity(bed.crate))->shape = foundation::physics::ShapeKind::Cooked;
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK(inspector->ExtraText(title.AsView(), u8"Collision") == String(kBuiltinInspectorExtrasNoColliderText));
-    bodies->Get(page->ScenePtr()->FindEntity(bed.crate))->shape = foundation::physics::ShapeKind::Box;
+    bodies->Edit(page->ScenePtr()->FindEntity(bed.crate))->shape = foundation::physics::ShapeKind::Box;
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK(inspector->ExtraText(title.AsView(), u8"Collision").IsEmpty());
     page->OnClose();
@@ -2403,7 +2403,7 @@ TEST_CASE("camera preview: the selected camera's view titled with its name at it
     scene::Scene& scene = *page->ScenePtr();
     auto* cameras = scene.GetSystem<engine::render::CameraComponentManager>();
     REQUIRE(cameras != nullptr);
-    cameras->Get(scene.FindEntity(eye))->aspect = 1.0f;
+    cameras->Edit(scene.FindEntity(eye))->aspect = 1.0f;
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK(preview->PictureSize().y == doctest::Approx(kSceneCameraPreviewPictureWidth)); // square
 

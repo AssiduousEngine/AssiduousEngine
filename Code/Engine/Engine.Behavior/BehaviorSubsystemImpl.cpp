@@ -213,7 +213,7 @@ namespace engine::behavior
 
     void BehaviorComponentManager::ReadReplicatedState(foundation::scene::EntityHandle entity, Span<const byte> state)
     {
-        BehaviorComponent* component = Get(entity);
+        BehaviorComponent* component = Edit(entity);
         if (component == nullptr)
         {
             return;

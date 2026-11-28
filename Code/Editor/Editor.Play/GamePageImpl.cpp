@@ -1043,7 +1043,7 @@ namespace editor
             return;
         }
         bool hasCamera = false;
-        cameras->ForEach([&](engine::render::CameraComponent&, scene::EntityHandle) { hasCamera = true; });
+        cameras->ForEach([&](const engine::render::CameraComponent&, scene::EntityHandle) { hasCamera = true; });
         if (hasCamera)
         {
             return;

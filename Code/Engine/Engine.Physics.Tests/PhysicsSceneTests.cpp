@@ -112,7 +112,7 @@ TEST_CASE("physics.scene: interpolation blends between the last two fixed poses"
     play.Start();
     play.Step(30); // let it pick up speed
 
-    RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(box);
+    const RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(box);
     REQUIRE(body != nullptr);
     const f32 prevY = body->prevPosition.y;
     const f32 currY = body->currPosition.y;
@@ -268,7 +268,7 @@ TEST_CASE("physics.scene: trigger components raise enter events resolved to enti
     PlayScene play;
     (void)play.AddFloor();
     const scene::EntityHandle volume = play.AddBox(2.0f, MotionKind::Kinematic);
-    RigidBodyComponent* sensor = play.scene.GetSystem<RigidBodyComponentManager>()->Get(volume);
+    RigidBodyComponent* sensor = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(volume);
     sensor->isTrigger = true;
     sensor->halfExtents = Float3{1.0f, 1.0f, 1.0f};
     const scene::EntityHandle faller = play.AddBox(6.0f);
@@ -355,7 +355,7 @@ TEST_CASE("physics.scene: cooked collision shape drives a body via the component
     play.AddFloor();
     scene::EntityHandle crate = play.AddBox(3.0f);
     {
-        RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(crate);
+        RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(crate);
         REQUIRE(body != nullptr);
         body->shape = ShapeKind::Cooked;
         body->collisionShape = shape; // Ref direct override
@@ -433,7 +433,7 @@ TEST_CASE("physics.scene: a heightfield RigidBody survives a scene serialize rou
 
     scene::EntityHandle loaded = b2.FindEntity(a.GetEntityId(e));
     REQUIRE(loaded.IsAssigned());
-    RigidBodyComponent* body = b2.GetSystem<RigidBodyComponentManager>()->Get(loaded);
+    RigidBodyComponent* body = b2.GetSystem<RigidBodyComponentManager>()->Edit(loaded);
     REQUIRE(body != nullptr);
     CHECK(body->shape == ShapeKind::Heightfield); // the Heightfield ShapeKind round-trips
 }
@@ -448,7 +448,7 @@ TEST_CASE("physics.scene: a referenced PhysicalMaterial overrides inline surface
     play.AddFloor();
     scene::EntityHandle ball = play.AddBox(3.0f);
     {
-        RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(ball);
+        RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(ball);
         REQUIRE(body != nullptr);
         body->restitution = 0.0f; // inline says dead drop...
         body->material = bouncy;  // ...material says bounce
@@ -492,7 +492,7 @@ TEST_CASE("physics.scene: a tilted plane entity makes boxes slide downhill")
     }
     scene::EntityHandle box = play.AddBox(3.0f);
     {
-        RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(box);
+        RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(box);
         body->friction = 0.0f;
     }
     play.Start();
@@ -517,7 +517,7 @@ TEST_CASE("physics.scene: a kinematic body over a plane is made static and is ne
     }
     play.Start();
     play.Step(1);
-    RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(platform);
+    const RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(platform);
     REQUIRE(body != nullptr);
     REQUIRE(body->body.IsValid());
     CHECK(body->effectiveMotion == MotionKind::Static);
@@ -573,7 +573,7 @@ TEST_CASE("physics.scene: RayCastHit.material names the hit body's physical mate
     PlayScene play;
     const scene::EntityHandle floor = play.AddFloor();
     const Guid wood{0x77, 0x00d};
-    play.scene.GetSystem<RigidBodyComponentManager>()->Get(floor)->material.SetId(wood);
+    play.scene.GetSystem<RigidBodyComponentManager>()->Edit(floor)->material.SetId(wood);
     (void)play.AddBox(0.5f); // at x = 0, no material
     play.Start();
     play.Step(10);
@@ -924,7 +924,7 @@ TEST_CASE("physics.scene: a flag hinged to the world holds its height as frames 
     }
     play.Start();
     const f32 startY = play.scene.GetWorldPosition(flag).y;
-    RigidBodyComponent* flagBody = play.scene.GetSystem<RigidBodyComponentManager>()->Get(flag);
+    const RigidBodyComponent* flagBody = play.scene.GetSystem<RigidBodyComponentManager>()->Get(flag);
     for (int frame = 0; frame < 600; ++frame)
     {
         // The gate's spring back to rest: a small push across the panel every frame.
@@ -1020,7 +1020,7 @@ TEST_CASE("physics.scene: nil-target joints attach to the nearest ancestor body;
     CHECK(play.scene.GetWorldPosition(bob).y == doctest::Approx(4.0f).epsilon(0.05));
 
     // The fixed pair stays welded: push left, and right follows at the same offset.
-    RigidBodyComponent* leftBody = play.scene.GetSystem<RigidBodyComponentManager>()->Get(left);
+    const RigidBodyComponent* leftBody = play.scene.GetSystem<RigidBodyComponentManager>()->Get(left);
     play.physics->World()->AddImpulse(leftBody->body, Float3{0.0f, 0.0f, 4000.0f});
     play.Step(60);
     play.physics->ApplyInterpolation(1.0f);
@@ -1237,7 +1237,7 @@ TEST_CASE("physics.scene: a strong character shoves a dynamic crate (maxStrength
     play.AddFloor();
     // A dynamic crate in the character's +x path (small, so a strong shove reads clearly).
     const scene::EntityHandle crate = play.AddBox(0.31f);
-    RigidBodyComponent* crateBody = play.scene.GetSystem<RigidBodyComponentManager>()->Get(crate);
+    RigidBodyComponent* crateBody = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(crate);
     crateBody->halfExtents = Float3{0.3f, 0.3f, 0.3f};
     play.scene.SetLocalPosition(crate, Float3{1.0f, 0.31f, 0.0f});
     scene::EntityHandle hero = play.scene.CreateEntity(u8"hero");
@@ -1268,7 +1268,7 @@ TEST_CASE("physics.scene: a CharacterComponent walking into a trigger raises Tri
     // A sensor volume on the character's +x path.
     const scene::EntityHandle volume = play.AddBox(0.9f, MotionKind::Kinematic);
     play.scene.SetLocalPosition(volume, Float3{3.0f, 0.9f, 0.0f});
-    RigidBodyComponent* sensor = play.scene.GetSystem<RigidBodyComponentManager>()->Get(volume);
+    RigidBodyComponent* sensor = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(volume);
     sensor->isTrigger = true;
     sensor->halfExtents = Float3{0.7f, 1.0f, 0.7f};
     scene::EntityHandle hero = play.scene.CreateEntity(u8"hero");
@@ -1584,7 +1584,7 @@ TEST_CASE("physics.scene: static geometry is the static, solid bodies, compounds
     play.scene.SetLocalPosition(play.AddBox(0.5f, MotionKind::Kinematic), Float3{-20.0f, 0.5f, 0.0f});
     const scene::EntityHandle trigger = play.AddBox(0.5f, MotionKind::Static);
     play.scene.SetLocalPosition(trigger, Float3{20.0f, 0.5f, 0.0f});
-    play.scene.GetSystem<RigidBodyComponentManager>()->Get(trigger)->isTrigger = true;
+    play.scene.GetSystem<RigidBodyComponentManager>()->Edit(trigger)->isTrigger = true;
     const scene::EntityHandle off = play.AddBox(0.5f, MotionKind::Static);
     play.scene.SetLocalPosition(off, Float3{30.0f, 0.5f, 0.0f});
     play.scene.SetActive(off, false);
@@ -1622,7 +1622,7 @@ TEST_CASE("physics.scene: the scene ray query finds solid ground and passes thro
     PlayScene play;
     (void)play.AddFloor(); // top at y = 0
     const scene::EntityHandle checkpoint = play.AddBox(0.5f, MotionKind::Static);
-    RigidBodyComponent* sensor = play.scene.GetSystem<RigidBodyComponentManager>()->Get(checkpoint);
+    RigidBodyComponent* sensor = play.scene.GetSystem<RigidBodyComponentManager>()->Edit(checkpoint);
     sensor->isTrigger = true;
     sensor->halfExtents = Float3{1.0f, 0.5f, 1.0f}; // y 0 to 1, right under the probe
     const scene::EntityHandle crate = play.AddBox(0.5f, MotionKind::Static);
@@ -1843,7 +1843,7 @@ TEST_CASE("physics.scene: a body edited while live is built again; primitives ta
     CHECK(hit.position.y == doctest::Approx(6.0f).epsilon(0.01));
 
     // Its half extents edited in play: the body follows (top at 5 + 2 * 1.5).
-    play.scene.GetSystem<RigidBodyComponentManager>()->Get(crate)->halfExtents = Float3{1.5f, 1.5f, 1.5f};
+    play.scene.GetSystem<RigidBodyComponentManager>()->Edit(crate)->halfExtents = Float3{1.5f, 1.5f, 1.5f};
     play.Step(1);
     REQUIRE(play.physics->World()->RayCast(Float3{0.0f, 20.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 30.0f, hit));
     CHECK(hit.position.y == doctest::Approx(8.0f).epsilon(0.01));
@@ -1884,7 +1884,7 @@ TEST_CASE("physics.scene: a jointed body edited while live keeps its joint, on t
     const BodyId before = play.scene.GetSystem<RigidBodyComponentManager>()->Get(door)->body;
     REQUIRE(before.IsValid());
 
-    play.scene.GetSystem<RigidBodyComponentManager>()->Get(door)->halfExtents = Float3{1.0f, 1.0f, 0.1f};
+    play.scene.GetSystem<RigidBodyComponentManager>()->Edit(door)->halfExtents = Float3{1.0f, 1.0f, 0.1f};
     play.Step(120);
     play.physics->ApplyInterpolation(1.0f);
     play.scene.UpdateTransforms();

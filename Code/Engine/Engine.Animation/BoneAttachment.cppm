@@ -88,7 +88,8 @@ export namespace engine::animation
             // Shallowest first: an attachment under another composes its parent's world from the
             // transform this frame just set (a hand's, then a finger's).
             m_order.Clear();
-            ForEach(
+            // Unmarked: following writes only the runtime bone lookup each frame.
+            ForEachUnmarked(
                 [&](BoneAttachmentComponent& c, scene::EntityHandle owner)
                 {
                     u32 depth = 0;
@@ -135,7 +136,7 @@ export namespace engine::animation
         {
             if (auto* graphs = m_scene->GetSystem<AnimationGraphComponentManager>())
             {
-                if (AnimationGraphComponent* g = graphs->Get(e))
+                if (const AnimationGraphComponent* g = graphs->Get(e))
                 {
                     out.skeleton = g->playerSkeleton;
                     out.palette = g->player.Get() != nullptr ? g->player->GetSkinningMatrices() : Span<const Float4x4>{};
@@ -146,7 +147,7 @@ export namespace engine::animation
             }
             if (auto* clips = m_scene->GetSystem<SkeletalAnimationComponentManager>())
             {
-                if (SkeletalAnimationComponent* s = clips->Get(e))
+                if (const SkeletalAnimationComponent* s = clips->Get(e))
                 {
                     out.skeleton = s->playerSkeleton;
                     out.palette = s->player.Get() != nullptr ? s->player->GetSkinningMatrices() : Span<const Float4x4>{};

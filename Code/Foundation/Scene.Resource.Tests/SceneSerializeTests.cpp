@@ -290,7 +290,7 @@ TEST_CASE("scene-snapshot: capture -> simulate-style mutations -> restore into t
 
     // "Runtime" mutations: move and damage the hero, destroy the prop, spawn a projectile.
     scene.SetLocalPosition(hero, Float3{9, 9, 9});
-    mgr->Get(hero)->value = 1.0f;
+    mgr->Edit(hero)->value = 1.0f;
     scene.DestroyEntity(prop);
     EntityHandle projectile = scene.CreateEntity(u8"projectile");
     const Guid projectileId = scene.GetEntityId(projectile);
@@ -422,8 +422,8 @@ TEST_CASE("scene-serialize: component records carry the reflected type's data ve
         SerializeScene(ar, b);
         REQUIRE(ar.IsOk());
     }
-    Turret* loaded = nullptr;
-    mgr->ForEach([&](Turret& t, EntityHandle) { loaded = &t; });
+    const Turret* loaded = nullptr;
+    mgr->ForEach([&](const Turret& t, EntityHandle) { loaded = &t; });
     REQUIRE(loaded != nullptr);
     CHECK(loaded->range == doctest::Approx(9.0f));
     // The record's stored version was active while the component deserialized: the hook a
@@ -711,7 +711,7 @@ TEST_CASE("prefab: scenes save instances as ref+deltas and restore them (overrid
     EntityHandle instTop = level.GetFirstChild(inst);
     EntityHandle instFlag = level.GetFirstChild(instTop);
     REQUIRE(instFlag.IsAssigned());
-    health->Get(instTop)->value = 51.0f;              // component MODIFY
+    health->Edit(instTop)->value = 51.0f;              // component MODIFY
     level.SetLocalPosition(instTop, Float3{0, 2, 0}); // transform override
     health->Add(instFlag).value = 5.0f;               // component ADD
     health->RemoveComponent(inst);                    // component REMOVE (root's)
@@ -842,7 +842,7 @@ TEST_CASE("prefab: snapshots expand instances and restore their state resolver-f
     const Guid prefabId{0x42, 0x42};
     EntityHandle inst = SpawnPrefab(level, payload, prefabId);
     REQUIRE(inst.IsAssigned());
-    health->Get(inst)->value = 34.0f; // an override the snapshot must preserve
+    health->Edit(inst)->value = 34.0f; // an override the snapshot must preserve
     const Guid instId = level.GetEntityId(inst);
 
     UniquePtr<SceneSnapshot> snapshot = SceneSnapshot::Capture(level);
@@ -883,11 +883,11 @@ TEST_CASE("prefab: template rebuild preserves deltas and picks up new members")
     const Guid instId = level.GetEntityId(inst);
     EntityHandle instDoor = level.GetFirstChild(inst);
     const Guid instDoorId = level.GetEntityId(instDoor);
-    health->Get(instDoor)->value = 21.0f;          // user override
+    health->Edit(instDoor)->value = 21.0f;          // user override
     level.SetLocalPosition(inst, Float3{3, 0, 0}); // placement
 
     // Template v2: door healthier, and a brand-new window member.
-    authorHealth->Get(door)->value = 25.0f;
+    authorHealth->Edit(door)->value = 25.0f;
     EntityHandle window = author.CreateEntity(u8"Window");
     author.SetParent(window, root);
     MemoryStream payloadV2;
@@ -945,7 +945,7 @@ TEST_CASE("prefab: apply-as-template keeps source ids; revert discards deltas")
     ComponentManagerBase* mgr = level.FindManagerBySerializationId(u8"demo.Health");
     REQUIRE(mgr != nullptr);
     CHECK(!IsPrefabComponentOverridden(level, member, *mgr));
-    health->Get(instWheel)->value = 11.0f;
+    health->Edit(instWheel)->value = 11.0f;
     CHECK(IsPrefabComponentOverridden(level, member, *mgr));
 
     // Apply-as-template: edits and a user-added child become the template, keyed by source ids.
@@ -1120,7 +1120,7 @@ namespace
         EntityHandle wheel = SpawnPrefab(edit, innerStream, innerId, body);
         REQUIRE(wheel.IsAssigned());
         // Owner customization: the Wheel's health becomes 11 inside the Cart template.
-        health->Get(wheel)->value = 11.0f;
+        health->Edit(wheel)->value = 11.0f;
 
         MemoryStream out;
         BinarySerializer ser(out, SerializeMode::Write);
@@ -1244,7 +1244,7 @@ TEST_CASE("prefab: scene round-trip preserves nesting links, guids, and scene ov
     const Guid hubGuid = level.GetEntityId(hub);
 
     // Scene-level override on the nested Hub (owner baseline is 5).
-    health->Get(hub)->value = 7.0f;
+    health->Edit(hub)->value = 7.0f;
 
     MemoryStream saved;
     {
@@ -1372,7 +1372,7 @@ TEST_CASE("prefab: apply-to-prefab keeps nested records with owner customization
         });
     REQUIRE(wheelState != nullptr);
     EntityHandle wheel = level.FindEntity(wheelState->rootEntityId);
-    health->Get(wheel)->value = 13.0f;
+    health->Edit(wheel)->value = 13.0f;
 
     MemoryStream captured;
     REQUIRE(CaptureInstanceAsTemplate(level, *cartState, captured, &resolver).IsOk());
@@ -1428,7 +1428,7 @@ TEST_CASE(
     EntityHandle userWheel = SpawnPrefab(level, innerStream2, innerId, wheel);
     REQUIRE(userWheel.IsAssigned());
     const Guid userWheelGuid = level.GetEntityId(userWheel);
-    health->Get(userWheel)->value = 99.0f; // scene delta on the user-spawned instance
+    health->Edit(userWheel)->value = 99.0f; // scene delta on the user-spawned instance
 
     const u32 rebuilt = RebuildPrefabInstances(
         level, innerId, Span<const byte>{inner.Data(), inner.Size()}, &resolver);
@@ -1724,7 +1724,7 @@ TEST_CASE("text scenes: XML save -> load -> binary -> load is EQUIVALENT and sta
     (void)innerStream.Seek(0, SeekOrigin::Begin);
     EntityHandle wheel = SpawnPrefab(scene, innerStream, innerId);
     REQUIRE(wheel.IsAssigned());
-    health->Get(wheel)->value = 77.0f; // an override that must survive every hop
+    health->Edit(wheel)->value = 77.0f; // an override that must survive every hop
 
     // Hop 1: XML text.
     foundation::xml::XmlSerializer xmlOut(foundation::core::DefaultAllocator());
@@ -1880,7 +1880,7 @@ TEST_CASE("text scenes: transcode to binary preserves parked prefab pendings")
     (void)innerStream.Seek(0, SeekOrigin::Begin);
     EntityHandle wheel = SpawnPrefab(scene, innerStream, innerId);
     REQUIRE(wheel.IsAssigned());
-    health->Get(wheel)->value = 55.0f;
+    health->Edit(wheel)->value = 55.0f;
     foundation::xml::XmlSerializer xmlOut(foundation::core::DefaultAllocator());
     SerializeScene(xmlOut, scene, ScenePrefabMode::Referenced, true,
                    foundation::scene::detail::SceneStreamEncoding::Text);
@@ -2320,7 +2320,7 @@ namespace
         EntityHandle inst = SpawnPrefab(level, payload, prefabId);
         REQUIRE(inst.IsAssigned());
         EntityHandle instTop = level.GetFirstChild(inst);
-        health->Get(instTop)->value = 51.0f; // the override
+        health->Edit(instTop)->value = 51.0f; // the override
         const Guid instTopId = level.GetEntityId(instTop);
         MemoryStream saved;
         WriteScene(saved, level, text);
@@ -2402,7 +2402,7 @@ TEST_CASE("prefab: an override naming a prefab member by its source id points at
     (void)payload.Seek(0, SeekOrigin::Begin);
     EntityHandle inst = SpawnPrefab(level, payload, prefabId);
     REQUIRE(inst.IsAssigned());
-    links->Get(inst)->target = otherSource; // the override, in the prefab's id space
+    links->Edit(inst)->target = otherSource; // the override, in the prefab's id space
     const Guid instId = level.GetEntityId(inst);
     const Guid otherLive = level.GetEntityId(level.GetFirstChild(inst));
     REQUIRE(otherLive != otherSource);

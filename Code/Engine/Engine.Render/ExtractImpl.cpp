@@ -60,7 +60,7 @@ namespace engine::render
         return Length(local.Extents()) * Max(sx, Max(sy, sz));
     }
 
-    void FillMeshRenderData(scene::Scene& scene, MeshComponent& mc, scene::EntityHandle e,
+    void FillMeshRenderData(scene::Scene& scene, const MeshComponent& mc, scene::EntityHandle e,
                             MeshRenderData& rd)
     {
         // Refresh the raw material cache from the ref proxies every frame: a few pointer loads,
@@ -125,7 +125,7 @@ namespace engine::render
         if (auto* meshes = scene.GetSystem<MeshComponentManager>())
         {
             meshes->ForEach(
-                [&](MeshComponent& mc, scene::EntityHandle e)
+                [&](const MeshComponent& mc, scene::EntityHandle e)
                 {
                     // Effectively-inactive entities render nothing.
                     if (!scene.IsEffectivelyActive(e) || !mc.visible || mc.mesh.Get() == nullptr)
@@ -156,7 +156,7 @@ namespace engine::render
         }
 
         ctx.ResetItems();
-        const Span<MeshComponent> comps = meshes->Dense();
+        const Span<const MeshComponent> comps = meshes->Dense();
         const Span<const scene::EntityHandle> owners = meshes->Owners();
 
         const bool parallel = HasGlobalJobSystem() && count >= kParallelExtractThreshold;
@@ -166,9 +166,9 @@ namespace engine::render
             jobs.ParallelFor(count,
                              [&](u32 i)
                              {
-                                 // Non-const: the fill refreshes the component's per-frame material cache.
-                                 // Safe under ParallelFor: each component is touched by exactly one job.
-                                 MeshComponent& mc = const_cast<MeshComponent&>(comps[i]);
+                                 // The fill refreshes the component's material cache (mutable). Safe under
+                                 // ParallelFor: each component is touched by exactly one job.
+                                 const MeshComponent& mc = comps[i];
                                  if (!scene.IsEffectivelyActive(owners[i]) || !mc.visible ||
                                      mc.mesh.Get() == nullptr)
                                  {
@@ -232,23 +232,23 @@ namespace engine::render
         // This frame's members: each active InstanceMemberComponent's world transform and clip, on
         // the instanced mesh it names (drawn after that mesh's authored instances).
         mgr->ForEach(
-            [](InstancedMeshComponent& c, scene::EntityHandle)
+            [](const InstancedMeshComponent& c, scene::EntityHandle)
             {
-                c.memberWorld.Clear();
+                c.memberWorld.Clear(); // mutable: this frame's members, gathered while reading
                 c.memberClips.Clear();
                 c.memberTints.Clear();
             });
         if (auto* members = scene.GetSystem<InstanceMemberComponentManager>())
         {
             members->ForEach(
-                [&](InstanceMemberComponent& m, scene::EntityHandle e)
+                [&](const InstanceMemberComponent& m, scene::EntityHandle e)
                 {
                     if (!scene.IsEffectivelyActive(e) || m.instancedMesh.id.IsNil())
                     {
                         return;
                     }
                     const scene::EntityHandle target = scene.FindEntity(m.instancedMesh.id);
-                    InstancedMeshComponent* set = scene.IsValid(target) ? mgr->Get(target) : nullptr;
+                    const InstancedMeshComponent* set = scene.IsValid(target) ? mgr->Get(target) : nullptr;
                     if (set == nullptr)
                     {
                         return;
@@ -258,7 +258,9 @@ namespace engine::render
                     set->memberTints.PushBack(ToLinear(m.tint));
                 });
         }
-        mgr->ForEach(
+        // Unmarked: the compose rebuilds the set's runtime caches every frame, derived from what it
+        // holds, so no consumer of its writes needs to hear of it.
+        mgr->ForEachUnmarked(
             [&](InstancedMeshComponent& c, scene::EntityHandle e)
             {
                 // Gate before the compose and bounds caches: an inactive set is simply absent from
@@ -431,7 +433,7 @@ namespace engine::render
             return;
         }
         sprites->ForEach(
-            [&](SpriteComponent& sc, scene::EntityHandle e)
+            [&](const SpriteComponent& sc, scene::EntityHandle e)
             {
                 if (!scene.IsEffectivelyActive(e) || !sc.visible)
                 {
@@ -488,7 +490,7 @@ namespace engine::render
             return;
         }
         decals->ForEach(
-            [&](DecalComponent& dc, scene::EntityHandle e)
+            [&](const DecalComponent& dc, scene::EntityHandle e)
             {
                 if (!scene.IsEffectivelyActive(e) || !dc.visible)
                 {
@@ -553,7 +555,7 @@ namespace engine::render
         }
         bool found = false;
         cameras->ForEach(
-            [&](CameraComponent& cam, scene::EntityHandle e)
+            [&](const CameraComponent& cam, scene::EntityHandle e)
             {
                 // An inactive primary camera is skipped so the pick falls through to the next
                 // primary; so is one with a target, which draws into its texture.
@@ -590,7 +592,7 @@ namespace engine::render
             return;
         }
         cameras->ForEach(
-            [&](CameraComponent& cam, scene::EntityHandle e)
+            [&](const CameraComponent& cam, scene::EntityHandle e)
             {
                 texture::Texture* target = cam.target.Get();
                 if (target == nullptr || !target->GpuTexture().IsValid() ||
@@ -689,7 +691,7 @@ namespace engine::render
                 }
             });
         lights->ForEach(
-            [&](LightComponent& lc, scene::EntityHandle e)
+            [&](const LightComponent& lc, scene::EntityHandle e)
             {
                 if (!scene->IsEffectivelyActive(e) || !lc.enabled)
                 {
@@ -765,7 +767,7 @@ namespace engine::render
         Array<ShadowCandidate> candidates(scene.Allocator());
         bool haveShadow = false;
         lights->ForEach(
-            [&](LightComponent& lc, scene::EntityHandle e)
+            [&](const LightComponent& lc, scene::EntityHandle e)
             {
                 if (!scene.IsEffectivelyActive(e) || !lc.enabled)
                 {
@@ -910,7 +912,7 @@ namespace engine::render
         }
         u32 count = 0;
         probes->ForEach(
-            [&](ReflectionProbeComponent& pc, scene::EntityHandle e)
+            [&](const ReflectionProbeComponent& pc, scene::EntityHandle e)
             {
                 if (!scene.IsEffectivelyActive(e) || !pc.enabled || count >= kMaxReflectionProbes)
                 {

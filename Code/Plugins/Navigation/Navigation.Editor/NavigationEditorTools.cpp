@@ -75,7 +75,7 @@ namespace navigation
                                  for (const Guid& id : at->Entities())
                                  {
                                      const scene::EntityHandle entity = edit.Resolve(id);
-                                     navigation::NavMeshZoneComponent* zone = zones != nullptr && entity.IsAssigned() ? zones->Get(entity) : nullptr;
+                                     const navigation::NavMeshZoneComponent* zone = zones != nullptr && entity.IsAssigned() ? zones->Get(entity) : nullptr;
                                      if (zone == nullptr)
                                          continue;
                                      foundation::content::Instance* target = zone->zone.id.IsNil() ? nullptr : context->Project()->SourceDb().GetInstance(zone->zone.id);
@@ -171,7 +171,7 @@ namespace navigation
                     if (zones != nullptr)
                     {
                         zones->ForEach(
-                            [&](navigation::NavMeshZoneComponent&, scene::EntityHandle e)
+                            [&](const navigation::NavMeshZoneComponent&, scene::EntityHandle e)
                             {
                                 zoneEntity = e;
                                 ++count;
@@ -184,7 +184,7 @@ namespace navigation
                                           count));
                     }
                 }
-                navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
+                const navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
                 foundation::content::Instance* target =
                     zone->zone.id.IsNil() ? nullptr
                                           : ctx->Project()->SourceDb().GetInstance(zone->zone.id);

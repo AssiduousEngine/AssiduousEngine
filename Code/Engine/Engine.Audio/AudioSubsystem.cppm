@@ -164,7 +164,7 @@ export namespace engine::audio
             // so positional voices start where they were authored.
             if (auto* sources = m_scene->GetSystem<AudioSourceComponentManager>())
             {
-                sources->ForEach(
+                sources->ForEachEdit(
                     [&](AudioSourceComponent& c, scene::EntityHandle e)
                     {
                         if (c.autoPlay)
@@ -193,7 +193,7 @@ export namespace engine::audio
             }
             if (auto* sources = m_scene->GetSystem<AudioSourceComponentManager>())
             {
-                sources->ForEach(
+                sources->ForEachEdit(
                     [](AudioSourceComponent& c, scene::EntityHandle)
                     {
                         c.voice = VoiceHandle{};
@@ -216,7 +216,7 @@ export namespace engine::audio
         {
             auto* sources =
                 m_scene != nullptr ? m_scene->GetSystem<AudioSourceComponentManager>() : nullptr;
-            AudioSourceComponent* component = sources != nullptr ? sources->Get(entity) : nullptr;
+            AudioSourceComponent* component = sources != nullptr ? sources->Edit(entity) : nullptr;
             if (component == nullptr)
             {
                 return {};
@@ -310,7 +310,7 @@ export namespace engine::audio
 
             if (auto* sources = m_scene->GetSystem<AudioSourceComponentManager>())
             {
-                sources->ForEach(
+                sources->ForEachEdit(
                     [&](AudioSourceComponent& c, scene::EntityHandle e)
                     {
                         // Entity-active edges: deactivation stops the voice (silence, not a
@@ -401,7 +401,7 @@ export namespace engine::audio
         {
             auto* sources =
                 m_scene != nullptr ? m_scene->GetSystem<AudioSourceComponentManager>() : nullptr;
-            return sources != nullptr ? sources->Get(entity) : nullptr;
+            return sources != nullptr ? sources->Edit(entity) : nullptr;
         }
 
         [[nodiscard]] Float3 EntityPosition(scene::EntityHandle entity) const
@@ -506,7 +506,7 @@ export namespace engine::audio
             if (m_listenerValid && zones != nullptr)
             {
                 zones->ForEach(
-                    [&](AudioReverbZoneComponent& zone, scene::EntityHandle e)
+                    [&](const AudioReverbZoneComponent& zone, scene::EntityHandle e)
                     {
                         if (!zone.enabled || zone.radius <= 0.0f || zone.wetLevel <= 0.0f)
                         {
@@ -547,7 +547,7 @@ export namespace engine::audio
             {
                 return;
             }
-            listeners->ForEach(
+            listeners->ForEachEdit(
                 [&](AudioListenerComponent& c, scene::EntityHandle e)
                 {
                     if (!c.isActive)
@@ -667,7 +667,7 @@ export namespace engine::audio
                 return;
             }
             AudioSourceComponentManager* sources = scene->GetSystem<AudioSourceComponentManager>();
-            AudioSourceComponent* c = (sources != nullptr) ? sources->Get(entity.Handle()) : nullptr;
+            AudioSourceComponent* c = (sources != nullptr) ? sources->Edit(entity.Handle()) : nullptr;
             if (c == nullptr)
             {
                 return;

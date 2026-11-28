@@ -303,7 +303,7 @@ TEST_CASE("scene creator: each scene a SceneDocument named uniquely in Scenes, s
                                      sun = e;
                              });
         REQUIRE(sun.IsAssigned());
-        engine::render::LightComponent* light = lights->Get(sun);
+        const engine::render::LightComponent* light = lights->Get(sun);
         REQUIRE(light != nullptr);
         CHECK(light->type == engine::render::LightType::Directional);
         CHECK(light->castsShadows);

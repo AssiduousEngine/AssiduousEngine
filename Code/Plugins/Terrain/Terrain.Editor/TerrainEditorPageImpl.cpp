@@ -532,7 +532,7 @@ namespace terrain
     {
         scene::Scene* scenePtr = m_pane && m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* terrains = scenePtr != nullptr ? scenePtr->GetSystem<terrain::TerrainComponentManager>() : nullptr;
-        terrain::TerrainComponent* component = terrains != nullptr ? terrains->Get(m_entity) : nullptr;
+        terrain::TerrainComponent* component = terrains != nullptr ? terrains->Edit(m_entity) : nullptr;
         if (component == nullptr)
             return;
         component->terrain.SetId(Guid{});

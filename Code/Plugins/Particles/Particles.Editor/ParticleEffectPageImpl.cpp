@@ -675,7 +675,7 @@ namespace particles
         PreviewViewport* preview = m_pane ? m_pane->Viewport() : nullptr;
         scene::Scene* scenePtr = preview != nullptr ? preview->Scene() : nullptr;
         auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<particles::ParticleEffectComponentManager>() : nullptr;
-        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
+        const particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
         return component != nullptr ? component->instance.Get() : nullptr;
     }
 
@@ -710,7 +710,7 @@ namespace particles
         PreviewViewport* preview = m_pane ? m_pane->Viewport() : nullptr;
         scene::Scene* scenePtr = preview != nullptr ? preview->Scene() : nullptr;
         auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<particles::ParticleEffectComponentManager>() : nullptr;
-        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
+        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Edit(m_emitter) : nullptr;
         if (reshaped)
         {
             ++m_restarts;
@@ -733,7 +733,7 @@ namespace particles
         PreviewViewport* preview = m_pane ? m_pane->Viewport() : nullptr;
         scene::Scene* scenePtr = preview != nullptr ? preview->Scene() : nullptr;
         auto* effects = scenePtr != nullptr ? scenePtr->GetSystem<particles::ParticleEffectComponentManager>() : nullptr;
-        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Get(m_emitter) : nullptr;
+        particles::ParticleEffectComponent* component = effects != nullptr ? effects->Edit(m_emitter) : nullptr;
         foundation::resource::ResourceManager* resources = Context().Resources();
         if (component == nullptr || Effect() == nullptr)
             return;
@@ -943,7 +943,7 @@ namespace particles
                     m_emitter = emitter;
                     m_staged = true;
                 }
-                particles::ParticleEffectComponent* component = manager->Get(m_emitter);
+                const particles::ParticleEffectComponent* component = manager->Get(m_emitter);
                 if (component == nullptr)
                 {
                     return ThumbnailStageStep::Failed;

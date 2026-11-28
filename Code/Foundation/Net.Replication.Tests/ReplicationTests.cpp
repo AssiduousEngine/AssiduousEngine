@@ -70,7 +70,7 @@ namespace
         scene::IReplicatedStateSource* AsReplicatedStateSource() noexcept override { return this; }
         bool WriteReplicatedState(scene::EntityHandle entity, Array<byte>& out) override
         {
-            const Mood* m = Get(entity);
+            Mood* m = Edit(entity);
             if (m == nullptr || m->mood < 0)
             {
                 return false; // a negative mood: nothing to send
@@ -84,7 +84,7 @@ namespace
         }
         void ReadReplicatedState(scene::EntityHandle entity, Span<const byte> state) override
         {
-            Mood* m = Get(entity);
+            Mood* m = Edit(entity);
             if (m == nullptr || state.Size() != 4)
             {
                 return;
@@ -554,7 +554,7 @@ TEST_CASE("replication: an entity's owner reaches a client in the delta and in a
     {
         Array<u32> owners;
         client.GetSystem<net::NetworkComponentManager>()->ForEach(
-            [&](net::NetworkComponent& nc, scene::EntityHandle) { owners.PushBack(nc.owner); });
+            [&](const net::NetworkComponent& nc, scene::EntityHandle) { owners.PushBack(nc.owner); });
         return owners;
     };
     {
@@ -624,7 +624,7 @@ TEST_CASE("replication: a manager's own state travels in the delta and the snaps
     auto clientMood = [&]() -> const Mood*
     {
         const Mood* found = nullptr;
-        clientMoods->ForEach([&](Mood& m, scene::EntityHandle) { found = &m; });
+        clientMoods->ForEach([&](const Mood& m, scene::EntityHandle) { found = &m; });
         return found;
     };
 
@@ -633,7 +633,7 @@ TEST_CASE("replication: a manager's own state travels in the delta and the snaps
     CHECK(clientMood()->mood == 3);
     CHECK(clientMood()->reads == 1);
     CHECK(send() == 0u); // nothing changed: nothing sent
-    moods->Get(guest)->mood = 9;
+    moods->Edit(guest)->mood = 9;
     CHECK(send() == 1u);
     CHECK(clientMood()->mood == 9);
     CHECK(clientMood()->reads == 2);
@@ -658,7 +658,7 @@ TEST_CASE("replication: a manager's own state travels in the delta and the snaps
     net::BitReader r(w.Data());
     lrep.ApplySnapshot(late, r);
     i32 lateMood = -1;
-    lateMoods->ForEach([&](Mood& m, scene::EntityHandle) { lateMood = m.mood; });
+    lateMoods->ForEach([&](const Mood& m, scene::EntityHandle) { lateMood = m.mood; });
     CHECK(lateMood == 9);
 }
 

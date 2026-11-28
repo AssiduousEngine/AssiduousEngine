@@ -110,7 +110,7 @@ TEST_CASE("instanced skinning: the skeleton, clips and targets are saved with th
     }
     const engine::animation::InstancedSkinningComponent* skinning = nullptr;
     loaded.GetSystem<engine::animation::InstancedSkinningComponentManager>()->ForEach(
-        [&](engine::animation::InstancedSkinningComponent& s, scene::EntityHandle) { skinning = &s; });
+        [&](const engine::animation::InstancedSkinningComponent& s, scene::EntityHandle) { skinning = &s; });
     REQUIRE(skinning != nullptr);
     CHECK(skinning->skeleton.id == skeletonId);
     REQUIRE(skinning->clips.Size() == 2u);

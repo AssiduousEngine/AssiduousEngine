@@ -537,7 +537,7 @@ namespace engine::player
                 return;
             }
             bool hasCamera = false;
-            cameras->ForEach([&](engine::render::CameraComponent&, scene::EntityHandle)
+            cameras->ForEach([&](const engine::render::CameraComponent&, scene::EntityHandle)
                              { hasCamera = true; });
             if (hasCamera)
             {

@@ -759,12 +759,12 @@ TEST_CASE("engine.gui: a canvas shows its document in its scene's GUI, ordered, 
     CHECK(Cast<UIWidget>(root->GetChildAt(1))->GetTag() == StringView(u8"canvas"));
 
     // Reordered.
-    canvases->Get(hud)->order = 9;
+    canvases->Edit(hud)->order = 9;
     engine.Frame();
     CHECK(FindById(*root->GetChildAt(2), u8"score") != nullptr);
 
     // Hidden, then with its entity inactive, then not interactive.
-    engine::gui::GuiCanvasComponent* c = canvases->Get(hud);
+    engine::gui::GuiCanvasComponent* c = canvases->Edit(hud);
     Node* tree = c->root.Get();
     REQUIRE(tree != nullptr);
     c->visible = false;
@@ -816,7 +816,7 @@ TEST_CASE("engine.gui: a canvas scaled from a reference resolution fits the view
     CHECK(tree->GetPosition().x == doctest::Approx(100.0f)); // centred across
     CHECK(tree->GetPosition().y == doctest::Approx(0.0f));
 
-    canvases->Get(hud)->scalerMode = engine::gui::GuiScalerMode::ConstantPixel;
+    canvases->Edit(hud)->scalerMode = engine::gui::GuiScalerMode::ConstantPixel;
     engine.Frame();
     LayOut(*engine.gui, *root, Float2{1000.0f, 600.0f});
     CHECK(tree->GetSize().x == doctest::Approx(1000.0f));
@@ -1026,7 +1026,7 @@ TEST_CASE("engine.gui: a render-texture canvas draws into a texture of its own, 
     added.renderTextureWidth = 128;
     added.renderTextureHeight = 64;
     engine.Frame();
-    engine::gui::GuiCanvasComponent* c = canvases->Get(screen);
+    engine::gui::GuiCanvasComponent* c = canvases->Edit(screen);
     REQUIRE(c->renderRoot);
     SceneRoot* root = engine.gui->SceneRootFor(*level);
     CHECK(root->ChildCount() == 1u); // only the billboards' layer; the canvas is not in the scene's GUI
@@ -1106,7 +1106,7 @@ TEST_CASE("engine.gui: removed and resized textures are destroyed through the de
 
         // A resize remakes the texture and destroys the old one (the device keeps it while the
         // frames in flight sample it).
-        canvases->Get(screens[0])->renderTextureWidth = 128;
+        canvases->Edit(screens[0])->renderTextureWidth = 128;
         engine.Frame();
         engine.gui->RenderTextures(encoder, 1);
         CHECK(engine.gui->TextureCount() == 3u);
@@ -1144,14 +1144,14 @@ TEST_CASE("engine.gui: a world panel drives its sprite, and the pointer reaches 
     added.sizeMeters = Float2{2.0f, 1.0f};
     added.pixelsPerMeter = 100.0f;
     engine.Frame();
-    engine::gui::GuiWorldPanelComponent* c = panels->Get(kiosk);
+    const engine::gui::GuiWorldPanelComponent* c = panels->Get(kiosk);
     REQUIRE(c->renderRoot);
     i32 clicks = 0;
     (void)c->root->AddEventListener(EventType::MouseClick, [&](const Event&) { ++clicks; });
 
     rhi::null::NullCommandEncoder encoder;
     engine.gui->RenderTextures(encoder, 0);
-    engine::render::SpriteComponent* sprite = level->GetSystem<engine::render::SpriteComponentManager>()->Get(kiosk);
+    const engine::render::SpriteComponent* sprite = level->GetSystem<engine::render::SpriteComponentManager>()->Get(kiosk);
     REQUIRE(sprite != nullptr); // added for the panel
     CHECK(sprite->texture == c->renderTextureView);
     CHECK(sprite->orientation == engine::render::SpriteOrientation::EntityOriented);

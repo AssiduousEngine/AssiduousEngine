@@ -99,7 +99,7 @@ export namespace editor
                                  const Guid entity = at->Entities()[0];
                                  auto* animators = edit.Scene().GetSystem<engine::animation::PropertyAnimatorComponentManager>();
                                  const foundation::scene::EntityHandle handle = edit.Resolve(entity);
-                                 engine::animation::PropertyAnimatorComponent* animator = animators != nullptr && handle.IsAssigned() ? animators->Get(handle) : nullptr;
+                                 const engine::animation::PropertyAnimatorComponent* animator = animators != nullptr && handle.IsAssigned() ? animators->Get(handle) : nullptr;
                                  page->EditAnimationClip(animator != nullptr ? animator->clip.id : Guid{}, entity);
                              });
         }
@@ -136,7 +136,7 @@ export namespace editor
                                  for (const Guid& id : at->Entities())
                                  {
                                      const foundation::scene::EntityHandle e = edit.Resolve(id);
-                                     engine::physics::RigidBodyComponent* body = bodies != nullptr && e.IsAssigned() ? bodies->Get(e) : nullptr;
+                                     engine::physics::RigidBodyComponent* body = bodies != nullptr && e.IsAssigned() ? bodies->Edit(e) : nullptr;
                                      if (body != nullptr && body->shape == foundation::physics::ShapeKind::Cooked && body->collisionShape.id.IsNil())
                                          return String(kNoColliderText);
                                  }

@@ -449,7 +449,7 @@ TEST_CASE("navigation.editor: a ground plane wider than the zone bakes to the zo
     const scene::EntityHandle ground = AddBody(sceneObj, u8"ground", Float3{0, 0, 0}, Float3{1, 1, 1},
                                                foundation::physics::MotionKind::Static);
     engine::physics::RigidBodyComponent& plane =
-        *sceneObj.GetSystem<engine::physics::RigidBodyComponentManager>()->Get(ground);
+        *sceneObj.GetSystem<engine::physics::RigidBodyComponentManager>()->Edit(ground);
     plane.shape = foundation::physics::ShapeKind::Plane;
     plane.planeHalfExtent = 1000.0f;
     scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");

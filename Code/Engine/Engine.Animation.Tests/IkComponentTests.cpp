@@ -189,7 +189,7 @@ TEST_CASE("ik component: the weight eases over fadeSeconds, and at zero the modi
     CHECK(Length(s.BoneWorld(3) - Float3{6, 4, 0}) < 1.0e-3f); // fully on
     CHECK(s.Player().Modifiers().Count() == 1u);
 
-    legs->Get(owner)->active = false;
+    legs->Edit(owner)->active = false;
     s.Tick(0.25f);
     CHECK(legs->Get(owner)->runtime.weight == doctest::Approx(0.5f));
     CHECK(Length(s.BoneWorld(3) - Float3{6, 4, 0}) > 1.0e-2f); // half way back
@@ -212,7 +212,7 @@ TEST_CASE("ik component: components on one animator run in their order")
     CHECK(Length(s.BoneWorld(3) - Float3{7, 5, 1}) < 1.0e-3f);
 
     auto* legs = s.level.GetSystem<engine::animation::TwoBoneIkComponentManager>();
-    legs->Get(OwnerOf(s, u8"IkA"))->order = 2; // A runs after B
+    legs->Edit(OwnerOf(s, u8"IkA"))->order = 2; // A runs after B
     s.Tick();
     CHECK(Length(s.BoneWorld(3) - Float3{6, 4, 0}) < 1.0e-3f);
     CHECK(s.Player().Modifiers().Count() == 2u);
@@ -237,8 +237,8 @@ TEST_CASE("ik component: an unknown bone or no animator disables it with one log
         CHECK(s.Player().Modifiers().IsEmpty());
 
         // Fixed, it solves; an IK entity with no animator above it logs once more.
-        legs->Get(OwnerOf(s, u8"LegIk"))->midBone = String(u8"Shin");
-        legs->Get(OwnerOf(s, u8"LegIk"))->runtime.resolvedFor = nullptr; // an edit re-resolves
+        legs->Edit(OwnerOf(s, u8"LegIk"))->midBone = String(u8"Shin");
+        legs->Edit(OwnerOf(s, u8"LegIk"))->runtime.resolvedFor = nullptr; // an edit re-resolves
         s.Tick();
         CHECK(legs->Get(OwnerOf(s, u8"LegIk"))->runtime.status == IkStatus::Solving);
         const scene::EntityHandle stray = s.level.CreateEntity(u8"Stray");
@@ -389,7 +389,7 @@ TEST_CASE("ik aim component: Release eases off past the limits and comes back wh
     CHECK(Dot(HeadAimModel(s), Normalized(Float3{-1, 0, 4})) > 1.0f - 1.0e-4f);
 
     // Off: it leaves the player, released or not.
-    aims->Get(owner)->active = false;
+    aims->Edit(owner)->active = false;
     for (i32 i = 0; i < 12; ++i)
     {
         s.Tick();

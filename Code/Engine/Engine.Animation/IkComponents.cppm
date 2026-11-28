@@ -417,7 +417,7 @@ export namespace engine::animation
         {
             if (auto* graphs = scene.GetSystem<AnimationGraphComponentManager>())
             {
-                if (AnimationGraphComponent* g = graphs->Get(entity))
+                if (const AnimationGraphComponent* g = graphs->Get(entity))
                 {
                     out.entity = entity;
                     out.stack = g->player.Get() != nullptr ? &g->player->Modifiers() : nullptr;
@@ -430,7 +430,7 @@ export namespace engine::animation
             }
             if (auto* clips = scene.GetSystem<SkeletalAnimationComponentManager>())
             {
-                if (SkeletalAnimationComponent* s = clips->Get(entity))
+                if (const SkeletalAnimationComponent* s = clips->Get(entity))
                 {
                     out.entity = entity;
                     out.stack = s->player.Get() != nullptr ? &s->player->Modifiers() : nullptr;
@@ -524,14 +524,14 @@ export namespace engine::animation
             scene, from,
             [&](scene::EntityHandle e)
             {
-                if (AnimationGraphComponent* g = graphs != nullptr ? graphs->Get(e) : nullptr)
+                if (const AnimationGraphComponent* g = graphs != nullptr ? graphs->Get(e) : nullptr)
                 {
                     out.skeleton = g->skeleton.Get();
                     out.modelEntity = ik_detail::ModelEntity(
                         scene, Span<const scene::EntityRef>{g->meshEntities.Data(), g->meshEntities.Size()}, e);
                     return true;
                 }
-                if (SkeletalAnimationComponent* sc = clips != nullptr ? clips->Get(e) : nullptr)
+                if (const SkeletalAnimationComponent* sc = clips != nullptr ? clips->Get(e) : nullptr)
                 {
                     out.skeleton = sc->skeleton.Get();
                     out.modelEntity = ik_detail::ModelEntity(
@@ -655,14 +655,14 @@ export namespace engine::animation
                 return;
             }
             PROFILE_SCOPE("Animation.Ik");
-            this->ForEach([&](T& c, scene::EntityHandle owner) { Step(c, owner, deltaTime); });
+            this->ForEachEdit([&](T& c, scene::EntityHandle owner) { Step(c, owner, deltaTime); });
         }
 
         /// Draws every component asking for it (debugDraw) into `draw`.
         void DrawDebug(foundation::render::debug::DebugDraw& draw)
         {
             this->ForEach(
-                [&](T& c, scene::EntityHandle)
+                [&](const T& c, scene::EntityHandle)
                 {
                     if (c.debugDraw)
                     {

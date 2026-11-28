@@ -87,7 +87,7 @@ namespace editor
             {
                 if (auto* meshes = stage.GetSystem<engine::render::MeshComponentManager>())
                 {
-                    if (engine::render::MeshComponent* component = meshes->Get(m_display))
+                    if (engine::render::MeshComponent* component = meshes->Edit(m_display))
                     {
                         component->mesh.SetId(Guid{});
                         component->mesh.SetDirect(RefPtr<geometry::StaticMesh>{});
@@ -129,7 +129,7 @@ namespace editor
                 }
                 stage.SetActive(m_display, true);
                 stage.SetActive(m_sun, true);
-                return meshes->Get(m_display);
+                return meshes->Edit(m_display);
             }
 
             scene::EntityHandle m_display{};

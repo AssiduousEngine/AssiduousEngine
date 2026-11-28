@@ -67,6 +67,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - A scene's components of a plugin that is not loaded survive Simulate, an undone prefab apply or
   revert, and Reload Project Plugins. They were dropped from a scene read from its file (a save after
   would have lost them), and Reload Project Plugins now resolves them when the plugin is back.
+- Native code: a component manager's `Get` hands out a read-only component; a write asks `Edit`
+  (and `ForEachEdit`, `DenseUnmarked`, `EditComponentInstance` for the other forms), so every write
+  is one the manager can see. Native game code that wrote through `Get` changes to `Edit`.
 - A plugin turned off keeps its settings: unchecking it in Project Settings, or `plugin_disable`,
   leaves them in the project (`disabledPlugins`), and turning it on again brings them back. They
   were lost, so a dialogue plugin turned off and on forgot its commands and flags and its

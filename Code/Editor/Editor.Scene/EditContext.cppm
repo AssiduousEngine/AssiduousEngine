@@ -341,7 +341,7 @@ export namespace editor
             {
                 return false;
             }
-            C* live = static_cast<C*>(manager->GetComponentInstance(e).Pointer());
+            C* live = static_cast<C*>(manager->EditComponentInstance(e).Pointer());
             if (live == nullptr)
             {
                 return false;
@@ -2046,7 +2046,7 @@ export namespace editor
                 {
                     return;
                 }
-                const Instance component = mgr->GetComponentInstance(e);
+                const Instance component = mgr->EditComponentInstance(e);
                 for (const PropertySnapshot& snap : m_properties)
                 {
                     if (const PropertyInfo* prop = FindProperty(*m_type, snap.name))

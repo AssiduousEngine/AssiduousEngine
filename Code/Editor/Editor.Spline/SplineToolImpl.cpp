@@ -56,7 +56,7 @@ namespace editor
                 {
                     return false;
                 }
-                SplineComponent* component = manager->Get(m_scene->FindEntity(m_entity));
+                SplineComponent* component = manager->Edit(m_scene->FindEntity(m_entity));
                 if (component == nullptr)
                 {
                     return false;
@@ -425,7 +425,7 @@ namespace editor
                 }
                 for (const Guid& id : m_selection->Items())
                 {
-                    if (SplineComponent* component = manager->Get(m_scene->FindEntity(id)))
+                    if (SplineComponent* component = manager->Edit(m_scene->FindEntity(id)))
                     {
                         if (outEntity != nullptr)
                         {

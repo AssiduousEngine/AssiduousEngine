@@ -354,7 +354,7 @@ export namespace engine::physics
         }
         void MoveCharacter(foundation::scene::EntityHandle entity, Float3 velocity) override
         {
-            if (CharacterComponent* c = Get(entity))
+            if (CharacterComponent* c = Edit(entity))
             {
                 c->move(velocity.x, velocity.z);
             }

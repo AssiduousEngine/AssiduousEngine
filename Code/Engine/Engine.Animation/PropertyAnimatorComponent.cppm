@@ -122,7 +122,7 @@ export namespace engine::animation
                 return;
             }
             PROFILE_SCOPE("PropertyAnimation.Update");
-            ForEach(
+            ForEachEdit(
                 [&](PropertyAnimatorComponent& a, scene::EntityHandle owner)
                 {
                     if (!m_scene->IsEffectivelyActive(owner))

@@ -208,7 +208,7 @@ namespace
             {
                 if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
                 {
-                    if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                    if (engine::render::CameraComponent* cam = cameras->Edit(m_camera))
                     {
                         cam->aspect = static_cast<core::f32>(frame.width) /
                                       static_cast<core::f32>(frame.height);
@@ -309,7 +309,7 @@ namespace
                 if (auto* lights = m_scene->GetSystem<engine::render::LightComponentManager>())
                 {
                     if (engine::render::LightComponent* sl =
-                            m_sun.IsAssigned() ? lights->Get(m_sun) : nullptr)
+                            m_sun.IsAssigned() ? lights->Edit(m_sun) : nullptr)
                     {
                         sl->castsShadows = !sl->castsShadows;
                         core::ConsoleWrite(
@@ -384,7 +384,7 @@ namespace
             m_fly.pitch = -core::Atan2(camY, dist); // look down onto the grid center
             if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
             {
-                if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                if (engine::render::CameraComponent* cam = cameras->Edit(m_camera))
                 {
                     cam->farZ =
                         dist + extent * 2.0f + 200.0f; // cover the grid; don't far-cull spheres
@@ -530,7 +530,7 @@ namespace
             m_uniqueMats.Clear();
             for (core::usize i = 0; i < m_spheres.Size(); ++i)
             {
-                if (engine::render::MeshComponent* mc = meshes->Get(m_spheres[i]))
+                if (engine::render::MeshComponent* mc = meshes->Edit(m_spheres[i]))
                 {
                     AssignSphereMaterial(*mc, static_cast<core::i32>(i));
                 }
@@ -560,7 +560,7 @@ namespace
                 m_multiMeshEntity = m_scene->CreateEntity(u8"multimesh");
             }
             engine::render::InstancedMeshComponent& c = imm->Has(m_multiMeshEntity)
-                                                    ? *imm->Get(m_multiMeshEntity)
+                                                    ? *imm->Edit(m_multiMeshEntity)
                                                     : imm->Add(m_multiMeshEntity);
             c.mesh = m_sphere;
             c.SetMaterial(m_sharedMat);
@@ -709,7 +709,7 @@ namespace
                 if (auto* lights = m_scene->GetSystem<engine::render::LightComponentManager>())
                 {
                     if (engine::render::LightComponent* sl =
-                            m_sun.IsAssigned() ? lights->Get(m_sun) : nullptr)
+                            m_sun.IsAssigned() ? lights->Edit(m_sun) : nullptr)
                     {
                         bool sh = sl->castsShadows;
                         if (ImGui::Checkbox("Directional shadows (K)", &sh))

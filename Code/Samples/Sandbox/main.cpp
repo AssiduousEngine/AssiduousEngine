@@ -787,7 +787,7 @@ namespace
             {
                 return;
             }
-            if (engine::animation::AnimationGraphComponent* gc = graphMgr->Get(m_graphChar))
+            if (const engine::animation::AnimationGraphComponent* gc = graphMgr->Get(m_graphChar))
             {
                 if (gc->player.Get() != nullptr)
                 {
@@ -839,7 +839,7 @@ namespace
             }
             if (auto* probes = m_scene->GetSystem<engine::render::ReflectionProbeComponentManager>())
             {
-                if (auto* rp = probes->Get(m_probeEntity))
+                if (auto* rp = probes->Edit(m_probeEntity))
                 {
                     rp->parallax = !rp->parallax;
                 }
@@ -1055,7 +1055,7 @@ namespace
             if (auto* lights = m_scene->GetSystem<engine::render::LightComponentManager>())
             {
                 if (engine::render::LightComponent* kl =
-                        m_keyLight.IsAssigned() ? lights->Get(m_keyLight) : nullptr)
+                        m_keyLight.IsAssigned() ? lights->Edit(m_keyLight) : nullptr)
                 {
                     ImGui::SeparatorText("Directional Light");
                     ImGui::SliderFloat("Light Intensity", &kl->intensity, 0.0f, 8.0f);
@@ -1078,7 +1078,7 @@ namespace
             if (auto* probes = m_scene->GetSystem<engine::render::ReflectionProbeComponentManager>())
             {
                 if (engine::render::ReflectionProbeComponent* rp =
-                        m_probeEntity.IsAssigned() ? probes->Get(m_probeEntity) : nullptr)
+                        m_probeEntity.IsAssigned() ? probes->Edit(m_probeEntity) : nullptr)
                 {
                     ImGui::SeparatorText("Reflection Probe");
                     ImGui::Checkbox("Box Parallax", &rp->parallax);
@@ -1587,7 +1587,7 @@ namespace
         {
             if (auto* meshes = m_scene->GetSystem<engine::render::MeshComponentManager>())
             {
-                if (engine::render::MeshComponent* fmc = meshes->Get(m_floorEntity))
+                if (engine::render::MeshComponent* fmc = meshes->Edit(m_floorEntity))
                 {
                     fmc->SetMaterial(materials::CreatePBR(
                         u8"lit", core::Float4{0.12f, 0.45f, 0.22f, 1.0f}, m_floorMetallic,

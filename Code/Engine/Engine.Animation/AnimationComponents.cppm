@@ -392,7 +392,7 @@ export namespace engine::animation
 
             PROFILE_SCOPE("Animation.Skeletal");
             m_posed.Clear(); // recorded again below: an animator gone, or a mesh it stopped naming, drops out
-            ForEach(
+            ForEachEdit(
                 [&](SkeletalAnimationComponent& a, scene::EntityHandle owner)
                 {
                     // Recorded first, so a frozen animator's meshes keep its last pose.
@@ -588,7 +588,7 @@ export namespace engine::animation
 
             PROFILE_SCOPE("Animation.Graph");
             m_posed.Clear(); // recorded again below: an animator gone, or a mesh it stopped naming, drops out
-            ForEach(
+            ForEachEdit(
                 [&](AnimationGraphComponent& a, scene::EntityHandle owner)
                 {
                     // Recorded first, so a frozen animator's meshes keep its last pose.
@@ -754,7 +754,7 @@ export namespace engine::animation
             }
             PROFILE_SCOPE("Animation.InstancedSkinning");
 
-            ForEach(
+            ForEachEdit(
                 [&](InstancedSkinningComponent& s, scene::EntityHandle owner)
                 {
                     if (!m_scene->IsEffectivelyActive(owner))
@@ -837,7 +837,7 @@ export namespace engine::animation
 
                     const auto feed = [&](scene::EntityHandle e)
                     {
-                        if (engine::render::InstancedMeshComponent* c = imm->Get(e))
+                        if (engine::render::InstancedMeshComponent* c = imm->Edit(e))
                         {
                             c->posePool =
                                 s.posePool
@@ -1101,7 +1101,7 @@ export namespace engine::animation
                 return nullptr;
             }
             auto* manager = scene->GetSystem<SkeletalAnimationComponentManager>();
-            return (manager != nullptr) ? manager->Get(entity.Handle()) : nullptr;
+            return (manager != nullptr) ? manager->Edit(entity.Handle()) : nullptr;
         }
         [[nodiscard]] animation::AnimationPlayer* SkeletalPlayer(foundation::script::Entity e) const
         {
@@ -1116,7 +1116,7 @@ export namespace engine::animation
             }
             if (auto* graphs = scene->GetSystem<AnimationGraphComponentManager>())
             {
-                if (AnimationGraphComponent* g = graphs->Get(entity.Handle()))
+                if (AnimationGraphComponent* g = graphs->Edit(entity.Handle()))
                 {
                     return &g->oneShot;
                 }
@@ -1132,7 +1132,7 @@ export namespace engine::animation
                 return nullptr;
             }
             auto* manager = scene->GetSystem<AnimationGraphComponentManager>();
-            AnimationGraphComponent* c = (manager != nullptr) ? manager->Get(e.Handle()) : nullptr;
+            const AnimationGraphComponent* c = (manager != nullptr) ? manager->Get(e.Handle()) : nullptr;
             return (c != nullptr) ? c->player.Get() : nullptr;
         }
     };

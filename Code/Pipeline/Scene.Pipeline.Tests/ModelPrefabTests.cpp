@@ -154,7 +154,7 @@ TEST_CASE("model-prefab: manifest -> spawnable prefab; regeneration reuses the i
     usize meshCount = 0;
     bool sawStatic = false, sawSkinned = false;
     meshes->ForEach(
-        [&](engine::render::MeshComponent& c, scene::EntityHandle e)
+        [&](const engine::render::MeshComponent& c, scene::EntityHandle e)
         {
             ++meshCount;
             if (c.mesh.id == meshStatic)
@@ -177,7 +177,7 @@ TEST_CASE("model-prefab: manifest -> spawnable prefab; regeneration reuses the i
 
     usize animCount = 0;
     anims->ForEach(
-        [&](engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle e)
+        [&](const engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle e)
         {
             ++animCount;
             CHECK(c.skeleton.id == skeleton);
@@ -188,7 +188,7 @@ TEST_CASE("model-prefab: manifest -> spawnable prefab; regeneration reuses the i
             REQUIRE(c.meshEntities.Size() == 1u);
             const scene::EntityHandle fed = level.FindEntity(c.meshEntities[0].id);
             REQUIRE(fed.IsAssigned());
-            engine::render::MeshComponent* fedMesh = meshes->Get(fed);
+            const engine::render::MeshComponent* fedMesh = meshes->Get(fed);
             REQUIRE(fedMesh != nullptr);
             CHECK(fedMesh->mesh.id == meshSkinned);
         });
@@ -277,7 +277,7 @@ TEST_CASE("model-scene: manifest -> standalone scene; regeneration reuses the in
 
     usize meshCount = 0;
     meshes->ForEach(
-        [&](engine::render::MeshComponent& c, scene::EntityHandle)
+        [&](const engine::render::MeshComponent& c, scene::EntityHandle)
         {
             ++meshCount;
             CHECK(c.mesh.id == meshStatic);

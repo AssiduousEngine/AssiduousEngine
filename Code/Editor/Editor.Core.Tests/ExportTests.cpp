@@ -354,8 +354,8 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
     resources.AddFactory(&meshFactory);
     scene::ResolveSceneResources(scene, resources);
 
-    engine::render::MeshComponent* mc = nullptr;
-    meshes->ForEach([&](engine::render::MeshComponent& c, scene::EntityHandle) { mc = &c; });
+    const engine::render::MeshComponent* mc = nullptr;
+    meshes->ForEach([&](const engine::render::MeshComponent& c, scene::EntityHandle) { mc = &c; });
     REQUIRE(mc != nullptr);
     CHECK(mc->mesh.id == meshId);
     geometry::StaticMesh* mesh = mc->mesh.Get();

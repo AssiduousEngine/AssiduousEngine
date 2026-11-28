@@ -82,7 +82,7 @@ TEST_CASE("spline component: added bare it is seeded at its first Initialize; lo
     CHECK(splines->Get(loaded)->curve.points[0].position.x == 0.0f);
 
     // The inspector's rows: the loop flag goes through the curve and rebuilds its arc length.
-    engine::spline::SplineComponent& three = *splines->Get(loaded);
+    engine::spline::SplineComponent& three = *splines->Edit(loaded);
     three.curve.UpdateAutoHandles();
     three.curve.RebuildArcLength();
     const f32 open = three.curve.Length();

@@ -331,7 +331,7 @@ namespace samples
                     if (auto* mgr =
                             m_scene->GetSystem<terrain::TerrainComponentManager>())
                     {
-                        if (auto* tc = mgr->Get(m_terrain))
+                        if (auto* tc = mgr->Edit(m_terrain))
                         {
                             tc->lodBias = m_lodBias;
                         }
@@ -368,7 +368,7 @@ namespace samples
                 if (auto* vegetation =
                         m_scene->GetSystem<terrain::TerrainVegetationComponentManager>())
                 {
-                    auto* c = vegetation->Get(m_terrain);
+                    auto* c = vegetation->Edit(m_terrain);
                     if (auto* layer = (c != nullptr && !c->proceduralLayers.IsEmpty()) ? &c->proceduralLayers[0] : nullptr)
                     {
                         bool changed = ImGui::SliderFloat("density /m2", &m_grassDensity, 0.0f,

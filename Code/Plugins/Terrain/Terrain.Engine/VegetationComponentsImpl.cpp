@@ -43,7 +43,7 @@ namespace terrain
             scene::EntityHandle e = owner;
             for (u32 depth = 0; depth < 64 && e.IsAssigned(); ++depth)
             {
-                if (terrain::TerrainComponent* tc = terrains->Get(e))
+                if (terrain::TerrainComponent* tc = terrains->Edit(e))
                 {
                     terrainEntity = e;
                     return tc;
@@ -660,7 +660,7 @@ namespace terrain
         u32 budget = m_buildBudget;
 
         ForEach(
-            [&](TerrainVegetationComponent& c, scene::EntityHandle owner)
+            [&](const TerrainVegetationComponent& c, scene::EntityHandle owner)
             {
                 // Hidden or inactive: the layers keep their caches (mark them seen), draw nothing.
                 const bool active = c.visible && m_scene->IsEffectivelyActive(owner);
@@ -741,7 +741,7 @@ namespace terrain
         }
         bool ready = true;
         ForEach(
-            [&](TerrainVegetationComponent& c, scene::EntityHandle owner)
+            [&](const TerrainVegetationComponent& c, scene::EntityHandle owner)
             {
                 const auto solid = [](const VegetationLayerBase& layer) { return layer.collisionRadius > 0.0f; };
                 bool any = false;

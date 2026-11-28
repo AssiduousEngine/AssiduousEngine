@@ -869,7 +869,7 @@ export namespace engine::behavior
                 {
                     continue;
                 }
-                BehaviorComponent* component = components->Get(entity);
+                BehaviorComponent* component = components->Edit(entity);
                 for (usize i = 0; component != nullptr && i < component->behaviors.Size(); ++i)
                 {
                     AttachedBehavior& behavior = component->behaviors[i];
@@ -888,7 +888,7 @@ export namespace engine::behavior
                     }
                     if (components->StorageRevision() != storage)
                     {
-                        component = components->Get(entity);
+                        component = components->Edit(entity);
                     }
                 }
             }
@@ -960,7 +960,7 @@ export namespace engine::behavior
             }
             u32 count = 0;
             components->ForEach(
-                [&count](BehaviorComponent& component, scene::EntityHandle)
+                [&count](const BehaviorComponent& component, scene::EntityHandle)
                 {
                     for (const AttachedBehavior& behavior : component.behaviors)
                     {
@@ -1076,7 +1076,7 @@ export namespace engine::behavior
                 const Span<Variant> argSpan{args.Data(), args.Size()};
                 for (usize i = 0;; ++i)
                 {
-                    BehaviorComponent* component = components->Get(target);
+                    BehaviorComponent* component = components->Edit(target);
                     if (component == nullptr || i >= component->behaviors.Size())
                     {
                         break;
@@ -1137,7 +1137,7 @@ export namespace engine::behavior
                 }
                 for (usize i = 0;; ++i)
                 {
-                    BehaviorComponent* component = components->Get(entity);
+                    BehaviorComponent* component = components->Edit(entity);
                     if (component == nullptr || i >= component->behaviors.Size())
                     {
                         break;
@@ -1212,7 +1212,7 @@ export namespace engine::behavior
             {
                 // A dispatch can add or remove script components, moving the pool: the component
                 // is looked up again after one only when it did.
-                BehaviorComponent* component = components->Get(entity);
+                BehaviorComponent* component = components->Edit(entity);
                 for (usize i = 0; component != nullptr && i < component->behaviors.Size(); ++i)
                 {
                     const u64 storage = components->StorageRevision();
@@ -1225,7 +1225,7 @@ export namespace engine::behavior
                     }
                     if (components->StorageRevision() != storage)
                     {
-                        component = components->Get(entity);
+                        component = components->Edit(entity);
                     }
                 }
             }
@@ -1492,7 +1492,7 @@ export namespace engine::behavior
             {
                 return;
             }
-            components->ForEach([this](BehaviorComponent& component, scene::EntityHandle entity)
+            components->ForEachEdit([this](BehaviorComponent& component, scene::EntityHandle entity)
                                 { ReleaseComponentInstances(component, entity); });
         }
 
@@ -1531,7 +1531,7 @@ export namespace engine::behavior
                 {
                     continue; // destroyed in the meantime
                 }
-                BehaviorComponent* component = components->Get(request.entity);
+                BehaviorComponent* component = components->Edit(request.entity);
                 if (component == nullptr)
                 {
                     component = &components->Add(request.entity);

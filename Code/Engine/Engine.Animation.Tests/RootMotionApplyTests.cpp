@@ -85,7 +85,7 @@ namespace
 
         engine::animation::SkeletalAnimationComponent& Animator()
         {
-            return *level.GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Get(walker);
+            return *level.GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Edit(walker);
         }
     };
 }

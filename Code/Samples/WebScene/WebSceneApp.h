@@ -194,7 +194,7 @@ namespace samples
             {
                 for (NavAgent& a : m_navAgents)
                 {
-                    navigation::NavAgentComponent* comp = agents->Get(a.entity);
+                    navigation::NavAgentComponent* comp = agents->Edit(a.entity);
                     if (comp != nullptr && comp->finishedNav())
                     {
                         a.goingA = !a.goingA;
@@ -267,7 +267,7 @@ namespace samples
             {
                 if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
                 {
-                    if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                    if (engine::render::CameraComponent* cam = cameras->Edit(m_camera))
                     {
                         cam->aspect = static_cast<core::f32>(frame.width) /
                                       static_cast<core::f32>(frame.height);
@@ -654,7 +654,7 @@ namespace samples
         {
             if (auto* meshes = m_scene->GetSystem<engine::render::MeshComponentManager>())
             {
-                if (engine::render::MeshComponent* fm = meshes->Get(m_floor))
+                if (engine::render::MeshComponent* fm = meshes->Edit(m_floor))
                 {
                     fm->SetMaterial(materials::CreatePBR(u8"web.floor",
                                                          core::Float4{0.28f, 0.29f, 0.33f, 1.0f},
@@ -764,7 +764,7 @@ namespace samples
             {
                 if (auto* lights = m_scene->GetSystem<engine::render::LightComponentManager>())
                 {
-                    if (engine::render::LightComponent* sun = lights->Get(m_sun))
+                    if (engine::render::LightComponent* sun = lights->Edit(m_sun))
                     {
                         // Local (spot and point) shadows must stay correct with the sun, and
                         // so the CSM cascades, disabled.
@@ -851,7 +851,7 @@ namespace samples
             {
                 if (auto* decals = m_scene->GetSystem<engine::render::DecalComponentManager>())
                 {
-                    if (engine::render::DecalComponent* dc = decals->Get(m_decal))
+                    if (engine::render::DecalComponent* dc = decals->Edit(m_decal))
                     {
                         ImGui::Checkbox("Decal", &dc->visible);
                     }
@@ -859,7 +859,7 @@ namespace samples
                 ImGui::Checkbox("Debug draw (gizmos)", &m_showDebugDraw);
                 if (auto* probes = m_scene->GetSystem<engine::render::ReflectionProbeComponentManager>())
                 {
-                    if (engine::render::ReflectionProbeComponent* pc = probes->Get(m_probe))
+                    if (engine::render::ReflectionProbeComponent* pc = probes->Edit(m_probe))
                     {
                         // A diagnostic for a probe that renders black on the web: Realtime
                         // re-captures every frame, which tells a broken capture path apart from a
@@ -874,14 +874,14 @@ namespace samples
                 }
                 if (auto* sprites = m_scene->GetSystem<engine::render::SpriteComponentManager>())
                 {
-                    if (engine::render::SpriteComponent* sc = sprites->Get(m_sprites[0]))
+                    if (const engine::render::SpriteComponent* sc = sprites->Get(m_sprites[0]))
                     {
                         bool on = sc->visible;
                         if (ImGui::Checkbox("Sprites", &on))
                         {
                             for (const scene::EntityHandle& h : m_sprites)
                             {
-                                if (engine::render::SpriteComponent* s = sprites->Get(h))
+                                if (engine::render::SpriteComponent* s = sprites->Edit(h))
                                 {
                                     s->visible = on;
                                 }

@@ -56,7 +56,7 @@ namespace engine::physics
                 return;
             }
             bodies->ForEach(
-                [&](RigidBodyComponent& c, foundation::scene::EntityHandle e)
+                [&](const RigidBodyComponent& c, foundation::scene::EntityHandle e)
                 {
                     if (!c.body.IsValid())
                     {
@@ -146,7 +146,7 @@ namespace engine::physics
             if (auto* characters = scene->GetSystem<CharacterComponentManager>())
             {
                 characters->ForEach(
-                    [&](CharacterComponent& c, foundation::scene::EntityHandle)
+                    [&](const CharacterComponent& c, foundation::scene::EntityHandle)
                     {
                         if (!c.character.IsValid())
                         {
@@ -296,7 +296,7 @@ namespace engine::physics
         return !indices.IsEmpty();
     }
 
-    bool DescribeBody(scene::Scene& scene, RigidBodyComponent& c, scene::EntityHandle e, BodyDesc& out,
+    bool DescribeBody(scene::Scene& scene, const RigidBodyComponent& c, scene::EntityHandle e, BodyDesc& out,
                       BodyBuffers& buffers)
     {
         auto* colliders = scene.GetSystem<ColliderComponentManager>();
@@ -323,7 +323,7 @@ namespace engine::physics
         }
 
         const auto fillHeightfield =
-            [&](ShapeDesc& s, foundation::resource::Ref<Heightfield>& ref) -> bool {
+            [&](ShapeDesc& s, const foundation::resource::Ref<Heightfield>& ref) -> bool {
             Heightfield* hf = ref.Get();
             if (hf == nullptr || hf->IsEmpty())
             {
@@ -439,7 +439,7 @@ namespace engine::physics
         {
             const Quaternion bodyInverse = Inverse(rotation);
             colliders->ForEach(
-                [&](ColliderComponent& extra, scene::EntityHandle child)
+                [&](const ColliderComponent& extra, scene::EntityHandle child)
                 {
                     if (!IsDescendantOf(scene, child, e))
                     {
@@ -518,7 +518,7 @@ namespace engine::physics
         BodyBuffers buffers; // the descs' height samples and rims point in here
         Array<BodyDesc> bodies;
         ForEach(
-            [&](RigidBodyComponent& c, scene::EntityHandle e)
+            [&](const RigidBodyComponent& c, scene::EntityHandle e)
             {
                 if (c.motion != MotionKind::Static || c.isTrigger || !scene.IsEffectivelyActive(e))
                 {
@@ -580,7 +580,7 @@ namespace engine::physics
 
     bool RigidBodyComponentManager::EntityBounds(scene::Scene& scene, scene::EntityHandle entity, AABB& out)
     {
-        RigidBodyComponent* c = Get(entity);
+        const RigidBodyComponent* c = Get(entity);
         AABB local;
         if (c == nullptr ||
             !LocalShapeBounds(c->shape, c->halfExtents, c->radius, c->halfHeight, c->collisionShape.Get(), local))
@@ -593,7 +593,7 @@ namespace engine::physics
 
     bool ColliderComponentManager::EntityBounds(scene::Scene& scene, scene::EntityHandle entity, AABB& out)
     {
-        ColliderComponent* c = Get(entity);
+        const ColliderComponent* c = Get(entity);
         AABB local;
         if (c == nullptr ||
             !LocalShapeBounds(c->shape, c->halfExtents, c->radius, c->halfHeight, c->collisionShape.Get(), local))

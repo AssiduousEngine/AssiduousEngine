@@ -94,7 +94,7 @@ namespace
         {
             if (phase != scene::ScenePhase::Update)
                 return;
-            Span<BenchNative> components = Dense();
+            Span<BenchNative> components = DenseUnmarked(); // written every frame
             Span<const scene::EntityHandle> owners = Owners();
             void (*volatile update)(BenchNative&, f32) = &EmptyUpdate;
             for (usize i = 0; i < components.Size(); ++i)
@@ -113,7 +113,7 @@ namespace
                 case NativeWork::Fetch:
                     for (u32 k = 0; k < kFetchesPerFrame; ++k)
                     {
-                        engine::spline::PathFollowComponent* volatile fetched = follows->Get(owners[i]);
+                        const engine::spline::PathFollowComponent* volatile fetched = follows->Get(owners[i]);
                         (void)fetched;
                     }
                     break;

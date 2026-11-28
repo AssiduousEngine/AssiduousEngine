@@ -186,7 +186,7 @@ export namespace particles
                     m_cameraPos = camera.position;
                 }
             }
-            ForEach(
+            ForEachEdit(
                 [&](ParticleEffectComponent& c, scene::EntityHandle owner)
                 {
                     if (!m_scene->IsEffectivelyActive(owner))
@@ -220,7 +220,7 @@ export namespace particles
             m_xformUsed = 0;
             m_tintUsed = 0;
             m_trailUsed = 0;
-            ForEach(
+            ForEachEdit(
                 [&](ParticleEffectComponent& c, scene::EntityHandle owner)
                 {
                     if (!c.visible || !c.instance ||
@@ -865,7 +865,7 @@ export namespace particles
                 return nullptr;
             }
             auto* manager = scene->GetSystem<ParticleEffectComponentManager>();
-            return (manager != nullptr) ? manager->Get(entity.Handle()) : nullptr;
+            return (manager != nullptr) ? manager->Edit(entity.Handle()) : nullptr;
         }
         [[nodiscard]] ParticleEffectInstance* Instance(foundation::script::Entity entity) const
         {

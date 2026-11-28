@@ -187,9 +187,9 @@ namespace conformance
         frame(); // its entity inactive: suspended, no update and no edge
         world.SetActive(e, true);
         frame(); // active again: updates
-        components->Get(e)->behaviors[0].enabled = false;
+        components->Edit(e)->behaviors[0].enabled = false;
         frame(); // the behavior switched off: onDisable
-        components->Get(e)->behaviors[0].enabled = true;
+        components->Edit(e)->behaviors[0].enabled = true;
         frame(); // and on: onEnable, and an update
 
         Outcome outcome;

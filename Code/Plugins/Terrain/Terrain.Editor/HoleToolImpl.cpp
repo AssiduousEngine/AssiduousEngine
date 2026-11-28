@@ -114,7 +114,7 @@ namespace terrain
         }
         bool any = false;
         mgr->ForEach(
-            [&](terrain::TerrainComponent& c, scene::EntityHandle)
+            [&](const terrain::TerrainComponent& c, scene::EntityHandle)
             {
                 terrain::TerrainResource* res = c.terrain.Get();
                 hf::Heightfield* grid = (res != nullptr) ? res->heightfield.Get() : nullptr;
@@ -136,7 +136,7 @@ namespace terrain
         }
         f32 bestDist = kFloatMax;
         mgr->ForEach(
-            [&](terrain::TerrainComponent& c, scene::EntityHandle owner)
+            [&](const terrain::TerrainComponent& c, scene::EntityHandle owner)
             {
                 terrain::TerrainResource* res = c.terrain.Get();
                 hf::Heightfield* grid = (res != nullptr) ? res->heightfield.Get() : nullptr;

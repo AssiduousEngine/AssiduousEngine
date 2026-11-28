@@ -46,7 +46,7 @@ namespace terrain
             scene::EntityHandle e = owner;
             for (u32 depth = 0; depth < 64 && e.IsAssigned(); ++depth)
             {
-                if (terrain::TerrainComponent* tc = terrains->Get(e))
+                if (const terrain::TerrainComponent* tc = terrains->Get(e))
                 {
                     terrain::TerrainResource* res = tc->terrain.Get();
                     hf::Heightfield* grid = res != nullptr ? res->heightfield.Get() : nullptr;
@@ -72,7 +72,7 @@ namespace terrain
         }
         bool any = false;
         mgr->ForEach(
-            [&](TerrainVegetationComponent& c, scene::EntityHandle owner)
+            [&](const TerrainVegetationComponent& c, scene::EntityHandle owner)
             {
                 if (any)
                 {
@@ -99,7 +99,7 @@ namespace terrain
         }
         f32 bestDist = kFloatMax;
         mgr->ForEach(
-            [&](TerrainVegetationComponent& c, scene::EntityHandle owner)
+            [&](const TerrainVegetationComponent& c, scene::EntityHandle owner)
             {
                 terrain::VegetationMask* mask = c.mask.Get();
                 if (requireMask && (mask == nullptr || mask->IsEmpty()))

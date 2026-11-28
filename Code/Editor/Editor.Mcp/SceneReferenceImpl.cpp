@@ -577,7 +577,7 @@ namespace
         const scene::EntityHandle* entity =
             example.entityByManager.Find(scripts->ComponentType()->id);
         engine::behavior::BehaviorComponent* component =
-            entity != nullptr ? scripts->Get(*entity) : nullptr;
+            entity != nullptr ? scripts->Edit(*entity) : nullptr;
         if (component == nullptr)
         {
             return;

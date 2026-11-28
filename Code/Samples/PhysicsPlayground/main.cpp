@@ -135,7 +135,7 @@ namespace
             // Arrow-key character drive (world axes) and Space to jump.
             if (auto* characters = m_scene->GetSystem<engine::physics::CharacterComponentManager>())
             {
-                if (engine::physics::CharacterComponent* hero = characters->Get(m_hero))
+                if (engine::physics::CharacterComponent* hero = characters->Edit(m_hero))
                 {
                     const f32 speed = 4.0f;
                     core::Float3 move{0.0f, 0.0f, 0.0f};
@@ -226,7 +226,7 @@ namespace
                     core::f32 fovY = 1.04719755f; // the camera component's authored fov
                     if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
                     {
-                        if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                        if (const engine::render::CameraComponent* cam = cameras->Get(m_camera))
                         {
                             fovY = cam->fovYRadians;
                         }
@@ -279,7 +279,7 @@ namespace
             {
                 if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
                 {
-                    if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                    if (engine::render::CameraComponent* cam = cameras->Edit(m_camera))
                     {
                         cam->aspect =
                             static_cast<f32>(frame.width) / static_cast<f32>(frame.height);
@@ -519,7 +519,7 @@ namespace
                 const int row = i / 5;
                 const int col = i % 5;
                 ++i;
-                engine::physics::RigidBodyComponent* body = bodies->Get(e);
+                engine::physics::RigidBodyComponent* body = bodies->Edit(e);
                 if (body == nullptr || !body->body.IsValid())
                 {
                     continue;
@@ -557,7 +557,7 @@ namespace
             }
             if (auto* characters = m_scene->GetSystem<engine::physics::CharacterComponentManager>())
             {
-                if (engine::physics::CharacterComponent* hero = characters->Get(m_hero))
+                if (const engine::physics::CharacterComponent* hero = characters->Get(m_hero))
                 {
                     ImGui::Text("character: %s", hero->ground == physics::CharacterGround::OnGround
                                                      ? "grounded"

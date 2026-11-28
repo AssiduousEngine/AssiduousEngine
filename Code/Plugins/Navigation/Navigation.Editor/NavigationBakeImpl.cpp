@@ -175,7 +175,7 @@ namespace navigation
         {
             return result;
         }
-        navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
+        const navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
         if (zone == nullptr)
         {
             return result;
@@ -238,7 +238,7 @@ namespace navigation
     {
         RegionRebakeResult result;
         auto* zones = scene.GetSystem<navigation::NavMeshZoneComponentManager>();
-        navigation::NavMeshZoneComponent* zone =
+        const navigation::NavMeshZoneComponent* zone =
             (zones != nullptr) ? zones->Get(zoneEntity) : nullptr;
         if (zone == nullptr)
         {

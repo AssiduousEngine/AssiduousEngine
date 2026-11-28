@@ -392,7 +392,7 @@ TEST_CASE("scene-edit: component property commands (variant + raw enum, merge, u
     CHECK(widgets->Get(edit.Resolve(id))->mode == TestMode::Off);
 
     // Remove undo restores the reflected state (non-serializable manager).
-    widgets->Get(edit.Resolve(id))->spin = true;
+    widgets->Edit(edit.Resolve(id))->spin = true;
     edit.RemoveComponent(id, type);
     CHECK(!widgets->HasComponent(edit.Resolve(id)));
     commands.Undo();
@@ -445,7 +445,7 @@ TEST_CASE("edit-context: destroy-undo restores light components (and their value
     commands.Undo();
     const scene::EntityHandle restored = edit.Resolve(id);
     REQUIRE(restored.IsAssigned());
-    engine::render::LightComponent* light = lights->Get(restored);
+    const engine::render::LightComponent* light = lights->Get(restored);
     REQUIRE(light != nullptr);                               // the component came back...
     CHECK(light->type == engine::render::LightType::Spot); // ...with its exact values
     CHECK(light->intensity == doctest::Approx(3.5f));
@@ -485,7 +485,7 @@ TEST_CASE("edit-context: duplicate entity - fresh guids, subtree + components, o
     const scene::EntityHandle copyChild = scene.GetFirstChild(copyRoot);
     CHECK(scene.GetEntityName(copyChild) == u8"Lamp");
     CHECK(scene.GetEntityId(copyChild) != child);
-    engine::render::LightComponent* light = lights->Get(copyChild);
+    const engine::render::LightComponent* light = lights->Get(copyChild);
     REQUIRE(light != nullptr);
     CHECK(light->intensity == doctest::Approx(7.0f));
 
@@ -529,7 +529,7 @@ TEST_CASE("edit-context: copy/paste entities across scenes with fresh guids")
     CHECK(sceneB.GetEntityId(sceneB.GetParent(root)) == target);
     REQUIRE(sceneB.GetChildCount(root) == 1u);
     auto* lightsB = sceneB.GetSystem<engine::render::LightComponentManager>();
-    engine::render::LightComponent* light = lightsB->Get(sceneB.GetFirstChild(root));
+    const engine::render::LightComponent* light = lightsB->Get(sceneB.GetFirstChild(root));
     REQUIRE(light != nullptr);
     CHECK(light->range == doctest::Approx(12.0f));
 
@@ -572,7 +572,7 @@ TEST_CASE("edit-context: copy/paste component - add, overwrite, and exact undo")
     REQUIRE(lights->Get(edit.Resolve(b)) != nullptr);
 
     // Pasting onto an entity with the component overwrites it; undo restores the prior values.
-    lights->Get(edit.Resolve(b))->intensity = 1.0f;
+    lights->Edit(edit.Resolve(b))->intensity = 1.0f;
     REQUIRE(edit.PasteComponent(b, Span<const byte>{blob.Data(), blob.Size()}));
     CHECK(lights->Get(edit.Resolve(b))->intensity == doctest::Approx(9.0f));
     commands.Undo();
@@ -906,7 +906,7 @@ TEST_CASE("scene-edit: revert component to prefab baseline is undoable")
     scene::EntityHandle live = edit.Resolve(rootId);
 
     // Override, then revert (undoable), then undo the revert.
-    health->Get(live)->amount = 31;
+    health->Edit(live)->amount = 31;
     const TypeInfo* type = scene.FindManagerBySerializationId(u8"test.health")->ComponentType();
     REQUIRE(edit.RevertComponentToBaseline(rootId, type));
     CHECK(health->Get(live)->amount == 30); // back to baseline
@@ -942,7 +942,7 @@ TEST_CASE("scene-edit: a property path edits a struct element inside a reflected
     rocks.density = 0.1f;
     c.proceduralLayers.PushBack(rocks);
     const auto layer = [&](usize i) -> ProceduralVegetationLayer&
-    { return mgr->Get(scene.FindEntity(id))->proceduralLayers[i]; };
+    { return mgr->Edit(scene.FindEntity(id))->proceduralLayers[i]; };
 
     // The owner a path resolves: the component for an empty path, the element otherwise.
     const TypeInfo* ownerType = nullptr;

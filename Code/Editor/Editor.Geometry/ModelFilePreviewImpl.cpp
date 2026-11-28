@@ -387,7 +387,7 @@ namespace editor
             if (meshes == nullptr || !instance.root.IsAssigned())
                 return;
             AABB box = AABB::Empty();
-            meshes->ForEach([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
+            meshes->ForEach([&](const engine::render::MeshComponent& component, scene::EntityHandle entity)
                             {
                                 const foundation::geometry::StaticMesh* mesh = component.mesh.Get();
                                 if (mesh == nullptr || !mesh->bounds.IsValid() || !Under(level, entity, instance.root))
@@ -422,7 +422,7 @@ namespace editor
             auto* meshes = level != nullptr ? level->GetSystem<engine::render::MeshComponentManager>() : nullptr;
             if (meshes != nullptr)
                 for (Kept& kept : keptMaterials)
-                    if (engine::render::MeshComponent* component = meshes->Get(kept.entity))
+                    if (engine::render::MeshComponent* component = meshes->Edit(kept.entity))
                     {
                         component->materials = Move(kept.materials);
                         component->materialCache.Clear();
@@ -475,7 +475,7 @@ namespace editor
                         return true;
                 return false;
             };
-            meshes->ForEach([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
+            meshes->ForEachEdit([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
                             {
                                 if (!Under(*level, entity, instance.root))
                                     return;
@@ -602,7 +602,7 @@ namespace editor
             if (level != nullptr)
             {
                 if (auto* meshes = level->GetSystem<engine::render::MeshComponentManager>())
-                    meshes->ForEach([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
+                    meshes->ForEachEdit([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
                                     {
                                         if (instance.root.IsAssigned() && Under(*level, entity, instance.root))
                                             component.visible = true;
@@ -623,7 +623,7 @@ namespace editor
             auto* meshes = level != nullptr ? level->GetSystem<engine::render::MeshComponentManager>() : nullptr;
             if (meshes == nullptr || !instance.root.IsAssigned())
                 return;
-            meshes->ForEach([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
+            meshes->ForEachEdit([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
                             {
                                 if (Under(*level, entity, instance.root))
                                     component.visible = keep(component.mesh.Get());

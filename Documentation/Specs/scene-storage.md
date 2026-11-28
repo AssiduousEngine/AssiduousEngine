@@ -239,16 +239,29 @@ void ClearMarked();
   - a script calling a **non-`const` method** on a component (applying a force) changes it
     without a property set. Reflected methods record `isConst` (`MethodInfo`), so a non-`const`
     method invoked through a component handle marks too, at each host's one invoke site.
-  - the inspector and other tools write through `GetComponentInstance(entity)` (49 lines call
-    it, by `grep`). It splits the same way: a read form that hands out a const instance, and
-    `EditComponentInstance`, which marks.
+  - the inspector and other tools write through `GetComponentInstance(entity)`. It splits the
+    same way: `GetComponentInstance` to read, `EditComponentInstance`, which marks, to write.
+    Reflection has no read-only `Instance`, so here the compiler does not catch a write through
+    the read form: the 26 call sites were read by hand (the inspector's grid, the edit commands,
+    received replication state, interpolation, prefab remapping and property animation's writes
+    take the write form; the rest read).
   - `ReadComponent` marks, so a load and an undo are seen.
 - **Iteration.** `ForEach` and `Dense()` hand out `const` components. `ForEachEdit` hands out
   writable ones and marks each it visits, for a system that changes a few fields now and then.
   A system that writes every component every frame (an animator advancing time) should not
   mark: its consumer treats that manager as "changes every frame" and walks it, as the retained
   scene spec does for skinned meshes. It uses `DenseUnmarked()`, named so that the choice is
-  visible at the call site.
+  visible at the call site. `ForEachUnmarked` is its visiting form (it passes by components leaving),
+  for a system rebuilding runtime state derived from the component every frame: extraction's
+  instanced-mesh compose, a bone attachment's bone lookup.
+- **Caches a reader refreshes** are `mutable`, so the reader stays a reader: a mesh's
+  `materialCache` and an instanced mesh's member lists, both refilled by extraction each frame.
+- **Writers every frame.** The sweep left about 45 runtime loops on `ForEachEdit`, each a domain
+  writing its own components every frame (physics syncing bodies, animation clocks, audio,
+  navigation, the GUI). They mark only for a manager whose marking a consumer turns on; when one
+  does, its every-frame writers are read again and moved to the unmarked forms where the write is
+  derived state. The mesh manager, the first to mark, is written at run time only by a script's
+  property set (`SceneRenderFacade`), which is a change its consumer needs.
 - **Over-marking.** Code that takes `Edit` and writes nothing still marks. It costs a wasted
   re-read, never a wrong result.
 - **One list per manager, one reader.** A manager with two readers is not a case today; if one

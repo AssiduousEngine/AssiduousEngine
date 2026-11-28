@@ -106,8 +106,8 @@ TEST_CASE("resource-ref: scene round-trip resolves mesh refs through proxy handl
     auto* meshes = loaded.GetSystem<MeshComponentManager>();
     REQUIRE(meshes != nullptr);
     REQUIRE(meshes->ComponentCount() == 1u);
-    MeshComponent* mc = nullptr;
-    meshes->ForEach([&](MeshComponent& c, scene::EntityHandle) { mc = &c; });
+    const MeshComponent* mc = nullptr;
+    meshes->ForEach([&](const MeshComponent& c, scene::EntityHandle) { mc = &c; });
     REQUIRE(mc != nullptr);
 
     // Identity survived; the product isn't bound until the resolve pass runs.
@@ -193,8 +193,8 @@ TEST_CASE("resource-ref: sprite + decal texture refs round-trip by guid")
         REQUIRE(ar.IsOk());
     }
 
-    SpriteComponent* sc = nullptr;
-    loaded.GetSystem<SpriteComponentManager>()->ForEach([&](SpriteComponent& c, scene::EntityHandle)
+    const SpriteComponent* sc = nullptr;
+    loaded.GetSystem<SpriteComponentManager>()->ForEach([&](const SpriteComponent& c, scene::EntityHandle)
                                                         { sc = &c; });
     REQUIRE(sc != nullptr);
     CHECK(sc->textureAsset.id == spriteTex);
@@ -202,8 +202,8 @@ TEST_CASE("resource-ref: sprite + decal texture refs round-trip by guid")
     CHECK(sc->additive);
     CHECK(!sc->texture.IsValid()); // the raw view override is runtime-only
 
-    DecalComponent* dc = nullptr;
-    loaded.GetSystem<DecalComponentManager>()->ForEach([&](DecalComponent& c, scene::EntityHandle)
+    const DecalComponent* dc = nullptr;
+    loaded.GetSystem<DecalComponentManager>()->ForEach([&](const DecalComponent& c, scene::EntityHandle)
                                                        { dc = &c; });
     REQUIRE(dc != nullptr);
     CHECK(dc->textureAsset.id == decalTex);
@@ -254,9 +254,9 @@ TEST_CASE("resource-ref: instanced-mesh refs + authored placement round-trip")
         REQUIRE(ar.IsOk());
     }
 
-    InstancedMeshComponent* c = nullptr;
+    const InstancedMeshComponent* c = nullptr;
     loaded.GetSystem<InstancedMeshComponentManager>()->ForEach(
-        [&](InstancedMeshComponent& ic, scene::EntityHandle) { c = &ic; });
+        [&](const InstancedMeshComponent& ic, scene::EntityHandle) { c = &ic; });
     REQUIRE(c != nullptr);
     CHECK(c->mesh.id == meshId);
     REQUIRE(c->materials.Size() == 2u);
@@ -377,8 +377,8 @@ TEST_CASE("resource-ref: per-submesh material refs round-trip and resolve to the
         scene::SerializeScene(ar, loaded);
         REQUIRE(ar.IsOk());
     }
-    MeshComponent* mc = nullptr;
-    loaded.GetSystem<MeshComponentManager>()->ForEach([&](MeshComponent& c, scene::EntityHandle)
+    const MeshComponent* mc = nullptr;
+    loaded.GetSystem<MeshComponentManager>()->ForEach([&](const MeshComponent& c, scene::EntityHandle)
                                                       { mc = &c; });
     REQUIRE(mc != nullptr);
     REQUIRE(mc->materials.Size() == 2u);

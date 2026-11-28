@@ -56,7 +56,8 @@ export namespace engine::render
         // proxies every frame, so late cooks and hot reloads heal live (a snapshot taken once at
         // resolve would pin pre-cook nulls), and the renderer stays resource-agnostic.
         Array<foundation::resource::Ref<materials::Material>> materials;
-        Array<RefPtr<materials::Material>> materialCache; // runtime-only; refreshed at extract
+        // mutable: extraction refreshes it as it reads the component, which is no change to it.
+        mutable Array<RefPtr<materials::Material>> materialCache; // runtime-only; refreshed at extract
         Color color = Color{1.0f, 1.0f, 1.0f, 1.0f};
         bool visible = true;
         // How far the mesh is faded out, 0 (solid) to 1 (gone), drawn as a screen-door dither: a
@@ -145,7 +146,7 @@ export namespace engine::render
         // (a character of several parts) one per slot. Saved and edited like a mesh's; `materialCache`
         // is the raw view extraction refreshes from the refs each frame (runtime-only).
         Array<foundation::resource::Ref<materials::Material>> materials;
-        Array<RefPtr<materials::Material>> materialCache;
+        mutable Array<RefPtr<materials::Material>> materialCache; // a cache extraction refreshes as it reads
         // Seed one identity instance so a freshly added component (editor workflow) renders its mesh
         // at the entity's transform immediately; authored sets replace it (SetInstances, load).
         InstancedMeshComponent() { instances.PushBack(Float4x4::Identity()); }
@@ -212,10 +213,10 @@ export namespace engine::render
         // Its InstanceMemberComponents this frame (world transforms and clips), gathered by
         // extraction and drawn after the authored instances; never saved. `drawTransforms`,
         // `drawClips` and `drawTints` are the authored and member lists together, when there are
-        // members. Runtime-only.
-        Array<Float4x4> memberWorld;
-        Array<u32> memberClips;
-        Array<Color> memberTints; // linear
+        // members. Runtime-only; mutable, as extraction gathers the member lists while it reads.
+        mutable Array<Float4x4> memberWorld;
+        mutable Array<u32> memberClips;
+        mutable Array<Color> memberTints; // linear
         Array<Float4x4> drawTransforms;
         Array<u32> drawClips;
         Array<Color> drawTints;
@@ -1752,7 +1753,7 @@ export namespace engine::render
         {
             CameraComponentManager* cameras =
                 (scene != nullptr) ? scene->GetSystem<CameraComponentManager>() : nullptr;
-            CameraComponent* camera = (cameras != nullptr) ? cameras->Get(entity.Handle()) : nullptr;
+            CameraComponent* camera = (cameras != nullptr) ? cameras->Edit(entity.Handle()) : nullptr;
             if (camera == nullptr)
             {
                 return false;
@@ -1781,7 +1782,7 @@ export namespace engine::render
                 return nullptr;
             }
             MeshComponentManager* meshes = scene->GetSystem<MeshComponentManager>();
-            return (meshes != nullptr) ? meshes->Get(entity.Handle()) : nullptr;
+            return (meshes != nullptr) ? meshes->Edit(entity.Handle()) : nullptr;
         }
     };
 

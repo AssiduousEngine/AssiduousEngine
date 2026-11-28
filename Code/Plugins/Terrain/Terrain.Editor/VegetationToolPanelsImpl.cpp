@@ -43,7 +43,7 @@ namespace terrain
         {
             u32 planes = 0;
             if (auto* mgr = ManagerOf(sc))
-                mgr->ForEach([&](terrain::TerrainVegetationComponent& c, scene::EntityHandle)
+                mgr->ForEach([&](const terrain::TerrainVegetationComponent& c, scene::EntityHandle)
                              {
                                  if (planes == 0 && c.mask.Get() != nullptr && !c.mask.Get()->IsEmpty())
                                      planes = c.mask.Get()->PlaneCount();
@@ -59,7 +59,7 @@ namespace terrain
             for (u32 plane = 0; plane < planeCount; ++plane)
                 readers.PushBack(String{});
             if (auto* mgr = ManagerOf(sc))
-                mgr->ForEach([&](terrain::TerrainVegetationComponent& c, scene::EntityHandle)
+                mgr->ForEach([&](const terrain::TerrainVegetationComponent& c, scene::EntityHandle)
                              {
                                  for (usize i = 0; i < c.proceduralLayers.Size(); ++i)
                                  {
@@ -89,7 +89,7 @@ namespace terrain
             LayerNames out;
             bool taken = false;
             if (auto* mgr = ManagerOf(sc))
-                mgr->ForEach([&](terrain::TerrainVegetationComponent& c, scene::EntityHandle)
+                mgr->ForEach([&](const terrain::TerrainVegetationComponent& c, scene::EntityHandle)
                              {
                                  if (taken || c.propLayers.IsEmpty())
                                      return;

@@ -99,7 +99,7 @@ export namespace navigation
                 if (auto* agents = m_scene->GetSystem<NavAgentComponentManager>())
                 {
                     (void)agents->TakeReleased(); // their crowds are gone with the zones
-                    agents->ForEach([](NavAgentComponent& a, scene::EntityHandle)
+                    agents->ForEachEdit([](NavAgentComponent& a, scene::EntityHandle)
                                     {
                                         a.agentId = {};
                                         a.zoneIndex = -1;
@@ -110,7 +110,7 @@ export namespace navigation
                 }
                 if (auto* zones = m_scene->GetSystem<NavMeshZoneComponentManager>())
                 {
-                    zones->ForEach([](NavMeshZoneComponent& z, scene::EntityHandle)
+                    zones->ForEachEdit([](NavMeshZoneComponent& z, scene::EntityHandle)
                                    { z.runtimeIndex = -1; });
                 }
             }
@@ -145,7 +145,7 @@ export namespace navigation
             RebuildReloadedZones(*agents);
 
             // 1. Apply pending warp()/navigate()/stop() requests (crowd works in zone-local space).
-            agents->ForEach(
+            agents->ForEachEdit(
                 [this](NavAgentComponent& a, scene::EntityHandle entity)
                 {
                     if (!a.registered)
@@ -209,7 +209,7 @@ export namespace navigation
             }
 
             // 3. Read back: world position and velocity, transform writeback, status.
-            agents->ForEach(
+            agents->ForEachEdit(
                 [this](NavAgentComponent& a, scene::EntityHandle entity)
                 {
                     if (a.zoneIndex < 0 || !a.agentId.IsValid())
@@ -293,7 +293,7 @@ export namespace navigation
             {
                 return;
             }
-            zones->ForEach(
+            zones->ForEachEdit(
                 [this](NavMeshZoneComponent& z, scene::EntityHandle entity)
                 {
                     nav::NavigationZoneResource* product = z.zone.Get();
@@ -358,7 +358,7 @@ export namespace navigation
                 rz.query = nullptr; // the old crowd and query go before the product they read
                 rz.crowd = nullptr;
                 BuildCrowd(rz, *now);
-                agents.ForEach(
+                agents.ForEachEdit(
                     [&](NavAgentComponent& a, scene::EntityHandle entity)
                     {
                         if (a.zoneIndex != static_cast<i32>(i))
@@ -427,7 +427,7 @@ export namespace navigation
             {
                 return;
             }
-            agents->ForEach([this](NavAgentComponent& a, scene::EntityHandle entity) { Register(a, entity); });
+            agents->ForEachEdit([this](NavAgentComponent& a, scene::EntityHandle entity) { Register(a, entity); });
         }
 
         // One agent into the crowd of the zone it stands in: every agent at the start, and one added

@@ -103,8 +103,8 @@ TEST_CASE("resource-ref: scene round-trip resolves the effect ref and the manage
     auto* mgr = loaded.GetSystem<particles::ParticleEffectComponentManager>();
     REQUIRE(mgr != nullptr);
     REQUIRE(mgr->ComponentCount() == 1u);
-    particles::ParticleEffectComponent* c = nullptr;
-    mgr->ForEach([&](particles::ParticleEffectComponent& pc, scene::EntityHandle) { c = &pc; });
+    const particles::ParticleEffectComponent* c = nullptr;
+    mgr->ForEach([&](const particles::ParticleEffectComponent& pc, scene::EntityHandle) { c = &pc; });
     REQUIRE(c != nullptr);
     CHECK(c->effectAsset.id == effectId);
     CHECK(c->effectAsset.Get() == nullptr);

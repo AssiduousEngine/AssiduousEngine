@@ -252,7 +252,7 @@ namespace
             {
                 if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
                 {
-                    if (engine::render::CameraComponent* camera = cameras->Get(m_camera))
+                    if (engine::render::CameraComponent* camera = cameras->Edit(m_camera))
                     {
                         camera->aspect =
                             static_cast<f32>(frame.width) / static_cast<f32>(frame.height);

@@ -284,7 +284,7 @@ namespace engine::sequence
         {
             return;
         }
-        const SequenceComponent& c = component;
+        SequenceComponent& c = component;
         scene::Scene& scene = *m_scene;
         component.playId = system->Play(RefPtr<foundation::sequence::SequenceResource>(resource), component.sequence.id, component.finish, owner,
                                         [&c, &scene, owner](foundation::sequence::SequencePlay& play)
@@ -320,7 +320,7 @@ namespace engine::sequence
             return;
         }
         SequenceSystem* system = m_scene->GetSystem<SequenceSystem>();
-        ForEach(
+        ForEachEdit(
             [&](SequenceComponent& c, scene::EntityHandle owner)
             {
                 if (!m_scene->IsEffectivelyActive(owner))
@@ -348,7 +348,7 @@ namespace engine::sequence
 
     void SequenceComponentManager::OnEntityDestroyed(scene::EntityHandle entity)
     {
-        if (SequenceComponent* c = Get(entity))
+        if (SequenceComponent* c = Edit(entity))
         {
             StopPlay(*c);
         }
@@ -361,7 +361,7 @@ namespace engine::sequence
         {
             return;
         }
-        if (SequenceComponent* c = Get(entity))
+        if (SequenceComponent* c = Edit(entity))
         {
             StopPlay(*c);
         }
@@ -371,7 +371,7 @@ namespace engine::sequence
     {
         // The system stops every play itself; the components only forget theirs, so the next run
         // autoplays again.
-        ForEach(
+        ForEachEdit(
             [](SequenceComponent& c, scene::EntityHandle)
             {
                 c.playId = 0;

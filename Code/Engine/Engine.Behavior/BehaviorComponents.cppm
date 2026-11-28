@@ -178,7 +178,7 @@ export namespace engine::behavior
         /// binds itself, so the post-load pass leaves it unbound.
         void CollectUnboundReferences(Array<Guid>& outIds) override
         {
-            ForEach([&outIds](BehaviorComponent& component, foundation::scene::EntityHandle)
+            ForEach([&outIds](const BehaviorComponent& component, foundation::scene::EntityHandle)
                     {
                         for (const AttachedBehavior& behavior : component.behaviors)
                         {

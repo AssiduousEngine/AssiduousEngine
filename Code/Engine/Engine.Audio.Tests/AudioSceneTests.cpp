@@ -118,7 +118,7 @@ TEST_CASE("audio.scene: autoplay sources start voices at scene start, positioned
     play.Start();
 
     auto* sources = play.scene.GetSystem<AudioSourceComponentManager>();
-    AudioSourceComponent* c = sources->Get(e);
+    const AudioSourceComponent* c = sources->Get(e);
     REQUIRE(c != nullptr);
     REQUIRE(c->voice.IsValid());
     CHECK(play.engine.IsPlaying(c->voice));
@@ -177,7 +177,7 @@ TEST_CASE("audio.scene: per-frame sync pushes position AND velocity (the doppler
     play.scene.SetLocalPosition(entity, Float3{1.0f, 0.0f, 0.0f});
     play.Frame();
 
-    AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
+    const AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
     REQUIRE(c != nullptr);
     VoiceStatus status;
     REQUIRE(play.engine.GetVoiceStatus(c->voice, status));
@@ -233,7 +233,7 @@ TEST_CASE("audio.scene: a finished one-shot reaps and the component handle clear
         play.AddSource(clip, Float3{0, 0, 0}, /*autoPlay=*/true, /*loop=*/false);
     play.Start();
 
-    AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
+    const AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
     REQUIRE(c != nullptr);
     REQUIRE(c->voice.IsValid());
 
@@ -252,7 +252,7 @@ TEST_CASE("audio.scene: the component control surface - Play/Stop/SetPaused/IsPl
     const scene::EntityHandle e = play.AddSource(clip, Float3{1, 2, 3}, /*autoPlay=*/false);
     play.Start();
 
-    AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
+    const AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
     REQUIRE(c != nullptr);
     CHECK_FALSE(c->voice.IsValid()); // no autoplay
 
@@ -284,7 +284,7 @@ TEST_CASE("audio.scene: a playing source's volume and pitch change live, and kee
     RefPtr<AudioClip> clip = MakeToneClip(1.0f);
     const scene::EntityHandle e = play.AddSource(clip, Float3{0, 0, 0}, /*autoPlay=*/false);
     play.Start();
-    AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
+    const AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
     REQUIRE(c != nullptr);
     const VoiceHandle voice = play.audio->Play(e);
     REQUIRE(voice.IsValid());
@@ -392,7 +392,7 @@ TEST_CASE("audio.scene: components round-trip through SerializeScene (authored f
 
     scene::EntityHandle loadedSource = b.FindEntity(a.GetEntityId(source));
     REQUIRE(loadedSource.IsAssigned());
-    AudioSourceComponent* loaded = b.GetSystem<AudioSourceComponentManager>()->Get(loadedSource);
+    const AudioSourceComponent* loaded = b.GetSystem<AudioSourceComponentManager>()->Get(loadedSource);
     REQUIRE(loaded != nullptr);
     CHECK(loaded->clip.id == clipId);
     CHECK(loaded->cue.id == cueId);
@@ -418,7 +418,7 @@ TEST_CASE("audio.scene: components round-trip through SerializeScene (authored f
 
     scene::EntityHandle loadedListener = b.FindEntity(a.GetEntityId(listener));
     REQUIRE(loadedListener.IsAssigned());
-    AudioListenerComponent* loadedEars =
+    const AudioListenerComponent* loadedEars =
         b.GetSystem<AudioListenerComponentManager>()->Get(loadedListener);
     REQUIRE(loadedEars != nullptr);
     CHECK_FALSE(loadedEars->isActive);
@@ -461,7 +461,7 @@ TEST_CASE("audio.scene: sources sharing one clip each get their OWN voice (dedup
     VoiceHandle voices[4];
     for (int i = 0; i < 4; ++i)
     {
-        AudioSourceComponent* c = sources->Get(entities[i]);
+        const AudioSourceComponent* c = sources->Get(entities[i]);
         REQUIRE(c != nullptr);
         REQUIRE(c->voice.IsValid());
         CHECK(engine.IsPlaying(c->voice));
@@ -480,10 +480,10 @@ TEST_CASE("audio.scene: a source's reverbSend feeds the scene send reverb from P
     PlayScene play;
     RefPtr<AudioClip> clip = MakeToneClip(1.0f);
     const scene::EntityHandle e = play.AddSource(clip, Float3{1.0f, 0.0f, 0.0f});
-    play.scene.GetSystem<AudioSourceComponentManager>()->Get(e)->reverbSend = 0.4f;
+    play.scene.GetSystem<AudioSourceComponentManager>()->Edit(e)->reverbSend = 0.4f;
     play.Start();
 
-    AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
+    const AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
     REQUIRE(c != nullptr);
     REQUIRE(c->voice.IsValid());
     VoiceStatus status;
@@ -506,10 +506,10 @@ TEST_CASE("audio.scene: a source's busName routes its voice onto the layout's cu
 
     RefPtr<AudioClip> clip = MakeToneClip(1.0f);
     const scene::EntityHandle e = play.AddSource(clip, Float3{0.0f, 0.0f, 0.0f});
-    play.scene.GetSystem<AudioSourceComponentManager>()->Get(e)->busName = String(u8"drums");
+    play.scene.GetSystem<AudioSourceComponentManager>()->Edit(e)->busName = String(u8"drums");
     play.Start();
 
-    AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
+    const AudioSourceComponent* c = play.scene.GetSystem<AudioSourceComponentManager>()->Get(e);
     REQUIRE(c != nullptr);
     REQUIRE(c->voice.IsValid());
     VoiceStatus status;
@@ -573,7 +573,7 @@ TEST_CASE("audio.scene: a cue on the source wins over the clip and varies per tr
     const scene::EntityHandle e = play.AddSource(fallback, Float3{0, 0, 0},
                                                  /*autoPlay=*/false, /*loop=*/false);
     auto* sources = play.scene.GetSystem<AudioSourceComponentManager>();
-    sources->Get(e)->cue = cue;
+    sources->Edit(e)->cue = cue;
     play.Start();
 
     // Two-variant no-repeat: repeated triggers alternate; jitter lands in range.
@@ -586,7 +586,7 @@ TEST_CASE("audio.scene: a cue on the source wins over the clip and varies per tr
         REQUIRE(play.engine.GetVoiceStatus(voice, status));
         CHECK(status.pitch >= 0.8f);
         CHECK(status.pitch <= 1.2f);
-        AudioSourceComponent* c = sources->Get(e);
+        const AudioSourceComponent* c = sources->Get(e);
         REQUIRE(c != nullptr);
         if (first >= 0)
         {
@@ -700,7 +700,7 @@ TEST_CASE("audio.scene: entity-active - starts-inactive is silent; deactivation 
     play.Start();
 
     auto* sources = play.scene.GetSystem<AudioSourceComponentManager>();
-    AudioSourceComponent* c = sources->Get(e);
+    const AudioSourceComponent* c = sources->Get(e);
     REQUIRE(c != nullptr);
     CHECK_FALSE(c->voice.IsValid()); // autoplay did not start a voice
     play.Frame();

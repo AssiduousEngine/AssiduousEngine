@@ -912,7 +912,7 @@ namespace foundation::scene
         {
             return;
         }
-        const Instance inst = manager.GetComponentInstance(owner);
+        const Instance inst = manager.EditComponentInstance(owner);
         if (inst.IsEmpty())
         {
             return;

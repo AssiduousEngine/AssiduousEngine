@@ -47,7 +47,7 @@ namespace engine::spline
         {
             return;
         }
-        ForEach(
+        ForEachEdit(
             [&](PathFollowComponent& follow, foundation::scene::EntityHandle owner)
             {
                 if (!follow.playing || follow.spline.IsNil() ||

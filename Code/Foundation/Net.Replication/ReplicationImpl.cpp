@@ -458,7 +458,7 @@ namespace foundation::net
         {
             return;
         }
-        mgr->ForEach(
+        mgr->ForEachEdit(
             [&](NetworkedTransform& nt, scene::EntityHandle e)
             {
                 // An effectively inactive entity's replicated state freezes (no capture). It stays in
@@ -483,7 +483,7 @@ namespace foundation::net
             return;
         }
         mgr->ForEach(
-            [&](NetworkedTransform& nt, scene::EntityHandle e)
+            [&](const NetworkedTransform& nt, scene::EntityHandle e)
             {
                 if (!scene.IsEffectivelyActive(e))
                 {
@@ -541,7 +541,7 @@ namespace foundation::net
         {
             return NetworkId::Invalid();
         }
-        NetworkComponent& nc = netMgr->Has(entity) ? *netMgr->Get(entity) : netMgr->Add(entity);
+        NetworkComponent& nc = netMgr->Has(entity) ? *netMgr->Edit(entity) : netMgr->Add(entity);
         if (!nc.id.IsValid())
         {
             nc.id = NetworkId{++m_nextNetworkId};
@@ -596,7 +596,7 @@ namespace foundation::net
             return;
         }
         // Safe during ForEach: only the existing NetworkComponents are mutated (no structural change).
-        netMgr->ForEach(
+        netMgr->ForEachEdit(
             [&](NetworkComponent& nc, scene::EntityHandle e)
             {
                 if (!nc.id.IsValid())
@@ -629,7 +629,7 @@ namespace foundation::net
         }
         // Compute the same Guid-derived id the server did, so incoming replication resolves to the
         // client's own authored entity (not a duplicate).
-        netMgr->ForEach(
+        netMgr->ForEachEdit(
             [&](NetworkComponent& nc, scene::EntityHandle e)
             {
                 if (!nc.id.IsValid())
@@ -672,7 +672,7 @@ namespace foundation::net
         }
         if (auto* netMgr = scene.GetSystem<NetworkComponentManager>())
         {
-            NetworkComponent& nc = netMgr->Has(e) ? *netMgr->Get(e) : netMgr->Add(e);
+            NetworkComponent& nc = netMgr->Has(e) ? *netMgr->Edit(e) : netMgr->Add(e);
             nc.id = NetworkId{networkId};
             nc.authority =
                 NetworkAuthority::Server; // the client's view: the server owns this entity
@@ -738,7 +738,7 @@ namespace foundation::net
         };
         Array<Ent> entities;
         netMgr->ForEach(
-            [&](NetworkComponent& nc, scene::EntityHandle e)
+            [&](const NetworkComponent& nc, scene::EntityHandle e)
             {
                 if (nc.id.IsValid())
                 {
@@ -820,7 +820,7 @@ namespace foundation::net
             {
                 (void)m->AddDefaultComponent(entity);
             }
-            const Instance inst = m->GetComponentInstance(entity);
+            const Instance inst = m->EditComponentInstance(entity);
             if (inst.Type() == nullptr)
             {
                 continue;
@@ -907,7 +907,7 @@ namespace foundation::net
             return;
         }
         netMgr->ForEach(
-            [&](NetworkComponent& nc, scene::EntityHandle e)
+            [&](const NetworkComponent& nc, scene::EntityHandle e)
             {
                 if (!nc.id.IsValid() || !scene.IsEffectivelyActive(e))
                 {
@@ -916,7 +916,7 @@ namespace foundation::net
                 scene.ForEachManager(
                     [&](scene::ComponentManagerBase& m)
                     {
-                        const Instance inst = m.GetComponentInstance(e);
+                        const Instance inst = m.EditComponentInstance(e);
                         if (inst.Type() == nullptr)
                         {
                             return;
@@ -991,7 +991,7 @@ namespace foundation::net
         if (!m_relevance && m_relevanceRadius > 0.0f)
         {
             netMgr->ForEach(
-                [&](NetworkComponent& nc, scene::EntityHandle e)
+                [&](const NetworkComponent& nc, scene::EntityHandle e)
                 {
                     if (!byDistance && nc.id.IsValid() && nc.owner == peerId)
                     {
@@ -1016,7 +1016,7 @@ namespace foundation::net
         };
 
         netMgr->ForEach(
-            [&](NetworkComponent& nc, scene::EntityHandle e)
+            [&](const NetworkComponent& nc, scene::EntityHandle e)
             {
                 if (!nc.id.IsValid())
                 {

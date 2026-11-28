@@ -90,7 +90,7 @@ namespace
             scene.Start();
         }
 
-        Array<Float4x4>& Rocks() { return vegetation->Get(terrain)->propLayers[0].instances; }
+        Array<Float4x4>& Rocks() { return vegetation->Edit(terrain)->propLayers[0].instances; }
     };
 
     void Stroke(terrain::VegetationScatterTool& tool, f32 x0, f32 z0, f32 x1, f32 z1, i32 steps = 8)
@@ -202,7 +202,7 @@ TEST_CASE("vegetation scatter: the layer's slope rule and the collision query re
 {
     // A ramp rising 64 m over 128 m (26.6 degrees) under a 10-degree limit: nothing lands.
     Fixture steep(/*withScatteredLayer*/ true, /*rise*/ 64.0f);
-    steep.vegetation->Get(steep.terrain)->propLayers[0].maxSlopeDegrees = 10.0f;
+    steep.vegetation->Edit(steep.terrain)->propLayers[0].maxSlopeDegrees = 10.0f;
     editor::EditorCommandStack commands;
     terrain::VegetationScatterTool tool(steep.scene, commands);
     tool.SetLayer(0);
@@ -312,7 +312,7 @@ TEST_CASE("vegetation scatter panel: the provider registers for the brush id and
 TEST_CASE("vegetation scatter: a layer whose mesh does not resolve is named in the status (nothing would draw)")
 {
     Fixture fx;
-    fx.vegetation->Get(fx.terrain)->propLayers[0].mesh = nullptr; // the reference resolves to nothing
+    fx.vegetation->Edit(fx.terrain)->propLayers[0].mesh = nullptr; // the reference resolves to nothing
     editor::EditorCommandStack commands;
     terrain::VegetationScatterTool tool(fx.scene, commands);
     tool.SetLayer(0);
@@ -324,7 +324,7 @@ TEST_CASE("vegetation scatter: a layer whose mesh does not resolve is named in t
         named |= status.SubStr(i, 7) == StringView(u8"no mesh");
     }
     CHECK(named);
-    fx.vegetation->Get(fx.terrain)->propLayers[0].mesh = fx.mesh.Get();
+    fx.vegetation->Edit(fx.terrain)->propLayers[0].mesh = fx.mesh.Get();
     (void)tool.Update(RayAt(0.0f, 0.0f));
     named = false;
     for (usize i = 0; i + 7 <= tool.StatusText().Size(); ++i)

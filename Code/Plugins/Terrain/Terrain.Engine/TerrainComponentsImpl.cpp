@@ -24,7 +24,7 @@ namespace terrain
                                                         Array<Float3>& outTriangles)
     {
         ForEach(
-            [&](TerrainComponent& c, scene::EntityHandle entity)
+            [&](const TerrainComponent& c, scene::EntityHandle entity)
             {
                 terrain::TerrainResource* terrain = c.terrain.Get();
                 foundation::heightfield::Heightfield* field =

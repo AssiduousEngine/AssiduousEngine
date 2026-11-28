@@ -62,7 +62,7 @@ namespace terrain
             bool Write(const Array<Float4x4>& instances)
             {
                 TerrainVegetationComponentManager* mgr = VegetationManagerOf(*m_scene);
-                TerrainVegetationComponent* c = mgr != nullptr ? mgr->Get(m_owner) : nullptr;
+                TerrainVegetationComponent* c = mgr != nullptr ? mgr->Edit(m_owner) : nullptr;
                 if (c == nullptr || m_layer >= c->propLayers.Size())
                 {
                     return false;
@@ -100,7 +100,7 @@ namespace terrain
             return false;
         }
         bool any = false;
-        mgr->ForEach([&](TerrainVegetationComponent& c, scene::EntityHandle)
+        mgr->ForEach([&](const TerrainVegetationComponent& c, scene::EntityHandle)
                      { any |= !c.propLayers.IsEmpty(); });
         return any;
     }
@@ -221,7 +221,13 @@ namespace terrain
         {
             return;
         }
-        PropVegetationLayer& layer = fp.component->propLayers[m_strokeLayer];
+        // The pick reads; the stamp writes the component through its manager.
+        TerrainVegetationComponent* component = fp.manager != nullptr ? fp.manager->Edit(fp.owner) : nullptr;
+        if (component == nullptr)
+        {
+            return;
+        }
+        PropVegetationLayer& layer = component->propLayers[m_strokeLayer];
         if (m_erase)
         {
             (void)veg::EraseInstancesInDisc(layer.instances, localCentre.x, localCentre.z, m_radius);
@@ -282,7 +288,7 @@ namespace terrain
         if (m_stroking)
         {
             TerrainVegetationComponentManager* mgr = VegetationManagerOf(*m_scene);
-            TerrainVegetationComponent* c = mgr != nullptr ? mgr->Get(m_strokeOwner) : nullptr;
+            const TerrainVegetationComponent* c = mgr != nullptr ? mgr->Get(m_strokeOwner) : nullptr;
             if (c != nullptr && m_strokeLayer < c->propLayers.Size())
             {
                 const Array<Float4x4>& after = c->propLayers[m_strokeLayer].instances;

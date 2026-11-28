@@ -90,7 +90,7 @@ export namespace engine::physics
     /// which must outlive it. False (logged) when the transform does not decompose or a shape's
     /// resource is missing. Body creation and the static geometry the navigation bake reads both
     /// describe bodies here.
-    [[nodiscard]] bool DescribeBody(scene::Scene& scene, RigidBodyComponent& c, scene::EntityHandle entity,
+    [[nodiscard]] bool DescribeBody(scene::Scene& scene, const RigidBodyComponent& c, scene::EntityHandle entity,
                                     BodyDesc& out, BodyBuffers& buffers);
 
     /// The entity events physics posts to its scene (Scene::PostEntityEvent), one to each side of a
@@ -185,7 +185,7 @@ export namespace engine::physics
             auto* bodies = m_scene->GetSystem<RigidBodyComponentManager>();
             if (bodies != nullptr)
             {
-                bodies->ForEach(
+                bodies->ForEachEdit(
                     [](RigidBodyComponent& c, scene::EntityHandle)
                     {
                         c.body = BodyId{};
@@ -199,7 +199,7 @@ export namespace engine::physics
             }
             if (auto* joints = m_scene->GetSystem<JointComponentManager>())
             {
-                joints->ForEach(
+                joints->ForEachEdit(
                     [](JointComponent& c, scene::EntityHandle)
                     {
                         c.joint = JointId{};
@@ -208,7 +208,7 @@ export namespace engine::physics
             }
             if (auto* characters = m_scene->GetSystem<CharacterComponentManager>())
             {
-                characters->ForEach(
+                characters->ForEachEdit(
                     [](CharacterComponent& c, scene::EntityHandle)
                     {
                         c.character = CharacterId{};
@@ -242,7 +242,7 @@ export namespace engine::physics
 
             // A dynamic body whose entity was moved by someone else since the last write (a script,
             // the editor's gizmo) is moved there: a teleport, its velocity kept.
-            bodies->ForEach(
+            bodies->ForEachEdit(
                 [&](RigidBodyComponent& c, scene::EntityHandle e)
                 {
                     if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Dynamic)
@@ -267,7 +267,7 @@ export namespace engine::physics
                 });
 
             // Kinematics follow the scene (a velocity-correct move toward this step's target).
-            bodies->ForEach(
+            bodies->ForEachEdit(
                 [&](RigidBodyComponent& c, scene::EntityHandle e)
                 {
                     if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Kinematic)
@@ -285,7 +285,7 @@ export namespace engine::physics
 
             // Held forces (ScenePhysics.setForce): Jolt clears a force after each step, so a force
             // a script holds is added again before every step it should act in.
-            bodies->ForEach(
+            bodies->ForEachEdit(
                 [&](RigidBodyComponent& c, scene::EntityHandle)
                 {
                     if (c.body.IsValid() && c.effectiveMotion == MotionKind::Dynamic &&
@@ -298,7 +298,7 @@ export namespace engine::physics
             // Motor sync: component fields are live (inspector and gameplay edits apply next step).
             if (auto* joints = scene.GetSystem<JointComponentManager>())
             {
-                joints->ForEach(
+                joints->ForEachEdit(
                     [&](JointComponent& c, scene::EntityHandle)
                     {
                         if (c.joint.IsValid())
@@ -323,7 +323,7 @@ export namespace engine::physics
             if (auto* characters = scene.GetSystem<CharacterComponentManager>())
             {
                 const Float3 gravity = m_world->Gravity();
-                characters->ForEach(
+                characters->ForEachEdit(
                     [&](CharacterComponent& c, scene::EntityHandle)
                     {
                         if (!c.character.IsValid())
@@ -392,7 +392,7 @@ export namespace engine::physics
             }
 
             // Dynamic poses into the double-buffer (prev <- curr <- world).
-            bodies->ForEach(
+            bodies->ForEachEdit(
                 [&](RigidBodyComponent& c, scene::EntityHandle)
                 {
                     if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Dynamic)
@@ -420,7 +420,7 @@ export namespace engine::physics
             {
                 return;
             }
-            bodies->ForEach(
+            bodies->ForEachEdit(
                 [&](RigidBodyComponent& c, scene::EntityHandle e)
                 {
                     if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Dynamic)
@@ -461,7 +461,7 @@ export namespace engine::physics
 
             if (auto* characters = scene.GetSystem<CharacterComponentManager>())
             {
-                characters->ForEach(
+                characters->ForEachEdit(
                     [&](CharacterComponent& c, scene::EntityHandle e)
                     {
                         if (!c.character.IsValid())
@@ -508,7 +508,7 @@ export namespace engine::physics
             {
                 return;
             }
-            joints->ForEach(
+            joints->ForEachEdit(
                 [&](JointComponent& c, scene::EntityHandle e)
                 {
                     if (!scene.IsEffectivelyActive(e))
@@ -535,7 +535,7 @@ export namespace engine::physics
             }
             {
                 {
-                    RigidBodyComponent* own = bodies->Get(e);
+                    const RigidBodyComponent* own = bodies->Get(e);
                     if (own == nullptr)
                     {
                         if (logFailures)
@@ -554,7 +554,7 @@ export namespace engine::physics
                     if (!c.targetEntity.IsNil())
                     {
                         scene::EntityHandle t = scene.FindEntity(c.targetEntity.id);
-                        RigidBodyComponent* targetBody = t.IsAssigned() ? bodies->Get(t) : nullptr;
+                        const RigidBodyComponent* targetBody = t.IsAssigned() ? bodies->Get(t) : nullptr;
                         if (targetBody == nullptr)
                         {
                             if (logFailures)
@@ -577,7 +577,7 @@ export namespace engine::physics
                         for (scene::EntityHandle p = scene.GetParent(e); p.IsAssigned();
                              p = scene.GetParent(p))
                         {
-                            RigidBodyComponent* parentBody = bodies->Get(p);
+                            const RigidBodyComponent* parentBody = bodies->Get(p);
                             if (parentBody != nullptr && parentBody->body.IsValid())
                             {
                                 target = parentBody->body;
@@ -618,7 +618,7 @@ export namespace engine::physics
         [[nodiscard]] bool JointBodyReady(scene::EntityHandle e)
         {
             auto* bodies = m_scene->GetSystem<RigidBodyComponentManager>();
-            RigidBodyComponent* own = (bodies != nullptr) ? bodies->Get(e) : nullptr;
+            const RigidBodyComponent* own = (bodies != nullptr) ? bodies->Get(e) : nullptr;
             return own != nullptr && own->body.IsValid();
         }
 
@@ -652,7 +652,7 @@ export namespace engine::physics
             {
                 return;
             }
-            joints->ForEach(
+            joints->ForEachEdit(
                 [&](JointComponent& c, scene::EntityHandle)
                 {
                     if (c.joint.IsValid() && m_world->JointHolds(c.joint, body))
@@ -704,7 +704,7 @@ export namespace engine::physics
                 return false;
             }
             auto* bodies = m_scene->GetSystem<RigidBodyComponentManager>();
-            RigidBodyComponent* tb = (bodies != nullptr) ? bodies->Get(t) : nullptr;
+            const RigidBodyComponent* tb = (bodies != nullptr) ? bodies->Get(t) : nullptr;
             return tb != nullptr && tb->body.IsValid();
         }
 
@@ -734,7 +734,7 @@ export namespace engine::physics
                 // Joints reconcile on the full want/have compare, not just their own entity's edge:
                 // an active entity's joint must also drop when its explicit target deactivates
                 // (that body is gone) and return when the target does.
-                joints->ForEach(
+                joints->ForEachEdit(
                     [&](JointComponent& c, scene::EntityHandle e)
                     {
                         const bool eff = scene.IsEffectivelyActive(e);
@@ -769,7 +769,7 @@ export namespace engine::physics
             m_releasedCharacters.Clear();
             if (auto* bodies = scene.GetSystem<RigidBodyComponentManager>())
             {
-                bodies->ForEach(
+                bodies->ForEachEdit(
                     [&](RigidBodyComponent& c, scene::EntityHandle e)
                     {
                         const bool eff = scene.IsEffectivelyActive(e);
@@ -826,7 +826,7 @@ export namespace engine::physics
             }
             if (auto* characters = scene.GetSystem<CharacterComponentManager>())
             {
-                characters->ForEach(
+                characters->ForEachEdit(
                     [&](CharacterComponent& c, scene::EntityHandle e)
                     {
                         const bool eff = scene.IsEffectivelyActive(e);
@@ -859,7 +859,7 @@ export namespace engine::physics
             {
                 return;
             }
-            characters->ForEach(
+            characters->ForEachEdit(
                 [&](CharacterComponent& c, scene::EntityHandle e)
                 {
                     if (!scene.IsEffectivelyActive(e))
@@ -993,7 +993,7 @@ export namespace engine::physics
                 return;
             }
 
-            bodies->ForEach(
+            bodies->ForEachEdit(
                 [&](RigidBodyComponent& c, scene::EntityHandle e)
                 {
                     // Effectively inactive entities enter the world with no body: the reconcile
@@ -1580,7 +1580,7 @@ export namespace engine::physics
                 return;
             }
             RigidBodyComponent* body = (scene->GetSystem<RigidBodyComponentManager>() != nullptr)
-                                           ? scene->GetSystem<RigidBodyComponentManager>()->Get(
+                                           ? scene->GetSystem<RigidBodyComponentManager>()->Edit(
                                                  entity.Handle())
                                            : nullptr;
             if (body == nullptr)
@@ -1691,7 +1691,7 @@ export namespace engine::physics
                 return nullptr;
             }
             auto* characters = scene->GetSystem<CharacterComponentManager>();
-            return characters != nullptr ? characters->Get(entity.Handle()) : nullptr;
+            return characters != nullptr ? characters->Edit(entity.Handle()) : nullptr;
         }
         [[nodiscard]] RigidBodyComponent* Body(foundation::script::Entity entity) const
         {
@@ -1700,7 +1700,7 @@ export namespace engine::physics
                 return nullptr;
             }
             auto* bodies = scene->GetSystem<RigidBodyComponentManager>();
-            return bodies != nullptr ? bodies->Get(entity.Handle()) : nullptr;
+            return bodies != nullptr ? bodies->Edit(entity.Handle()) : nullptr;
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).

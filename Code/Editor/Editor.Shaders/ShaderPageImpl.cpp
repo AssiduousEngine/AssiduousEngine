@@ -212,7 +212,7 @@ namespace editor
         m_previewMaterial = materials::MaterialFromSource(Allocator(), laidOut, name);
         if (auto* meshes = scenePtr->GetSystem<engine::render::MeshComponentManager>())
         {
-            if (engine::render::MeshComponent* mc = meshes->Get(m_sphere))
+            if (engine::render::MeshComponent* mc = meshes->Edit(m_sphere))
             {
                 mc->SetMaterial(RefPtr<materials::Material>(m_previewMaterial.Get()));
             }

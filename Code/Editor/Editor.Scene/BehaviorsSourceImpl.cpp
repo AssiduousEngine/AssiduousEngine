@@ -222,7 +222,7 @@ namespace editor
             return nullptr;
         auto* manager = m_edit->Scene().GetSystem<engine::behavior::BehaviorComponentManager>();
         const foundation::scene::EntityHandle e = m_edit->Resolve(m_entities[object]);
-        return manager != nullptr && e.IsAssigned() ? manager->Get(e) : nullptr;
+        return manager != nullptr && e.IsAssigned() ? manager->Edit(e) : nullptr;
     }
 
     // The fewest any entity has, since a list shows what every object holds.

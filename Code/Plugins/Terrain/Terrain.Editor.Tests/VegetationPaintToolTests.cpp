@@ -279,7 +279,7 @@ TEST_CASE("vegetation paint: a save converts an imported mask to embedded and su
     }
     // Paint a stroke on the runtime mask bound to that source id.
     Fixture fx;
-    fx.vegetation->Get(fx.terrain)->mask.SetId(id);
+    fx.vegetation->Edit(fx.terrain)->mask.SetId(id);
     FakeAssetEditSink sink;
     editor::EditorCommandStack commands;
     terrain::VegetationPaintTool tool(fx.scene, commands, &sink);

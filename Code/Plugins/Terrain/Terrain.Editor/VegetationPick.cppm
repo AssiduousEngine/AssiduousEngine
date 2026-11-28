@@ -25,7 +25,7 @@ export namespace terrain
 {
     struct VegetationPick
     {
-        terrain::TerrainVegetationComponent* component = nullptr;
+        const terrain::TerrainVegetationComponent* component = nullptr;
         terrain::TerrainVegetationComponentManager* manager = nullptr;
         foundation::scene::EntityHandle owner{};         // the component's entity
         foundation::scene::EntityHandle terrainEntity{}; // the TerrainComponent's entity

@@ -323,7 +323,7 @@ namespace editor
     {
         scene::Scene* scenePtr = m_pane && m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* meshes = scenePtr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Get(m_entity) : nullptr;
+        engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Edit(m_entity) : nullptr;
         if (mc == nullptr)
             return;
         mc->mesh.SetId(Guid{});
@@ -345,7 +345,7 @@ namespace editor
     {
         scene::Scene* scenePtr = m_pane && m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* meshes = scenePtr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        if (engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Get(m_entity) : nullptr)
+        if (engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Edit(m_entity) : nullptr)
             mc->forceLod = m_previewForceLod;
     }
 
@@ -353,7 +353,7 @@ namespace editor
     {
         scene::Scene* scenePtr = m_pane && m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* meshes = scenePtr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Get(m_entity) : nullptr;
+        engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Edit(m_entity) : nullptr;
         if (mc == nullptr)
             return;
         materials::Material* picked = m_previewMaterial ? m_previewMaterial.Get() : nullptr;

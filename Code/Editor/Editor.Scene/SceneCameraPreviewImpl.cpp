@@ -75,7 +75,7 @@ namespace editor
         scene::Scene& sc = m_services.edit->Scene();
         const scene::EntityHandle e = sc.FindEntity(entity);
         auto* cameras = sc.GetSystem<engine::render::CameraComponentManager>();
-        return e.IsAssigned() && sc.IsValid(e) && cameras != nullptr ? cameras->Get(e) : nullptr;
+        return e.IsAssigned() && sc.IsValid(e) && cameras != nullptr ? cameras->Edit(e) : nullptr;
     }
     bool SceneCameraPreview::IsCamera(const Guid& entity) const { return CameraOf(entity) != nullptr; }
 

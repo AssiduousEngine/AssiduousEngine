@@ -675,7 +675,7 @@ namespace editor
         if (manager == nullptr || object >= m_entities.Size())
             return Instance{};
         const scene::EntityHandle entity = m_edit->Resolve(m_entities[object]);
-        return entity.IsAssigned() ? manager->GetComponentInstance(entity) : Instance{};
+        return entity.IsAssigned() ? manager->EditComponentInstance(entity) : Instance{};
     }
 
     Array<Instance> SceneInspectorView::InstancesOf(const TypeInfo& type) const
@@ -685,7 +685,7 @@ namespace editor
         if (manager == nullptr)
             return out;
         for (const Guid& entity : m_entities)
-            out.PushBack(manager->GetComponentInstance(m_edit->Resolve(entity)));
+            out.PushBack(manager->EditComponentInstance(m_edit->Resolve(entity)));
         return out;
     }
 

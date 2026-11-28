@@ -86,7 +86,7 @@ export namespace engine::render
 
     // Fill one MeshRenderData from a component (a pure read of precomputed transforms and borrowed
     // resource pointers, safe to call concurrently across components after UpdateTransforms).
-    void FillMeshRenderData(scene::Scene& scene, MeshComponent& mc, scene::EntityHandle e,
+    void FillMeshRenderData(scene::Scene& scene, const MeshComponent& mc, scene::EntityHandle e,
                             MeshRenderData& rd);
 
     // Fills `out` with one MeshRenderData per visible MeshComponent in `scene`, allocating from

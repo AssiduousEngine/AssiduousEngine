@@ -383,7 +383,7 @@ namespace editor
         // Only an animator with no clip takes it: one that plays another clip keeps that one.
         auto* animators = m_scene->GetSystem<engine::animation::PropertyAnimatorComponentManager>();
         const scene::EntityHandle handle = entity.IsNil() ? scene::EntityHandle{} : m_scene->FindEntity(entity);
-        engine::animation::PropertyAnimatorComponent* animator = animators != nullptr && handle.IsAssigned() ? animators->Get(handle) : nullptr;
+        const engine::animation::PropertyAnimatorComponent* animator = animators != nullptr && handle.IsAssigned() ? animators->Get(handle) : nullptr;
         if (animator == nullptr || !animator->clip.id.IsNil())
             return;
         m_editContext->SetComponentResourceRef<foundation::propertyanimation::PropertyAnimationClipResource>(

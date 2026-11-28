@@ -63,7 +63,7 @@ namespace editor
                 }
                 stage.SetActive(display, true);
                 stage.SetActive(sun, true);
-                return meshes->Get(display);
+                return meshes->Edit(display);
             }
 
             void Deactivate(scene::Scene& stage)
@@ -142,7 +142,7 @@ namespace editor
                 if (auto* meshes = stage.GetSystem<engine::render::MeshComponentManager>())
                 {
                     if (engine::render::MeshComponent* component =
-                            meshes->Get(m_entities.display))
+                            meshes->Edit(m_entities.display))
                     {
                         component->mesh.SetId(Guid{});
                         component->mesh.SetDirect(RefPtr<geometry::StaticMesh>{});
@@ -201,7 +201,7 @@ namespace editor
                 if (auto* meshes = stage.GetSystem<engine::render::MeshComponentManager>())
                 {
                     if (engine::render::MeshComponent* component =
-                            meshes->Get(m_entities.display))
+                            meshes->Edit(m_entities.display))
                     {
                         component->mesh.SetId(Guid{});
                         component->mesh.SetDirect(RefPtr<geometry::StaticMesh>{});
@@ -337,7 +337,7 @@ namespace editor
             }
             bool settled = true;
             meshes->ForEach(
-                [&](engine::render::MeshComponent& c, scene::EntityHandle)
+                [&](const engine::render::MeshComponent& c, scene::EntityHandle)
                 {
                     if (c.mesh.id.IsNil() || c.mesh.Get() != nullptr)
                     {
@@ -362,7 +362,7 @@ namespace editor
                 return bounds;
             }
             meshes->ForEach(
-                [&](engine::render::MeshComponent& c, scene::EntityHandle entity)
+                [&](const engine::render::MeshComponent& c, scene::EntityHandle entity)
                 {
                     geometry::StaticMesh* mesh = c.mesh.Get();
                     if (mesh == nullptr || !mesh->bounds.IsValid())
@@ -405,7 +405,7 @@ namespace editor
             if (auto* clips = stage.GetSystem<engine::animation::SkeletalAnimationComponentManager>())
             {
                 clips->ForEach(
-                    [&](engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle)
+                    [&](const engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle)
                     {
                         any = true;
                         settled = settled && RefSettled(c.skeleton);
@@ -414,7 +414,7 @@ namespace editor
             if (auto* graphs = stage.GetSystem<engine::animation::AnimationGraphComponentManager>())
             {
                 graphs->ForEach(
-                    [&](engine::animation::AnimationGraphComponent& c, scene::EntityHandle)
+                    [&](const engine::animation::AnimationGraphComponent& c, scene::EntityHandle)
                     {
                         any = true;
                         settled = settled && RefSettled(c.skeleton) && RefSettled(c.graph);
@@ -713,7 +713,7 @@ namespace editor
                 if (auto* meshes = stage.GetSystem<engine::render::MeshComponentManager>())
                 {
                     if (engine::render::MeshComponent* component =
-                            meshes->Get(m_entities.display))
+                            meshes->Edit(m_entities.display))
                     {
                         component->mesh.SetId(Guid{});
                         component->mesh.SetDirect(RefPtr<geometry::StaticMesh>{});

@@ -578,7 +578,7 @@ TEST_CASE("script.scene: LUAU hash-keyed property override wins over the harvest
     // Override speed to 10.0 (the field setter applies it after construction, over the default).
     const scene::EntityHandle e = bed.AddScripted(mover, u8"fast");
     {
-        BehaviorComponent* c = bed.components->Get(e);
+        BehaviorComponent* c = bed.components->Edit(e);
         BehaviorPropertyValue ten;
         ten.kind = BehaviorPropertyType::Float;
         ten.number = 10.0;
@@ -640,7 +640,7 @@ TEST_CASE("script.scene: LUAU updateInterval throttles onUpdate and delivers acc
         u8"end\n",
         {u8"onUpdate"});
     const scene::EntityHandle e = bed.AddScripted(ticker, u8"ticker");
-    bed.components->Get(e)->behaviors[0].updateInterval = 1.0f;
+    bed.components->Edit(e)->behaviors[0].updateInterval = 1.0f;
 
     bed.Start();
     bed.Frame(0.5f); // acc 0.5 < 1.0 -> no update
@@ -700,7 +700,7 @@ TEST_CASE("script.scene: harvested defaults apply; hash-keyed overrides win")
     const scene::EntityHandle defaulted = bed.AddScripted(mover, u8"defaulted");
     const scene::EntityHandle overridden = bed.AddScripted(mover, u8"overridden");
     {
-        BehaviorComponent* c = bed.components->Get(overridden);
+        BehaviorComponent* c = bed.components->Edit(overridden);
         BehaviorPropertyValue ten;
         ten.kind = BehaviorPropertyType::Float;
         ten.number = 10.0;
@@ -737,14 +737,14 @@ TEST_CASE("script.scene: enable/disable edges dispatch onEnable/onDisable; disab
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"t+on"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
 
-    bed.components->Get(e)->behaviors[0].enabled = false;
+    bed.components->Edit(e)->behaviors[0].enabled = false;
     bed.Frame(); // delivers onDisable, skips onUpdate
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"t+on+off"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
     bed.Frame(); // stays off
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
 
-    bed.components->Get(e)->behaviors[0].enabled = true;
+    bed.components->Edit(e)->behaviors[0].enabled = true;
     bed.Frame(); // onEnable again, and ticks
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"t+on+off+on"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f));
@@ -825,7 +825,7 @@ TEST_CASE("script.scene: a faulting behavior is disabled and logged; siblings ke
     bed.Start();
     bed.Frame();
     bed.Frame();
-    BehaviorComponent* live = bed.components->Get(e);
+    const BehaviorComponent* live = bed.components->Get(e);
     CHECK(live->behaviors[0].faulted);                            // disabled after the fault
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f)); // sibling unaffected
 }
@@ -925,7 +925,7 @@ TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
         BehaviorPropertyValue three;
         three.kind = BehaviorPropertyType::Float;
         three.number = 3.0;
-        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), three);
+        bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), three);
     }
     bed.Start();
     bed.Frame(); // dt 0.5: x = 1.5 (override 3)
@@ -935,7 +935,7 @@ TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
     // The cook swaps the product (here: the Ref's direct object). Same class name.
     RefPtr<BehaviorClass> v2 =
         MakeClass(u8"Mover", moverV2, {u8"onStart", u8"onUpdate"}, {FloatProperty(u8"speed", 1.0)});
-    bed.components->Get(e)->behaviors[0].behaviorClass = v2;
+    bed.components->Edit(e)->behaviors[0].behaviorClass = v2;
 
     bed.Frame(); // re-instantiate (fresh state, onStart again), override re-applied
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"m+start+restart"));
@@ -970,7 +970,7 @@ TEST_CASE("script.scene: entity-typed properties resolve guids to live entity ha
         BehaviorPropertyValue target;
         target.kind = BehaviorPropertyType::Entity;
         target.guid = bed.scene.GetEntityId(goal);
-        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"),
+        bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"),
                                                          target);
     }
     bed.Start();
@@ -1008,7 +1008,7 @@ TEST_CASE("script.scene: Log/Time/Random facades are callable (service-bound per
     bed.Start();
     bed.Frame();
     bed.Frame();
-    BehaviorComponent* c = bed.components->Get(e);
+    const BehaviorComponent* c = bed.components->Get(e);
     CHECK_FALSE(c->behaviors[0].faulted);
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 4.0f));
 }
@@ -1071,7 +1071,7 @@ TEST_CASE("script.scene: component wire round-trips through SerializeScene (scri
     }
     const scene::EntityHandle le = loaded.FindEntity(entityId);
     REQUIRE(le.IsAssigned());
-    BehaviorComponent* lc = loadedManager->Get(le);
+    const BehaviorComponent* lc = loadedManager->Get(le);
     REQUIRE(lc != nullptr);
     REQUIRE(lc->behaviors.Size() == 2u);
 
@@ -1138,7 +1138,7 @@ TEST_CASE("script.scene: a prefab-instance override on a behavior property round
         BehaviorPropertyValue nine;
         nine.kind = BehaviorPropertyType::Float;
         nine.number = 9.0;
-        levelScripts->Get(inst1)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), nine);
+        levelScripts->Edit(inst1)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), nine);
     }
     const Guid inst1Id = level.GetEntityId(inst1);
     const Guid inst2Id = level.GetEntityId(inst2);
@@ -1178,8 +1178,8 @@ TEST_CASE("script.scene: a prefab-instance override on a behavior property round
     const scene::EntityHandle l2 = loaded.FindEntity(inst2Id);
     REQUIRE(l1.IsAssigned());
     REQUIRE(l2.IsAssigned());
-    BehaviorComponent* c1 = loadedScripts->Get(l1);
-    BehaviorComponent* c2 = loadedScripts->Get(l2);
+    const BehaviorComponent* c1 = loadedScripts->Get(l1);
+    const BehaviorComponent* c2 = loadedScripts->Get(l2);
     REQUIRE(c1 != nullptr);
     REQUIRE(c2 != nullptr);
     REQUIRE(c1->behaviors.Size() == 1u);
@@ -1307,7 +1307,7 @@ TEST_CASE("script.scene: entity.send to a target with no matching handler is a s
     scene::EntityHandle e = bed.AddScripted(sender, u8"lone");
     bed.Start();
     bed.Frame(); // must not fault the sender
-    BehaviorComponent* c = bed.components->Get(e);
+    const BehaviorComponent* c = bed.components->Get(e);
     REQUIRE(c != nullptr);
     CHECK_FALSE(c->behaviors[0].faulted);
 }
@@ -1554,7 +1554,7 @@ TEST_CASE("script.scene: updateInterval throttles onUpdate and delivers the accu
         u8"}\n",
         {u8"onUpdate"});
     const scene::EntityHandle e = bed.AddScripted(ticker, u8"ticker");
-    bed.components->Get(e)->behaviors[0].updateInterval = 1.0f;
+    bed.components->Edit(e)->behaviors[0].updateInterval = 1.0f;
 
     bed.Start();
     bed.Frame(0.5f); // acc 0.5 < 1.0 -> no update
@@ -1595,7 +1595,7 @@ TEST_CASE("script.scene: updateInterval survives the SerializeScene wire")
         scene::SerializeScene(r, loaded);
         REQUIRE(r.IsOk());
     }
-    BehaviorComponent* lc = loadedManager->Get(loaded.FindEntity(entityId));
+    const BehaviorComponent* lc = loadedManager->Get(loaded.FindEntity(entityId));
     REQUIRE(lc != nullptr);
     REQUIRE(lc->behaviors.Size() == 1u);
     CHECK(Near(lc->behaviors[0].updateInterval, 0.25f));
@@ -1623,12 +1623,12 @@ TEST_CASE("script.scene: LUAU enable/disable edges dispatch onEnable/onDisable; 
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"t+on"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
 
-    bed.components->Get(e)->behaviors[0].enabled = false;
+    bed.components->Edit(e)->behaviors[0].enabled = false;
     bed.Frame(); // onDisable, no tick
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"t+on+off"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
 
-    bed.components->Get(e)->behaviors[0].enabled = true;
+    bed.components->Edit(e)->behaviors[0].enabled = true;
     bed.Frame(); // onEnable again, and ticks
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"t+on+off+on"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f));
@@ -1706,7 +1706,7 @@ TEST_CASE("script.scene: LUAU a faulting behavior is disabled; siblings keep run
     bed.Start();
     bed.Frame();
     bed.Frame();
-    BehaviorComponent* live = bed.components->Get(e);
+    const BehaviorComponent* live = bed.components->Get(e);
     CHECK(live->behaviors[0].faulted);                           // disabled after the fault
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f)); // sibling unaffected
 }
@@ -1742,7 +1742,7 @@ TEST_CASE("script.scene: LUAU hot reload - product swap re-instantiates + re-app
         BehaviorPropertyValue three;
         three.kind = BehaviorPropertyType::Float;
         three.number = 3.0;
-        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), three);
+        bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), three);
     }
     bed.Start();
     bed.Frame(); // dt 0.5: x = 1.5 (override 3)
@@ -1752,7 +1752,7 @@ TEST_CASE("script.scene: LUAU hot reload - product swap re-instantiates + re-app
     RefPtr<BehaviorClass> v2 =
         MakeClassLang(u8"luau", u8"Mover", moverV2, {u8"onStart", u8"onUpdate"},
                       {FloatProperty(u8"speed", 1.0)});
-    bed.components->Get(e)->behaviors[0].behaviorClass = v2;
+    bed.components->Edit(e)->behaviors[0].behaviorClass = v2;
 
     bed.Frame(); // re-instantiate (fresh state, onStart again), override re-applied
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"m+start+restart"));
@@ -1820,7 +1820,7 @@ TEST_CASE("script.scene: an unset entity property is an invalid Entity in both l
             BehaviorPropertyValue gone;
             gone.kind = BehaviorPropertyType::Entity;
             gone.guid = Guid{0x7a7a, 0x7b7b};
-            bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"), gone);
+            bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"), gone);
         }
         bed.Start();
         bed.Frame();
@@ -1851,7 +1851,7 @@ TEST_CASE("script.scene: LUAU entity-typed property resolves a guid to a live en
         BehaviorPropertyValue target;
         target.kind = BehaviorPropertyType::Entity;
         target.guid = bed.scene.GetEntityId(goal);
-        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"), target);
+        bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"), target);
     }
     bed.Start();
     bed.Frame();
@@ -1882,7 +1882,7 @@ TEST_CASE("script.scene: LUAU Log/Time/Random facades are callable (service-boun
     bed.Start();
     bed.Frame();
     bed.Frame();
-    BehaviorComponent* c = bed.components->Get(e);
+    const BehaviorComponent* c = bed.components->Get(e);
     CHECK_FALSE(c->behaviors[0].faulted);
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 4.0f));
 }
@@ -2127,7 +2127,7 @@ TEST_CASE("script.scene: an AngelScript behavior runs the neutral lifecycle path
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f)); // 2.0 * 0.5
     bed.Frame();
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f));
-    BehaviorComponent* c = bed.components->Get(e);
+    const BehaviorComponent* c = bed.components->Get(e);
     REQUIRE(c != nullptr);
     CHECK_FALSE(c->behaviors[0].faulted);
 }
@@ -2543,7 +2543,7 @@ TEST_CASE("script.scene: an AngelScript harvested float property applies (defaul
         BehaviorPropertyValue five;
         five.kind = BehaviorPropertyType::Float;
         five.number = 5.0;
-        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), five);
+        bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), five);
         bed.Start();
         bed.Frame(); // override speed 5.0: x = 5.0 * 0.5
         CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.5f));
@@ -2669,7 +2669,7 @@ TEST_CASE("script.scene: disabling a behavior cancels its pending coroutine (nev
     const scene::EntityHandle e = bed.AddScripted(ghost, u8"s");
     bed.Start();
     bed.Frame(0.5f); // registers wait 1.0; +0.5s pending
-    bed.components->Get(e)->behaviors[0].enabled = false;
+    bed.components->Edit(e)->behaviors[0].enabled = false;
     bed.Frame(0.5f); // onDisable edge cancels the coroutine
     bed.Frame(0.5f);
     bed.Frame(0.5f); // past 1.0s: does not fire
@@ -3735,7 +3735,7 @@ TEST_CASE("script.scene: OPTION 1 - RigidBodyComponent.of(entity).friction mutat
                                                 Float3{0.5f, 0.5f, 0.5f});
     auto* bodies = world.scene->GetSystem<engine::physics::RigidBodyComponentManager>();
     REQUIRE(bodies->Get(e) != nullptr);
-    bodies->Get(e)->friction = 0.1f;
+    bodies->Edit(e)->friction = 0.1f;
 
     RefPtr<BehaviorClass> setter = MakeClass(u8"Setter",
                                            u8"class Setter {\n"
@@ -4313,7 +4313,7 @@ TEST_CASE("script.scene: a destroyed subscriber stops receiving bus events; the 
     // per-behaviour re-resolution finds nothing to deliver to (the system subscription stays,
     // harmless). The emitter kept publishing without faulting.
     CHECK(Near(bed.scene.GetLocalTransform(counter).position.x, whileAlive));
-    BehaviorComponent* emitterComp = bed.components->Get(emitterEntity);
+    const BehaviorComponent* emitterComp = bed.components->Get(emitterEntity);
     REQUIRE(emitterComp != nullptr);
     CHECK_FALSE(emitterComp->behaviors[0].faulted);
 }
@@ -4874,7 +4874,7 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + scene.audio play/stop/p
     CHECK(sources->Get(e)->loop);
     CHECK(sources->Get(e)->clip.id == clipId);               // SceneAudio.setClip resource swap
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"silent")); // isPlaying() returned a bool
-    BehaviorComponent* comp = bed.components->Get(e);
+    const BehaviorComponent* comp = bed.components->Get(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted); // play/stop/pause all bound and callable
 }
@@ -4916,7 +4916,7 @@ TEST_CASE("script.scene: AudioSourceComponent::of props + scene.audio play/stop/
     CHECK(sources->Get(e)->volume == doctest::Approx(0.25f));
     CHECK(sources->Get(e)->loop);
     CHECK(sources->Get(e)->clip.id == clipId);
-    BehaviorComponent* comp = bed.components->Get(e);
+    const BehaviorComponent* comp = bed.components->Get(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted);
 }
@@ -4955,7 +4955,7 @@ TEST_CASE("script.scene: Guid constructs from its canonical string in AngelScrip
     // The clip id proves the string parsed to the exact halves (and the malformed guard ran).
     REQUIRE(sources->Get(e) != nullptr);
     CHECK(sources->Get(e)->clip.id == Guid{0xCC33, 0xDD44});
-    BehaviorComponent* comp = bed.components->Get(e);
+    const BehaviorComponent* comp = bed.components->Get(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted);
 }
@@ -5113,7 +5113,7 @@ TEST_CASE("script.scene: SkeletalAnimation/AnimationGraph .of + SceneAnimation o
     CHECK(skel->Get(e)->clip.id == clipId);              // SceneAnimation.setClip resource swap
     REQUIRE(graph->Get(e) != nullptr);
     CHECK_FALSE(graph->Get(e)->active);
-    BehaviorComponent* comp = bed.components->Get(e);
+    const BehaviorComponent* comp = bed.components->Get(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted); // play/stop/setFloat/setBool/setTrigger all bound
 }
@@ -5154,7 +5154,7 @@ TEST_CASE("script.scene: SkeletalAnimation::of + SceneAnimation ops are bound (A
     CHECK(skel->Get(e)->speed == doctest::Approx(2.0f));
     CHECK_FALSE(skel->Get(e)->autoPlay);
     CHECK(skel->Get(e)->clip.id == Guid{0x9911, 0x8822});
-    BehaviorComponent* comp = bed.components->Get(e);
+    BehaviorComponent* comp = bed.components->Edit(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted);
 }
@@ -5287,7 +5287,7 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bo
     CHECK(fx->Get(e)->lightIntensity == doctest::Approx(8.0f));
     CHECK(fx->Get(e)->effectAsset.id == fxId);                    // SceneParticles.setEffect resource swap
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"idle"));    // isPlaying() returned a bool
-    BehaviorComponent* comp = bed.components->Get(e);
+    BehaviorComponent* comp = bed.components->Edit(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted); // play/stop/restart/pause all bound and callable
 }
@@ -5326,7 +5326,7 @@ TEST_CASE("script.scene: ParticleEffectComponent::of + scene.particles ops are b
     CHECK_FALSE(fx->Get(e)->visible);
     CHECK(fx->Get(e)->lightIntensity == doctest::Approx(8.0f));
     CHECK(fx->Get(e)->effectAsset.id == Guid{0x7711, 0x6622});
-    BehaviorComponent* comp = bed.components->Get(e);
+    BehaviorComponent* comp = bed.components->Edit(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted);
 }
@@ -5520,7 +5520,7 @@ namespace
         bed.Start();
         bed.Frame();
 
-        BehaviorComponent* comp = bed.components->Get(root);
+        BehaviorComponent* comp = bed.components->Edit(root);
         REQUIRE(comp != nullptr);
         CHECK_FALSE(comp->behaviors[0].faulted);
         // The walk read root -> a -> b with no parent above the root, and the id it read was
@@ -5613,7 +5613,7 @@ namespace
         bed.Start();
         bed.Frame();
 
-        BehaviorComponent* comp = bed.components->Get(holder);
+        BehaviorComponent* comp = bed.components->Edit(holder);
         REQUIRE(comp != nullptr);
         CHECK_FALSE(comp->behaviors[0].faulted);
         // One at a root by position alone (Spawned counts roots), one under the holder, turned;
@@ -5700,7 +5700,7 @@ namespace
         bed.Frame();
         bed.Frame();
 
-        BehaviorComponent* bossComp = bed.components->Get(bossEntity);
+        BehaviorComponent* bossComp = bed.components->Edit(bossEntity);
         REQUIRE(bossComp != nullptr);
         CHECK_FALSE(bossComp->behaviors[0].faulted);
         CHECK(bed.scene.GetEntityName(asked) == StringView(u8"asked"));   // added, nil refused
@@ -5708,7 +5708,7 @@ namespace
         CHECK(bed.scene.GetEntityName(heard) == StringView(u8"heard"));   // emit("Hello", 5)
         CHECK(bed.scene.GetEntityName(bossEntity) == StringView(u8"timed")); // 0.5 s frames
         // The added behaviour landed after the tick, behind the authored one.
-        BehaviorComponent* targetComp = bed.components->Get(target);
+        BehaviorComponent* targetComp = bed.components->Edit(target);
         REQUIRE(targetComp != nullptr);
         REQUIRE(targetComp->behaviors.Size() == 2u);
         CHECK(targetComp->behaviors[1].behaviorClass.id == added);
@@ -5797,7 +5797,7 @@ namespace
         bed.Start();
         bed.Frame();
 
-        BehaviorComponent* comp = bed.components->Get(holder);
+        BehaviorComponent* comp = bed.components->Edit(holder);
         REQUIRE(comp != nullptr);
         CHECK_FALSE(comp->behaviors[0].faulted);
         CHECK(bed.scene.GetEntityName(holder) == StringView(u8"made"));
@@ -5883,7 +5883,7 @@ namespace
         const scene::EntityHandle b = world.AddBody(u8"right", Float3{1.5f, 0, 0},
                                                     physics::MotionKind::Dynamic, Float3{0.5f, 0.5f, 0.5f});
         // `left` is made of a material (the ray reads its id back: RayCastHit.material).
-        world.scene->GetSystem<engine::physics::RigidBodyComponentManager>()->Get(a)->material.SetId(Guid{7, 9});
+        world.scene->GetSystem<engine::physics::RigidBodyComponentManager>()->Edit(a)->material.SetId(Guid{7, 9});
         const scene::EntityHandle scanner = world.scene->CreateEntity(u8"scanner");
         world.Attach(scanner, MakeClassLang(language, className, source, {u8"onStart"}));
 
@@ -5976,7 +5976,7 @@ TEST_CASE("script.scene: ScenePhysics drives an entity's character, as Sedulous'
 
     bed.Start();
     bed.Frame();
-    engine::physics::CharacterComponent* character = characters->Get(e);
+    engine::physics::CharacterComponent* character = characters->Edit(e);
     REQUIRE(character != nullptr);
     CHECK(character->moveVelocity.x == doctest::Approx(5.0f));
     CHECK(character->moveVelocity.z == doctest::Approx(3.0f));
@@ -6025,7 +6025,7 @@ TEST_CASE("script.scene: DebugDraw draws by Float3 and Color, over the scene wit
     bed.Start();
     bed.Frame();
 
-    BehaviorComponent* comp = bed.components->Get(e);
+    BehaviorComponent* comp = bed.components->Edit(e);
     REQUIRE(comp != nullptr);
     CHECK_FALSE(comp->behaviors[0].faulted);
     auto& drawn = sub.DebugScene(bed.scene);
@@ -6071,7 +6071,7 @@ namespace
         ScriptedScene host;
         foundation::net::AddNetworkSceneManagers(host.scene);
         const scene::EntityHandle onHost = host.AddScripted(guest, u8"Guest");
-        host.components->Get(onHost)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"driver"),
+        host.components->Edit(onHost)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"driver"),
                                                                Number(1.0));
         host.Start();
         foundation::net::StateReplication rep;
@@ -6116,7 +6116,7 @@ namespace
         // A different class in that slot (not the behaviour the host meant) is left alone.
         spawnClass = other;
         const scene::EntityHandle onHost2 = host.AddScripted(guest, u8"Second");
-        host.components->Get(onHost2)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"driver"),
+        host.components->Edit(onHost2)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"driver"),
                                                                 Number(1.0));
         rep.AssignNetworkId(host.scene, onHost2, Guid{6, 6});
         host.Frame();
@@ -6125,7 +6125,7 @@ namespace
         client.Frame();
         bool sawOther = false;
         client.components->ForEach(
-            [&](BehaviorComponent& c, scene::EntityHandle)
+            [&](const BehaviorComponent& c, scene::EntityHandle)
             {
                 if (c.behaviors[0].behaviorClass.Get() == other.Get())
                 {
@@ -6424,7 +6424,7 @@ TEST_CASE("behavior: a native entity behavior runs its lifecycle, messages and p
     BehaviorPropertyValue eight;
     eight.kind = BehaviorPropertyType::Float;
     eight.number = 8.0;
-    bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"worth"), eight);
+    bed.components->Edit(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"worth"), eight);
 
     bed.host.Binding().timeSeconds = 3.0; // what the run's clock reads at the first frame's start
     bed.Start();

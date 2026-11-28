@@ -274,9 +274,9 @@ TEST_CASE("ExtractSceneInto splits a mesh whose slots draw in different categori
     solid.PushBack(frame);
     solid.PushBack(trim);
     meshes->Add(scene.CreateEntity(u8"pane")).mesh = mesh;
-    meshes->Get(scene.FindEntityByName(u8"pane"))->SetMaterials(pane);
+    meshes->Edit(scene.FindEntityByName(u8"pane"))->SetMaterials(pane);
     meshes->Add(scene.CreateEntity(u8"wall")).mesh = mesh;
-    meshes->Get(scene.FindEntityByName(u8"wall"))->SetMaterials(solid);
+    meshes->Edit(scene.FindEntityByName(u8"wall"))->SetMaterials(solid);
     scene.UpdateTransforms();
 
     for (int pass = 0; pass < 2; ++pass)
@@ -666,7 +666,7 @@ TEST_CASE("instanced-mesh: a member draws with its own tint, times the set's col
 
     // B glows red: every instance gets a tint, the authored one and A the set's colour, B its red
     // times it.
-    members->Get(b)->tint = Color{1.0f, 0.0f, 0.0f, 1.0f};
+    members->Edit(b)->tint = Color{1.0f, 0.0f, 0.0f, 1.0f};
     ExtractedScene glowing{DefaultAllocator()};
     const MultiMeshRenderData* rd = extract(glowing);
     REQUIRE(rd->instanceCount == 3u);
@@ -679,7 +679,7 @@ TEST_CASE("instanced-mesh: a member draws with its own tint, times the set's col
     // With authored tints the set's colour steps aside: B is its own red, decoded.
     set.tints.PushBack(Color{0.0f, 0.0f, 1.0f, 1.0f});
     ++set.version;
-    members->Get(b)->tint = Color{0.5f, 0.0f, 0.0f, 1.0f};
+    members->Edit(b)->tint = Color{0.5f, 0.0f, 0.0f, 1.0f};
     ExtractedScene authoredTints{DefaultAllocator()};
     rd = extract(authoredTints);
     REQUIRE(rd->tints != nullptr);
@@ -1500,7 +1500,7 @@ TEST_CASE("extract: the local shadow tiles go to the lights nearest the view")
     SUBCASE("the static layer has a budget of its own")
     {
         u32 n = 0;
-        lights->ForEach(
+        lights->ForEachEdit(
             [&](LightComponent& lc, scene::EntityHandle)
             {
                 if (n++ >= 2)
@@ -1555,7 +1555,7 @@ TEST_CASE("light: the shadow controls round-trip with the scene (v1)")
         REQUIRE(reader.IsOk());
     }
     const LightComponent* read = nullptr;
-    lightsB->ForEach([&](LightComponent& c, scene::EntityHandle) { read = &c; });
+    lightsB->ForEach([&](const LightComponent& c, scene::EntityHandle) { read = &c; });
     REQUIRE(read != nullptr);
     CHECK(Near(read->shadowNormalBias, 0.75f));
     CHECK(Near(read->shadowDepthBiasScale, 1.5f));
@@ -1674,7 +1674,7 @@ TEST_CASE("camera: the projection mode and the orthographic height round-trip wi
         REQUIRE(reader.IsOk());
     }
     const CameraComponent* read = nullptr;
-    camerasB->ForEach([&](CameraComponent& c, scene::EntityHandle) { read = &c; });
+    camerasB->ForEach([&](const CameraComponent& c, scene::EntityHandle) { read = &c; });
     REQUIRE(read != nullptr);
     CHECK(read->projection == CameraProjection::Orthographic);
     CHECK(Near(read->orthoHeight, 64.0f));
@@ -1832,7 +1832,7 @@ TEST_CASE("camera: the target and its interval round-trip with the scene")
         REQUIRE(reader.IsOk());
     }
     const CameraComponent* read = nullptr;
-    camerasB->ForEach([&](CameraComponent& c, scene::EntityHandle) { read = &c; });
+    camerasB->ForEach([&](const CameraComponent& c, scene::EntityHandle) { read = &c; });
     REQUIRE(read != nullptr);
     CHECK(read->target.id == texture);
     CHECK(read->targetInterval == 2u);

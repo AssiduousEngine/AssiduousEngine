@@ -175,7 +175,7 @@ export namespace editor
         [[nodiscard]] engine::animation::SkeletalAnimationComponent* Animator() const
         {
             auto* animators = m_scene->GetSystem<engine::animation::SkeletalAnimationComponentManager>();
-            return animators != nullptr && m_scene->IsValid(m_root) ? animators->Get(m_root) : nullptr;
+            return animators != nullptr && m_scene->IsValid(m_root) ? animators->Edit(m_root) : nullptr;
         }
         [[nodiscard]] animation::AnimationClip* Clip(i32 index) const
         {

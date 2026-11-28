@@ -6,6 +6,7 @@
 // staleness, the one-per-entity invariant, and manager-driven deferred lifecycle.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
+#include <type_traits>
 
 import foundation.core;
 import foundation.scene;
@@ -72,7 +73,7 @@ TEST_CASE("dense storage stays packed across a middle remove (swap-with-last)")
     // every dense slot has a live owner with a resolvable component
     u32 seen = 0;
     mgr.ForEach(
-        [&](Health& c, EntityHandle owner)
+        [&](const Health& c, EntityHandle owner)
         {
             ++seen;
             CHECK(mgr.Get(owner) == &c); // owner resolves back to this slot
@@ -316,7 +317,7 @@ TEST_CASE("component pool: lookups and walks over 10k components, timed (perf ca
     Stopwatch walks = Stopwatch::StartNew();
     for (u32 r = 0; r < kRounds; ++r)
     {
-        mgr.ForEach([&sum](Health& h, EntityHandle) { sum += h.value; });
+        mgr.ForEach([&sum](const Health& h, EntityHandle) { sum += h.value; });
     }
     const f64 walkMs = walks.Elapsed().AsMilliseconds();
     CHECK(sum == doctest::Approx(2.0 * kCount * kRounds));
@@ -342,7 +343,7 @@ TEST_CASE("component pool: lookups and walks over 10k components, timed (perf ca
     Stopwatch leavingWalks = Stopwatch::StartNew();
     for (u32 r = 0; r < kRounds; ++r)
     {
-        mgr.ForEach([&sumLeaving](Health& h, EntityHandle) { sumLeaving += h.value; });
+        mgr.ForEach([&sumLeaving](const Health& h, EntityHandle) { sumLeaving += h.value; });
     }
     const f64 leavingWalkMs = leavingWalks.Elapsed().AsMilliseconds();
     CHECK(sumLeaving == doctest::Approx(2.0 * (kCount - 1) * kRounds));
@@ -363,7 +364,7 @@ TEST_CASE("scene: a component manager's storage revision changes when a componen
     mgr->Add(a).value = 1.0f;
     const u64 one = mgr->StorageRevision();
     CHECK(one != empty);
-    Health* held = mgr->Get(a);
+    Health* held = mgr->Edit(a);
     held->value = 5.0f; // reads and writes leave it
     CHECK(mgr->Get(a) != nullptr);
     CHECK(mgr->StorageRevision() == one);
@@ -373,4 +374,32 @@ TEST_CASE("scene: a component manager's storage revision changes when a componen
     mgr->RemoveComponent(a); // b swaps into a's slot
     CHECK(mgr->StorageRevision() != two);
     CHECK(mgr->Get(b)->value == doctest::Approx(2.0f));
+}
+
+TEST_CASE("component forms: Get reads, Edit writes, and each iteration says which it is")
+{
+    HealthManager mgr;
+    mgr.Add(E(0)).value = 1.0f;
+    mgr.Add(E(1)).value = 2.0f;
+    static_assert(std::is_same_v<decltype(mgr.Get(E(0))), const Health*>, "Get hands out a read-only component");
+    static_assert(std::is_same_v<decltype(mgr.Edit(E(0))), Health*>, "Edit hands out a writable one");
+
+    REQUIRE(mgr.Edit(E(0)) != nullptr);
+    mgr.Edit(E(0))->value = 5.0f;
+    CHECK(mgr.Get(E(0))->value == 5.0f);
+    CHECK(mgr.Edit(E(7)) == nullptr); // absent, as Get
+
+    f32 sum = 0.0f;
+    mgr.ForEach([&](const Health& h, EntityHandle) { sum += h.value; });
+    CHECK(sum == 7.0f);
+    mgr.ForEachEdit([](Health& h, EntityHandle) { h.value += 1.0f; });
+    mgr.ForEachUnmarked([](Health& h, EntityHandle) { h.value *= 2.0f; });
+    for (Health& h : mgr.DenseUnmarked())
+        h.value -= 1.0f;
+    CHECK(mgr.Get(E(0))->value == 11.0f); // (5 + 1) * 2 - 1
+    CHECK(mgr.Dense()[1].value == 5.0f);  // (2 + 1) * 2 - 1
+
+    // Reflection: the read form and the write form reach the same component.
+    CHECK(mgr.GetComponentInstance(E(1)).Pointer() == mgr.EditComponentInstance(E(1)).Pointer());
+    CHECK(mgr.EditComponentInstance(E(9)).IsEmpty());
 }

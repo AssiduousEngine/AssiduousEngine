@@ -440,21 +440,21 @@ namespace engine::animation
             }
             if (auto* twoBone = scene->GetSystem<TwoBoneIkComponentManager>())
             {
-                if (TwoBoneIkComponent* c = twoBone->Get(entity))
+                if (TwoBoneIkComponent* c = twoBone->Edit(entity))
                 {
                     visit(c->runtime);
                 }
             }
             if (auto* aim = scene->GetSystem<AimIkComponentManager>())
             {
-                if (AimIkComponent* c = aim->Get(entity))
+                if (AimIkComponent* c = aim->Edit(entity))
                 {
                     visit(c->runtime);
                 }
             }
             if (auto* feet = scene->GetSystem<FootIkComponentManager>())
             {
-                if (FootIkComponent* c = feet->Get(entity))
+                if (FootIkComponent* c = feet->Edit(entity))
                 {
                     visit(c->runtime);
                 }

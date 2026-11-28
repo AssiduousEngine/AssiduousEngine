@@ -44,7 +44,7 @@ namespace navigation
             if (auto* zones = scene.GetSystem<NavMeshZoneComponentManager>())
             {
                 zones->ForEach(
-                    [&](NavMeshZoneComponent& z, foundation::scene::EntityHandle entity)
+                    [&](const NavMeshZoneComponent& z, foundation::scene::EntityHandle entity)
                     {
                         navigation::NavigationZoneResource* product = z.zone.Get();
                         if (product == nullptr || !product->IsValid())
@@ -108,7 +108,7 @@ namespace navigation
                 if (auto* agents = scene.GetSystem<NavAgentComponentManager>())
                 {
                     agents->ForEach(
-                        [&](NavAgentComponent& agent, foundation::scene::EntityHandle entity)
+                        [&](const NavAgentComponent& agent, foundation::scene::EntityHandle entity)
                         {
                             const Float3 position = scene.GetWorldPosition(entity);
                             if (agent.hasTarget)

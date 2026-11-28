@@ -63,7 +63,7 @@ TEST_CASE("engine.terrain: a TerrainComponent survives a scene serialize round-t
 
     scene::EntityHandle loaded = b.FindEntity(a.GetEntityId(e));
     REQUIRE(loaded.IsAssigned());
-    TerrainComponent* t = b.GetSystem<TerrainComponentManager>()->Get(loaded);
+    const TerrainComponent* t = b.GetSystem<TerrainComponentManager>()->Get(loaded);
     REQUIRE(t != nullptr);
     CHECK(t->terrain.id == Guid(42, 7));
     CHECK(t->castShadows == false);

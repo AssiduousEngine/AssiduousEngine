@@ -489,7 +489,7 @@ namespace
             hasAfter = health->Has(target);
             getAfter = health->Get(target) != nullptr;
             walkedAfter = 0;
-            health->ForEach([this](Health&, EntityHandle) { ++walkedAfter; });
+            health->ForEach([this](const Health&, EntityHandle) { ++walkedAfter; });
             destroyedDuring = health->destroyed;
             if (giveBack)
                 (void)health->Add(target); // given back before it left

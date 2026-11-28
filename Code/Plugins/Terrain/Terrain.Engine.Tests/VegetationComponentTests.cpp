@@ -118,7 +118,7 @@ namespace
             scene.Start();
         }
 
-        TerrainVegetationComponent& Component() { return *mgr->Get(terrain); }
+        TerrainVegetationComponent& Component() { return *mgr->Edit(terrain); }
         ProceduralVegetationLayer& Layer(usize i = 0) { return Component().proceduralLayers[i]; }
         PropVegetationLayer& Prop(usize i = 0) { return Component().propLayers[i]; }
         // Swap the fixture's grass for one prop layer with the same mesh (the prop tests).
@@ -863,12 +863,12 @@ TEST_CASE("engine.vegetation: no component, a hidden component, one off any terr
     CHECK(sets.Size() == 4u);
 
     // No mesh: nothing to instance.
-    f.mgr->Get(child)->proceduralLayers[0].mesh = nullptr;
+    f.mgr->Edit(child)->proceduralLayers[0].mesh = nullptr;
     sets = f.Extract(snapshot, nullptr);
     CHECK(sets.IsEmpty());
 
     // A removed component drops its caches.
-    f.mgr->Get(child)->proceduralLayers[0].mesh = f.mesh.Get();
+    f.mgr->Edit(child)->proceduralLayers[0].mesh = f.mesh.Get();
     sets = f.Extract(snapshot, nullptr);
     CHECK(f.mgr->BuiltSetCount() == 4u);
     f.mgr->Remove(child);

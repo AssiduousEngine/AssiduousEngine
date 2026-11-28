@@ -144,8 +144,8 @@ TEST_CASE("resource-ref: scene round-trip resolves skeleton + clip refs through 
     auto* mgr = loaded.GetSystem<engine::animation::SkeletalAnimationComponentManager>();
     REQUIRE(mgr != nullptr);
     REQUIRE(mgr->ComponentCount() == 1u);
-    engine::animation::SkeletalAnimationComponent* a = nullptr;
-    mgr->ForEach([&](engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle) { a = &c; });
+    const engine::animation::SkeletalAnimationComponent* a = nullptr;
+    mgr->ForEach([&](const engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle) { a = &c; });
     REQUIRE(a != nullptr);
 
     // Identity and tunables survived; nothing is bound until the resolve pass runs.
@@ -279,9 +279,9 @@ TEST_CASE("mesh-entities: one animator feeds multiple parts by EntityRef, and th
         scene::SerializeScene(ar, loaded);
         REQUIRE(ar.IsOk());
     }
-    engine::animation::SkeletalAnimationComponent* la = nullptr;
+    const engine::animation::SkeletalAnimationComponent* la = nullptr;
     loadedMgr->ForEach(
-        [&](engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle) { la = &c; });
+        [&](const engine::animation::SkeletalAnimationComponent& c, scene::EntityHandle) { la = &c; });
     REQUIRE(la != nullptr);
     REQUIRE(la->meshEntities.Size() == 2u);
     CHECK(loaded.GetEntityName(loaded.FindEntity(la->meshEntities[0].id)) ==

@@ -917,7 +917,7 @@ namespace editor
         m_previewMaterial = material;
         if (auto* meshes = scenePtr->GetSystem<engine::render::MeshComponentManager>())
         {
-            if (engine::render::MeshComponent* mc = meshes->Get(m_shape))
+            if (engine::render::MeshComponent* mc = meshes->Edit(m_shape))
             {
                 mc->SetMaterial(RefPtr<foundation::materials::Material>(
                     m_previewMaterial.Get())); // direct override
@@ -982,7 +982,7 @@ namespace editor
             return;
         }
         auto* meshes = scenePtr->GetSystem<engine::render::MeshComponentManager>();
-        engine::render::MeshComponent* mc = (meshes != nullptr) ? meshes->Get(m_shape) : nullptr;
+        engine::render::MeshComponent* mc = (meshes != nullptr) ? meshes->Edit(m_shape) : nullptr;
         if (mc == nullptr)
         {
             return;
@@ -1029,7 +1029,7 @@ namespace editor
     {
         scene::Scene* scenePtr = m_pane && m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* meshes = scenePtr != nullptr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Get(m_shape) : nullptr;
+        const engine::render::MeshComponent* mc = meshes != nullptr ? meshes->Get(m_shape) : nullptr;
         const foundation::geometry::StaticMesh* mesh = mc != nullptr ? mc->mesh.Get() : nullptr;
         f32 radius = 1.0f;
         Float3 center{0.0f, 0.0f, 0.0f};

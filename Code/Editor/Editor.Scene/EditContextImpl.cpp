@@ -399,7 +399,7 @@ namespace editor
         {
             return {};
         }
-        const Instance component = mgr->GetComponentInstance(e);
+        const Instance component = mgr->EditComponentInstance(e);
         if (component.IsEmpty())
         {
             return {};
@@ -600,7 +600,7 @@ namespace editor
         {
             return false;
         }
-        mutate(manager->GetComponentInstance(e));
+        mutate(manager->EditComponentInstance(e));
         Array<byte> after = CopyComponent(entity, componentType);
         // Restore the live value (a non-undoable read), then paste the mutated one: the paste
         // command captures the value before, so the whole mutation is one undo step.

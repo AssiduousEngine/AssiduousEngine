@@ -56,8 +56,12 @@ export namespace foundation::scene
         [[nodiscard]] virtual Span<const EntityHandle> OwnerHandles() const noexcept = 0;
 
         // --- reflection access (tools such as the editor inspector edit components generically) ---
-        // The entity's component as a typed reflection Instance (empty when absent).
+        // The entity's component as a typed reflection Instance (empty when absent), to read.
+        // Reflection has no read-only Instance, so nothing stops a write through it: a caller that
+        // writes asks EditComponentInstance, which a manager that marks writes sees.
         [[nodiscard]] virtual Instance GetComponentInstance(EntityHandle /*entity*/) { return {}; }
+        // The entity's component as a typed reflection Instance, to write (empty when absent).
+        [[nodiscard]] virtual Instance EditComponentInstance(EntityHandle /*entity*/) { return {}; }
         // Adds a default-constructed component (false if the entity already has one).
         virtual bool AddDefaultComponent(EntityHandle /*entity*/) { return false; }
 
@@ -115,7 +119,12 @@ export namespace foundation::scene
         // Effective component for `entity`, or null if absent / the handle is stale.
         [[nodiscard]] Instance GetComponentInstance(EntityHandle entity) override
         {
-            T* c = Get(entity);
+            T* c = Find(entity);
+            return (c != nullptr) ? Instance::From(c) : Instance{};
+        }
+        [[nodiscard]] Instance EditComponentInstance(EntityHandle entity) override
+        {
+            T* c = Edit(entity);
             return (c != nullptr) ? Instance::From(c) : Instance{};
         }
         bool AddDefaultComponent(EntityHandle entity) override
@@ -133,16 +142,15 @@ export namespace foundation::scene
         /// add or remove (a script's handler) looks it up again only when it changed.
         [[nodiscard]] u64 StorageRevision() const noexcept { return m_storageRevision; }
 
-        [[nodiscard]] T* Get(EntityHandle entity)
-        {
-            const u32 i = DenseIndex(entity);
-            return (i != kInvalid) ? &m_dense[i] : nullptr;
-        }
+        // `entity`'s component to read, or null when absent or the handle is stale. The only form
+        // Get has: a write goes through Edit, so every write is one a manager can see.
         [[nodiscard]] const T* Get(EntityHandle entity) const
         {
             const u32 i = DenseIndex(entity);
             return (i != kInvalid) ? &m_dense[i] : nullptr;
         }
+        // `entity`'s component to write, or null when absent or the handle is stale.
+        [[nodiscard]] T* Edit(EntityHandle entity) { return Find(entity); }
 
         void RemoveComponent(EntityHandle entity) override
         {
@@ -204,45 +212,65 @@ export namespace foundation::scene
         [[nodiscard]] u32 Count() const { return static_cast<u32>(m_dense.Size()); }
 
         // Contiguous fast path: the packed component array and the parallel owner handles.
-        [[nodiscard]] Span<T> Dense() noexcept { return {m_dense.Data(), m_dense.Size()}; }
         [[nodiscard]] Span<const T> Dense() const noexcept
         {
             return {m_dense.Data(), m_dense.Size()};
         }
+        // The packed components to write, for a system that writes every one every frame (an
+        // animator advancing time): its writes are not marked, and a consumer of the manager reads
+        // it as changing every frame. Named so the choice shows where it is made.
+        [[nodiscard]] Span<T> DenseUnmarked() noexcept { return {m_dense.Data(), m_dense.Size()}; }
         [[nodiscard]] Span<const EntityHandle> Owners() const noexcept
         {
             return {m_owners.Data(), m_owners.Size()};
         }
 
-        // Visits every component with its owning entity (dense, no holes), passing by those
-        // leaving (MarkLeaving). Dense() and Owners() are the raw pool, leaving ones included.
+        // Visits every component, to read, with its owning entity (dense, no holes), passing by
+        // those leaving (MarkLeaving). Dense() and Owners() are the raw pool, leaving ones included.
         template <typename Fn>
-        void ForEach(Fn&& fn)
+        void ForEach(Fn&& fn) const
         {
-            if (m_leaving.IsEmpty()) // the common case: no check per component
+            VisitEach(*this, fn);
+        }
+        // Visits every component to write, as ForEach does; each visited counts as written.
+        template <typename Fn>
+        void ForEachEdit(Fn&& fn)
+        {
+            VisitEach(*this, fn);
+        }
+
+        // Visits every component to write, as ForEachEdit does, with its writes not marked: for a
+        // system rebuilding runtime state derived from the component every frame (an extraction's
+        // caches), whose writes no consumer needs to hear. Named so the choice shows where it is made.
+        template <typename Fn>
+        void ForEachUnmarked(Fn&& fn)
+        {
+            VisitEach(*this, fn);
+        }
+
+    private:
+        // The visit both ForEach forms share; `self` is const for ForEach, so it hands out const T&.
+        template <typename Self, typename Fn>
+        static void VisitEach(Self& self, Fn& fn)
+        {
+            const bool anyLeaving = !self.m_leaving.IsEmpty(); // rarely: no check per component
+            for (usize i = 0; i < self.m_dense.Size(); ++i)
             {
-                for (usize i = 0; i < m_dense.Size(); ++i)
+                if (!anyLeaving || !self.IsLeaving(self.m_owners[i]))
                 {
-                    fn(m_dense[i], m_owners[i]);
-                }
-                return;
-            }
-            for (usize i = 0; i < m_dense.Size(); ++i)
-            {
-                if (!IsLeaving(m_owners[i]))
-                {
-                    fn(m_dense[i], m_owners[i]);
+                    fn(self.m_dense[i], self.m_owners[i]);
                 }
             }
         }
 
+    public:
         // Runs OnComponentInitialized for components added since the last call (skipping any
         // already removed). Deferred init lets a component see its siblings before it runs.
         void InitializePendingComponents() override
         {
             for (EntityHandle e : m_pendingInit)
             {
-                T* c = Get(e);
+                T* c = Find(e);
                 if (c != nullptr)
                 {
                     OnComponentInitialized(*c, e);
@@ -258,6 +286,13 @@ export namespace foundation::scene
         }
 
     protected:
+        // `entity`'s component, unmarked: the manager's own paths (initialization, a save, a lookup
+        // a script handle resolves on every read and write, whose writes the hosts mark).
+        [[nodiscard]] T* Find(EntityHandle entity)
+        {
+            const u32 i = DenseIndex(entity);
+            return (i != kInvalid) ? &m_dense[i] : nullptr;
+        }
         // Manager-driven lifecycle hooks (value-pool: hooks live on the manager, not the
         // component). Override in a concrete manager subclass.
         virtual void OnComponentCreated(T& /*c*/, EntityHandle /*e*/) {}
@@ -349,7 +384,7 @@ export namespace foundation::scene
 
         void WriteComponent(ISerializer& ar, EntityHandle entity) override
         {
-            if (T* c = this->Get(entity))
+            if (T* c = this->Find(entity)) // a save reads; Serialize takes the value by reference
             {
                 // Records carry the component type's data version (TypeOf<T>, the reflected
                 // TypeInfo, patched by REFLECT_VALUE's builder.DataVersion), so
@@ -363,7 +398,7 @@ export namespace foundation::scene
         {
             // Overwrite when present: duplicate records (corrupt saves recovered by the scene
             // loader) must consume their payload instead of asserting in Add.
-            T* existing = this->Get(entity);
+            T* existing = this->Edit(entity);
             T& c = (existing != nullptr) ? *existing : this->Add(entity);
             BeginVersionedPayload(ar, TypeOf<T>());
             SerializeOne(ar, c);
@@ -387,7 +422,7 @@ export namespace foundation::scene
                 {
                     continue;
                 }
-                this->ForEach(
+                this->ForEachUnmarked(
                     [&](T& component, EntityHandle)
                     {
                         const void* at = property.address(Instance(&component, &type));
@@ -410,12 +445,12 @@ export namespace foundation::scene
 
         void ResolveResources(foundation::resource::ResourceManager& manager) override
         {
-            this->ForEach([&](T& c, EntityHandle) { ResolveOne(manager, c); });
+            this->ForEachEdit([&](T& c, EntityHandle) { ResolveOne(manager, c); });
         }
         void ResolveEntityResources(EntityHandle entity,
                                     foundation::resource::ResourceManager& manager) override
         {
-            if (T* c = this->Get(entity))
+            if (T* c = this->Edit(entity))
             {
                 ResolveOne(manager, *c);
             }

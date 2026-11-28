@@ -45,7 +45,7 @@ namespace engine::audio
             }
             bool found = false;
             cameras->ForEach(
-                [&](engine::render::CameraComponent&, foundation::scene::EntityHandle e)
+                [&](const engine::render::CameraComponent&, foundation::scene::EntityHandle e)
                 {
                     if (found)
                     {

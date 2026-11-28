@@ -175,7 +175,7 @@ TEST_CASE("engine.composition: the scan reaches the assets a placed prefab's ove
         REQUIRE(placed.IsAssigned());
         REQUIRE(authored.PrefabInstanceCount() == 1u);
         engine::behavior::AttachedBehavior& behavior =
-            authored.GetSystem<engine::behavior::BehaviorComponentManager>()->Get(placed)->behaviors[0];
+            authored.GetSystem<engine::behavior::BehaviorComponentManager>()->Edit(placed)->behaviors[0];
         const engine::behavior::BehaviorPropertyOverride* inherited = behavior.FindOverride(drop);
         REQUIRE(inherited != nullptr);
         CHECK(inherited->value.guid == inPrefab); // the placement starts as the prefab

@@ -52,7 +52,7 @@ export namespace nativesample
                 return;
             }
             ForEach(
-                [&](SpinComponent& spin, foundation::scene::EntityHandle owner)
+                [&](const SpinComponent& spin, foundation::scene::EntityHandle owner)
                 {
                     if (!m_scene->IsEffectivelyActive(owner))
                     {

@@ -305,7 +305,7 @@ export namespace modelviewer
             if (meshes == nullptr)
                 return;
             AABB box = AABB::Empty();
-            meshes->ForEach([&](engine::render::MeshComponent& component, scene::EntityHandle entity)
+            meshes->ForEach([&](const engine::render::MeshComponent& component, scene::EntityHandle entity)
                             {
                                 const foundation::geometry::StaticMesh* mesh = component.mesh.Get();
                                 if (mesh != nullptr && mesh->bounds.IsValid())

@@ -531,7 +531,7 @@ TEST_CASE("navigation.scene: a zone's maxAgents is how many agents its crowd mov
         scene.UpdateTransforms();
         scene.Start();
         i32 n = 0;
-        agents->ForEach([&](NavAgentComponent& a, scene::EntityHandle) { n += a.agentId.IsValid() ? 1 : 0; });
+        agents->ForEach([&](const NavAgentComponent& a, scene::EntityHandle) { n += a.agentId.IsValid() ? 1 : 0; });
         scene.Stop();
         return n;
     };
@@ -795,7 +795,7 @@ TEST_CASE("navigation.scene: an agent that does not avoid others shoulders past 
         Run run;
         for (int step = 0; step < 150; ++step) // 5 s at 30 Hz, 1.5 m/s
         {
-            w = agents->Get(walker);
+            w = agents->Edit(walker);
             if (offOnceRunning && step == 1)
             {
                 w->avoidOthers = false; // changed live, as a script or the inspector does
@@ -874,7 +874,7 @@ TEST_CASE("navigation.scene: an agent added later joins its crowd, and a destroy
     agents->Add(second);
     scene.UpdateTransforms();
     scene.Update(1.0f / 30.0f); // it joins
-    NavAgentComponent* agent = agents->Get(second);
+    NavAgentComponent* agent = agents->Edit(second);
     REQUIRE(agent != nullptr);
     CHECK(agent->agentId.IsValid());
 
@@ -938,7 +938,7 @@ TEST_CASE("navigation.scene: an agent destroyed as its zone reloads leaves the o
     REQUIRE(agents->Get(first)->agentId.index == 0);
     REQUIRE(agents->Get(second)->agentId.index == 1);
 
-    agents->Get(second)->navigate(5.0f, 0.0f, -3.0f);
+    agents->Edit(second)->navigate(5.0f, 0.0f, -3.0f);
     for (int step = 0; step < 10; ++step)
     {
         scene.Update(1.0f / 30.0f);

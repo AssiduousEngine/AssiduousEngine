@@ -666,7 +666,7 @@ namespace
             // frustum-far-culled (which would make the throughput measurement cheaper than it is).
             if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
             {
-                if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                if (engine::render::CameraComponent* cam = cameras->Edit(m_camera))
                 {
                     cam->nearZ = 0.5f;
                     cam->farZ = dist + extent * 2.0f + 100.0f;
@@ -692,7 +692,7 @@ namespace
             if (auto* lights = m_scene->GetSystem<engine::render::LightComponentManager>())
             {
                 if (engine::render::LightComponent* kl =
-                        m_keyLight.IsAssigned() ? lights->Get(m_keyLight) : nullptr)
+                        m_keyLight.IsAssigned() ? lights->Edit(m_keyLight) : nullptr)
                 {
                     kl->castsShadows = !kl->castsShadows;
                     core::ConsoleWrite(kl->castsShadows ? u8"Directional shadows: ON\n"
@@ -709,7 +709,7 @@ namespace
             {
                 if (auto* cameras = m_scene->GetSystem<engine::render::CameraComponentManager>())
                 {
-                    if (engine::render::CameraComponent* cam = cameras->Get(m_camera))
+                    if (engine::render::CameraComponent* cam = cameras->Edit(m_camera))
                     {
                         cam->aspect = static_cast<core::f32>(frame.width) /
                                       static_cast<core::f32>(frame.height);
@@ -916,7 +916,7 @@ namespace
                     if (auto* lights = m_scene->GetSystem<engine::render::LightComponentManager>())
                     {
                         if (engine::render::LightComponent* kl =
-                                m_keyLight.IsAssigned() ? lights->Get(m_keyLight) : nullptr)
+                                m_keyLight.IsAssigned() ? lights->Edit(m_keyLight) : nullptr)
                         {
                             shadowsOn = kl->castsShadows;
                             if (ImGui::Checkbox("Directional shadows (K)", &shadowsOn))

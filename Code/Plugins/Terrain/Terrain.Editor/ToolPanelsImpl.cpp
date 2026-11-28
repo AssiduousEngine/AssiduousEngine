@@ -55,7 +55,7 @@ namespace terrain
                 sc.FindManagerByComponentType(TypeOf<terrain::TerrainComponent>()));
             if (mgr == nullptr)
                 return out;
-            mgr->ForEach([&](terrain::TerrainComponent& c, scene::EntityHandle)
+            mgr->ForEach([&](const terrain::TerrainComponent& c, scene::EntityHandle)
                          {
                              terrain::TerrainResource* res = c.terrain.Get();
                              if (out.count > 0 || res == nullptr)

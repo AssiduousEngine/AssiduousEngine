@@ -312,7 +312,7 @@ namespace foundation::propertyanimation
                 {
                     return false;
                 }
-                return WriteBinding(target.binding, manager->GetComponentInstance(entity), value).IsOk();
+                return WriteBinding(target.binding, manager->EditComponentInstance(entity), value).IsOk();
             }
 
             void Targets(foundation::scene::Scene& scene, foundation::scene::EntityHandle entity,

@@ -295,7 +295,7 @@ namespace editor
         m_shownMesh = mesh;
         scene::Scene* scenePtr = m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* components = scenePtr != nullptr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        engine::render::MeshComponent* component = components != nullptr ? components->Get(m_meshEntity) : nullptr;
+        engine::render::MeshComponent* component = components != nullptr ? components->Edit(m_meshEntity) : nullptr;
         if (component == nullptr)
             return;
         if (mesh != nullptr)
@@ -356,7 +356,7 @@ namespace editor
 
         scene::Scene* scenePtr = preview->Scene();
         auto* components = scenePtr != nullptr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        engine::render::MeshComponent* component = components != nullptr ? components->Get(m_meshEntity) : nullptr;
+        engine::render::MeshComponent* component = components != nullptr ? components->Edit(m_meshEntity) : nullptr;
         if (component == nullptr || mesh == nullptr)
             return;
         component->visible = m_meshShown;
@@ -389,7 +389,7 @@ namespace editor
             m_meshButton->SetChecked(shown);
         scene::Scene* scenePtr = m_pane->Viewport() != nullptr ? m_pane->Viewport()->Scene() : nullptr;
         auto* components = scenePtr != nullptr ? scenePtr->GetSystem<engine::render::MeshComponentManager>() : nullptr;
-        if (engine::render::MeshComponent* component = components != nullptr ? components->Get(m_meshEntity) : nullptr)
+        if (engine::render::MeshComponent* component = components != nullptr ? components->Edit(m_meshEntity) : nullptr)
             component->visible = shown;
     }
 }

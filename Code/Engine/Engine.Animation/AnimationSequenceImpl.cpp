@@ -290,14 +290,14 @@ namespace engine::animation
     {
         if (auto* graphs = scene.GetSystem<AnimationGraphComponentManager>())
         {
-            if (AnimationGraphComponent* c = graphs->Get(entity); c != nullptr && c->player.Get() != nullptr)
+            if (AnimationGraphComponent* c = graphs->Edit(entity); c != nullptr && c->player.Get() != nullptr)
             {
                 return &c->player->Overlay();
             }
         }
         if (auto* skeletal = scene.GetSystem<SkeletalAnimationComponentManager>())
         {
-            if (SkeletalAnimationComponent* c = skeletal->Get(entity); c != nullptr && c->player.Get() != nullptr)
+            if (SkeletalAnimationComponent* c = skeletal->Edit(entity); c != nullptr && c->player.Get() != nullptr)
             {
                 return &c->player->Overlay();
             }

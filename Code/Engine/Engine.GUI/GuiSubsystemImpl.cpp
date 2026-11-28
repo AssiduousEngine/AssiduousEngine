@@ -1218,7 +1218,7 @@ namespace engine::gui
         auto* canvases = tier.Scene->GetSystem<GuiCanvasComponentManager>();
         Array<const Node*> seen(m_allocator);
         if (canvases != nullptr)
-            canvases->ForEach(
+            canvases->ForEachEdit(
                 [&](GuiCanvasComponent& c, scene::EntityHandle entity)
                 {
                     const bool wantsTexture = c.renderMode == GuiCanvasRenderMode::RenderTexture;
@@ -1302,7 +1302,7 @@ namespace engine::gui
         auto* billboards = tier.Scene->GetSystem<GuiBillboardComponentManager>();
         Array<const Node*> seen(m_allocator);
         if (billboards != nullptr)
-            billboards->ForEach(
+            billboards->ForEachEdit(
                 [&](GuiBillboardComponent& c, scene::EntityHandle entity)
                 {
                     (void)RebuildIfChanged(c);
@@ -1335,7 +1335,7 @@ namespace engine::gui
         auto* panels = tier.Scene->GetSystem<GuiWorldPanelComponentManager>();
         if (panels == nullptr)
             return;
-        panels->ForEach(
+        panels->ForEachEdit(
             [&](GuiWorldPanelComponent& c, scene::EntityHandle entity)
             {
                 (void)RebuildIfChanged(c);
@@ -1363,7 +1363,7 @@ namespace engine::gui
             return;
         const Float2 viewport{static_cast<f32>(view.viewportWidth), static_cast<f32>(view.viewportHeight)};
         billboards->ForEach(
-            [&](GuiBillboardComponent& c, scene::EntityHandle entity)
+            [&](const GuiBillboardComponent& c, scene::EntityHandle entity)
             {
                 if (!c.root || !c.root->IsDisplayed())
                     return;
@@ -1467,7 +1467,7 @@ namespace engine::gui
             Float3 direction;
             GuiPointerRay(camera, centreAim ? Float2{viewSize.x * 0.5f, viewSize.y * 0.5f} : point, viewSize, origin, direction);
             panels->ForEach(
-                [&](GuiWorldPanelComponent& c, scene::EntityHandle entity)
+                [&](const GuiWorldPanelComponent& c, scene::EntityHandle entity)
                 {
                     if (!c.interactive || !c.visible || !c.renderRoot || !tier.Scene->IsEffectivelyActive(entity))
                         return;
@@ -2147,13 +2147,13 @@ namespace engine::gui
             // the old texture lets it go.
             const auto show = [&](scene::EntityHandle entity, rhi::TextureViewHandle was, rhi::TextureViewHandle now)
             {
-                if (auto* sprite = sprites != nullptr ? sprites->Get(entity) : nullptr; sprite != nullptr && (now.IsValid() || sprite->texture == was))
+                if (auto* sprite = sprites != nullptr ? sprites->Edit(entity) : nullptr; sprite != nullptr && (now.IsValid() || sprite->texture == was))
                     sprite->texture = now;
-                if (auto* decal = decals != nullptr ? decals->Get(entity) : nullptr; decal != nullptr && (now.IsValid() || decal->texture == was))
+                if (auto* decal = decals != nullptr ? decals->Edit(entity) : nullptr; decal != nullptr && (now.IsValid() || decal->texture == was))
                     decal->texture = now;
             };
             if (auto* canvases = tier.Scene->GetSystem<GuiCanvasComponentManager>())
-                canvases->ForEach(
+                canvases->ForEachEdit(
                     [&](GuiCanvasComponent& c, scene::EntityHandle entity)
                     {
                         if (c.renderMode != GuiCanvasRenderMode::RenderTexture || !c.renderRoot)
@@ -2176,7 +2176,7 @@ namespace engine::gui
             // does.
             constexpr u32 kEdge = 2;
             if (auto* panels = tier.Scene->GetSystem<GuiWorldPanelComponentManager>())
-                panels->ForEach(
+                panels->ForEachEdit(
                     [&](GuiWorldPanelComponent& c, scene::EntityHandle entity)
                     {
                         if (!c.renderRoot)
@@ -2190,7 +2190,7 @@ namespace engine::gui
                         const bool shown = c.visible && tier.Scene->IsEffectivelyActive(entity);
                         if (sprites != nullptr)
                         {
-                            engine::render::SpriteComponent* sprite = sprites->Get(entity);
+                            engine::render::SpriteComponent* sprite = sprites->Edit(entity);
                             if (sprite == nullptr)
                                 sprite = &sprites->Add(entity);
                             sprite->orientation = engine::render::SpriteOrientation::EntityOriented;
@@ -2219,10 +2219,10 @@ namespace engine::gui
             if (sceneHere && target.View.IsValid())
             {
                 if (auto* sprites = target.Scene->GetSystem<engine::render::SpriteComponentManager>())
-                    if (auto* sprite = sprites->Get(target.Entity); sprite != nullptr && sprite->texture == target.View)
+                    if (auto* sprite = sprites->Edit(target.Entity); sprite != nullptr && sprite->texture == target.View)
                         sprite->texture = {};
                 if (auto* decals = target.Scene->GetSystem<engine::render::DecalComponentManager>())
-                    if (auto* decal = decals->Get(target.Entity); decal != nullptr && decal->texture == target.View)
+                    if (auto* decal = decals->Edit(target.Entity); decal != nullptr && decal->texture == target.View)
                         decal->texture = {};
             }
             m_render->Release(target);

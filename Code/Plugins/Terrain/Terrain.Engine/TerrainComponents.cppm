@@ -142,7 +142,7 @@ export namespace terrain
                 return; // no GPU device wired (headless scene consumer): nothing to draw
             }
             ForEach(
-                [&](TerrainComponent& c, scene::EntityHandle owner)
+                [&](const TerrainComponent& c, scene::EntityHandle owner)
                 {
                     if (!c.visible || (m_scene != nullptr && !m_scene->IsEffectivelyActive(owner)))
                     {
