@@ -11,11 +11,13 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 #include "Core/Debug/Assert.h"
+#include "Profiler/Profiler.h"
 #include <type_traits>
 
 module foundation.scene;
 
 import foundation.core;
+import foundation.profiler; // the update's scopes
 
 using namespace foundation::core;
 
@@ -576,6 +578,7 @@ namespace foundation::scene
 
     void Scene::UpdateTransforms()
     {
+        PROFILE_SCOPE("Scene.UpdateTransforms");
         const u32 count = static_cast<u32>(m_transforms.Size());
         if (count == 0)
         {
@@ -882,6 +885,7 @@ namespace foundation::scene
 
     void Scene::Update(f32 deltaTime)
     {
+        PROFILE_SCOPE("Scene.Update");
         m_isUpdating = true;
         InitializePendingComponents(); // ScenePhase::Initialize
         RunPhase(ScenePhase::PreUpdate, deltaTime);
@@ -893,6 +897,7 @@ namespace foundation::scene
         UpdateTransforms(); // ScenePhase::TransformUpdate (internal)
         RunPhase(ScenePhase::PostTransform, deltaTime);
         m_isUpdating = false;
+        PROFILE_SCOPE("Scene.Cleanup");
         ProcessPendingDestroys(); // ScenePhase::Cleanup
     }
 
@@ -1128,8 +1133,26 @@ namespace foundation::scene
         return false;
     }
 
+    namespace
+    {
+        // A scope name per phase the update runs, as the profiler takes a lasting string.
+        [[nodiscard]] const char* PhaseScopeName(ScenePhase phase) noexcept
+        {
+            switch (phase)
+            {
+            case ScenePhase::PreUpdate: return "Scene.Phase.PreUpdate";
+            case ScenePhase::Update: return "Scene.Phase.Update";
+            case ScenePhase::AsyncUpdate: return "Scene.Phase.AsyncUpdate";
+            case ScenePhase::PostUpdate: return "Scene.Phase.PostUpdate";
+            case ScenePhase::PostTransform: return "Scene.Phase.PostTransform";
+            default: return "Scene.Phase";
+            }
+        }
+    }
+
     void Scene::RunPhase(ScenePhase phase, f32 deltaTime)
     {
+        PROFILE_SCOPE(PhaseScopeName(phase));
         for (SceneSystem* s : m_sortedSystems)
         {
             if (s->IsSimulationOnly() && !m_simulationEnabled)

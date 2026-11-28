@@ -3,7 +3,8 @@
 # top of Core; renderer-agnostic.
 util_add_engine_library(Scene ALIAS Foundation::Scene)
 target_link_libraries(Scene
-    PUBLIC Foundation::Core Foundation::Resource Foundation::Messaging Foundation::Run Foundation::Policy)
+    PUBLIC Foundation::Core Foundation::Resource Foundation::Messaging Foundation::Run Foundation::Policy
+    PRIVATE Foundation::Profiler) # the update's scopes
 
 target_sources(Scene
     PRIVATE
