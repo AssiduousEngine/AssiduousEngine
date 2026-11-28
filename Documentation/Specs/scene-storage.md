@@ -307,7 +307,8 @@ run concurrently in any of our script hosts.
 
 ## To decide
 
-1. **Which parts to build.** Recommended: step 0, then A and B if their scopes show a cost
+1. **Which parts to build.** Step 0 (above) recommends D alone, for the user to confirm. The
+   recommendation before it was step 0, then A and B if their scopes show a cost
    (they are small and contained), D when the retained render scene starts (its `Get` and
    `Edit` sweep is the one part here that touches every domain), C after measuring
    again with A and B in, E only for a named system that step 0 shows is slow and independent.
@@ -323,6 +324,47 @@ run concurrently in any of our script hosts.
    manager and off by default.
 6. **Names.** `AddMovedList`, `Moved`, `ClearMoved`, `Edit`, `ForEachEdit`, `DenseUnmarked`,
    `EditComponentInstance`, `SetMarking`, `Mark`, `Marked`, `ClearMarked`, `RunsConcurrently`.
+
+## Step 0 results (2026-11-27)
+
+Measured on branch `scene-storage` in `build/clang-reldbg` (RelWithDebInfo), RenderStressTest with
+100000 spheres, `--measure 300`, runs interleaved; the scopes are 7f74919ed's, the lookup benchmark
+538f0c102's, the partial move `--bob-count` ae51f34cc's.
+
+| Case | Frame | `Scene.UpdateTransforms` | `Render.Extract` |
+|---|---|---|---|
+| At rest (3 runs) | 36.1 to 37.7 ms | 0.63 to 0.65 ms | 6.1 to 6.2 ms |
+| 1000 of them moving (2 runs) | 36.4 to 36.8 ms | 0.67 ms | 6.2 ms |
+| All moving (3 runs) | 48.5 to 49.0 ms | 4.58 to 4.64 ms | 6.7 to 7.1 ms |
+
+- **The other scene phases** measured 0.002 ms or less each; `Scene.Phase.AsyncUpdate` holds
+  nothing here.
+- **A lookup** (`ComponentManager<T>::Get`, three runs): 10 to 18 ns, the most at 50% holding and
+  shuffled, the least at 100% in index order.
+- **Sizes:** `TransformData` 212 bytes (aligned to 4), `EntitySlot` 72, `Transform` 40,
+  `EntityHandle` 8.
+- **Real scenes:** the largest sample scene has 866 entities (Masquerade's Gardens); Palace and
+  Canal about 770, Lamplight's Cellars 653. 100000 entities is the stress tests' case alone.
+- **Reads:** four functions mark a transform dirty (`SetLocalTransform`, `SetLocalPosition`,
+  `SetParent`, `MoveBefore`); nothing outside the scene's tests reads the moved list or flag, so
+  B's order is free; a link could name a freed slot through an entity's own destroy hook, fixed
+  (a7445ee7c), and the links stay handles; 34 component manager types outside tests.
+
+**What it recommends.**
+
+- **B: not built.** At rest the scan is 0.64 ms of a 36 ms frame at 100000 entities, under 2%,
+  and scales with the slot count: a few microseconds at 866. With every entity moving, the 4.6 ms
+  is the recompute itself, which B does not touch. The gain does not pay for the new way to leave a
+  matrix stale (Risks).
+- **A: not built.** A lookup is 10 to 18 ns. The frame's large scene cost, extraction, asks the
+  scene's own arrays (`IsEffectivelyActive`, `GetWorldMatrix`), not a manager's map, so A does not
+  reach it; at sample scale a frame's lookups are microseconds.
+- **C: not built now.** Extraction is 6.1 ms at 100000 meshes, and C's packed matrices might
+  shorten it, but how much of it is reading `TransformData` was not measured. It comes back only if
+  a profile of extraction (or of the retained scene's sync) shows the reads dominating.
+- **E: not built.** No system runs in `AsyncUpdate`.
+- **D: built**, as planned, for the retained render scene: the moved lists, `Get` const and
+  `Edit`, and marking.
 
 ## Order of work
 
