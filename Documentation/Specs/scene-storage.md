@@ -1,7 +1,9 @@
 # Scene storage
 
 > APPROVED 2026-11-27 (after a review against master that day). Step 0 is done (its results
-> below, with the scopes they came from); D is being built; A, B, C and E stay open, with step 0's
+> below). D is BUILT (2026-11-28): moved lists 811d1b6e3, `Get` const and `Edit` 1e2c8380e, the
+> manager's marking and its Debug check 00a16edf5, scripts' writes marking 6821a6559; its first
+> consumer, the retained render scene, turns marking on. A, B, C and E stay open, with step 0's
 > numbers as their case. Decisions made: which parts to build (decision 1) and `Get` const with
 > `Edit` for every component manager (decision 5). Read on `master` at `b594bd2d4`; line numbers
 > will drift.
@@ -216,7 +218,7 @@ On `ComponentManagerBase`:
 ```
 void SetMarking(bool on);                    // off by default
 void Mark(EntityHandle entity);              // for a writer that holds no typed manager
-Span<const EntityHandle> Marked() const;     // each once
+Span<const EntityHandle> Marked();           // each once (drops entries whose component left)
 void ClearMarked();
 ```
 
@@ -229,7 +231,11 @@ void ClearMarked();
 - **The mark is per component, not per field.** The reader learns that it changed and reads it
   again.
 - **Paths that write without a typed manager** call `Mark` themselves, once each, for every
-  component type:
+  component type. As built, a script's write reaches the manager through Core's `Variant`: a host
+  calls `NoteWritten()` on the handle it wrote through, which resolves it with
+  `ResolveFor::Write`, and the scene's component resolver takes the write form. A struct member is
+  a value in both AngelScript and Luau, so a field set on it changes a copy and marks nothing; the
+  script sets the member back whole, which is a property set and marks.
   - a script's component handle already carries its scene, entity and manager
     (`SceneImpl.cpp:775`), and resolves the component on every read and write alike, so the
     mark is not taken at the resolve (that would mark on reads). All three hosts write a property
