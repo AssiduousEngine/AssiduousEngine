@@ -8,7 +8,8 @@ add_executable(Scene.Tests
     SceneSystemTests.cpp
     EntityEventTests.cpp
     SceneManagerTests.cpp
-    SceneCompositionTests.cpp)
+    SceneCompositionTests.cpp
+    ComponentLookupBenchmarkTests.cpp)
 
 target_link_libraries(Scene.Tests PRIVATE
     Foundation::Scene doctest::doctest)
